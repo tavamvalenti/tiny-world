@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiny World</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#f4efe6; --dim:rgba(244,239,230,.62); --glass:rgba(18,20,24,.46); --line:rgba(255,255,255,.14); --accent:#ffb347; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#0d0f12; color:var(--ink); font-family:Inter,system-ui,sans-serif; }
+  canvas#game { position:fixed; inset:0; width:100%; height:100%; display:block; cursor:crosshair; }
+  .bar { position:fixed; left:0; right:0; height:4.2vh; background:#000; z-index:5; pointer-events:none; }
+  .bar.top { top:0; } .bar.bot { bottom:0; }
+
+  #menu { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    background: radial-gradient(ellipse at 50% 40%, rgba(40,46,52,.55), rgba(8,9,11,.92) 70%); backdrop-filter: blur(6px); }
+  #menu h1 { font-family:'Playfair Display',serif; font-weight:500; font-size:clamp(44px,8vw,96px); letter-spacing:.08em; margin:0; }
+  #menu p.sub { margin:0 0 26px; color:var(--dim); font-style:italic; font-family:'Playfair Display',serif; font-size:clamp(15px,2vw,20px); text-align:center; padding:0 16px; }
+  #menu .maps { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; padding:0 16px; }
+  #menu button { font:600 13px Inter,sans-serif; letter-spacing:.22em; color:var(--ink); background:rgba(255,255,255,.06); border:1px solid var(--line);
+    padding:18px 30px; min-width:200px; border-radius:2px; cursor:pointer; transition:all .18s; }
+  #menu button:hover { background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.4); transform:translateY(-1px); }
+  #menu button small { display:block; font-weight:400; letter-spacing:.04em; color:var(--dim); margin-top:6px; font-size:11px; }
+  #loading { position:fixed; inset:0; z-index:25; display:none; align-items:center; justify-content:center; background:#0d0f12;
+    font:500 12px Inter; letter-spacing:.3em; color:var(--dim); }
+
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; display:none; }
+  #weapons { position:absolute; left:50%; bottom:calc(4.2vh + 14px); transform:translateX(-50%); display:flex; gap:6px; pointer-events:auto; }
+  #weapons .w { font:600 11px Inter; letter-spacing:.16em; color:var(--dim); background:var(--glass); border:1px solid var(--line);
+    padding:9px 14px; border-radius:2px; backdrop-filter:blur(8px); cursor:pointer; user-select:none; transition:all .15s; white-space:nowrap; }
+  #weapons .w b { color:rgba(255,255,255,.4); margin-right:6px; font-weight:500; }
+  #weapons .w.on { color:#fff; border-color:var(--wc,#fff); box-shadow:0 0 0 1px var(--wc,#fff) inset, 0 0 18px -4px var(--wc,#fff); }
+  #weapons .w.on b { color:var(--wc,#fff); }
+  #help { position:absolute; left:16px; bottom:calc(4.2vh + 14px); font:400 10.5px/1.7 Inter; color:rgba(255,255,255,.55); letter-spacing:.06em;
+    text-shadow:0 1px 3px rgba(0,0,0,.6); }
+  #help span { color:rgba(255,255,255,.85); display:inline-block; min-width:52px; }
+  #mapname { position:absolute; left:16px; top:calc(4.2vh + 12px); font:600 11px Inter; letter-spacing:.3em; color:rgba(255,255,255,.75); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+  #mapname small { display:block; font-weight:400; letter-spacing:.1em; color:rgba(255,255,255,.45); margin-top:4px; }
+  #stats { position:absolute; right:16px; top:calc(4.2vh + 12px); font:400 10px Inter; letter-spacing:.1em; color:rgba(255,255,255,.4); text-align:right; }
+  @media (max-width:760px) { #help { display:none; } #weapons .w { padding:8px 8px; letter-spacing:.06em; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="bar top"></div><div class="bar bot"></div>
+
+<div id="menu">
+  <h1>TINY WORLD</h1>
+  <p class="sub">An interactive miniature destruction sandbox</p>
+  <div class="maps">
+    <button data-map="downtown">DOWNTOWN<small>Dense brick &amp; glass city core</small></button>
+    <button data-map="tropical">TROPICAL TOWN<small>Beaches, hotels &amp; palms</small></button>
+    <button data-map="suburbs">SUBURBS<small>Lawns, schools &amp; cul-de-sacs</small></button>
+  </div>
+</div>
+<div id="loading">BUILDING MINIATURE…</div>
+
+<div id="hud">
+  <div id="mapname">DOWNTOWN<small>Esc — back to menu</small></div>
+  <div id="stats"></div>
+  <div id="weapons">
+    <div class="w" data-w="0" style="--wc:#ff5a3c"><b>1</b>LASER</div>
+    <div class="w" data-w="1" style="--wc:#ffb347"><b>2</b>BOMB</div>
+    <div class="w" data-w="2" style="--wc:#bfe9ff"><b>3</b>WIND</div>
+    <div class="w" data-w="3" style="--wc:#ff7a1a"><b>4</b>METEOR</div>
+    <div class="w" data-w="4" style="--wc:#8a7dff"><b>5</b>ENERGY</div>
+  </div>
+  <div id="help">
+    <span>WASD</span>Move<br><span>Mouse</span>Aim<br><span>Click</span>Fire (hold laser / wind)<br><span>Scroll</span>Zoom<br><span>Q / E</span>Rotate<br><span>1–5</span>Weapons
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
