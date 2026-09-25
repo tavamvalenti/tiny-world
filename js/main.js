@@ -350,3 +350,48 @@ onSettingsChange((s) => {
     resize();
   }
 });
+
+// ---------- touch: drag to move, pinch to zoom, tap / hold to fire ----------
+let touch = null;
+const pinchDist = (ts) => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
+canvasEl.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  sfx.unlock();
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    input.mx = t.clientX; input.my = t.clientY;
+    touch = { x: t.clientX, y: t.clientY, moved: false, firing: false };
+    touch.hold = setTimeout(() => { if (touch && !touch.moved && !touch.pinch) { touch.firing = true; input.down = true; input.pressed = true; } }, 220);
+  } else if (e.touches.length === 2) {
+    if (touch) clearTimeout(touch.hold);
+    input.down = false;
+    touch = { pinch: pinchDist(e.touches), d0: cam.distT };
+  }
+}, { passive: false });
+canvasEl.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!touch) return;
+  if (touch.pinch && e.touches.length === 2) {
+    cam.distT = clamp(touch.d0 * touch.pinch / pinchDist(e.touches), cam.minD, cam.maxD);
+    return;
+  }
+  const t = e.touches[0];
+  input.mx = t.clientX; input.my = t.clientY;
+  if (touch.firing) return;
+  const dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+  if (!touch.moved && Math.hypot(dx, dy) < 8) return;
+  touch.moved = true;
+  const k = cam.dist * 0.0022 * settings.moveSpeed / 100;
+  const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw), fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
+  cam.x = clamp(cam.x + (-dx * rx + dy * fx) * k, -cam.half, cam.half);
+  cam.z = clamp(cam.z + (-dx * rz + dy * fz) * k, cam.zMin, cam.half);
+  touch.x = t.clientX; touch.y = t.clientY;
+}, { passive: false });
+canvasEl.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (!touch || e.touches.length) return;
+  clearTimeout(touch.hold);
+  if (touch.firing) input.down = false;
+  else if (!touch.moved && !touch.pinch) { input.down = true; input.pressed = true; setTimeout(() => { input.down = false; }, 80); }
+  touch = null;
+}, { passive: false });
