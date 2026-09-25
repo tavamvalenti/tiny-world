@@ -415,6 +415,17 @@ export class City {
     for (let i = 0; i < xs.length; i++) if (Math.abs(x - xs[i]) < hw) for (let j = 0; j + 1 < zs.length; j++) if (z > zs[j] && z < zs[j + 1]) return this.edge(this.nid(i, j), this.nid(i, j + 1));
     return null;
   }
+  // Close streets and sidewalks inside an area (used for large landmark sites).
+  closeArea(r) {
+    const inside = (x, z) => x > r.x0 - 0.5 && x < r.x1 + 0.5 && z > r.z0 - 0.5 && z < r.z1 + 0.5;
+    for (const e of this.edges.values()) {
+      const a = this.nodes[e.a], b = this.nodes[e.b];
+      if (inside((a.x + b.x) / 2, (a.z + b.z) / 2)) { e.blocked = true; e.closed = true; }
+    }
+    for (const n of this.nodes) if (inside(n.x, n.z)) n.lit = false;
+    const dead = new Set(this.pedNodes.filter((n) => inside(n.x, n.z)).map((n) => n.id));
+    for (const n of this.pedNodes) n.edges = dead.has(n.id) ? [] : n.edges.filter((e) => !dead.has(e.to));
+  }
   addRubble(x, z, s) {
     const e = this.roadEdgeAt(x, z);
     if (!e) return;
@@ -425,7 +436,7 @@ export class City {
       const near = this.obstacles.find((o) => o.kind === 'rubble' && Math.hypot(o.x - x, o.z - z) < 2);
       if (near) near.r = Math.min(3, near.r + s * 0.15);
       else this.obstacles.push({ x, z, r: 1 + s * 0.3, kind: 'rubble' });
-      e.blocked = e.rubble > 3;
+      e.blocked = e.closed || e.transit || e.rubble > 3;
     }
   }
   addObstacle(x, z, r, kind) {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { rand, pick } from './core.js';
 import { City, Ground } from './city.js';
+import { petcoLayout, paintPetco } from './petco.js';
 
 const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace);
 const TINT = {
@@ -84,7 +85,7 @@ export function downtown(B) {
   const P = [-66, -44, -22, 0, 22, 44, 66];
   const ctx = makeCtx({ xs: P, zs: P, roadW: 5, sw: 1.7, half: 66, extent: 112, centerLine: 'yellow' }, B);
   const { city, g } = ctx;
-  const special = { '2,3': 'park', '0,4': 'parking', '4,1': 'parking', '3,2': 'plaza', '5,5': 'parking', '4,4': 'ballpark', '2,1': 'tower', '3,1': 'tower', '1,3': 'tower' };
+  const special = { '2,3': 'park', '0,4': 'parking', '4,1': 'parking', '3,2': 'plaza', '5,5': 'petco', '4,4': 'petco', '5,4': 'petco', '4,5': 'petco', '2,1': 'tower', '3,1': 'tower', '1,3': 'tower' };
   const towerFloors = { '2,1': 60, '3,1': 50, '1,3': 44 };
   // light rail runs down the street at z = 0 (a trolley-only transit mall), with two stations
   // the harbour is the west edge: seawall at x = -74, open water beyond (see harbor.js)
@@ -93,9 +94,28 @@ export function downtown(B) {
   ctx.skipOuter = (x, z) => x < -70;
   city.rail = { z: 0, stations: [{ x: 11, name: 'CIVIC CENTER' }, { x: -33, name: 'GASLAMP QUARTER' }] };
   city.towers = [];
+  // Petco Park takes a 2x2 block site in the south-east; the streets through it are closed
+  const site = { x0: P[4] + 2.5 + 1.7, x1: P[6] - 2.5 - 1.7, z0: P[4] + 2.5 + 1.7, z1: P[6] - 2.5 - 1.7 };
+  {
+    const outer = { x0: P[4] + 2.5, x1: P[6] - 2.5, z0: P[4] + 2.5, z1: P[6] - 2.5 };
+    city.paintSidewalk(g, outer);
+    paintPetco(g, site, city);
+    city.lampsAlongBlock(outer, 8);
+    for (let t = outer.x0 + 3; t < outer.x1 - 2; t += 5) { city.addTree(t, outer.z1 - 0.9, 0.9, 'palm'); city.addTree(t, outer.z0 + 0.9, 0.9, 'palm'); }
+    for (let t = outer.z0 + 3; t < outer.z1 - 2; t += 5) { city.addTree(outer.x0 + 0.9, t, 0.9, 'palm'); city.addTree(outer.x1 - 0.9, t, 0.9, 'palm'); }
+    const { H } = petcoLayout(site);
+    city.westernMetal = B.add({ x: H.x + 3.8, z: H.z - 17.7, w: 5, d: 3.4, floors: 4, style: 'brick', tint: hsl(0.03, 0.5, 0.42), cell: 1.6, fh: 1.05, gh: 1.4 });
+    city.petco = site;
+    const pos = [[0, 0], [2.15, -2.15], [4.8, 0.3], [4.6, -3.6], [2.6, -4.9], [0.3, -4.8], [10, -2], [8.5, -8.5], [2, -10], [-0.5, 0.5], [0.4, 0.8]];
+    for (const [px, pz] of pos) (city.crowds ||= []).push({ x: H.x + px, z: H.z + pz, r: 0.2, n: 1 });
+    crowdsAroundBlock(city, outer, 1, 0.9, 1.5);
+    crowdsIn(city, { x0: site.x1 - 7, x1: site.x1 - 1.5, z0: site.z0 + 1.5, z1: site.z0 + 8 }, 5, 3, 7);
+    city.closeArea(outer);
+  }
   for (const b of city.blocks) {
-    city.paintSidewalk(g, b);
     const kind = special[`${b.i},${b.j}`];
+    if (kind === 'petco') { b.closed = true; continue; }
+    city.paintSidewalk(g, b);
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 7.5);
     city.addProp('hydrant', b.x0 + 0.5, b.z0 + 2.2); city.addProp('bin', b.x1 - 0.5, b.z1 - 2.6);
@@ -128,33 +148,6 @@ export function downtown(B) {
       t.landmark = floors >= 55;
       city.towers.push(t);
       crowdsAroundBlock(city, b, 0.9, 0.4);
-    } else if (kind === 'ballpark') {
-      // Daygo ballpark: grandstands wrapped around home plate, diamond facing the outfield
-      const x0 = b.lx0 - 0.6, x1 = b.lx1 + 0.6, z0 = b.lz0 - 0.6, z1 = b.lz1 + 0.6;
-      city.paintGrass(g, x0, z0, x1, z1, '#4f7d33');
-      for (let k = 0; k < 8; k++) g.rect(x0, z0 + k * (z1 - z0) / 8, x1, z0 + (k + 0.5) * (z1 - z0) / 8, 'rgba(255,255,255,.05)'); // mowing stripes
-      const hx = x0 + 3.2, hz = z1 - 3.2; // home plate (near the camera side)
-      const X = g.x, K = g.k;
-      X.save(); X.translate(g.px(hx), g.px(hz));
-      X.fillStyle = '#b98a5a'; X.beginPath(); X.arc(0, 0, 6.2 * K, -Math.PI / 2, 0); X.lineTo(0, 0); X.fill();      // infield dirt arc
-      X.fillStyle = '#5a8a3a'; X.fillRect(0.9 * K, -4.1 * K, 3.2 * K, 3.2 * K);                                     // infield grass
-      X.fillStyle = '#fff'; for (const [bx, bz] of [[0, 0], [4.3, 0], [4.3, -4.3], [0, -4.3]]) X.fillRect(bx * K - 3, bz * K - 3, 6, 6);
-      X.strokeStyle = 'rgba(255,255,255,.85)'; X.lineWidth = 0.08 * K;
-      X.beginPath(); X.moveTo(0, 0); X.lineTo(11 * K, 0); X.moveTo(0, 0); X.lineTo(0, -11 * K); X.stroke();          // foul lines
-      X.fillStyle = '#b98a5a'; X.beginPath(); X.arc(2.15 * K, -2.15 * K, 0.5 * K, 0, 6.283); X.fill();               // mound
-      X.restore();
-      // stands: behind home and down both lines, low concrete sections (destructible like any building)
-      const st = { style: 'concrete', cell: 1.8, gh: 1.2, fh: 1.0, storefront: false };
-      B.add({ ...st, x: (x0 + x1) / 2 - 1, z: z1 - 1.1, w: x1 - x0 - 2, d: 2.2, floors: 2, tint: TINT.concrete() });
-      B.add({ ...st, x: x0 + 1.1, z: (z0 + z1) / 2 - 1, w: 2.2, d: z1 - z0 - 4.4, floors: 4, tint: TINT.concrete() });
-      B.add({ ...st, x: x1 - 1.0, z: z1 - 5.5, w: 2, d: 5, floors: 3, tint: TINT.concrete() });
-      city.ballpark = { x0, x1, z0, z1, hx, hz };
-      // players in position and fans on the concourse
-      const pos = [[0, 0], [2.15, -2.15], [4.8, 0.3], [4.6, -3.6], [2.6, -4.9], [0.3, -4.8], [9, -1.5], [7.6, -7.6], [1.5, -9], [-0.4, 0.4]];
-      for (const [px, pz] of pos) {
-        (city.crowds ||= []).push({ x: hx + px, z: hz + pz, r: 0.2, n: 1 });
-      }
-      crowdsAroundBlock(city, b, 1, 0.8, 1.4);
     } else if (kind === 'parking') {
       const spots = city.paintParking(g, b.lx0 - 0.3, b.lz0 - 0.3, b.lx1 + 0.3, b.lz1 + 0.3);
       for (const s of spots) if (Math.random() < 0.72) city.parked.push(s);

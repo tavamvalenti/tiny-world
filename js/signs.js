@@ -27,7 +27,7 @@ const ADS = [
   ['SUNNY COLA', 'Taste the sun.', '#d7261e', '#ffffff'], ['VOLTA MOTORS', 'The electric city car.', '#101820', '#5ce1e6'],
   ['FLY PACIFICA', 'Daily flights to paradise', '#0b62a4', '#ffffff'], ['GLOCKTON SAVINGS', 'Your neighborhood bank', '#12324f', '#f2d27a'],
   ['KOAST 98.1 FM', 'Surf rock all day', '#f28c28', '#1a1a1a'], ['NOVA PHONE X', 'See more.', '#f4f4f4', '#111111'],
-  ['MIDNIGHT BURGER', 'Open late', '#1c1c1c', '#ffcc00'], ['DAYGO BALLPARK', 'Friars vs. Harbor Sox  7:10', '#2f241d', '#ffc425'],
+  ['MIDNIGHT BURGER', 'Open late', '#1c1c1c', '#ffcc00'], ['PADRES BASEBALL', 'Tonight 7:10 · Petco Park', '#2f241d', '#ffc425'],
 ];
 
 function signAtlas(list) {
@@ -174,7 +174,7 @@ export class Signs {
 
     // ---- bus shelters + transit signs (with people waiting) ----
     const shelters = mapName === 'suburbs' ? 3 : 10;
-    const blocks = city.blocks.slice().sort(() => Math.random() - 0.5);
+    const blocks = city.blocks.filter((b) => !b.closed).sort(() => Math.random() - 0.5);
     for (let i = 0; i < Math.min(shelters, blocks.length); i++) {
       const bl = blocks[i];
       const onZ = Math.random() < 0.5;
@@ -241,19 +241,6 @@ export class Signs {
       } else {
         for (const [ex, ez] of [[ax + 0.3, cz], [bx - 0.3, cz]]) glowBox(ex, y0 + 0.2, ez, 0.2, 0.2, 0.2, 'beacon', mid);
       }
-    }
-    // ---- ballpark: light towers + scoreboard ----
-    const bp = city.ballpark;
-    if (bp) {
-      for (const [x, z] of [[bp.x0 + 0.5, bp.z0 + 0.5], [bp.x1 - 0.5, bp.z0 + 0.5], [bp.x1 - 0.5, bp.z1 - 7], [bp.x0 + 3.5, bp.z0 + 0.5]]) {
-        box(x, 3.5, z, 0.16, 7, 0.16);
-        box(x, 7.1, z, 1.2, 0.5, 0.16, Math.atan2(bp.hx - x, bp.hz - z));
-        glowBox(x, 7.1, z, 1.1, 0.4, 0.2, 'stadium');
-      }
-      const sx = bp.x1 - 3, sz = bp.z0 + 1.2, rot = Math.atan2(bp.hx - sx, bp.hz - sz);
-      box(sx - 1, 1.6, sz, 0.14, 3.2, 0.14); box(sx + 1, 1.6, sz, 0.14, 3.2, 0.14);
-      add(ads, sx, 3.9, sz, rot, 4.4, 1.1, adUV(7));
-      add(ads, bp.x0 + 6, 2.9, bp.z1 + 0.06, 0, 3.6, 0.9, adUV(7)); // entrance sign
     }
     this.glow.instanceMatrix.needsUpdate = true;
     this.glow.frustumCulled = false;

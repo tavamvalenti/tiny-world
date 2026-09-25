@@ -13,7 +13,7 @@ const SKIN = [0xe8c4a8, 0xc99b78, 0x9a6b4c, 0x6b4630, 0xf0d6c0, 0xb07e5a];
 const HAIR = [0x1a1410, 0x2e2118, 0x5a3b22, 0x8a6a3a, 0xc9a86a, 0x6b6b6b, 0x0e0e0e];
 const EMERG_TYPES = ['police', 'police', 'police', 'police', 'police', 'fire', 'fire', 'fire', 'fire', 'ambulance', 'ambulance', 'ambulance', 'ambulance', 'police'];
 
-function carGeos() {
+export function carGeos() {
   const body = mergeGeometries([
     new THREE.BoxGeometry(0.66, 0.2, 1.55).translate(0, 0.2, 0),
     new THREE.BoxGeometry(0.6, 0.035, 0.74).translate(0, 0.505, -0.08),
@@ -440,7 +440,7 @@ export class Agents {
       p.target = { x: rand(p.zone.x0, p.zone.x1), z: rand(p.zone.z0, p.zone.z1) };
       if (Math.random() < 0.3) { p.state = 'idle'; p.timer = rand(5, 40); }
     } else {
-      const n = pick(C.pedNodes), e = pick(n.edges.filter((e) => !e.light)) || n.edges[0];
+      const n = pick(C.pedNodes.filter((n) => n.edges.length)), e = pick(n.edges.filter((e) => !e.light)) || n.edges[0];
       const t = Math.random(), m = C.pedNodes[e.to];
       p.pos.set(n.x + (m.x - n.x) * t, 0, n.z + (m.z - n.z) * t);
       p.from = n.id; p.to = m.id;
@@ -562,7 +562,7 @@ export class Agents {
     const C = this.city;
     if (p.zone) { p.state = 'return'; p.target = { x: clamp(p.pos.x, p.zone.x0, p.zone.x1), z: clamp(p.pos.z, p.zone.z0, p.zone.z1) }; return; }
     let best = null, bd = 1e9;
-    for (const n of C.pedNodes) { const d = Math.hypot(n.x - p.pos.x, n.z - p.pos.z); if (d < bd && !C.obstacleNear(n.x, n.z, 0.5)) { bd = d; best = n; } }
+    for (const n of C.pedNodes) { if (!n.edges.length) continue; const d = Math.hypot(n.x - p.pos.x, n.z - p.pos.z); if (d < bd && !C.obstacleNear(n.x, n.z, 0.5)) { bd = d; best = n; } }
     if (!best) return;
     // walk back to the nearest sidewalk corner, then continue along the graph from there
     p.state = 'return'; p.target = { x: best.x, z: best.z };

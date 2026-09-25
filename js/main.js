@@ -14,6 +14,7 @@ import { Signs } from './signs.js';
 import { buildBackdrop } from './backdrop.js';
 import { Trolley } from './trolley.js';
 import { Harbor } from './harbor.js';
+import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
 export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'GLOCKTON' };
@@ -143,6 +144,7 @@ function load(name) {
   buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
+  G.petco = map.city.petco ? new Petco(scene, map.city, map.city.petco, B) : null;
   if (map.city.crowdsLate) (map.city.crowds ||= []).push(...map.city.crowdsLate);
   G.fx = new FX(scene);
   G.agents = new Agents(scene, map.city, map.agents);
@@ -261,6 +263,7 @@ function step(dt) {
   G.city.update(dt);
   G.trains && G.trains.update(dt);
   G.harbor && G.harbor.update(dt);
+  G.petco && G.petco.update(dt);
   signs && signs.update();
   ambience && ambience.update(dt);
   updateBoats(dt);

@@ -8,7 +8,7 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 
 // events per second, per map
 const RATES = {
-  downtown: { car: 1.3, horn: 0.1, siren: 1 / 45, chatter: 1.6, say: 0, music: 1 / 28, birds: 0.05, dog: 0, mower: 0, construct: 1 / 25, gull: 0.05, boat: 1 / 60 },
+  downtown: { car: 1.3, horn: 0.1, siren: 1 / 45, chatter: 1.6, say: 0, music: 1 / 28, birds: 0.05, dog: 0, mower: 0, construct: 1 / 25, gull: 0.05, boat: 1 / 60, stadium: 1 / 7 },
   tropical: { car: 0.45, horn: 0.03, siren: 1 / 150, chatter: 1.0, say: 0, music: 1 / 18, birds: 0.08, dog: 1 / 80, mower: 0, construct: 0, gull: 0.18, boat: 1 / 70 },
   suburbs: { car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 1 / 90, birds: 0.35, dog: 1 / 16, mower: 1 / 45, construct: 1 / 120, gull: 0, boat: 0 },
 };
@@ -160,6 +160,7 @@ export class Ambience {
         sfx.say(pickLine(scared ? REACT : CASUAL), p.pos.x, p.pos.z, 0.3);
         return;
       }
+      case 'stadium': this.stadium(); return;
       case 'music': this.music(); return;
       case 'birds': case 'gull': this.bird(k === 'gull'); return;
       case 'dog': this.dog(); return;
@@ -200,6 +201,19 @@ export class Ambience {
         I.burst(fade, tq + beat / 2, { type: 'highpass', f: 7000, a: 0.001, peak: 0.04, d: 0.04 });
       }
     }
+  }
+
+  // crowd reaction drifting out of the ballpark: a swelling roar, sometimes applause
+  stadium() {
+    const P = G.petco;
+    if (!P) return;
+    const I = this.I, t = I.ctx.currentTime;
+    const s = I.spatial(P.center.x, P.center.z);
+    if (s.D > 110) return;
+    const ch = I.chain(P.center.x, P.center.z, { bus: I.ambBus, vol: 1.1, wetBoost: 0.25 });
+    const big = Math.random() < 0.3, d = big ? R(3, 5) : R(1.5, 3);
+    I.burst(ch.input, t, { buf: I.pink, type: 'bandpass', f: big ? 900 : 700, q: 0.6, a: big ? 0.25 : 0.5, peak: big ? 0.55 : 0.25, d });
+    if (Math.random() < 0.6) for (let i = 0; i < 70; i++) I.burst(ch.input, t + R(0.2, d), { f: R(1500, 3500), q: 2, a: 0.001, peak: R(0.02, 0.06), d: 0.02 });
   }
 
   bird(gull) {
