@@ -12,6 +12,7 @@ import { Ambience } from './ambience.js';
 import { TimeOfDay } from './tod.js';
 import { Signs } from './signs.js';
 import { buildBackdrop } from './backdrop.js';
+import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
 export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'GLOCKTON' };
 
@@ -20,7 +21,8 @@ const canvasEl = $('#game');
 const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: false, powerPreference: 'high-performance' });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-const PR = Math.min(window.devicePixelRatio || 1, 1.5);
+const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+let PR = DPR;
 renderer.setPixelRatio(1);
 const post = new Post(renderer);
 
@@ -117,6 +119,9 @@ function load(name) {
   const facades = makeFacades();
   const B = new Buildings(facades);
   const map = MAPS[name](B);
+  const density = { low: 0.5, normal: 1, high: 1.5 }[settings.crowds] || 1;
+  map.agents.peds = Math.round(map.agents.peds * density);
+  if (map.city.crowds) for (const c of map.city.crowds) c.n = Math.max(1, Math.round(c.n * density));
   G.buildings = B; G.city = map.city; G.ground = map.g;
   scene.background = new THREE.Color(map.fog);
   scene.fog = new THREE.Fog(map.fog, 100, 300);
@@ -159,22 +164,23 @@ const ray = new THREE.Raycaster();
 function updateCamera(dt) {
   const f = keys.KeyW || keys.ArrowUp ? 1 : 0, b = keys.KeyS || keys.ArrowDown ? 1 : 0;
   const l = keys.KeyA || keys.ArrowLeft ? 1 : 0, r = keys.KeyD || keys.ArrowRight ? 1 : 0;
-  const sp = cam.dist * 0.75 * (keys.ShiftLeft ? 1.8 : 1);
+  const sp = cam.dist * 0.75 * (keys.ShiftLeft ? 1.8 : 1) * settings.moveSpeed / 100;
   const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
   const ax = (f - b) * fx + (r - l) * rx, az = (f - b) * fz + (r - l) * rz;
   const k = 1 - Math.exp(-dt * 6);
   cam.vx = lerp(cam.vx, ax * sp, k); cam.vz = lerp(cam.vz, az * sp, k);
   cam.x = clamp(cam.x + cam.vx * dt, -cam.half, cam.half);
   cam.z = clamp(cam.z + cam.vz * dt, cam.zMin, cam.half);
-  if (keys.KeyQ) cam.yawT += dt * 0.9;
-  if (keys.KeyE) cam.yawT -= dt * 0.9;
+  const rs = 0.9 * settings.rotateSpeed / 100;
+  if (keys.KeyQ) cam.yawT += dt * rs;
+  if (keys.KeyE) cam.yawT -= dt * rs;
   cam.yaw = lerp(cam.yaw, cam.yawT, 1 - Math.exp(-dt * 5));
   cam.dist = lerp(cam.dist, cam.distT, 1 - Math.exp(-dt * 6));
   const zt = (cam.dist - cam.minD) / (cam.maxD - cam.minD);
   const pitch = lerp(0.8, 0.98, zt); // ~46° close up to ~56° far out: always the same aerial 3/4 look
   // gentle hover drift, like a massive craft holding position
   const hx = Math.sin(G.time * 0.31) * 0.25, hy = Math.sin(G.time * 0.23) * 0.3;
-  const sh = G.shake;
+  const sh = G.shake * settings.shake / 100;
   camera.position.set(
     cam.x + Math.sin(cam.yaw) * Math.cos(pitch) * cam.dist + hx + (Math.random() - 0.5) * sh * 0.45,
     Math.sin(pitch) * cam.dist + hy + (Math.random() - 0.5) * sh * 0.45,
@@ -187,13 +193,13 @@ function updateCamera(dt) {
   // tilt-shift band narrows as you zoom in, strengthening the miniature illusion
   post.focusY = 0.5;
   post.band = lerp(0.16, 0.3, zt);
-  post.maxBlur = lerp(15, 11, zt);
+  post.maxBlur = lerp(15, 11, zt) * settings.tiltShift / 100;
   // sun + shadow frustum follow the view, snapped to shadow texels to avoid shimmer
   const ext = clamp(cam.dist * 0.75, 30, 95);
   const sc = sun.shadow.camera;
   sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.near = 1; sc.far = 400;
   sc.updateProjectionMatrix();
-  const texel = (ext * 2) / 4096;
+  const texel = (ext * 2) / sun.shadow.mapSize.x;
   const tx = Math.round(cam.x / texel) * texel, tz = Math.round(cam.z / texel) * texel;
   sun.target.position.set(tx, 0, tz);
   const sd = tod ? tod.sunDir : SUN_DIR;
@@ -228,7 +234,7 @@ function updateBoats(dt) {
 let last = performance.now(), fpsT = 0, frames = 0, fps = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  if (!running) return;
+  if (!running || settingsOpen) { last = now; return; }
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   step(dt);
@@ -269,6 +275,7 @@ requestAnimationFrame(frame);
 
 // ---------- input ----------
 window.addEventListener('keydown', (e) => {
+  if (settingsOpen) { if (e.code === 'Escape') closeSettings(); return; }
   keys[e.code] = true;
   if (!running) return;
   if (e.code >= 'Digit1' && e.code <= 'Digit5') selectWeapon(+e.code.slice(5) - 1);
@@ -282,13 +289,17 @@ canvasEl.addEventListener('mousemove', (e) => { input.mx = e.clientX; input.my =
 canvasEl.addEventListener('mousedown', (e) => { if (e.button === 0) { input.down = true; input.pressed = true; sfx.unlock(); } });
 window.addEventListener('mouseup', (e) => { if (e.button === 0) input.down = false; });
 canvasEl.addEventListener('contextmenu', (e) => e.preventDefault());
-canvasEl.addEventListener('wheel', (e) => { e.preventDefault(); cam.distT = clamp(cam.distT * Math.exp(e.deltaY * 0.0012), cam.minD, cam.maxD); }, { passive: false });
+canvasEl.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const k = 0.0012 * settings.zoomSpeed / 100 * (settings.invertZoom ? -1 : 1);
+  cam.distT = clamp(cam.distT * Math.exp(e.deltaY * k), cam.minD, cam.maxD);
+}, { passive: false });
 document.querySelectorAll('#weapons .w').forEach((el) => el.addEventListener('click', () => selectWeapon(+el.dataset.w)));
 function setTodButtons() { document.querySelectorAll('#tod .t').forEach((el) => el.classList.toggle('on', tod && el.dataset.t === tod.mode)); }
 document.querySelectorAll('#tod .t').forEach((el) => el.addEventListener('click', () => { tod.set(el.dataset.t, makeEnv); setTodButtons(); }));
 $('#mute').addEventListener('click', () => { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; });
 
-document.querySelectorAll('#menu button').forEach((btn) => btn.addEventListener('click', () => {
+document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEventListener('click', () => {
   sfx.unlock();
   $('#menu').style.display = 'none';
   $('#loading').style.display = 'flex';
@@ -310,3 +321,32 @@ document.querySelectorAll('#menu button').forEach((btn) => btn.addEventListener(
 // allow ?map=downtown for quick testing
 const qp = new URLSearchParams(location.search).get('map');
 if (qp && MAPS[qp]) document.querySelector(`#menu button[data-map="${qp}"]`).click();
+
+// ---------- settings ----------
+let settingsOpen = false;
+const settingsRoot = $('#settings');
+function openSettings() {
+  settingsOpen = true;
+  input.down = false;
+  for (const k in keys) keys[k] = false;
+  buildSettingsPanel(settingsRoot, { onClose: closeSettings });
+  settingsRoot.style.display = 'flex';
+}
+function closeSettings() { settingsOpen = false; settingsRoot.style.display = 'none'; }
+document.querySelectorAll('.open-settings').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openSettings(); }));
+settingsRoot.addEventListener('mousedown', (e) => { if (e.target === settingsRoot) closeSettings(); });
+let lastQuality = null;
+onSettingsChange((s) => {
+  sfx.setVolumes({ master: s.master / 100, sfx: s.sfx / 100, ambience: s.ambience / 100, voices: s.voices / 100, speech: s.speech });
+  post.final.uniforms.grain.value = s.grain / 100;
+  if (s.quality !== lastQuality) {
+    lastQuality = s.quality;
+    PR = { low: 0.75, medium: 1, high: DPR }[s.quality] || DPR;
+    const ms = { low: 1024, medium: 2048, high: 4096 }[s.quality] || 4096;
+    if (sun.shadow.mapSize.x !== ms) {
+      sun.shadow.mapSize.set(ms, ms);
+      if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+    }
+    resize();
+  }
+});

@@ -23,6 +23,28 @@
     padding:18px 30px; min-width:200px; border-radius:2px; cursor:pointer; transition:all .18s; }
   #menu button:hover { background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.4); transform:translateY(-1px); }
   #menu button small { display:block; font-weight:400; letter-spacing:.04em; color:var(--dim); margin-top:6px; font-size:11px; }
+  .region .ico.sdimg { background:#2f241d; box-shadow:none; object-fit:contain; border-radius:3px; }
+  #menu button.menu-settings { min-width:0; padding:10px 22px; margin-top:18px; font-size:11px; color:var(--dim); background:transparent; }
+  #settings { position:fixed; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(6,7,9,.62); backdrop-filter:blur(6px); padding:16px; }
+  .sp { width:min(520px,100%); max-height:88vh; display:flex; flex-direction:column; background:rgba(20,22,26,.96); border:1px solid var(--line); border-radius:4px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .sp h2 { margin:0; padding:20px 24px 12px; font:500 26px 'Playfair Display',serif; letter-spacing:.12em; }
+  .sp-body { overflow:auto; padding:0 24px 8px; }
+  .sp h3 { font:600 10px Inter; letter-spacing:.28em; color:var(--accent); margin:18px 0 6px; }
+  .sp-row { display:grid; grid-template-columns:1fr 150px 48px; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.06); font:500 13px Inter; cursor:pointer; }
+  .sp-name small { display:block; font-weight:400; font-size:11px; color:var(--dim); margin-top:2px; }
+  .sp-val { font:500 12px Inter; color:var(--dim); text-align:right; font-variant-numeric:tabular-nums; }
+  .sp-row input[type=range] { width:100%; accent-color:var(--accent); }
+  .sp-row select { grid-column:2 / 4; background:#23262b; color:var(--ink); border:1px solid var(--line); padding:6px 8px; font:500 12px Inter; border-radius:3px; }
+  .sp-row input[type=checkbox] { position:absolute; opacity:0; pointer-events:none; }
+  .sp-switch { grid-column:2 / 4; justify-self:end; width:38px; height:22px; border-radius:11px; background:#3a3d42; position:relative; transition:background .15s; }
+  .sp-switch::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left .15s; }
+  .sp-row input:checked + .sp-switch { background:var(--accent); }
+  .sp-row input:checked + .sp-switch::after { left:19px; }
+  .sp-row input:focus-visible + .sp-switch, .sp-row input:focus-visible, .sp-row select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .sp-foot { display:flex; justify-content:space-between; gap:10px; padding:14px 24px 20px; border-top:1px solid var(--line); }
+  .sp-foot button { font:600 11px Inter; letter-spacing:.2em; color:var(--ink); background:rgba(255,255,255,.06); border:1px solid var(--line); padding:11px 18px; cursor:pointer; border-radius:2px; }
+  .sp-foot button.primary { background:var(--accent); color:#1a1206; border-color:var(--accent); }
+  @media (max-width:520px) { .sp-row { grid-template-columns:1fr 110px 40px; } }
   #loading { position:fixed; inset:0; z-index:25; display:none; align-items:center; justify-content:center; background:#0d0f12;
     font:500 12px Inter; letter-spacing:.3em; color:var(--dim); }
 
@@ -44,7 +66,7 @@
   #mapname small { display:block; font-weight:400; letter-spacing:.1em; color:rgba(255,255,255,.45); margin-top:4px; }
   #topright { position:absolute; right:16px; top:calc(4.2vh + 12px); display:flex; gap:8px; align-items:center; pointer-events:auto; }
   #tod { display:flex; gap:2px; }
-  #tod .t, #mute { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none; }
+  #tod .t, #mute, #gear { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none; }
   #tod .t.on { color:#fff; border-color:rgba(255,255,255,.55); }
   #stats { position:absolute; right:16px; top:calc(4.2vh + 44px); font:400 10px Inter; letter-spacing:.1em; color:rgba(255,255,255,.4); text-align:right; }
   @media (max-width:760px) { #help { display:none; } #weapons .w { padding:8px 8px; letter-spacing:.06em; } }
@@ -64,11 +86,13 @@
   <h1>TINY WORLD</h1>
   <p class="sub">An interactive miniature destruction sandbox</p>
   <div class="maps">
-    <button data-map="downtown">GASLAMP DISTRICT<span class="region"><svg class="ico sd" viewBox="0 0 30 20" aria-label="SD"><text x="8.2" y="16.2" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="17" fill="#2f241d" stroke="#ffc425" stroke-width=".9" paint-order="stroke">S</text><text x="13.4" y="17" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="16" fill="#2f241d" stroke="#ffc425" stroke-width=".9" paint-order="stroke">D</text></svg>DAYGO</span><small>Downtown · brick, glass &amp; crowds</small></button>
+    <button data-map="downtown">GASLAMP DISTRICT<span class="region"><img class="ico sdimg" src="assets/sd-logo.png" alt="SD" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><svg class="ico sd" style="display:none" viewBox="0 0 30 20" aria-label="SD"><text x="8.2" y="16.2" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="17" fill="#2f241d" stroke="#ffc425" stroke-width=".9" paint-order="stroke">S</text><text x="13.4" y="17" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="16" fill="#2f241d" stroke="#ffc425" stroke-width=".9" paint-order="stroke">D</text></svg>DAYGO</span><small>Downtown · brick, glass &amp; crowds</small></button>
     <button data-map="tropical">LA PLAYA<span class="region"><img class="ico" src="assets/flag-mexico.png" alt="Mexico flag">MEXICO</span><small>Tropical town · beach, hotels &amp; palms</small></button>
     <button data-map="suburbs">GLOCKTON<span class="region"><img class="ico" src="assets/flag-california.png" alt="California flag">CALIFORNIA</span><small>Suburbs · lawns, school &amp; main street</small></button>
   </div>
+  <button class="open-settings menu-settings">SETTINGS</button>
 </div>
+<div id="settings"></div>
 <div id="loading">BUILDING MINIATURE…</div>
 
 <div id="hud">
@@ -77,6 +101,7 @@
   <div id="topright">
     <div id="tod"><span class="t" data-t="day">DAY</span><span class="t" data-t="sunset">SUNSET</span><span class="t" data-t="night">NIGHT</span></div>
     <span id="mute">SOUND ON</span>
+    <span class="open-settings" id="gear">SETTINGS</span>
   </div>
   <div id="weapons">
     <div class="w" data-w="0" style="--wc:#ff5a3c"><b>1</b>LASER</div>
@@ -90,6 +115,6 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=3"></script>
+<script type="module" src="js/main.js?v=4"></script>
 </body>
 </html>

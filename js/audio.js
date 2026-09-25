@@ -5,7 +5,9 @@
 import { G } from './core.js';
 
 export const A = { ctx: null, muted: false };
-let ctx = null, master, sfxBus, ambBus, reverb, revSend, echo, echoSend;
+let ctx = null, master, sfxBus, ambBus, ambVol, voiceBus, reverb, revSend, echo, echoSend;
+// user volume settings (0..1), applied whenever the engine exists
+const VOL = { master: 0.8, sfx: 0.9, ambience: 0.75, voices: 0.7, speech: true };
 let white, pink, brown;
 const voicePool = { talk: [], laugh: [], scream: [], murmur: null };
 
@@ -52,10 +54,14 @@ function init() {
     A.ctx = ctx;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 6; comp.attack.value = 0.004; comp.release.value = 0.25;
-    master = ctx.createGain(); master.gain.value = 0.9;
+    master = ctx.createGain(); master.gain.value = VOL.master * 1.1;
     master.connect(comp); comp.connect(ctx.destination);
     sfxBus = ctx.createGain(); sfxBus.connect(master);
-    ambBus = ctx.createGain(); ambBus.connect(master);
+    // ambBus is used for ducking; ambVol carries the user's ambience volume
+    ambVol = ctx.createGain(); ambVol.gain.value = VOL.ambience; ambVol.connect(master);
+    ambBus = ctx.createGain(); ambBus.connect(ambVol);
+    voiceBus = ctx.createGain(); voiceBus.gain.value = VOL.voices; voiceBus.connect(master);
+    sfxBus.gain.value = VOL.sfx;
     reverb = ctx.createConvolver(); reverb.buffer = impulse(3.6, 2.6);
     const revOut = ctx.createGain(); revOut.gain.value = 0.55;
     reverb.connect(revOut); revOut.connect(master);
@@ -214,7 +220,7 @@ function buildVoices() {
 function voice(kind, x, z, vol = 1, rate = 1) {
   const pool = voicePool[kind];
   if (!pool || !pool.length) return;
-  const ch = chain(x, z, { vol });
+  const ch = chain(x, z, { vol, bus: voiceBus });
   const s = ctx.createBufferSource(); s.buffer = pool[(Math.random() * pool.length) | 0];
   s.playbackRate.value = rate * R(0.92, 1.08);
   // voices are always a little muffled: overheard, not addressed to the player
@@ -227,14 +233,14 @@ function voice(kind, x, z, vol = 1, rate = 1) {
 // Occasional clearly-spoken phrase via the browser's speech engine (quiet and rare).
 let speechBusy = false, voicesList = null;
 function say(text, x, z, vol = 0.35) {
-  if (A.muted || !('speechSynthesis' in window) || speechBusy) return;
+  if (A.muted || !VOL.speech || VOL.master <= 0 || !('speechSynthesis' in window) || speechBusy) return;
   const s = spatial(x, z);
   if (s.gain < 0.18) return;
   try {
     voicesList ||= speechSynthesis.getVoices().filter((v) => v.lang && v.lang.startsWith('en'));
     const u = new SpeechSynthesisUtterance(text);
     if (voicesList.length) u.voice = voicesList[(Math.random() * voicesList.length) | 0];
-    u.volume = Math.min(1, vol * s.gain * 1.6); u.rate = R(0.95, 1.2); u.pitch = R(0.75, 1.35);
+    u.volume = Math.min(1, vol * s.gain * 1.6 * VOL.master * 1.2 * Math.max(0.2, VOL.voices)); u.rate = R(0.95, 1.2); u.pitch = R(0.75, 1.35);
     speechBusy = true;
     u.onend = u.onerror = () => { speechBusy = false; };
     setTimeout(() => { speechBusy = false; }, 4000);
@@ -328,10 +334,19 @@ function stopWind() {
 export const sfx = {
   unlock() { if (init() && ctx.state === 'suspended') ctx.resume(); },
   get ready() { return !!ctx; },
+  setVolumes(v) {
+    Object.assign(VOL, v);
+    if (!ctx) return;
+    const t = now();
+    master.gain.setTargetAtTime(A.muted ? 0 : VOL.master * 1.1, t, 0.05);
+    sfxBus.gain.setTargetAtTime(VOL.sfx, t, 0.05);
+    ambVol.gain.setTargetAtTime(VOL.ambience, t, 0.05);
+    voiceBus.gain.setTargetAtTime(VOL.voices, t, 0.05);
+  },
   toggleMute() {
     if (!init()) return false;
     A.muted = !A.muted;
-    master.gain.setTargetAtTime(A.muted ? 0 : 0.9, now(), 0.05);
+    master.gain.setTargetAtTime(A.muted ? 0 : VOL.master * 1.1, now(), 0.05);
     if (A.muted && 'speechSynthesis' in window) speechSynthesis.cancel();
     return A.muted;
   },
@@ -538,7 +553,7 @@ export const sfx = {
     sirens.add(h);
     return h;
   },
-  _internals: () => ({ ctx, chain, burst, tone, noise, filt, amp, osc, voice, ambBus, sfxBus, white, pink, brown, voicePool, spatial, say }),
+  _internals: () => ({ ctx, chain, burst, tone, noise, filt, amp, osc, voice, ambBus, sfxBus, voiceBus, white, pink, brown, voicePool, spatial, say }),
 };
 
 // ---------- phrases ----------
