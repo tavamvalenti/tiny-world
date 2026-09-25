@@ -520,6 +520,19 @@ export const sfx = {
   },
   chatter(x, z, vol = 0.25) { if (init()) voice(Math.random() < 0.12 ? 'laugh' : 'talk', x, z, vol); },
   say,
+  // trolley bell: two bright struck tones, rung twice
+  bell(x, z) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.5, bus: ambBus });
+    for (const k of [0, 0.32]) for (const f of [1480, 2230, 3690]) tone(ch.input, t + k, { f, a: 0.002, peak: f === 1480 ? 0.12 : 0.05, d: 0.9 });
+  },
+  // steel wheels over rail joints
+  clack(x, z) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.35, bus: ambBus });
+    for (const k of [0, 0.09]) burst(ch.input, t + k, { f: R(900, 1600), q: 3, a: 0.001, peak: 0.12, d: 0.04 });
+    burst(ch.input, t, { buf: brown, type: 'lowpass', f: 260, a: 0.02, peak: 0.25, d: 0.5 });
+  },
   horn(x, z, vol = 0.5) {
     if (!init()) return;
     const t = now(), ch = chain(x, z, { vol });

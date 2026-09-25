@@ -32,4 +32,5 @@ export function blast(x, y, z, radius, power, kind = 'explosion') {
   G.agents && G.agents.onBlast(x, y, z, radius, power, kind);
   G.city && G.city.onBlast(x, y, z, radius, power, kind);
   G.fx && G.fx.onBlast(x, y, z, radius, power, kind);
+  G.trains && G.trains.onBlast(x, y, z, radius, power, kind);
 }

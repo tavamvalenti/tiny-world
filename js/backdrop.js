@@ -73,7 +73,8 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
     const cx = city.xs[0] + (ix + 0.5) * pitch, cz = city.zs[0] + (iz + 0.5) * pitchZ;
     const far = Math.max(Math.abs(cx), Math.abs(cz));
     if (far < E + 2 || far > MAXR) continue;
-    if (water && cz < water.shore + 6) continue;
+    if (water && (water.axis === 'x' ? cx < water.shore + 6 : cz < water.shore + 6)) continue;
+    if (city.bridgeClear && city.bridgeClear.some((c) => Math.hypot(cx - c.x, cz - c.z) < c.r + 8)) continue;
     const lot = pitch - city.roadW - 3.4, lotZ = pitchZ - city.roadW - 3.4;
     if (mapName === 'suburbs') {
       for (let k = 0; k < 6; k++) {

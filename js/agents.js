@@ -115,7 +115,7 @@ export class Agents {
     const r = Math.random();
     const c = this.newCar(i, r < 0.05 ? 'bus' : r < 0.14 ? 'van' : r < 0.3 ? 'suv' : 'car');
     const C = this.city;
-    const edges = [...C.edges.values()];
+    const edges = [...C.edges.values()].filter((e) => !e.blocked);
     for (let tries = 0; tries < 30; tries++) {
       const e = pick(edges);
       const [a, b] = Math.random() < 0.5 ? [e.a, e.b] : [e.b, e.a];
@@ -279,6 +279,8 @@ export class Agents {
     const hx = c.pos.x + fx * 1.2, hz = c.pos.z + fz * 1.2;
     const cell = this.grid.get(this.gk(hx, hz));
     if (cell) for (const p of cell) if (p.state !== 'air' && Math.hypot(p.pos.x - hx, p.pos.z - hz) < 0.8) target = Math.min(target, 0);
+    // yield to trolleys at the transit-mall crossings
+    if (G.trains && (G.trains.blocks(c.pos.x + fx * 1.8, c.pos.z + fz * 1.8) || G.trains.blocks(c.pos.x + fx * 3.6, c.pos.z + fz * 3.6))) target = 0;
     const obs = C.obstacleNear(c.pos.x + fx * 2, c.pos.z + fz * 2, 0.7);
     if (obs) target = 0;
     if (target < 0.1 && (obs || c.speed < 0.1)) {

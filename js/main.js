@@ -12,6 +12,8 @@ import { Ambience } from './ambience.js';
 import { TimeOfDay } from './tod.js';
 import { Signs } from './signs.js';
 import { buildBackdrop } from './backdrop.js';
+import { Trolley } from './trolley.js';
+import { Harbor } from './harbor.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
 export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'GLOCKTON' };
@@ -80,32 +82,35 @@ const hemi = new THREE.HemisphereLight(0xc4d8ff, 0x8a7a62, 0.7);
 scene.add(hemi);
 
 // ---------- water (tropical) ----------
-function makeWater(shore) {
+function makeWater(shore, axis = 'z') {
   const timeU = { value: 0 };
   const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.42, metalness: 0.0, specularIntensity: 0.45, transparent: true, envMapIntensity: 0.55, depthWrite: false });
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = timeU; sh.uniforms.shore = { value: shore };
+    sh.uniforms.uTime = timeU; sh.uniforms.shore = { value: shore }; sh.uniforms.axisX = { value: axis === 'x' ? 1 : 0 };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;')
       .replace('#include <fog_vertex>', '#include <fog_vertex>\nvW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vW; uniform float uTime; uniform float shore;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vW; uniform float uTime; uniform float shore; uniform float axisX;')
       .replace('#include <color_fragment>', `#include <color_fragment>
-        float depth = clamp((shore - vW.z) / 16., 0., 1.);
+        float along = mix(vW.x, vW.z, axisX), across = mix(vW.z, vW.x, axisX);
+        float depth = clamp((shore - across) / mix(16., 5., axisX), 0., 1.);  // harbour drops off at the seawall
         float wpatch = 0.5 + 0.5 * sin(vW.x * 0.07 + vW.z * 0.05 + uTime * 0.05) * sin(vW.x * 0.023 - vW.z * 0.041);
-        diffuseColor.rgb = mix(vec3(0.2,0.62,0.6), mix(vec3(0.03,0.17,0.27), vec3(0.05,0.24,0.3), wpatch), sqrt(depth));
-        diffuseColor.a = mix(0.2, 0.95, smoothstep(0., 0.45, depth));
-        float edge = shore - 0.8 + 0.7 * sin(vW.x * 0.35 + uTime * 1.1) + 0.3 * sin(vW.x * 1.3 - uTime * 0.7);
-        float foam = smoothstep(0.9, 0.0, abs(vW.z - edge)) * (0.6 + 0.4 * sin(vW.x * 4.0 + uTime * 3.0));
-        foam += smoothstep(0.5, 0.0, abs(vW.z - edge + 3.0 + sin(uTime * 0.8 + vW.x * 0.2))) * 0.35;
+        vec3 deep = mix(mix(vec3(0.03,0.17,0.27), vec3(0.05,0.24,0.3), wpatch), mix(vec3(0.02,0.1,0.2), vec3(0.03,0.14,0.25), wpatch), axisX);
+        diffuseColor.rgb = mix(mix(vec3(0.2,0.62,0.6), vec3(0.08,0.3,0.36), axisX), deep, sqrt(depth));
+        diffuseColor.a = mix(0.2, 0.995, smoothstep(0., 0.45, depth));
+        float edge = shore - 0.8 + 0.7 * sin(along * 0.35 + uTime * 1.1) + 0.3 * sin(along * 1.3 - uTime * 0.7);
+        float foam = smoothstep(0.9, 0.0, abs(across - edge)) * (0.6 + 0.4 * sin(along * 4.0 + uTime * 3.0));
+        foam += smoothstep(0.5, 0.0, abs(across - edge + 3.0 + sin(uTime * 0.8 + along * 0.2))) * 0.35;
+        foam *= 1.0 - axisX * 0.75; // harbour seawall: barely any surf
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95), clamp(foam, 0., 1.) * 0.85);
         diffuseColor.a = max(diffuseColor.a, clamp(foam, 0., 1.) * 0.9);`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         vec2 wv = vec2(sin(vW.x * 1.3 + uTime * 1.7) + sin(vW.x * 0.6 + vW.z * 1.1 + uTime * 1.2) + 0.5 * sin(vW.x * 3.1 - vW.z * 2.3 + uTime * 2.6),
                        cos(vW.z * 1.5 + uTime * 1.3) + sin(vW.z * 0.7 - vW.x * 0.9 + uTime) + 0.5 * cos(vW.z * 2.9 + vW.x * 2.1 - uTime * 2.2)) * 0.05
                   + vec2(sin(vW.x * 0.21 + vW.z * 0.13 + uTime * 0.6), cos(vW.z * 0.19 - vW.x * 0.11 + uTime * 0.5)) * 0.05;
-        normal = normalize(normal + (viewMatrix * vec4(wv.x, 0., wv.y, 0.)).xyz * 0.8);`);
+        normal = normalize(normal + (viewMatrix * vec4(wv.x, 0., wv.y, 0.)).xyz * mix(0.8, 0.45, axisX));`);
   };
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(700, 400).rotateX(-Math.PI / 2), mat);
-  m.position.set(0, 0.05, shore + 1.5 - 200);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(axis === 'x' ? 800 : 700, axis === 'x' ? 1400 : 400).rotateX(-Math.PI / 2), mat);
+  if (axis === 'x') m.position.set(shore + 1.5 - 400, 0.05, 0); else m.position.set(0, 0.05, shore + 1.5 - 200);
   m.receiveShadow = false;
   m.renderOrder = 1;
   return { mesh: m, timeU };
@@ -130,18 +135,20 @@ function load(name) {
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.g.E * 2, map.g.E * 2).rotateX(-Math.PI / 2), gmat);
   ground.receiveShadow = true;
   scene.add(ground);
-  if (map.water) { water = makeWater(map.water.shore); scene.add(water.mesh); }
+  if (map.water) { water = makeWater(map.water.shore, map.water.axis); scene.add(water.mesh); }
 
   B.finalize(scene);
+  G.harbor = map.city.shoreX != null ? new Harbor(scene, map.city, map.g) : null;
   map.city.build(scene);
   buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
+  G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
   if (map.city.crowdsLate) (map.city.crowds ||= []).push(...map.city.crowdsLate);
   G.fx = new FX(scene);
   G.agents = new Agents(scene, map.city, map.agents);
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
-  cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half;
+  cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half;
   $('#mapTitle').textContent = MAP_NAMES[name];
   // reuse the region label (flag/logo + place) from the menu button
   $('#mapRegion').innerHTML = document.querySelector(`#menu button[data-map="${name}"] .region`).innerHTML;
@@ -156,7 +163,13 @@ function load(name) {
 
 function selectWeapon(i) {
   G.weapons && G.weapons.select(i);
-  document.querySelectorAll('#weapons .w').forEach((el) => el.classList.toggle('on', +el.dataset.w === i));
+  document.querySelectorAll('#weapons .w').forEach((el) => {
+    const on = +el.dataset.w === i;
+    el.classList.toggle('on', on);
+    // replay the selection pop
+    el.classList.remove('pop');
+    if (on) { void el.offsetWidth; el.classList.add('pop'); }
+  });
 }
 
 // ---------- camera ----------
@@ -169,7 +182,7 @@ function updateCamera(dt) {
   const ax = (f - b) * fx + (r - l) * rx, az = (f - b) * fz + (r - l) * rz;
   const k = 1 - Math.exp(-dt * 6);
   cam.vx = lerp(cam.vx, ax * sp, k); cam.vz = lerp(cam.vz, az * sp, k);
-  cam.x = clamp(cam.x + cam.vx * dt, -cam.half, cam.half);
+  cam.x = clamp(cam.x + cam.vx * dt, cam.xMin ?? -cam.half, cam.half);
   cam.z = clamp(cam.z + cam.vz * dt, cam.zMin, cam.half);
   const rs = 0.9 * settings.rotateSpeed / 100;
   if (keys.KeyQ) cam.yawT += dt * rs;
@@ -246,6 +259,8 @@ function step(dt) {
   aim();
   tod && tod.update(dt);
   G.city.update(dt);
+  G.trains && G.trains.update(dt);
+  G.harbor && G.harbor.update(dt);
   signs && signs.update();
   ambience && ambience.update(dt);
   updateBoats(dt);
@@ -383,7 +398,7 @@ canvasEl.addEventListener('touchmove', (e) => {
   touch.moved = true;
   const k = cam.dist * 0.0022 * settings.moveSpeed / 100;
   const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw), fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
-  cam.x = clamp(cam.x + (-dx * rx + dy * fx) * k, -cam.half, cam.half);
+  cam.x = clamp(cam.x + (-dx * rx + dy * fx) * k, cam.xMin ?? -cam.half, cam.half);
   cam.z = clamp(cam.z + (-dx * rz + dy * fz) * k, cam.zMin, cam.half);
   touch.x = t.clientX; touch.y = t.clientY;
 }, { passive: false });

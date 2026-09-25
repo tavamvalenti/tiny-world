@@ -8,12 +8,12 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 
 // events per second, per map
 const RATES = {
-  downtown: { car: 1.3, horn: 0.1, siren: 1 / 45, chatter: 1.6, say: 0, music: 1 / 28, birds: 0.05, dog: 0, mower: 0, construct: 1 / 25, gull: 0, boat: 0 },
+  downtown: { car: 1.3, horn: 0.1, siren: 1 / 45, chatter: 1.6, say: 0, music: 1 / 28, birds: 0.05, dog: 0, mower: 0, construct: 1 / 25, gull: 0.05, boat: 1 / 60 },
   tropical: { car: 0.45, horn: 0.03, siren: 1 / 150, chatter: 1.0, say: 0, music: 1 / 18, birds: 0.08, dog: 1 / 80, mower: 0, construct: 0, gull: 0.18, boat: 1 / 70 },
   suburbs: { car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 1 / 90, birds: 0.35, dog: 1 / 16, mower: 1 / 45, construct: 1 / 120, gull: 0, boat: 0 },
 };
 const BEDS = {
-  downtown: { traffic: 0.34, murmur: 0.5, wind: 0.05, hum: 0.05, waves: 0 },
+  downtown: { traffic: 0.34, murmur: 0.5, wind: 0.05, hum: 0.05, waves: 0.5 },
   tropical: { traffic: 0.12, murmur: 0.35, wind: 0.12, hum: 0.0, waves: 0.9 },
   suburbs: { traffic: 0.05, murmur: 0.12, wind: 0.08, hum: 0.0, waves: 0 },
 };
@@ -82,8 +82,7 @@ export class Ambience {
       this.set(this.hum, L.hum);
       // sea gets louder the closer the view is to the shoreline
       if (L.waves) {
-        const shore = G.city.shore ?? -36;
-        const near = Math.max(0, 1 - Math.max(0, T.z - shore) / 90);
+        const near = G.city.shoreX != null ? Math.max(0, 1 - Math.max(0, T.x - G.city.shoreX) / 70) : Math.max(0, 1 - Math.max(0, T.z - (G.city.shore ?? -36)) / 90);
         this.waveLevel = L.waves * (0.25 + near * 0.75);
       }
     }
@@ -167,7 +166,7 @@ export class Ambience {
       case 'mower': this.mower(); return;
       case 'construct': this.construct(); return;
       case 'boat': {
-        const ch = I.chain(T.x + R(-60, 60), (G.city.shore ?? -40) - 60, { bus: I.ambBus, vol: 0.8 });
+        const ch = G.city.shoreX != null ? I.chain(G.city.shoreX - 60, T.z + R(-60, 60), { bus: I.ambBus, vol: 0.8 }) : I.chain(T.x + R(-60, 60), (G.city.shore ?? -40) - 60, { bus: I.ambBus, vol: 0.8 });
         for (const f of [82, 123]) I.tone(ch.input, t, { type: 'sawtooth', f, a: 0.3, peak: 0.08, d: 2.5 });
         return;
       }

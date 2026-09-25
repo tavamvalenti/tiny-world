@@ -86,6 +86,12 @@ export function downtown(B) {
   const { city, g } = ctx;
   const special = { '2,3': 'park', '0,4': 'parking', '4,1': 'parking', '3,2': 'plaza', '5,5': 'parking', '4,4': 'ballpark', '2,1': 'tower', '3,1': 'tower', '1,3': 'tower' };
   const towerFloors = { '2,1': 60, '3,1': 50, '1,3': 44 };
+  // light rail runs down the street at z = 0 (a trolley-only transit mall), with two stations
+  // the harbour is the west edge: seawall at x = -74, open water beyond (see harbor.js)
+  city.shoreX = -74;
+  city.bridgeClear = [{ x: -45, z: 124, r: 22 }, { x: -62, z: 112, r: 16 }];
+  ctx.skipOuter = (x, z) => x < -70;
+  city.rail = { z: 0, stations: [{ x: 11, name: 'CIVIC CENTER' }, { x: -33, name: 'GASLAMP QUARTER' }] };
   city.towers = [];
   for (const b of city.blocks) {
     city.paintSidewalk(g, b);
@@ -194,7 +200,7 @@ export function downtown(B) {
     }
   }
   outskirts(ctx, 'city');
-  return { ...ctx, agents: { cars: 60, peds: 400, wanderFrac: 0.1 }, fog: 0xc6cdd3, start: { x: 0, z: 8 } };
+  return { ...ctx, agents: { cars: 60, peds: 400, wanderFrac: 0.1 }, fog: 0xc6cdd3, start: { x: 0, z: 8 }, water: { shore: -74, axis: 'x' }, xMin: -110 };
 }
 
 // ================= TROPICAL =================
