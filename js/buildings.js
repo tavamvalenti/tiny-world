@@ -420,7 +420,8 @@ export class Buildings {
     if (c.fire > 0 || c.burn > 0.5) fx.emitFire(c.x, c.y, c.z, 4);
     if (c.heat > 0.3 && camD < 70) fx.blowout(c.x, c.y, c.z);
     if (c.props) for (const p of c.props) {
-      p.mesh.setMatrixAt(p.idx, ZERO); p.mesh.instanceMatrix.needsUpdate = true;
+      if (p.obj) { for (const o of p.obj) o.visible = false; }
+      else { p.mesh.setMatrixAt(p.idx, ZERO); p.mesh.instanceMatrix.needsUpdate = true; }
       fx.debris.spawn(p.x, p.y + 0.2, p.z, new THREE.Vector3(rand(-2, 2), rand(1, 3), rand(-2, 2)), 0.4, 0.25, 0.35, new THREE.Color(0.55, 0.55, 0.55));
     }
     if (c.rest) for (const d of c.rest) fx.debris.wake(d);

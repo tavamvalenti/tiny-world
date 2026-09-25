@@ -337,7 +337,7 @@ document.querySelectorAll('.open-settings').forEach((b) => b.addEventListener('c
 settingsRoot.addEventListener('mousedown', (e) => { if (e.target === settingsRoot) closeSettings(); });
 let lastQuality = null;
 onSettingsChange((s) => {
-  sfx.setVolumes({ master: s.master / 100, sfx: s.sfx / 100, ambience: s.ambience / 100, voices: s.voices / 100, speech: s.speech });
+  sfx.setVolumes({ master: s.master / 100, sfx: s.sfx / 100, ambience: s.ambience / 100, voices: s.voices / 100 });
   post.final.uniforms.grain.value = s.grain / 100;
   if (s.quality !== lastQuality) {
     lastQuality = s.quality;

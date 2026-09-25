@@ -27,7 +27,7 @@ const ADS = [
   ['SUNNY COLA', 'Taste the sun.', '#d7261e', '#ffffff'], ['VOLTA MOTORS', 'The electric city car.', '#101820', '#5ce1e6'],
   ['FLY PACIFICA', 'Daily flights to paradise', '#0b62a4', '#ffffff'], ['GLOCKTON SAVINGS', 'Your neighborhood bank', '#12324f', '#f2d27a'],
   ['KOAST 98.1 FM', 'Surf rock all day', '#f28c28', '#1a1a1a'], ['NOVA PHONE X', 'See more.', '#f4f4f4', '#111111'],
-  ['MIDNIGHT BURGER', 'Open late', '#1c1c1c', '#ffcc00'], ['BAYVIEW CONDOS', 'Now leasing', '#2f5d50', '#f5efe0'],
+  ['MIDNIGHT BURGER', 'Open late', '#1c1c1c', '#ffcc00'], ['DAYGO BALLPARK', 'Friars vs. Harbor Sox  7:10', '#2f241d', '#ffc425'],
 ];
 
 function signAtlas(list) {
@@ -207,6 +207,58 @@ export class Signs {
       box(x, 0.3, z, 3.6, 0.6, 0.5);
       add(shop, x, 0.95, z + 0.01, 0, 3.4, 0.45, stripUV(2));
     }
+    // ---- skyline landmark: crown, spire and aircraft beacon on the supertall ----
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    this.glow = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), glowMat, 64); this.glow.count = 0; this.glowKinds = [];
+    const glowBox = (x, y, z, w, h, d, kind, cell) => {
+      const i = this.glow.count++;
+      _m.compose(_p.set(x, y, z), _q.identity(), _s.set(w, h, d));
+      this.glow.setMatrixAt(i, _m);
+      this.glowKinds.push(kind);
+      if (cell) (cell.props ||= []).push({ mesh: this.glow, idx: i, x, y, z });
+    };
+    for (const t of city.towers || []) {
+      const top = t.cells.filter((c) => c.f === t.floors - 1);
+      if (!top.length) continue;
+      let ax = 1e9, bx = -1e9, az = 1e9, bz = -1e9;
+      for (const c of top) { ax = Math.min(ax, c.x - c.hx); bx = Math.max(bx, c.x + c.hx); az = Math.min(az, c.z - c.hz); bz = Math.max(bz, c.z + c.hz); }
+      const cx = (ax + bx) / 2, cz = (az + bz) / 2, y0 = top[0].y + top[0].hy;
+      const mid = top.reduce((a, c) => (Math.hypot(c.x - cx, c.z - cz) < Math.hypot(a.x - cx, a.z - cz) ? c : a));
+      if (t.landmark) {
+        const crown = new THREE.Mesh(new THREE.ConeGeometry(Math.max(bx - ax, bz - az) * 0.72, 7, 4, 1).rotateY(Math.PI / 4).translate(0, 3.5, 0),
+          new THREE.MeshStandardMaterial({ color: 0x9fb4c4, metalness: 0.8, roughness: 0.25, envMapIntensity: 1.3 }));
+        crown.scale.set((bx - ax) / Math.max(bx - ax, bz - az), 1, (bz - az) / Math.max(bx - ax, bz - az));
+        crown.position.set(cx, y0, cz); crown.castShadow = true;
+        scene.add(crown);
+        const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.14, 6, 6).translate(0, 3, 0), new THREE.MeshStandardMaterial({ color: 0xcfd6dc, metalness: 0.9, roughness: 0.3 }));
+        spire.position.set(cx, y0 + 7, cz); scene.add(spire);
+        // the crown and spire come down with the top floor
+        const hide = { mesh: null, idx: 0, x: cx, y: y0 + 3, z: cz, obj: [crown, spire] };
+        (mid.props ||= []).push(hide);
+        glowBox(cx, y0 + 13.1, cz, 0.22, 0.22, 0.22, 'beacon', mid);
+        // floodlit crown edges at night
+        for (const [ex, ez] of [[ax, az], [bx, az], [ax, bz], [bx, bz]]) glowBox(ex, y0 + 0.15, ez, 0.25, 0.25, 0.25, 'flood', mid);
+      } else {
+        for (const [ex, ez] of [[ax + 0.3, cz], [bx - 0.3, cz]]) glowBox(ex, y0 + 0.2, ez, 0.2, 0.2, 0.2, 'beacon', mid);
+      }
+    }
+    // ---- ballpark: light towers + scoreboard ----
+    const bp = city.ballpark;
+    if (bp) {
+      for (const [x, z] of [[bp.x0 + 0.5, bp.z0 + 0.5], [bp.x1 - 0.5, bp.z0 + 0.5], [bp.x1 - 0.5, bp.z1 - 7], [bp.x0 + 3.5, bp.z0 + 0.5]]) {
+        box(x, 3.5, z, 0.16, 7, 0.16);
+        box(x, 7.1, z, 1.2, 0.5, 0.16, Math.atan2(bp.hx - x, bp.hz - z));
+        glowBox(x, 7.1, z, 1.1, 0.4, 0.2, 'stadium');
+      }
+      const sx = bp.x1 - 3, sz = bp.z0 + 1.2, rot = Math.atan2(bp.hx - sx, bp.hz - sz);
+      box(sx - 1, 1.6, sz, 0.14, 3.2, 0.14); box(sx + 1, 1.6, sz, 0.14, 3.2, 0.14);
+      add(ads, sx, 3.9, sz, rot, 4.4, 1.1, adUV(7));
+      add(ads, bp.x0 + 6, 2.9, bp.z1 + 0.06, 0, 3.6, 0.9, adUV(7)); // entrance sign
+    }
+    this.glow.instanceMatrix.needsUpdate = true;
+    this.glow.frustumCulled = false;
+    scene.add(this.glow);
+
     // overhead directional sign on an entry road
     {
       const x = city.xs[Math.floor(city.xs.length / 2)], z = city.zs[city.zs.length - 1] - city.roadW / 2 - 4;
@@ -226,6 +278,17 @@ export class Signs {
 
   update() {
     const n = G.night || 0;
+    if (this.glow) {
+      const blink = Math.sin(G.time * 3.2) > 0.6;
+      const c = new THREE.Color();
+      this.glowKinds.forEach((k, i) => {
+        if (k === 'beacon') c.setRGB(blink ? 6 : 0.3, 0.05, 0.03);
+        else if (k === 'flood') c.setRGB(0.4 + n * 5, 0.4 + n * 4.6, 0.4 + n * 4);
+        else c.setRGB(0.6 + n * 6, 0.6 + n * 6, 0.6 + n * 5.4);
+        this.glow.setColorAt(i, c);
+      });
+      if (this.glow.instanceColor) this.glow.instanceColor.needsUpdate = true;
+    }
     // neon/backlit signage wakes up after dark
     this.shop.mesh.material.emissiveIntensity = 0.12 + n * 1.5;
     this.ads.mesh.material.emissiveIntensity = 0.1 + n * 1.2;

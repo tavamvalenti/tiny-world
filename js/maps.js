@@ -84,7 +84,9 @@ export function downtown(B) {
   const P = [-66, -44, -22, 0, 22, 44, 66];
   const ctx = makeCtx({ xs: P, zs: P, roadW: 5, sw: 1.7, half: 66, extent: 112, centerLine: 'yellow' }, B);
   const { city, g } = ctx;
-  const special = { '2,3': 'park', '0,4': 'parking', '4,1': 'parking', '3,2': 'plaza', '5,5': 'parking' };
+  const special = { '2,3': 'park', '0,4': 'parking', '4,1': 'parking', '3,2': 'plaza', '5,5': 'parking', '4,4': 'ballpark', '2,1': 'tower', '3,1': 'tower', '1,3': 'tower' };
+  const towerFloors = { '2,1': 60, '3,1': 50, '1,3': 44 };
+  city.towers = [];
   for (const b of city.blocks) {
     city.paintSidewalk(g, b);
     const kind = special[`${b.i},${b.j}`];
@@ -110,6 +112,43 @@ export function downtown(B) {
       city.wanderZones.push({ x0: b.lx0, x1: b.lx1, z0: cz, z1: b.lz1 });
       crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx1 - 1, z0: cz + 1, z1: b.lz1 - 1 }, 7, 4, 9);
       crowdsAroundBlock(city, b, 0.8, 0.35);
+    } else if (kind === 'tower') {
+      // supertall: full-block podium, then a slimmer shaft with setbacks; the tallest gets a crown (see signs.js)
+      g.rect(b.lx0 - 0.6, b.lz0 - 0.6, b.lx1 + 0.6, b.lz1 + 0.6, '#9b968d');
+      const floors = towerFloors[`${b.i},${b.j}`], W = b.lx1 - b.lx0 + 1.2, D = b.lz1 - b.lz0 + 1.2;
+      const style = floors >= 55 ? 'office' : pick(['office', 'concrete']);
+      const t = B.add({ x: cx, z: cz, w: W - 0.4, d: D - 0.4, floors, style, tint: TINT.office(), cell: 2.1, fh: 1.05, gh: 1.9,
+        setbacks: [{ f: 6, n: 1 }, { f: Math.round(floors * 0.55), n: 2 }, { f: floors - 6, n: 3 }] });
+      t.landmark = floors >= 55;
+      city.towers.push(t);
+      crowdsAroundBlock(city, b, 0.9, 0.4);
+    } else if (kind === 'ballpark') {
+      // Daygo ballpark: grandstands wrapped around home plate, diamond facing the outfield
+      const x0 = b.lx0 - 0.6, x1 = b.lx1 + 0.6, z0 = b.lz0 - 0.6, z1 = b.lz1 + 0.6;
+      city.paintGrass(g, x0, z0, x1, z1, '#4f7d33');
+      for (let k = 0; k < 8; k++) g.rect(x0, z0 + k * (z1 - z0) / 8, x1, z0 + (k + 0.5) * (z1 - z0) / 8, 'rgba(255,255,255,.05)'); // mowing stripes
+      const hx = x0 + 3.2, hz = z1 - 3.2; // home plate (near the camera side)
+      const X = g.x, K = g.k;
+      X.save(); X.translate(g.px(hx), g.px(hz));
+      X.fillStyle = '#b98a5a'; X.beginPath(); X.arc(0, 0, 6.2 * K, -Math.PI / 2, 0); X.lineTo(0, 0); X.fill();      // infield dirt arc
+      X.fillStyle = '#5a8a3a'; X.fillRect(0.9 * K, -4.1 * K, 3.2 * K, 3.2 * K);                                     // infield grass
+      X.fillStyle = '#fff'; for (const [bx, bz] of [[0, 0], [4.3, 0], [4.3, -4.3], [0, -4.3]]) X.fillRect(bx * K - 3, bz * K - 3, 6, 6);
+      X.strokeStyle = 'rgba(255,255,255,.85)'; X.lineWidth = 0.08 * K;
+      X.beginPath(); X.moveTo(0, 0); X.lineTo(11 * K, 0); X.moveTo(0, 0); X.lineTo(0, -11 * K); X.stroke();          // foul lines
+      X.fillStyle = '#b98a5a'; X.beginPath(); X.arc(2.15 * K, -2.15 * K, 0.5 * K, 0, 6.283); X.fill();               // mound
+      X.restore();
+      // stands: behind home and down both lines, low concrete sections (destructible like any building)
+      const st = { style: 'concrete', cell: 1.8, gh: 1.2, fh: 1.0, storefront: false };
+      B.add({ ...st, x: (x0 + x1) / 2 - 1, z: z1 - 1.1, w: x1 - x0 - 2, d: 2.2, floors: 2, tint: TINT.concrete() });
+      B.add({ ...st, x: x0 + 1.1, z: (z0 + z1) / 2 - 1, w: 2.2, d: z1 - z0 - 4.4, floors: 4, tint: TINT.concrete() });
+      B.add({ ...st, x: x1 - 1.0, z: z1 - 5.5, w: 2, d: 5, floors: 3, tint: TINT.concrete() });
+      city.ballpark = { x0, x1, z0, z1, hx, hz };
+      // players in position and fans on the concourse
+      const pos = [[0, 0], [2.15, -2.15], [4.8, 0.3], [4.6, -3.6], [2.6, -4.9], [0.3, -4.8], [9, -1.5], [7.6, -7.6], [1.5, -9], [-0.4, 0.4]];
+      for (const [px, pz] of pos) {
+        (city.crowds ||= []).push({ x: hx + px, z: hz + pz, r: 0.2, n: 1 });
+      }
+      crowdsAroundBlock(city, b, 1, 0.8, 1.4);
     } else if (kind === 'parking') {
       const spots = city.paintParking(g, b.lx0 - 0.3, b.lz0 - 0.3, b.lx1 + 0.3, b.lz1 + 0.3);
       for (const s of spots) if (Math.random() < 0.72) city.parked.push(s);

@@ -373,12 +373,13 @@ export class Agents {
         c.pos.set(e.x, 0, e.z); c.heading = Math.atan2(B.x - A.x, B.z - A.z);
         c.from = A.id; c.to = B.id; c.queue = [this.stopPoint(A, B)];
         c.state = 'drive'; c.speed = 2; c.dest = target.id; c.incident = inc; c.flee = 0; c.sirenOn = true;
+        c.sirenOffAt = G.time + rand(40, 60); // even en route, sirens eventually wind down
       }, k * rand(900, 2200));
     });
   }
   arrive(c) {
     c.state = 'onscene'; c.speed = 0; c.queue = [];
-    c.sirenOffAt = G.time + rand(6, 12);
+    c.sirenOffAt = Math.min(c.sirenOffAt ?? 1e9, G.time + rand(8, 15));
     // angle the vehicle a little, the way responders park
     c.heading += rand(-0.35, 0.35);
   }
@@ -406,7 +407,7 @@ export class Agents {
       for (const c of this.cars) {
         if (!c.emerg) continue;
         if (keep.has(c)) { if (!c.siren) c.siren = sfx.siren(c.emerg); if (c.siren) c.siren.set(c.pos.x, c.pos.z, true); }
-        else if (c.siren) { c.siren.stop(); c.siren = null; }
+        else if (c.siren) { c.siren.stop(G.time >= (c.sirenOffAt ?? 1e9)); c.siren = null; }
       }
     }
   }

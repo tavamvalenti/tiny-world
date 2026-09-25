@@ -7,7 +7,7 @@ import { G } from './core.js';
 export const A = { ctx: null, muted: false };
 let ctx = null, master, sfxBus, ambBus, ambVol, voiceBus, reverb, revSend, echo, echoSend;
 // user volume settings (0..1), applied whenever the engine exists
-const VOL = { master: 0.8, sfx: 0.9, ambience: 0.75, voices: 0.7, speech: true };
+const VOL = { master: 0.8, sfx: 0.5, ambience: 0.35, voices: 0.15 };
 let white, pink, brown;
 const voicePool = { talk: [], laugh: [], scream: [], murmur: null };
 
@@ -233,7 +233,9 @@ function voice(kind, x, z, vol = 1, rate = 1) {
 // Occasional clearly-spoken phrase via the browser's speech engine (quiet and rare).
 let speechBusy = false, voicesList = null;
 function say(text, x, z, vol = 0.35) {
-  if (A.muted || !VOL.speech || VOL.master <= 0 || !('speechSynthesis' in window) || speechBusy) return;
+  return; // spoken phrases are disabled; crowds use the indistinct synthesized voices only
+  // eslint-disable-next-line no-unreachable
+  if (A.muted || VOL.master <= 0 || !('speechSynthesis' in window) || speechBusy) return;
   const s = spatial(x, z);
   if (s.gain < 0.18) return;
   try {
@@ -515,7 +517,6 @@ export const sfx = {
   screams(x, z, n = 3) {
     if (!init()) return;
     for (let i = 0; i < n; i++) setTimeout(() => voice('scream', x + R(-6, 6), z + R(-6, 6), R(0.25, 0.5)), R(80, 900));
-    if (Math.random() < 0.5) setTimeout(() => say(pickLine(REACT), x, z, 0.5), R(500, 1500));
   },
   chatter(x, z, vol = 0.25) { if (init()) voice(Math.random() < 0.12 ? 'laugh' : 'talk', x, z, vol); },
   say,
@@ -548,7 +549,13 @@ export const sfx = {
         this.ch.move(x, z, 0.2);
         if (on !== this.on) { this.on = on; g.gain.setTargetAtTime(on ? 0.12 : 0.0001, now(), 0.3); }
       },
-      stop() { g.gain.setTargetAtTime(0.0001, now(), 0.3); o.stop(now() + 1.5); lfo.stop(now() + 1.5); sirens.delete(h); },
+      stop(slow = false) {
+        // slow: wind down gradually over several seconds instead of cutting off
+        const t = now(), tc = slow ? 2.8 : 0.3, end = slow ? 16 : 1.5;
+        g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.setTargetAtTime(0.0001, t, tc);
+        if (slow) o.frequency.setTargetAtTime(o.frequency.value * 0.8, t, 4);
+        o.stop(t + end); lfo.stop(t + end); sirens.delete(h);
+      },
     };
     sirens.add(h);
     return h;

@@ -1,13 +1,13 @@
 // Player settings: schema, persistence (localStorage, best effort) and the settings panel UI.
-const KEY = 'tinyworld.settings.v1';
+// v2: new default mix (bumping the key applies the new defaults once)
+const KEY = 'tinyworld.settings.v2';
 
 export const SCHEMA = [
   { section: 'Audio' },
   { id: 'master', label: 'Master volume', type: 'range', min: 0, max: 100, def: 80, unit: '%' },
-  { id: 'sfx', label: 'Weapons & destruction', type: 'range', min: 0, max: 100, def: 90, unit: '%' },
-  { id: 'ambience', label: 'City ambience', type: 'range', min: 0, max: 100, def: 75, unit: '%' },
-  { id: 'voices', label: 'Crowd voices', type: 'range', min: 0, max: 100, def: 70, unit: '%' },
-  { id: 'speech', label: 'Spoken phrases', type: 'toggle', def: true, hint: 'Occasional clear lines like "Did you see that?"' },
+  { id: 'sfx', label: 'Weapons & destruction', type: 'range', min: 0, max: 100, def: 50, unit: '%' },
+  { id: 'ambience', label: 'City ambience', type: 'range', min: 0, max: 100, def: 35, unit: '%' },
+  { id: 'voices', label: 'Crowd voices', type: 'range', min: 0, max: 100, def: 15, unit: '%' },
   { section: 'Controls' },
   { id: 'moveSpeed', label: 'Camera move speed', type: 'range', min: 25, max: 250, def: 100, unit: '%' },
   { id: 'zoomSpeed', label: 'Zoom sensitivity', type: 'range', min: 25, max: 250, def: 100, unit: '%' },
