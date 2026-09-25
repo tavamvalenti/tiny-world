@@ -38,7 +38,11 @@
   #help span { color:rgba(255,255,255,.85); display:inline-block; min-width:52px; }
   #mapname { position:absolute; left:16px; top:calc(4.2vh + 12px); font:600 11px Inter; letter-spacing:.3em; color:rgba(255,255,255,.75); text-shadow:0 1px 3px rgba(0,0,0,.6); }
   #mapname small { display:block; font-weight:400; letter-spacing:.1em; color:rgba(255,255,255,.45); margin-top:4px; }
-  #stats { position:absolute; right:16px; top:calc(4.2vh + 12px); font:400 10px Inter; letter-spacing:.1em; color:rgba(255,255,255,.4); text-align:right; }
+  #topright { position:absolute; right:16px; top:calc(4.2vh + 12px); display:flex; gap:8px; align-items:center; pointer-events:auto; }
+  #tod { display:flex; gap:2px; }
+  #tod .t, #mute { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none; }
+  #tod .t.on { color:#fff; border-color:rgba(255,255,255,.55); }
+  #stats { position:absolute; right:16px; top:calc(4.2vh + 44px); font:400 10px Inter; letter-spacing:.1em; color:rgba(255,255,255,.4); text-align:right; }
   @media (max-width:760px) { #help { display:none; } #weapons .w { padding:8px 8px; letter-spacing:.06em; } }
 </style>
 <script type="importmap">
@@ -56,16 +60,20 @@
   <h1>TINY WORLD</h1>
   <p class="sub">An interactive miniature destruction sandbox</p>
   <div class="maps">
-    <button data-map="downtown">DOWNTOWN<small>Dense brick &amp; glass city core</small></button>
-    <button data-map="tropical">TROPICAL TOWN<small>Beaches, hotels &amp; palms</small></button>
-    <button data-map="suburbs">SUBURBS<small>Lawns, schools &amp; cul-de-sacs</small></button>
+    <button data-map="downtown">GASLAMP DISTRICT<small>Downtown · brick, glass &amp; crowds</small></button>
+    <button data-map="tropical">LA PLAYA<small>Tropical town · beach, hotels &amp; palms</small></button>
+    <button data-map="suburbs">GLOCKTON<small>Suburbs · lawns, school &amp; main street</small></button>
   </div>
 </div>
 <div id="loading">BUILDING MINIATURE…</div>
 
 <div id="hud">
-  <div id="mapname">DOWNTOWN<small>Esc — back to menu</small></div>
+  <div id="mapname">GASLAMP DISTRICT<small>Esc — back to menu</small></div>
   <div id="stats"></div>
+  <div id="topright">
+    <div id="tod"><span class="t" data-t="day">DAY</span><span class="t" data-t="sunset">SUNSET</span><span class="t" data-t="night">NIGHT</span></div>
+    <span id="mute">SOUND ON</span>
+  </div>
   <div id="weapons">
     <div class="w" data-w="0" style="--wc:#ff5a3c"><b>1</b>LASER</div>
     <div class="w" data-w="1" style="--wc:#ffb347"><b>2</b>BOMB</div>
@@ -74,7 +82,7 @@
     <div class="w" data-w="4" style="--wc:#8a7dff"><b>5</b>ENERGY</div>
   </div>
   <div id="help">
-    <span>WASD</span>Move<br><span>Mouse</span>Aim<br><span>Click</span>Fire (hold laser / wind)<br><span>Scroll</span>Zoom<br><span>Q / E</span>Rotate<br><span>1–5</span>Weapons
+    <span>WASD</span>Move<br><span>Mouse</span>Aim<br><span>Click</span>Fire (hold laser / wind)<br><span>Scroll</span>Zoom<br><span>Q / E</span>Rotate<br><span>1–5</span>Weapons<br><span>T</span>Day / sunset / night<br><span>M</span>Mute
   </div>
 </div>
 

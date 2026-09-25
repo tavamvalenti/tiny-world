@@ -1,77 +1,547 @@
-// Small procedural sound kit (WebAudio) so the game needs no asset files.
-let ctx = null, master = null, noiseBuf = null, laserNodes = null;
+// Procedural audio engine: no sound files. Everything is synthesized with WebAudio.
+// Spatial model: sounds are placed on the ground; the listener is the hovering camera, so
+// distance = ground distance from the view focus plus camera altitude. Farther sounds get
+// quieter, duller (low-pass), wetter (reverb) and trail a slap echo off the city blocks.
+import { G } from './core.js';
+
+export const A = { ctx: null, muted: false };
+let ctx = null, master, sfxBus, ambBus, reverb, revSend, echo, echoSend;
+let white, pink, brown;
+const voicePool = { talk: [], laugh: [], scream: [], murmur: null };
+
+const R = (a, b) => a + Math.random() * (b - a);
+const now = () => ctx.currentTime;
+
+// ---------- setup ----------
+function noiseBuffers() {
+  const n = ctx.sampleRate * 4;
+  white = ctx.createBuffer(1, n, ctx.sampleRate);
+  pink = ctx.createBuffer(1, n, ctx.sampleRate);
+  brown = ctx.createBuffer(1, n, ctx.sampleRate);
+  const w = white.getChannelData(0), p = pink.getChannelData(0), b = brown.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0, last = 0;
+  for (let i = 0; i < n; i++) {
+    const x = Math.random() * 2 - 1;
+    w[i] = x;
+    b0 = 0.99886 * b0 + x * 0.0555179; b1 = 0.99332 * b1 + x * 0.0750759; b2 = 0.969 * b2 + x * 0.153852;
+    b3 = 0.8665 * b3 + x * 0.3104856; b4 = 0.55 * b4 + x * 0.5329522; b5 = -0.7616 * b5 - x * 0.016898;
+    p[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + x * 0.5362) * 0.11; b6 = x * 0.115926;
+    last = (last + 0.02 * x) / 1.02; b[i] = last * 3.5;
+  }
+}
+
+function impulse(seconds, decay) {
+  const len = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < len; i++) {
+      const t = i / len;
+      // early reflections off nearby facades, then a diffuse tail
+      const early = i < ctx.sampleRate * 0.12 && Math.random() < 0.004 ? (Math.random() * 2 - 1) * 2 : 0;
+      d[i] = ((Math.random() * 2 - 1) * Math.pow(1 - t, decay) + early) * (1 - Math.exp(-i / 200));
+    }
+  }
+  return buf;
+}
 
 function init() {
   if (ctx) return true;
   try {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    master = ctx.createGain(); master.gain.value = 0.5;
+    A.ctx = ctx;
     const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 6; comp.attack.value = 0.004; comp.release.value = 0.25;
+    master = ctx.createGain(); master.gain.value = 0.9;
     master.connect(comp); comp.connect(ctx.destination);
-    noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const d = noiseBuf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    sfxBus = ctx.createGain(); sfxBus.connect(master);
+    ambBus = ctx.createGain(); ambBus.connect(master);
+    reverb = ctx.createConvolver(); reverb.buffer = impulse(3.6, 2.6);
+    const revOut = ctx.createGain(); revOut.gain.value = 0.55;
+    reverb.connect(revOut); revOut.connect(master);
+    revSend = ctx.createGain(); revSend.connect(reverb);
+    // slap-back echo between buildings for distant events
+    echo = ctx.createDelay(1.5); echo.delayTime.value = 0.42;
+    const fb = ctx.createGain(); fb.gain.value = 0.32;
+    const eLp = ctx.createBiquadFilter(); eLp.type = 'lowpass'; eLp.frequency.value = 1400;
+    echo.connect(eLp); eLp.connect(fb); fb.connect(echo);
+    const eOut = ctx.createGain(); eOut.gain.value = 0.5; eLp.connect(eOut); eOut.connect(master); eOut.connect(revSend);
+    echoSend = ctx.createGain(); echoSend.connect(echo);
+    noiseBuffers();
+    buildVoices();
     return true;
-  } catch { return false; }
+  } catch (e) { console.warn('audio unavailable', e); return false; }
 }
 
-function noise(dur, { freq = 800, q = 0.7, type = 'lowpass', gain = 1, attack = 0.005, decay = dur, sweepTo = null } = {}) {
-  const t = ctx.currentTime;
-  const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
-  const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
-  if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
-  src.connect(f); f.connect(g); g.connect(master);
-  src.start(t); src.stop(t + dur + 0.05);
+// ---------- spatial helpers ----------
+export function spatial(x, z) {
+  const T = G.camTarget || { x: 0, z: 0, dist: 90, yaw: 0 };
+  const dx = x - T.x, dz = z - T.z;
+  const ground = Math.hypot(dx, dz);
+  const D = Math.hypot(ground, T.dist * 0.4);
+  const gain = 1 / (1 + Math.pow(D / 32, 1.35));
+  const cutoff = Math.max(320, Math.min(18000, 19000 * Math.exp(-(D - 20) / 38)));
+  const rx = Math.cos(T.yaw), rz = -Math.sin(T.yaw);
+  const pan = Math.max(-0.85, Math.min(0.85, (dx * rx + dz * rz) / (ground + 25)));
+  const wet = Math.max(0.12, Math.min(0.9, (D - 25) / 90));
+  return { gain, cutoff, pan, wet, D };
 }
 
-function tone(type, f0, f1, dur, gain) {
-  const t = ctx.currentTime;
-  const o = ctx.createOscillator(); o.type = type;
-  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-  const g = ctx.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+// A positioned voice chain: input -> lowpass -> gain -> pan -> bus (+ reverb/echo sends)
+function chain(x, z, { bus = sfxBus, vol = 1, echoAmt = 0, wetBoost = 0 } = {}) {
+  const s = spatial(x, z);
+  const input = ctx.createGain();
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = s.cutoff; lp.Q.value = 0.5;
+  const g = ctx.createGain(); g.gain.value = s.gain * vol;
+  const pan = ctx.createStereoPanner(); pan.pan.value = s.pan;
+  const send = ctx.createGain(); send.gain.value = Math.min(1, s.wet + wetBoost);
+  input.connect(lp); lp.connect(g); g.connect(pan); pan.connect(bus);
+  g.connect(send); send.connect(revSend);
+  if (echoAmt) { const es = ctx.createGain(); es.gain.value = echoAmt * Math.min(1, s.wet * 1.4); g.connect(es); es.connect(echoSend); }
+  return {
+    input, lp, g, pan, send, vol,
+    move(nx, nz, t = 0.08) {
+      const q = spatial(nx, nz);
+      lp.frequency.setTargetAtTime(q.cutoff, now(), t);
+      g.gain.setTargetAtTime(q.gain * this.vol, now(), t);
+      pan.pan.setTargetAtTime(q.pan, now(), t);
+      send.gain.setTargetAtTime(Math.min(1, q.wet + wetBoost), now(), t);
+    },
+  };
 }
 
+function noise(buf, rate = 1) { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.playbackRate.value = rate; s.loopStart = Math.random() * 3; return s; }
+function filt(type, f, q = 0.7) { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; }
+function amp(v = 0) { const g = ctx.createGain(); g.gain.value = v; return g; }
+function osc(type, f) { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; return o; }
+function env(param, t0, attack, peak, decay, floor = 0.0001) {
+  param.cancelScheduledValues(t0);
+  param.setValueAtTime(floor, t0);
+  param.exponentialRampToValueAtTime(Math.max(floor * 1.01, peak), t0 + attack);
+  param.exponentialRampToValueAtTime(floor, t0 + attack + decay);
+}
+function play(node, t0, dur) { node.start(t0, node.buffer ? Math.random() * 2 : undefined); node.stop(t0 + dur + 0.1); }
+let satCurve = null;
+function saturator(k = 4) {
+  if (!satCurve) { satCurve = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; satCurve[i] = Math.tanh(x * k) / Math.tanh(k); } }
+  const w = ctx.createWaveShaper(); w.curve = satCurve; return w;
+}
+
+// one-shot noise burst through a filter into a destination
+function burst(dest, t0, { buf = white, type = 'bandpass', f = 1000, q = 0.7, a = 0.002, peak = 0.5, d = 0.1, sweep = null, rate = 1 }) {
+  const s = noise(buf, rate), fl = filt(type, f, q), g = amp();
+  if (sweep) { fl.frequency.setValueAtTime(f, t0); fl.frequency.exponentialRampToValueAtTime(sweep, t0 + a + d); }
+  s.connect(fl); fl.connect(g); g.connect(dest);
+  env(g.gain, t0, a, peak, d);
+  play(s, t0, a + d);
+}
+function tone(dest, t0, { type = 'sine', f = 100, f1 = null, a = 0.005, peak = 0.5, d = 0.5, glide = null }) {
+  const o = osc(type, f), g = amp();
+  if (f1) { o.frequency.setValueAtTime(f, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + (glide ?? a + d)); }
+  o.connect(g); g.connect(dest);
+  env(g.gain, t0, a, peak, d);
+  o.start(t0); o.stop(t0 + a + d + 0.05);
+  return o;
+}
+
+// ---------- tiny formant speech synthesizer (indistinct voices, laughs, screams) ----------
+const VOWELS = [[800, 1200, 2500], [400, 2000, 2600], [300, 2300, 3000], [500, 900, 2400], [350, 800, 2300], [650, 1700, 2500], [450, 1400, 2500]];
+function synthVoice(dur, mode, female) {
+  const sr = 22050, n = Math.floor(sr * dur);
+  const out = new Float32Array(n);
+  const f0base = mode === 'scream' ? (female ? R(420, 560) : R(300, 420)) : female ? R(170, 240) : R(95, 140);
+  const fs = female ? 1.16 : 1;
+  const res = [0, 0, 0].map(() => ({ y1: 0, y2: 0, a1: 0, a2: 0, g: 0 }));
+  const setF = (r, f, bw) => { const R2 = Math.exp(-Math.PI * bw / sr); r.a1 = 2 * R2 * Math.cos(2 * Math.PI * f / sr); r.a2 = -R2 * R2; r.g = 1 - R2; };
+  let phase = 0, i = 0;
+  while (i < n) {
+    // syllable: optional consonant (noise) + vowel
+    const vow = mode === 'laugh' || mode === 'scream' ? VOWELS[Math.random() < 0.7 ? 0 : 5] : VOWELS[(Math.random() * VOWELS.length) | 0];
+    const sylLen = Math.floor(sr * (mode === 'laugh' ? R(0.13, 0.18) : mode === 'scream' ? dur : R(0.1, 0.24)));
+    const cons = mode === 'scream' ? 0 : Math.floor(sr * (mode === 'laugh' ? 0.04 : Math.random() < 0.7 ? R(0.02, 0.06) : 0));
+    const consF = mode === 'laugh' ? 1200 : R(2500, 6000);
+    [0, 1, 2].forEach((k) => setF(res[k], vow[k] * fs * R(0.92, 1.08), [80, 110, 160][k]));
+    const pitchSlope = mode === 'laugh' ? -0.35 : mode === 'scream' ? 0.25 : R(-0.25, 0.2);
+    for (let j = 0; j < sylLen && i < n; j++, i++) {
+      const t = j / sylLen;
+      let src;
+      if (j < cons) src = (Math.random() * 2 - 1) * 0.25 * (mode === 'laugh' ? 1 : Math.sin(Math.PI * j / cons));
+      else {
+        const vib = mode === 'scream' ? 1 + 0.04 * Math.sin(i / sr * 2 * Math.PI * 6) : 1 + 0.02 * Math.sin(i / sr * 2 * Math.PI * 4.5);
+        const f0 = f0base * (1 + pitchSlope * (i / n)) * vib * (1 + 0.05 * Math.sin(t * Math.PI));
+        phase += f0 / sr;
+        if (phase >= 1) phase -= 1;
+        src = (phase < 0.4 ? Math.sin(Math.PI * phase / 0.4) : 0) - 0.25 + (Math.random() - 0.5) * (mode === 'scream' ? 0.25 : 0.08);
+      }
+      let y = 0;
+      for (const r of res) { const v = r.g * src + r.a1 * r.y1 + r.a2 * r.y2; r.y2 = r.y1; r.y1 = v; y += v; }
+      const envA = mode === 'scream' ? Math.min(1, t * 8) * Math.min(1, (1 - t) * 3) : Math.sin(Math.PI * Math.min(1, t * 1.1));
+      out[i] = y * envA;
+    }
+    // pauses between words
+    const gap = mode === 'talk' ? (Math.random() < 0.25 ? R(0.12, 0.35) : R(0.0, 0.05)) : mode === 'laugh' ? 0.03 : 0;
+    i += Math.floor(sr * gap);
+  }
+  let peak = 0;
+  for (let k = 0; k < n; k++) peak = Math.max(peak, Math.abs(out[k]));
+  const buf = ctx.createBuffer(1, n, sr);
+  const d = buf.getChannelData(0);
+  for (let k = 0; k < n; k++) d[k] = out[k] / (peak || 1) * 0.9;
+  return buf;
+}
+
+function buildVoices() {
+  for (let i = 0; i < 26; i++) voicePool.talk.push(synthVoice(R(0.7, 2.2), 'talk', Math.random() < 0.5));
+  for (let i = 0; i < 8; i++) voicePool.laugh.push(synthVoice(R(0.7, 1.3), 'laugh', Math.random() < 0.5));
+  for (let i = 0; i < 10; i++) voicePool.scream.push(synthVoice(R(0.6, 1.3), 'scream', Math.random() < 0.6));
+  // continuous crowd murmur: many overlapping talkers
+  const sr = 22050, len = sr * 9, mix = new Float32Array(len);
+  for (let v = 0; v < 14; v++) {
+    let pos = Math.floor(Math.random() * sr);
+    while (pos < len) {
+      const b = voicePool.talk[(Math.random() * voicePool.talk.length) | 0].getChannelData(0);
+      const g = R(0.15, 0.5);
+      for (let k = 0; k < b.length; k++) mix[(pos + k) % len] += b[k] * g;
+      pos += b.length + Math.floor(sr * R(0.2, 1.5));
+    }
+  }
+  let pk = 0; for (let k = 0; k < len; k++) pk = Math.max(pk, Math.abs(mix[k]));
+  voicePool.murmur = ctx.createBuffer(1, len, sr);
+  const d = voicePool.murmur.getChannelData(0);
+  for (let k = 0; k < len; k++) d[k] = mix[k] / pk * 0.8;
+}
+
+function voice(kind, x, z, vol = 1, rate = 1) {
+  const pool = voicePool[kind];
+  if (!pool || !pool.length) return;
+  const ch = chain(x, z, { vol });
+  const s = ctx.createBufferSource(); s.buffer = pool[(Math.random() * pool.length) | 0];
+  s.playbackRate.value = rate * R(0.92, 1.08);
+  // voices are always a little muffled: overheard, not addressed to the player
+  const lp = filt('lowpass', kind === 'scream' ? 5000 : R(1800, 3200));
+  const hp = filt('highpass', 180);
+  s.connect(hp); hp.connect(lp); lp.connect(ch.input);
+  s.start(now() + R(0, 0.15));
+}
+
+// Occasional clearly-spoken phrase via the browser's speech engine (quiet and rare).
+let speechBusy = false, voicesList = null;
+function say(text, x, z, vol = 0.35) {
+  if (A.muted || !('speechSynthesis' in window) || speechBusy) return;
+  const s = spatial(x, z);
+  if (s.gain < 0.18) return;
+  try {
+    voicesList ||= speechSynthesis.getVoices().filter((v) => v.lang && v.lang.startsWith('en'));
+    const u = new SpeechSynthesisUtterance(text);
+    if (voicesList.length) u.voice = voicesList[(Math.random() * voicesList.length) | 0];
+    u.volume = Math.min(1, vol * s.gain * 1.6); u.rate = R(0.95, 1.2); u.pitch = R(0.75, 1.35);
+    speechBusy = true;
+    u.onend = u.onerror = () => { speechBusy = false; };
+    setTimeout(() => { speechBusy = false; }, 4000);
+    speechSynthesis.speak(u);
+  } catch { speechBusy = false; }
+}
+
+// ---------- sustained sounds ----------
+let laser = null, windS = null;
+const sirens = new Set();
+
+function startLaser(x, z) {
+  const t = now();
+  const ch = chain(x, z, { vol: 1.2, echoAmt: 0.5, wetBoost: 0.15 });
+  // the beam itself comes from overhead, so keep part of it centred and close
+  const direct = amp(0); direct.connect(sfxBus);
+  const body = amp(0);
+  body.connect(ch.input); body.connect(direct);
+  const sat = saturator(3); sat.connect(body);
+  const nodes = [];
+  // sub energy
+  for (const f of [36, 54.5]) { const o = osc('sine', f); const g = amp(0.55); o.connect(g); g.connect(sat); nodes.push(o); }
+  // massive detuned drone
+  const droneLp = filt('lowpass', 500, 2); droneLp.connect(sat);
+  for (const f of [72, 72.6, 108.4, 145]) { const o = osc('sawtooth', f); const g = amp(0.12); o.connect(g); g.connect(droneLp); nodes.push(o); }
+  const lfo = osc('sine', 0.6), lfoG = amp(220); lfo.connect(lfoG); lfoG.connect(droneLp.frequency); nodes.push(lfo);
+  // electrical crackle: bandpassed noise whose amplitude is modulated by slow noise
+  const ec = noise(white), ecF = filt('bandpass', 3200, 1.5), ecG = amp(0.0);
+  const mod = noise(white, 0.02), modLp = filt('lowpass', 35), modG = amp(0.9);
+  mod.connect(modLp); modLp.connect(modG); modG.connect(ecG.gain);
+  ec.connect(ecF); ecF.connect(ecG); ecG.connect(body);
+  // impact sizzle and roar at the target
+  const roar = noise(brown), roarF = filt('lowpass', 900), roarG = amp(0.6); roar.connect(roarF); roarF.connect(roarG); roarG.connect(ch.input);
+  const siz = noise(white), sizF = filt('highpass', 5000), sizG = amp(0.12); siz.connect(sizF); sizF.connect(sizG); sizG.connect(ch.input);
+  for (const s of [ec, mod, roar, siz]) { s.start(t); nodes.push(s); }
+  for (const o of nodes) if (o.start && !o.buffer) o.start(t);
+  body.gain.setValueAtTime(0.0001, t); body.gain.exponentialRampToValueAtTime(0.9, t + 0.25);
+  direct.gain.setValueAtTime(0.0001, t); direct.gain.exponentialRampToValueAtTime(0.35, t + 0.25);
+  // ignition whoomp
+  tone(ch.input, t, { f: 40, f1: 120, a: 0.01, peak: 0.9, d: 0.5 });
+  burst(ch.input, t, { buf: pink, type: 'lowpass', f: 300, sweep: 4000, a: 0.08, peak: 0.6, d: 0.4 });
+  laser = { ch, body, direct, nodes, droneLp, ecF, roarF, roarG, sizG, t0: t };
+}
+function updateLaser(x, z, intensity) {
+  const L = laser, t = now();
+  L.ch.move(x, z, 0.05);
+  // the longer it burns, the bigger and brighter it sounds
+  L.droneLp.frequency.setTargetAtTime(420 + intensity * 900, t, 0.2);
+  L.roarF.frequency.setTargetAtTime(600 + intensity * 2200, t, 0.2);
+  L.roarG.gain.setTargetAtTime(0.5 + intensity * 0.8, t, 0.2);
+  L.sizG.gain.setTargetAtTime(0.08 + intensity * 0.2, t, 0.2);
+  L.body.gain.setTargetAtTime(0.8 + intensity * 0.5, t, 0.2);
+}
+function stopLaser() {
+  const L = laser; laser = null;
+  const t = now();
+  L.body.gain.setTargetAtTime(0.0001, t, 0.12); L.direct.gain.setTargetAtTime(0.0001, t, 0.12);
+  L.roarG.gain.setTargetAtTime(0.0001, t, 0.15); L.sizG.gain.setTargetAtTime(0.0001, t, 0.1);
+  // power-down sigh and a long tail rolling off the buildings
+  tone(L.ch.input, t, { f: 90, f1: 28, a: 0.01, peak: 0.5, d: 0.9 });
+  for (const n of L.nodes) { try { n.stop(t + 1.2); } catch {} }
+}
+
+function startWind(x, z) {
+  const t = now();
+  const ch = chain(x, z, { vol: 1.3, wetBoost: 0.1 });
+  const out = amp(0.0001); out.connect(ch.input);
+  const deep = noise(brown), deepF = filt('lowpass', 220), deepG = amp(1.0);
+  const howl = noise(pink), howlF = filt('bandpass', 700, 2.2), howlG = amp(0.5);
+  const hiss = noise(white), hissF = filt('highpass', 3500), hissG = amp(0.08);
+  const lfo = osc('sine', 0.23), lfoG = amp(380); lfo.connect(lfoG); lfoG.connect(howlF.frequency);
+  const lfo2 = osc('sine', 0.37), lfo2G = amp(0.25); lfo2.connect(lfo2G); lfo2G.connect(howlG.gain);
+  const rum = osc('sine', 33), rumG = amp(0.3);
+  deep.connect(deepF); deepF.connect(deepG); deepG.connect(out);
+  howl.connect(howlF); howlF.connect(howlG); howlG.connect(out);
+  hiss.connect(hissF); hissF.connect(hissG); hissG.connect(out);
+  rum.connect(rumG); rumG.connect(out);
+  const nodes = [deep, howl, hiss, lfo, lfo2, rum];
+  for (const n of nodes) n.start(t);
+  out.gain.setTargetAtTime(1, t, 0.25);
+  windS = { ch, out, nodes, x, z, rattleT: 0, deepF, hissG };
+}
+function stopWind() {
+  const W = windS; windS = null;
+  const t = now();
+  W.out.gain.setTargetAtTime(0.0001, t, 0.6);
+  for (const n of W.nodes) n.stop(t + 3);
+}
+
+// ---------- public API ----------
 export const sfx = {
   unlock() { if (init() && ctx.state === 'suspended') ctx.resume(); },
-  boom(s = 1) {
-    if (!init()) return;
-    noise(1.2 + s, { freq: 900, sweepTo: 60, gain: 0.9 * Math.min(1.4, s), decay: 1.1 + s * 0.9 });
-    tone('sine', 90, 28, 0.9 + s * 0.4, 0.8 * Math.min(1.3, s));
+  get ready() { return !!ctx; },
+  toggleMute() {
+    if (!init()) return false;
+    A.muted = !A.muted;
+    master.gain.setTargetAtTime(A.muted ? 0 : 0.9, now(), 0.05);
+    if (A.muted && 'speechSynthesis' in window) speechSynthesis.cancel();
+    return A.muted;
   },
-  whistle(dur, heavy = false) {
-    if (!init()) return;
-    if (heavy) noise(dur, { freq: 300, sweepTo: 1800, type: 'bandpass', q: 1.2, gain: 0.35, attack: dur * 0.8, decay: dur });
-    else tone('sine', 1800, 500, dur, 0.06);
+  // ambience ducking so big events briefly dominate the mix
+  duck(amount = 0.35, hold = 1.5) {
+    if (!ctx) return;
+    const t = now();
+    ambBus.gain.cancelScheduledValues(t);
+    ambBus.gain.setTargetAtTime(amount, t, 0.03);
+    ambBus.gain.setTargetAtTime(1, t + hold, 1.2);
   },
-  wind() { if (init()) noise(0.5, { freq: 500, sweepTo: 1400, type: 'bandpass', q: 0.6, gain: 0.12, attack: 0.08, decay: 0.5 }); },
-  charge() { if (init()) tone('sawtooth', 120, 1600, 0.45, 0.05); },
-  zap() {
+
+  laser(on, x = 0, z = 0, intensity = 0) {
+    if (!on) { if (laser) stopLaser(); return; }
     if (!init()) return;
-    noise(0.5, { freq: 3000, type: 'highpass', gain: 0.5, decay: 0.45 });
-    tone('square', 900, 60, 0.35, 0.12);
-    noise(1.0, { freq: 500, sweepTo: 80, gain: 0.6, decay: 0.9 });
+    if (!laser) startLaser(x, z);
+    updateLaser(x, z, intensity);
   },
-  laser(on) {
-    if (!on && !laserNodes) return;
+  wind(on, x = 0, z = 0, strength = 1) {
+    if (!on) { if (windS) stopWind(); return; }
     if (!init()) return;
-    if (on && !laserNodes) {
-      const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(); o1.type = 'sawtooth'; o2.type = 'square';
-      o1.frequency.value = 110; o2.frequency.value = 113;
-      const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
-      const g = ctx.createGain(); g.gain.value = 0.0001; g.gain.exponentialRampToValueAtTime(0.09, ctx.currentTime + 0.1);
-      const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
-      const nf = ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 2500;
-      const ng = ctx.createGain(); ng.gain.value = 0.08;
-      o1.connect(f); o2.connect(f); f.connect(g); src.connect(nf); nf.connect(ng); ng.connect(g); g.connect(master);
-      o1.start(); o2.start(); src.start();
-      laserNodes = { o1, o2, src, g };
-    } else if (!on && laserNodes) {
-      const n = laserNodes; laserNodes = null;
-      n.g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.05);
-      setTimeout(() => { n.o1.stop(); n.o2.stop(); n.src.stop(); }, 300);
+    if (!windS) startWind(x, z);
+    const W = windS, t = now();
+    W.ch.move(x, z, 0.15);
+    W.deepF.frequency.setTargetAtTime(180 + strength * 160, t, 0.3);
+    // debris and objects rattling through the gust
+    W.rattleT -= 1 / 60;
+    if (W.rattleT <= 0) {
+      W.rattleT = R(0.04, 0.2);
+      burst(W.ch.input, t, { f: R(700, 3500), q: R(2, 6), a: 0.002, peak: R(0.05, 0.25), d: R(0.02, 0.08) });
+      if (Math.random() < 0.15) burst(W.ch.input, t, { buf: brown, type: 'lowpass', f: 250, a: 0.005, peak: 0.4, d: 0.2 });
     }
   },
+
+  bombFall(x, z, T) {
+    if (!init()) return;
+    const t = now();
+    const ch = chain(x, z, { vol: 0.9 });
+    // falling whistle: pitch drops as it approaches, air rush swells
+    const o1 = osc('sine', 1500), o2 = osc('sine', 1507), g = amp(0.0001);
+    for (const o of [o1, o2]) { o.frequency.setValueAtTime(1500, t); o.frequency.exponentialRampToValueAtTime(420, t + T); o.connect(g); o.start(t); o.stop(t + T + 0.05); }
+    g.gain.exponentialRampToValueAtTime(0.07, t + T * 0.6); g.gain.exponentialRampToValueAtTime(0.16, t + T * 0.97); g.gain.exponentialRampToValueAtTime(0.0001, t + T + 0.03);
+    g.connect(ch.input);
+    const air = noise(pink), af = filt('bandpass', 400, 1.2), ag = amp(0.0001);
+    af.frequency.exponentialRampToValueAtTime(2200, t + T);
+    ag.gain.exponentialRampToValueAtTime(0.5, t + T * 0.98); ag.gain.exponentialRampToValueAtTime(0.0001, t + T + 0.05);
+    air.connect(af); af.connect(ag); ag.connect(ch.input); play(air, t, T + 0.1);
+  },
+
+  meteorFall(x, z, T) {
+    if (!init()) return;
+    const t = now();
+    const ch = chain(x, z, { vol: 1.2, wetBoost: 0.2 });
+    const direct = amp(0.0001); direct.connect(sfxBus);
+    // distant rumble building into an atmospheric roar
+    const rum = noise(brown), rf = filt('lowpass', 90, 1), rg = amp(0.0001);
+    rf.frequency.exponentialRampToValueAtTime(420, t + T);
+    rg.gain.exponentialRampToValueAtTime(1.2, t + T);
+    rum.connect(rf); rf.connect(rg); rg.connect(ch.input); rg.connect(direct); play(rum, t, T + 0.1);
+    const rush = noise(pink), rsf = filt('bandpass', 250, 0.9), rsg = amp(0.0001);
+    rsf.frequency.exponentialRampToValueAtTime(2600, t + T);
+    rsg.gain.exponentialRampToValueAtTime(0.9, t + T * 0.97);
+    rush.connect(rsf); rsf.connect(rsg); rsg.connect(ch.input); play(rush, t, T + 0.05);
+    const sub = osc('sine', 24), sg = amp(0.0001);
+    sub.frequency.exponentialRampToValueAtTime(44, t + T);
+    sg.gain.exponentialRampToValueAtTime(0.8, t + T);
+    sub.connect(sg); sg.connect(direct); sub.start(t); sub.stop(t + T + 0.05);
+    direct.gain.exponentialRampToValueAtTime(0.5, t + T);
+    // burning crackle riding the roar
+    for (let i = 0; i < 40; i++) burst(ch.input, t + T * Math.pow(Math.random(), 0.5), { f: R(1500, 5000), q: 3, peak: R(0.05, 0.2), d: 0.03 });
+    sfx.duck(0.5, T);
+  },
+
+  // Layered explosion: crack, body, sub thump, debris, secondary thumps, echo tail.
+  boom(x, z, size = 1, kind = 'bomb') {
+    if (!init()) return;
+    const t = now();
+    const s = spatial(x, z);
+    const ch = chain(x, z, { vol: 1.1 * Math.min(1.8, size), echoAmt: 0.7, wetBoost: kind === 'meteor' ? 0.25 : 0.1 });
+    const pre = amp(1); const sat = saturator(2.5); pre.connect(sat); sat.connect(ch.input);
+    // subsonic body goes partly direct: you feel it even from far away
+    const subOut = amp(Math.min(1, 0.45 + s.gain)); subOut.connect(sfxBus);
+    const L = kind === 'meteor' ? 2.2 : kind === 'small' ? 0.5 : 1;
+    // 1 crack
+    burst(pre, t, { f: 3000, type: 'highpass', a: 0.001, peak: 0.9, d: 0.06 * L });
+    // 2 body roar
+    burst(pre, t, { buf: pink, type: 'lowpass', f: 4000 * L, sweep: 140, q: 0.6, a: 0.005, peak: 1.0, d: 1.4 * L + size * 0.4 });
+    burst(pre, t + 0.02, { buf: brown, type: 'lowpass', f: 700, sweep: 60, a: 0.02, peak: 1.2, d: 2.2 * L });
+    // 3 sub thump
+    tone(subOut, t, { f: kind === 'meteor' ? 48 : 62, f1: kind === 'meteor' ? 16 : 26, a: 0.008, peak: 0.95, d: 0.9 * L + 0.3, glide: 0.8 * L });
+    if (kind === 'meteor') {
+      tone(subOut, t + 0.05, { f: 30, f1: 14, a: 0.05, peak: 0.8, d: 4.5, glide: 4 });
+      burst(ch.input, t + 0.1, { buf: brown, type: 'lowpass', f: 160, a: 0.4, peak: 0.9, d: 6 }); // long ground rumble
+    }
+    if (kind === 'energy') {
+      tone(pre, t, { type: 'sawtooth', f: 1400, f1: 90, a: 0.002, peak: 0.35, d: 0.5 });
+      for (let i = 0; i < 6; i++) tone(pre, t + R(0, 0.3), { type: 'sine', f: R(2500, 6000), a: 0.001, peak: 0.08, d: R(0.4, 1.2) });
+    }
+    // 4 debris rain + glass
+    const nDeb = Math.round(40 * Math.min(2.5, size) * (kind === 'meteor' ? 1.8 : 1));
+    for (let i = 0; i < nDeb; i++) {
+      const dt = 0.15 + Math.pow(Math.random(), 1.6) * 2.6 * L;
+      burst(ch.input, t + dt, { f: R(600, 4500), q: R(1.5, 5), a: 0.001, peak: R(0.04, 0.22) * (1 - dt / 4), d: R(0.015, 0.07) });
+    }
+    if (kind !== 'meteor') sfx.glass(x, z, 10 * size, 0.1);
+    // 5 secondary impacts
+    for (let i = 0; i < 2 + size * 2; i++) {
+      const dt = R(0.3, 1.8) * L;
+      burst(ch.input, t + dt, { buf: brown, type: 'lowpass', f: R(200, 500), a: 0.004, peak: R(0.3, 0.7), d: R(0.2, 0.5) });
+    }
+    G.camTarget && sfx.duck(kind === 'meteor' ? 0.15 : 0.35, kind === 'meteor' ? 3 : 1.2);
+  },
+
+  crumble(x, z, size = 1) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.6 * size });
+    burst(ch.input, t, { buf: brown, type: 'lowpass', f: 400, a: 0.005, peak: 0.6, d: 0.35 });
+    for (let i = 0; i < 6; i++) burst(ch.input, t + R(0, 0.5), { f: R(800, 4000), q: 3, a: 0.001, peak: R(0.05, 0.2), d: 0.04 });
+  },
+  collapse(x, z, n) {
+    if (!init()) return;
+    const t = now(), sz = Math.min(3, 0.6 + n / 40);
+    const ch = chain(x, z, { vol: 1.1 * sz, echoAmt: 0.6, wetBoost: 0.15 });
+    burst(ch.input, t, { buf: brown, type: 'lowpass', f: 500, sweep: 120, a: 0.15, peak: 1.1, d: 2.5 + sz });
+    burst(ch.input, t, { buf: pink, type: 'lowpass', f: 2500, sweep: 300, a: 0.05, peak: 0.5, d: 1.8 + sz });
+    tone(ch.input, t, { f: 50, f1: 22, a: 0.1, peak: 0.8, d: 2 + sz });
+    for (let i = 0; i < 50 * sz; i++) { const dt = R(0, 3 + sz); burst(ch.input, t + dt, { f: R(500, 4000), q: R(2, 5), a: 0.001, peak: R(0.04, 0.2), d: R(0.02, 0.08) }); }
+    for (let i = 0; i < 4 * sz; i++) burst(ch.input, t + R(0.2, 2.5), { buf: brown, type: 'lowpass', f: 300, a: 0.01, peak: 0.6, d: 0.4 });
+    sfx.duck(0.4, 2);
+  },
+  glass(x, z, n = 8, delay = 0) {
+    if (!init()) return;
+    const t = now() + delay, ch = chain(x, z, { vol: 0.5 });
+    for (let i = 0; i < n; i++) {
+      const dt = R(0, 0.6);
+      burst(ch.input, t + dt, { type: 'highpass', f: R(4000, 8000), a: 0.001, peak: R(0.05, 0.2), d: R(0.03, 0.12) });
+      tone(ch.input, t + dt, { f: R(3000, 7500), a: 0.001, peak: R(0.02, 0.06), d: R(0.1, 0.4) });
+    }
+  },
+  charge(x, z) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 1 }), d = 0.45;
+    const direct = amp(0.4); direct.connect(sfxBus);
+    const car = osc('sawtooth', 110), mod = osc('sine', 55), modG = amp(80);
+    car.frequency.exponentialRampToValueAtTime(1400, t + d); mod.frequency.exponentialRampToValueAtTime(700, t + d);
+    modG.gain.linearRampToValueAtTime(900, t + d);
+    mod.connect(modG); modG.connect(car.frequency);
+    const g = amp(0.0001); g.gain.exponentialRampToValueAtTime(0.25, t + d);
+    const lp = filt('lowpass', 800, 4); lp.frequency.exponentialRampToValueAtTime(6000, t + d);
+    car.connect(lp); lp.connect(g); g.connect(ch.input); g.connect(direct);
+    for (const o of [car, mod]) { o.start(t); o.stop(t + d + 0.05); }
+    tone(direct, t, { f: 30, f1: 70, a: d, peak: 0.7, d: 0.05 });
+    burst(ch.input, t, { buf: pink, type: 'bandpass', f: 500, sweep: 5000, q: 2, a: d, peak: 0.4, d: 0.05 });
+  },
+  zap(x, z) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 1.2, echoAmt: 0.6 });
+    burst(ch.input, t, { type: 'highpass', f: 2000, a: 0.0005, peak: 1, d: 0.12 });
+    // electrical buzz with noise-modulated amplitude
+    const buzz = osc('sawtooth', 58), bg = amp(0.0001), lp = filt('lowpass', 2500);
+    bg.gain.setValueAtTime(0.0001, t); bg.gain.exponentialRampToValueAtTime(0.35, t + 0.01); bg.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    buzz.connect(lp); lp.connect(bg); bg.connect(ch.input); buzz.start(t); buzz.stop(t + 1.2);
+    for (let i = 0; i < 25; i++) burst(ch.input, t + R(0, 1.4), { f: R(2000, 7000), q: 4, a: 0.0005, peak: R(0.05, 0.3), d: 0.015 });
+    sfx.boom(x, z, 1.1, 'energy');
+  },
+  screams(x, z, n = 3) {
+    if (!init()) return;
+    for (let i = 0; i < n; i++) setTimeout(() => voice('scream', x + R(-6, 6), z + R(-6, 6), R(0.25, 0.5)), R(80, 900));
+    if (Math.random() < 0.5) setTimeout(() => say(pickLine(REACT), x, z, 0.5), R(500, 1500));
+  },
+  chatter(x, z, vol = 0.25) { if (init()) voice(Math.random() < 0.12 ? 'laugh' : 'talk', x, z, vol); },
+  say,
+  horn(x, z, vol = 0.5) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol });
+    const n = Math.random() < 0.4 ? 2 : 1, f = R(350, 480);
+    for (let k = 0; k < n; k++) {
+      const t0 = t + k * 0.22, d = n > 1 ? 0.14 : R(0.25, 0.7);
+      for (const ff of [f, f * 1.26]) {
+        const o = osc('square', ff), g = amp(0.0001), lp = filt('lowpass', 1800);
+        g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.01); g.gain.setValueAtTime(0.12, t0 + d); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.05);
+        o.connect(lp); lp.connect(g); g.connect(ch.input); o.start(t0); o.stop(t0 + d + 0.1);
+      }
+    }
+  },
+  siren(type) {
+    if (!init()) return null;
+    const ch = chain(0, 0, { vol: 0.5, echoAmt: 0.4 });
+    const o = osc(type === 'fire' ? 'sawtooth' : 'square', 700), lp = filt('lowpass', 2200), g = amp(0.0001);
+    const lfo = osc(type === 'ambulance' ? 'square' : 'sine', type === 'police' ? 0.28 : type === 'ambulance' ? 1.6 : 0.18);
+    const lfoG = amp(type === 'ambulance' ? 180 : 420);
+    o.frequency.value = type === 'ambulance' ? 900 : 1000;
+    lfo.connect(lfoG); lfoG.connect(o.frequency);
+    o.connect(lp); lp.connect(g); g.connect(ch.input);
+    o.start(); lfo.start();
+    const h = {
+      ch, g, on: false,
+      set(x, z, on) {
+        this.ch.move(x, z, 0.2);
+        if (on !== this.on) { this.on = on; g.gain.setTargetAtTime(on ? 0.12 : 0.0001, now(), 0.3); }
+      },
+      stop() { g.gain.setTargetAtTime(0.0001, now(), 0.3); o.stop(now() + 1.5); lfo.stop(now() + 1.5); sirens.delete(h); },
+    };
+    sirens.add(h);
+    return h;
+  },
+  _internals: () => ({ ctx, chain, burst, tone, noise, filt, amp, osc, voice, ambBus, sfxBus, white, pink, brown, voicePool, spatial, say }),
 };
+
+// ---------- phrases ----------
+export const CASUAL = ['Excuse me.', 'Come on.', "Let's go.", 'Over here.', 'Hey!', 'See you later.', 'No way.', 'I know, right?', 'Hang on.', 'This way.', 'Good morning.', 'Oh, hi!', 'Wait up.', 'Sounds good.', 'Is it this way?'];
+export const REACT = ['What was that?', 'Did you see that?', 'What happened?', 'Run!', 'Oh my god!', 'Get back!', 'Somebody call nine one one!', 'Move, move!', 'Hey, what is going on?', 'Look out!', 'Is everyone okay?'];
+export function pickLine(arr) { return arr[(Math.random() * arr.length) | 0]; }

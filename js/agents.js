@@ -1,13 +1,17 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick, clamp } from './core.js';
+import { sfx } from './audio.js';
 
-const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _v = new THREE.Vector3();
-const UP = new THREE.Vector3(0, 1, 0), XAX = new THREE.Vector3(1, 0, 0);
+const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _m3 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), _e = new THREE.Euler();
+const UP = new THREE.Vector3(0, 1, 0), XAX = new THREE.Vector3(1, 0, 0), ZAX = new THREE.Vector3(0, 0, 1);
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const CAR_COLORS = [0xf2f2f0, 0x1c1d20, 0x8a9096, 0xb4bac0, 0x9e1b1b, 0x1e3f73, 0x2f5d3a, 0xd9c7a0, 0x5a1f2b, 0x3a3f46, 0xcfd6dc, 0x7a5230];
-const SHIRTS = [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a, 0xd87a3a, 0x9a5fb0, 0xf0f0f0, 0x6fb3c9, 0xc94f7c];
-const PANTS = [0x2a3448, 0x1f1f22, 0x5a5044, 0x7b8794, 0x3c4a3a, 0xb8ad96];
-const SKIN = [0xe8c4a8, 0xc99b78, 0x9a6b4c, 0x6b4630, 0xf0d6c0];
+const SHIRTS = [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a, 0xd87a3a, 0x9a5fb0, 0xf0f0f0, 0x6fb3c9, 0xc94f7c, 0x1f2a44, 0x8a8f96];
+const PANTS = [0x2a3448, 0x1f1f22, 0x5a5044, 0x7b8794, 0x3c4a3a, 0xb8ad96, 0x33415e];
+const SKIN = [0xe8c4a8, 0xc99b78, 0x9a6b4c, 0x6b4630, 0xf0d6c0, 0xb07e5a];
+const HAIR = [0x1a1410, 0x2e2118, 0x5a3b22, 0x8a6a3a, 0xc9a86a, 0x6b6b6b, 0x0e0e0e];
+const EMERG_TYPES = ['police', 'police', 'police', 'police', 'police', 'fire', 'fire', 'fire', 'fire', 'ambulance', 'ambulance', 'ambulance', 'ambulance', 'police'];
 
 function carGeos() {
   const body = mergeGeometries([
@@ -24,31 +28,73 @@ function carGeos() {
   return { body, dark };
 }
 
+function beamTexture() {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 120, 2, 32, 90, 90);
+  g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.5, 'rgba(255,255,255,0.25)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 128);
+  return new THREE.CanvasTexture(c);
+}
+
 export class Agents {
   constructor(scene, city, opts) {
     this.city = city;
     this.cars = []; this.peds = [];
+    this.incidents = [];
+    const E = (this.EMERG = EMERG_TYPES.length);
     const { body, dark } = carGeos();
-    const nCars = opts.cars + city.parked.length;
+    const nCars = opts.cars + city.parked.length + E;
     this.carBody = new THREE.InstancedMesh(body, new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.4, envMapIntensity: 1.2 }), nCars);
     this.carDark = new THREE.InstancedMesh(dark, new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.15, metalness: 0.7 }), nCars);
     for (const m of [this.carBody, this.carDark]) { m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); }
 
-    const legs = new THREE.CylinderGeometry(0.06, 0.05, 0.28, 6).translate(0, 0.14, 0);
-    const torso = new THREE.CylinderGeometry(0.075, 0.065, 0.26, 7).translate(0, 0.4, 0);
-    const head = new THREE.SphereGeometry(0.058, 8, 6).translate(0, 0.6, 0);
-    const nP = opts.peds;
-    const pm = () => new THREE.MeshStandardMaterial({ roughness: 0.9 });
-    this.pLegs = new THREE.InstancedMesh(legs, pm(), nP);
+    // head/tail lamps (always present, bright at night) + headlight pools on the road
+    const lampPair = (z, w, h) => mergeGeometries([new THREE.BoxGeometry(0.13, 0.06, 0.03).translate(-w, h, z), new THREE.BoxGeometry(0.13, 0.06, 0.03).translate(w, h, z)]);
+    this.headL = new THREE.InstancedMesh(lampPair(0.785, 0.22, 0.26), new THREE.MeshBasicMaterial({ color: 0xffffff }), nCars);
+    this.tailL = new THREE.InstancedMesh(lampPair(-0.785, 0.24, 0.27), new THREE.MeshBasicMaterial({ color: 0xffffff }), nCars);
+    const poolGeo = new THREE.PlaneGeometry(1.5, 3.6).rotateX(-Math.PI / 2).translate(0, 0.035, 2.5);
+    this.headPool = new THREE.InstancedMesh(poolGeo, new THREE.MeshBasicMaterial({ map: beamTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, color: 0x000000 }), nCars);
+    for (const m of [this.headL, this.tailL, this.headPool]) { m.frustumCulled = false; scene.add(m); }
+    this.headPool.renderOrder = 1;
+    // emergency light bars
+    this.beacons = new THREE.InstancedMesh(new THREE.BoxGeometry(0.15, 0.07, 0.12), new THREE.MeshBasicMaterial({ color: 0xffffff }), E * 2);
+    this.beacons.frustumCulled = false; scene.add(this.beacons);
+    this.beaconLights = [0, 1].map(() => { const l = new THREE.PointLight(0xff2020, 0, 16, 1.6); scene.add(l); return l; });
+
+    // pedestrians: articulated just enough to read as people from far above
+    const torso = mergeGeometries([
+      new THREE.CylinderGeometry(0.066, 0.056, 0.24, 8).scale(1, 1, 0.62).translate(0, 0.43, 0),
+      new THREE.CylinderGeometry(0.02, 0.024, 0.05, 5).translate(0, 0.57, 0),
+    ]);
+    const head = new THREE.SphereGeometry(0.048, 10, 8).scale(0.92, 1.08, 0.98).translate(0, 0.625, 0);
+    const hair = new THREE.SphereGeometry(0.052, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.52).translate(0, 0.632, -0.005);
+    const leg = new THREE.CylinderGeometry(0.027, 0.02, 0.31, 6).translate(0, -0.155, 0);
+    const arm = new THREE.CylinderGeometry(0.018, 0.014, 0.24, 5).translate(0, -0.12, 0);
+    this.crowdSpots = city.crowds || [];
+    const nCrowd = this.crowdSpots.reduce((a, c) => a + c.n, 0);
+    const nP = opts.peds + nCrowd;
+    const pm = () => new THREE.MeshStandardMaterial({ roughness: 0.85 });
     this.pTorso = new THREE.InstancedMesh(torso, pm(), nP);
     this.pHead = new THREE.InstancedMesh(head, pm(), nP);
-    for (const m of [this.pLegs, this.pTorso, this.pHead]) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
+    this.pHair = new THREE.InstancedMesh(hair, pm(), nP);
+    this.pLegL = new THREE.InstancedMesh(leg, pm(), nP);
+    this.pLegR = new THREE.InstancedMesh(leg, this.pLegL.material, nP);
+    this.pArmL = new THREE.InstancedMesh(arm, pm(), nP);
+    this.pArmR = new THREE.InstancedMesh(arm, this.pArmL.material, nP);
+    this.pMeshes = [this.pTorso, this.pHead, this.pHair, this.pLegL, this.pLegR, this.pArmL, this.pArmR];
+    for (const m of this.pMeshes) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
 
     for (let i = 0; i < opts.cars; i++) this.spawnCar(i);
     city.parked.forEach((p, i) => this.spawnParked(opts.cars + i, p));
-    for (let i = 0; i < nP; i++) this.spawnPed(i, opts.wanderFrac || 0);
+    for (let i = 0; i < E; i++) this.spawnEmergency(opts.cars + city.parked.length + i, EMERG_TYPES[i]);
+    let pi = 0;
+    for (; pi < opts.peds; pi++) this.spawnPed(pi, opts.wanderFrac || 0);
+    for (const spot of this.crowdSpots) for (let k = 0; k < spot.n; k++) this.spawnCrowdPed(pi++, spot, k);
     this.carBody.instanceColor.needsUpdate = true;
     this.grid = new Map();
+    this.sirenT = 0; this.fireCheckT = 5;
+    G.emergency = this;
   }
 
   // ---------- cars ----------
@@ -91,6 +137,16 @@ export class Agents {
     c.state = 'parked'; c.pos.set(p.x, 0, p.z); c.heading = p.rot + (Math.random() < 0.5 ? Math.PI : 0);
     this.cars.push(c);
   }
+  spawnEmergency(i, type) {
+    const c = this.newCar(i, 'car');
+    c.emerg = type; c.state = 'hidden'; c.maxSpeed = 5.6;
+    c.scale = type === 'fire' ? [1.2, 1.45, 2.6] : type === 'ambulance' ? [1.1, 1.45, 1.4] : [1, 0.98, 1.06];
+    c.len = 0.8 * c.scale[2];
+    c.color = new THREE.Color(type === 'fire' ? 0xb3140f : type === 'ambulance' ? 0xf4f4f0 : 0xeeeeea);
+    this.carBody.setColorAt(i, c.color);
+    c.ei = this.cars.filter((o) => o.emerg).length;
+    this.cars.push(c);
+  }
   laneDir(A, B) { return _v.set(B.x - A.x, 0, B.z - A.z).normalize().clone(); }
   stopPoint(A, B) {
     const C = this.city, d = this.laneDir(A, B), off = C.roadW / 4, back = C.roadW / 2 + 2.3;
@@ -100,8 +156,31 @@ export class Agents {
     const C = this.city, d = this.laneDir(A, B), off = C.roadW / 4, fwd = C.roadW / 2 + 1.0;
     return { x: A.x + d.x * fwd - d.z * off, z: A.z + d.z * fwd + d.x * off };
   }
+  // breadth-first route over unblocked streets; returns the next node to take from `from`
+  route(from, prev, dest) {
+    const C = this.city;
+    if (from === dest) return null;
+    const came = new Map([[from, -1]]), q = [from];
+    while (q.length) {
+      const n = q.shift();
+      if (n === dest) break;
+      for (const m of C.nodes[n].edges) {
+        if (came.has(m) || C.edge(n, m).blocked) continue;
+        if (n === from && m === prev && C.nodes[from].edges.length > 1) continue;
+        came.set(m, n); q.push(m);
+      }
+    }
+    if (!came.has(dest)) return undefined;
+    let n = dest;
+    while (came.get(n) !== from) n = came.get(n);
+    return n;
+  }
   chooseNext(c) {
     const C = this.city, B = C.nodes[c.to];
+    if (c.dest != null) {
+      const n = this.route(c.to, c.from, c.dest);
+      if (n != null) return n;
+    }
     let opts = B.edges.filter((n) => n !== c.from && !C.edge(B.id, n).blocked);
     if (!opts.length) opts = B.edges.filter((n) => !C.edge(B.id, n).blocked);
     if (!opts.length) return null;
@@ -137,7 +216,6 @@ export class Agents {
   }
   uTurn(c) {
     const C = this.city, A = C.nodes[c.from], B = C.nodes[c.to];
-    if (C.edge(A.id, B.id) && C.edge(A.id, B.id).blocked && false) return;
     const d = this.laneDir(A, B), off = C.roadW / 4;
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
     c.queue = [
@@ -151,16 +229,20 @@ export class Agents {
 
   updateCar(c, dt) {
     const C = this.city;
+    if (c.state === 'hidden') return;
     if (c.state === 'air') return this.updateAir(c, dt, true);
     if (c.fire > 0) {
       c.fire -= dt;
       if (Math.random() < dt * 18) G.fx.fire.emit(c.pos.x + rand(-0.3, 0.3), c.pos.y + 0.45, c.pos.z + rand(-0.3, 0.3), rand(-0.15, 0.15), rand(1.5, 2.6), rand(-0.15, 0.15), rand(0.35, 0.7), rand(0.35, 0.7));
       if (Math.random() < dt * 5) G.fx.smokePuff(c.pos.x, c.pos.y + 0.8, c.pos.z, 0.9, 0.06);
     }
-    if (c.state === 'wreck' || c.state === 'parked') return;
+    if (c.state === 'wreck' || c.state === 'parked' || c.state === 'onscene') { c.speed = 0; return; }
     if (c.timer > 0) { c.timer -= dt; c.speed = Math.max(0, c.speed - 14 * dt); this.moveCar(c, dt); return; }
     if (c.flee > 0) c.flee -= dt;
+    // responders pull up and park once they're close to the incident
+    if (c.incident && Math.hypot(c.pos.x - c.incident.x, c.pos.z - c.incident.z) < 10 + c.ei % 3 * 2) { this.arrive(c); return; }
     if (!c.queue.length) {
+      if (c.dest != null && c.to === c.dest) { this.arrive(c); return; }
       const n = this.chooseNext(c);
       if (n === null) { c.speed = 0; return; }
       this.planTurn(c, n);
@@ -170,8 +252,9 @@ export class Agents {
     let target = c.maxSpeed * (c.flee > 0 ? 1.6 : 1);
     if (wp.stop) {
       const node = C.nodes[wp.node];
-      const mustStop = c.flee <= 0 && node.lit && !C.green(node, wp.axis);
-      const stopSign = !node.lit && node.edges.length >= 3 && c.flee <= 0;
+      const calm = c.flee <= 0 && !c.emerg;
+      const mustStop = calm && node.lit && !C.green(node, wp.axis);
+      const stopSign = calm && !node.lit && node.edges.length >= 3;
       if (mustStop || (stopSign && !wp.done)) {
         target = Math.min(target, Math.sqrt(2 * 9 * Math.max(0, dist - 0.05)));
         if (dist < 0.25 && stopSign) { wp.done = true; c.timer = rand(0.5, 1.0); }
@@ -186,7 +269,7 @@ export class Agents {
     // car following / pedestrian braking / obstacle avoidance
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
     for (const o of this.cars) {
-      if (o === c) continue;
+      if (o === c || o.state === 'hidden') continue;
       const ox = o.pos.x - c.pos.x, oz = o.pos.z - c.pos.z;
       const along = ox * fx + oz * fz;
       if (along <= 0 || along > 4) continue;
@@ -200,8 +283,9 @@ export class Agents {
     if (obs) target = 0;
     if (target < 0.1 && (obs || c.speed < 0.1)) {
       c.stuck += dt;
-      if (c.stuck > (obs ? 1.5 : 12)) this.uTurn(c);
+      if (c.stuck > (obs ? 1.5 : 12)) { if (c.incident && obs) { this.arrive(c); return; } this.uTurn(c); }
     } else c.stuck = Math.max(0, c.stuck - dt);
+    c.braking = target < c.speed - 0.3;
     const acc = target > c.speed ? 3.5 : 12;
     c.speed += clamp(target - c.speed, -acc * dt, acc * dt);
     this.moveCar(c, dt);
@@ -228,7 +312,7 @@ export class Agents {
       a.pos.y = floor;
       if (a.vel.y < -3) {
         a.vel.y *= -0.3; a.vel.x *= 0.6; a.vel.z *= 0.6; a.w.multiplyScalar(0.6);
-        if (isCar) { G.fx.dust(a.pos.x, a.pos.y, a.pos.z, 0.4); G.fx.sparks(a.pos.x, a.pos.y + 0.2, a.pos.z, 8, 3, 2, 1, 4); }
+        if (isCar) { G.fx.dust(a.pos.x, a.pos.y, a.pos.z, 0.4); G.fx.sparks(a.pos.x, a.pos.y + 0.2, a.pos.z, 8, 3, 2, 1, 4); sfx.crumble(a.pos.x, a.pos.z, 0.7); }
       } else {
         a.vel.multiplyScalar(Math.max(0, 1 - dt * 6)); a.vel.y = 0; a.w.multiplyScalar(Math.max(0, 1 - dt * 5));
         if (a.vel.lengthSq() < 0.05) this.land(a, isCar);
@@ -243,6 +327,8 @@ export class Agents {
     a.flipped = up.y < 0;
     if (isCar) {
       a.state = 'wreck';
+      a.incident = null; a.dest = null;
+      if (a.siren) { a.siren.stop(); a.siren = null; }
       if (a.obs) { const k = this.city.obstacles.indexOf(a.obs); if (k >= 0) this.city.obstacles.splice(k, 1); }
       a.obs = { x: a.pos.x, z: a.pos.z, r: 0.9, kind: 'wreck' };
       this.city.obstacles.push(a.obs);
@@ -255,18 +341,94 @@ export class Agents {
   launch(a, dir, f, up, isCar, spin = 6) {
     a.state = 'air';
     if (!a.q || a.q.lengthSq() === 0 || !a.airborneBefore) a.q.setFromAxisAngle(UP, a.heading);
-    if (a.flipped) a.q.multiply(_q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI));
+    if (a.flipped) a.q.multiply(_q.setFromAxisAngle(ZAX, Math.PI));
     a.airborneBefore = true; a.flipped = false;
     a.vel.set(dir.x * f, up, dir.z * f);
     a.w.set(rand(-spin, spin), rand(-spin, spin), rand(-spin, spin));
     if (a.pos.y < 0.02) a.pos.y = 0.02;
   }
 
+  // ---------- first responders ----------
+  report(x, z, sev = 1) {
+    for (const inc of this.incidents) if (Math.hypot(inc.x - x, inc.z - z) < 28) { inc.sev = Math.max(inc.sev, sev); return; }
+    this.incidents.push({ x, z, sev, delay: rand(3, 7), sent: false });
+  }
+  dispatch(inc) {
+    inc.sent = true;
+    const want = ['police', 'fire', 'ambulance'];
+    if (inc.sev > 1.5) want.push('police', 'fire');
+    if (inc.sev > 2.5) want.push('ambulance', 'fire');
+    const C = this.city;
+    const target = C.nodes.filter((n) => !n.dead && n.edges.length).sort((a, b) => Math.hypot(a.x - inc.x, a.z - inc.z) - Math.hypot(b.x - inc.x, b.z - inc.z))[0];
+    const starts = C.nodes.filter((n) => !n.dead && n.edges.length && Math.hypot(n.x - inc.x, n.z - inc.z) > 45);
+    want.forEach((type, k) => {
+      const c = this.cars.find((o) => o.emerg === type && o.state === 'hidden');
+      if (!c || !starts.length) return;
+      setTimeout(() => {
+        const A = pick(starts);
+        const nb = A.edges.filter((m) => !C.edge(A.id, m).blocked);
+        if (!nb.length) return;
+        const B = C.nodes[pick(nb)];
+        const e = this.entryPoint(A, B);
+        c.pos.set(e.x, 0, e.z); c.heading = Math.atan2(B.x - A.x, B.z - A.z);
+        c.from = A.id; c.to = B.id; c.queue = [this.stopPoint(A, B)];
+        c.state = 'drive'; c.speed = 2; c.dest = target.id; c.incident = inc; c.flee = 0; c.sirenOn = true;
+      }, k * rand(900, 2200));
+    });
+  }
+  arrive(c) {
+    c.state = 'onscene'; c.speed = 0; c.queue = [];
+    c.sirenOffAt = G.time + rand(6, 12);
+    // angle the vehicle a little, the way responders park
+    c.heading += rand(-0.35, 0.35);
+  }
+  updateEmergency(dt) {
+    for (const inc of this.incidents) {
+      if (inc.sent) continue;
+      inc.delay -= dt;
+      if (inc.delay <= 0) this.dispatch(inc);
+    }
+    // large fires with nobody attending also get reported
+    this.fireCheckT -= dt;
+    if (this.fireCheckT <= 0) {
+      this.fireCheckT = 4;
+      const b = G.buildings.burnArr;
+      if (b.length > 6) { const c = pick(b); if (c && c.alive) this.report(c.x, c.z, Math.min(3, b.length / 30)); }
+    }
+    // only the nearest few sirens are audible at once
+    this.sirenT -= dt;
+    if (this.sirenT <= 0) {
+      this.sirenT = 0.4;
+      const T = G.camTarget;
+      const active = this.cars.filter((c) => c.emerg && (c.state === 'drive' || c.state === 'onscene') && G.time < (c.sirenOffAt ?? 1e9));
+      active.sort((a, b) => Math.hypot(a.pos.x - T.x, a.pos.z - T.z) - Math.hypot(b.pos.x - T.x, b.pos.z - T.z));
+      const keep = new Set(active.slice(0, 3));
+      for (const c of this.cars) {
+        if (!c.emerg) continue;
+        if (keep.has(c)) { if (!c.siren) c.siren = sfx.siren(c.emerg); if (c.siren) c.siren.set(c.pos.x, c.pos.z, true); }
+        else if (c.siren) { c.siren.stop(); c.siren = null; }
+      }
+    }
+  }
+
   // ---------- pedestrians ----------
+  pedColors(i) {
+    const shirt = new THREE.Color(pick(SHIRTS)), skin = new THREE.Color(pick(SKIN));
+    this.pTorso.setColorAt(i, shirt);
+    this.pArmL.setColorAt(i, Math.random() < 0.4 ? skin : shirt);
+    const pants = new THREE.Color(pick(PANTS));
+    this.pLegL.setColorAt(i, pants); this.pLegR.setColorAt(i, pants);
+    this.pArmR.setColorAt(i, this.pArmL.instanceColor ? new THREE.Color().fromArray(this.pArmL.instanceColor.array, i * 3) : shirt);
+    this.pHead.setColorAt(i, skin);
+    this.pHair.setColorAt(i, new THREE.Color(pick(HAIR)));
+  }
+  newPed(i) {
+    return { i, pos: new THREE.Vector3(), heading: 0, state: 'walk', speed: rand(0.7, 1.1), lat: rand(-0.35, 0.35), vel: new THREE.Vector3(),
+      q: new THREE.Quaternion(), w: new THREE.Vector3(), timer: 0, phase: rand(0, 6), s: rand(0.88, 1.08) };
+  }
   spawnPed(i, wanderFrac) {
     const C = this.city;
-    const p = { i, pos: new THREE.Vector3(), heading: 0, state: 'walk', speed: rand(0.7, 1.1), lat: rand(-0.35, 0.35), vel: new THREE.Vector3(),
-      q: new THREE.Quaternion(), w: new THREE.Vector3(), timer: 0, phase: rand(0, 6), s: rand(0.9, 1.1) };
+    const p = this.newPed(i);
     const zones = C.wanderZones;
     if (zones.length && Math.random() < wanderFrac) {
       p.zone = pick(zones);
@@ -280,9 +442,19 @@ export class Agents {
       p.pos.set(n.x + (m.x - n.x) * t, 0, n.z + (m.z - n.z) * t);
       p.from = n.id; p.to = m.id;
     }
-    this.pLegs.setColorAt(i, new THREE.Color(pick(PANTS)));
-    this.pTorso.setColorAt(i, new THREE.Color(pick(SHIRTS)));
-    this.pHead.setColorAt(i, new THREE.Color(pick(SKIN)));
+    this.pedColors(i);
+    this.peds.push(p);
+  }
+  // people standing around in small groups: outside shops, at corners, bus stops, plazas
+  spawnCrowdPed(i, spot, k) {
+    const p = this.newPed(i);
+    const a = (k / spot.n) * 6.283 + rand(-0.3, 0.3), r = spot.r * rand(0.5, 1);
+    p.pos.set(spot.x + Math.cos(a) * r, 0, spot.z + Math.sin(a) * r);
+    p.group = { x: spot.x, z: spot.z };
+    p.zone = { x0: spot.x - spot.r, x1: spot.x + spot.r, z0: spot.z - spot.r, z1: spot.z + spot.r };
+    p.state = 'idle'; p.timer = rand(4, 40); p.target = { x: p.pos.x, z: p.pos.z };
+    p.heading = Math.atan2(spot.x - p.pos.x, spot.z - p.pos.z);
+    this.pedColors(i);
     this.peds.push(p);
   }
   pedTarget(p) {
@@ -332,7 +504,7 @@ export class Agents {
       }
       case 'return': {
         const dx = p.target.x - p.pos.x, dz = p.target.z - p.pos.z, d = Math.hypot(dx, dz);
-        if (d < 0.2) { p.state = p.zone ? 'wander' : 'walk'; return; }
+        if (d < 0.2) { p.state = p.zone ? (p.group ? 'idle' : 'wander') : 'walk'; p.timer = rand(5, 20); return; }
         p.heading = Math.atan2(dx, dz);
         const nx = p.pos.x + dx / d * p.speed * dt, nz = p.pos.z + dz / d * p.speed * dt;
         if (G.buildings.inside(_p.set(nx, 0.3, nz))) { p.state = 'flee'; p.timer = 1; p.threat = { x: nx, z: nz }; return; }
@@ -341,11 +513,20 @@ export class Agents {
       }
       case 'idle':
         p.timer -= dt;
+        if (p.group) {
+          // face the group and gesture now and then
+          const want = Math.atan2(p.group.x - p.pos.x, p.group.z - p.pos.z);
+          p.heading += Math.atan2(Math.sin(want - p.heading), Math.cos(want - p.heading)) * Math.min(1, dt * 3);
+        }
         if (p.timer <= 0) { p.state = 'wander'; p.target = { x: rand(p.zone.x0, p.zone.x1), z: rand(p.zone.z0, p.zone.z1) }; }
         return;
       case 'wander': {
         const dx = p.target.x - p.pos.x, dz = p.target.z - p.pos.z, d = Math.hypot(dx, dz);
-        if (d < 0.3) { if (Math.random() < 0.4) { p.state = 'idle'; p.timer = rand(3, 15); } p.target = { x: rand(p.zone.x0, p.zone.x1), z: rand(p.zone.z0, p.zone.z1) }; return; }
+        if (d < 0.3) {
+          if (Math.random() < (p.group ? 0.9 : 0.4)) { p.state = 'idle'; p.timer = p.group ? rand(8, 40) : rand(3, 15); }
+          p.target = { x: rand(p.zone.x0, p.zone.x1), z: rand(p.zone.z0, p.zone.z1) };
+          return;
+        }
         p.heading = Math.atan2(dx, dz);
         p.pos.x += dx / d * p.speed * 0.8 * dt; p.pos.z += dz / d * p.speed * 0.8 * dt;
         return;
@@ -389,7 +570,9 @@ export class Agents {
   onBlast(x, y, z, r, power, kind) {
     const threat = { x, z };
     const kill = kind === 'wind' ? r * 0.9 : r * 0.35;
+    let honks = 0, scared = 0;
     for (const c of this.cars) {
+      if (c.state === 'hidden') continue;
       const dx = c.pos.x - x, dz = c.pos.z - z, d = Math.hypot(dx, dz) + 0.01;
       if (d > r) continue;
       const dir = { x: dx / d, z: dz / d };
@@ -397,15 +580,17 @@ export class Agents {
         const f = power * (1 - d / kill);
         const push = kind === 'wind' ? f * 0.9 : f * 1.2;
         if (push > 1.5) {
+          if (c.siren) { c.siren.stop(); c.siren = null; }
           this.launch(c, dir, push, kind === 'wind' ? f * 0.35 : f * 0.9, true, kind === 'wind' ? 3 : 7);
           if (kind !== 'wind' && kind !== 'collapse' && Math.random() < 0.6) c.fire = rand(15, 40);
           continue;
         }
       }
       if (kind === 'energy' && d < r * 0.6) { c.timer = rand(2, 4); }
-      if (c.state === 'drive') {
+      if (c.state === 'drive' && !c.emerg) {
         c.timer = Math.max(c.timer, rand(0.2, 0.7));
         c.flee = rand(6, 12); c.threat = threat;
+        if (honks < 3 && Math.random() < 0.25 && power > 1) { honks++; setTimeout(() => sfx.horn(c.pos.x, c.pos.z, rand(0.3, 0.6)), rand(300, 1600)); }
         // if the danger is ahead on this street, turn around
         const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
         if ((-dx * fx - dz * fz) > 0 && d < r * 0.7) this.uTurn(c);
@@ -417,15 +602,23 @@ export class Agents {
       p.threat = threat;
       if (d < kill && power > 1.5 && p.state !== 'air') {
         const f = power * (1 - d / kill);
-        if (f > 1) { this.launch(p, { x: dx / d, z: dz / d }, f * 1.3, f * (kind === 'wind' ? 0.6 : 1.1), false, 10); continue; }
+        if (f > 1) { this.launch(p, { x: dx / d, z: dz / d }, f * 1.3, f * (kind === 'wind' ? 0.6 : 1.1), false, 10); scared++; continue; }
       }
       if (p.state === 'walk' || p.state === 'wait' || p.state === 'wander' || p.state === 'idle' || p.state === 'return') {
-        p.state = 'alert'; p.timer = rand(0.1, 0.7);
+        p.state = 'alert'; p.timer = rand(0.1, 0.7); scared++;
       } else if (p.state === 'flee') p.timer = Math.max(p.timer, rand(3, 6));
     }
+    if (scared > 2 && power > 0.5) sfx.screams(x, z, Math.min(6, 1 + Math.floor(scared / 8)));
   }
 
   gk(x, z) { return Math.floor(x / 4) * 1000 + Math.floor(z / 4); }
+
+  limb(mesh, i, px, py, ax, az = 0) {
+    _m2.makeRotationFromEuler(_e.set(ax, 0, az));
+    _m2.setPosition(px, py, 0);
+    _m3.multiplyMatrices(_m, _m2);
+    mesh.setMatrixAt(i, _m3);
+  }
 
   update(dt) {
     this.grid.clear();
@@ -434,34 +627,95 @@ export class Agents {
       let a = this.grid.get(k); if (!a) this.grid.set(k, (a = [])); a.push(p);
     }
     for (const c of this.cars) this.updateCar(c, dt);
+    this.updateEmergency(dt);
+
+    const night = G.night || 0;
+    const hk = 0.25 + night * 3.2;
+    this.headL.material.color.setRGB(hk, hk * 0.95, hk * 0.8);
+    const tk = 0.35 + night * 1.8;
+    this.tailL.material.color.setRGB(tk, tk * 0.05, tk * 0.04);
+    this.headPool.material.color.setRGB(night * 0.55, night * 0.5, night * 0.4);
+    const flash = Math.floor(G.time * 7) % 2;
+    const T = G.camTarget;
+    let bl = 0;
+    const lightCands = [];
     for (const c of this.cars) {
-      if (c.state === 'air' || c.state === 'wreck' && c.airborneBefore) {
-        if (c.state === 'wreck') {
+      const hidden = c.state === 'hidden';
+      if (hidden) { for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); }
+      else {
+        if (c.state === 'air' || c.state === 'wreck' && c.airborneBefore) {
+          if (c.state === 'wreck') {
+            _q.setFromAxisAngle(UP, c.heading);
+            if (c.flipped) _q.multiply(new THREE.Quaternion().setFromAxisAngle(ZAX, Math.PI));
+            _p.copy(c.pos); if (c.flipped) _p.y += 0.55;
+          } else { _q.copy(c.q); _p.copy(c.pos); }
+        } else {
           _q.setFromAxisAngle(UP, c.heading);
-          if (c.flipped) _q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI));
-          _p.copy(c.pos); if (c.flipped) _p.y += 0.55;
-        } else { _q.copy(c.q); _p.copy(c.pos); }
-      } else {
-        _q.setFromAxisAngle(UP, c.heading);
-        _p.copy(c.pos);
+          _p.copy(c.pos);
+        }
+        _m.compose(_p, _q, _s.set(c.scale[0], c.scale[1], c.scale[2]));
+        this.carBody.setMatrixAt(c.i, _m); this.carDark.setMatrixAt(c.i, _m);
+        const lit = c.state === 'drive' || c.state === 'onscene';
+        this.headL.setMatrixAt(c.i, lit ? _m : ZERO);
+        this.tailL.setMatrixAt(c.i, lit ? _m : ZERO);
+        if (lit) { _m2.compose(_p, _q, _s.set(1, 1, 1)); this.headPool.setMatrixAt(c.i, night > 0.05 && c.state === 'drive' ? _m2 : ZERO); }
+        else this.headPool.setMatrixAt(c.i, ZERO);
+        const b = c.braking || c.speed < 0.2 ? 2.2 : 1;
+        this.tailL.setColorAt(c.i, _v.set(b, b, b));
       }
-      _m.compose(_p, _q, _s.set(c.scale[0], c.scale[1], c.scale[2]));
-      this.carBody.setMatrixAt(c.i, _m); this.carDark.setMatrixAt(c.i, _m);
+      if (c.emerg) {
+        const on = c.state === 'drive' || c.state === 'onscene';
+        for (let s = 0; s < 2; s++) {
+          const idx = c.ei * 2 + s;
+          if (!on) { this.beacons.setMatrixAt(idx, ZERO); continue; }
+          _m2.makeTranslation(s ? 0.13 : -0.13, 0.56, c.emerg === 'fire' ? 0.5 : 0);
+          _m3.multiplyMatrices(_m, _m2);
+          this.beacons.setMatrixAt(idx, _m3);
+          const lit = (flash + s) % 2 === 0;
+          const col = c.emerg === 'police' ? (s ? [0.2, 0.4, 6] : [6, 0.2, 0.2]) : c.emerg === 'fire' ? [6, 0.5, 0.1] : (s ? [5, 5, 5] : [6, 0.2, 0.2]);
+          const k = lit ? 1 : 0.05;
+          this.beacons.setColorAt(idx, _v.set(col[0] * k, col[1] * k, col[2] * k));
+        }
+        if (on) lightCands.push(c);
+      }
     }
-    this.carBody.instanceMatrix.needsUpdate = this.carDark.instanceMatrix.needsUpdate = true;
+    for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool, this.beacons]) m.instanceMatrix.needsUpdate = true;
+    if (this.tailL.instanceColor) this.tailL.instanceColor.needsUpdate = true;
+    if (this.beacons.instanceColor) this.beacons.instanceColor.needsUpdate = true;
+    // two real flashing lights for the responders nearest the view (they light up facades at night)
+    lightCands.sort((a, b) => Math.hypot(a.pos.x - T.x, a.pos.z - T.z) - Math.hypot(b.pos.x - T.x, b.pos.z - T.z));
+    this.beaconLights.forEach((l, k) => {
+      const c = lightCands[k];
+      if (!c) { l.intensity = 0; return; }
+      l.position.set(c.pos.x, 1.4, c.pos.z);
+      const red = (flash + k) % 2 === 0;
+      l.color.setRGB(red ? 1 : c.emerg === 'police' ? 0.15 : 1, red ? 0.1 : 0.2, red ? 0.08 : c.emerg === 'police' ? 1 : 0.1);
+      l.intensity = (6 + night * 30);
+    });
 
     for (const p of this.peds) {
       this.updatePed(p, dt);
       const moving = p.state === 'walk' || p.state === 'flee' || p.state === 'wander' || p.state === 'return';
       const run = p.state === 'flee';
-      const bob = moving ? Math.abs(Math.sin(G.time * (run ? 16 : 9) + p.phase)) * (run ? 0.05 : 0.025) : 0;
+      const cyc = G.time * (run ? 13 : 7.5) + p.phase;
+      const bob = moving ? Math.abs(Math.sin(cyc)) * (run ? 0.035 : 0.018) : 0;
       if (p.state === 'air') _q.copy(p.q);
       else if (p.state === 'down') _q.setFromAxisAngle(UP, p.heading).multiply(new THREE.Quaternion().setFromAxisAngle(XAX, Math.PI / 2));
-      else { _q.setFromAxisAngle(UP, p.heading); if (run) _q.multiply(new THREE.Quaternion().setFromAxisAngle(XAX, 0.25)); }
+      else { _q.setFromAxisAngle(UP, p.heading); if (run) _q.multiply(new THREE.Quaternion().setFromAxisAngle(XAX, 0.2)); }
       _p.set(p.pos.x, p.pos.y + bob + (p.state === 'down' ? 0.06 : 0), p.pos.z);
       _m.compose(_p, _q, _s.set(p.s, p.s, p.s));
-      this.pLegs.setMatrixAt(p.i, _m); this.pTorso.setMatrixAt(p.i, _m); this.pHead.setMatrixAt(p.i, _m);
+      const i = p.i;
+      this.pTorso.setMatrixAt(i, _m); this.pHead.setMatrixAt(i, _m); this.pHair.setMatrixAt(i, _m);
+      let leg = 0, arm = 0, armOut = 0.1;
+      if (moving) { leg = Math.sin(cyc) * (run ? 0.8 : 0.45); arm = -leg * (run ? 1.1 : 0.8); }
+      else if (p.state === 'air') { leg = Math.sin(G.time * 18 + p.phase) * 0.7; arm = -leg; armOut = 1.1; }
+      else if (p.state === 'alert') { armOut = 0.35; }
+      else if (p.state === 'idle' && p.group) arm = Math.max(0, Math.sin(G.time * 1.3 + p.phase * 3)) * 0.7; // talking with hands
+      this.limb(this.pLegL, i, 0.034, 0.31, leg);
+      this.limb(this.pLegR, i, -0.034, 0.31, -leg);
+      this.limb(this.pArmL, i, 0.084, 0.535, arm, armOut);
+      this.limb(this.pArmR, i, -0.084, 0.535, p.state === 'idle' ? 0 : -arm, -armOut);
     }
-    this.pLegs.instanceMatrix.needsUpdate = this.pTorso.instanceMatrix.needsUpdate = this.pHead.instanceMatrix.needsUpdate = true;
+    for (const m of this.pMeshes) m.instanceMatrix.needsUpdate = true;
   }
 }

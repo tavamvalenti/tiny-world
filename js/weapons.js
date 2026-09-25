@@ -81,6 +81,9 @@ export class Weapons {
     const firing = input.down && this.aim;
     if (this.cur === 0) this.laser(dt, firing);
     else this.laser(dt, false);
+    // wind is one continuous, evolving sound while held, never a restarting loop
+    if (this.cur === 2 && firing) sfx.wind(true, this.aim.point.x, this.aim.point.z, 1);
+    else sfx.wind(false);
     if (!firing) { this.pulseT = 0; return; }
     if (this.cur === 2) {
       this.pulseT -= dt;
@@ -114,7 +117,6 @@ export class Weapons {
     const B = G.buildings;
     this.beamCore.visible = this.beamGlow.visible = on;
     if (!on) { this.laserLight.intensity = 0; this.laserT = 0; sfx.laser(false); return; }
-    sfx.laser(true);
     this.laserT += dt;
     const cam = this.camera;
     const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
@@ -122,6 +124,7 @@ export class Weapons {
     const dir = this.aim.point.clone().sub(origin).normalize();
     const hit = B.raycast(origin, dir, 1200) || { point: this.aim.point, normal: new THREE.Vector3(0, 1, 0), cell: null };
     const p = hit.point, len = origin.distanceTo(p);
+    sfx.laser(true, p.x, p.z, Math.min(1, this.laserT / 4));
     const ramp = Math.min(1, this.laserT * 4);
     for (const [m, r] of [[this.beamCore, 0.32], [this.beamGlow, 1.25]]) {
       m.position.copy(origin); m.lookAt(p);
@@ -144,7 +147,7 @@ export class Weapons {
       if (Math.random() < dt * 1.5) fx.groundFire(p.x, 0, p.z, rand(4, 10), 0.6);
     }
     this.laserBlastT = (this.laserBlastT || 0) - dt;
-    if (this.laserBlastT <= 0) { this.laserBlastT = 0.35; blast(p.x, p.y, p.z, 14, 0.3, 'laser'); }
+    if (this.laserBlastT <= 0) { this.laserBlastT = 0.35; blast(p.x, p.y, p.z, 14, 0.3, 'laser'); if (this.laserT > 2.5 && G.emergency) G.emergency.report(p.x, p.z, 1); }
     // vehicles cooked by the beam eventually blow
     for (const c of G.agents.cars) {
       if (c.state === 'air') continue;
@@ -157,8 +160,8 @@ export class Weapons {
 
   carExplode(c) {
     const p = c.pos;
-    G.fx.explosion(p.x, p.y + 0.3, p.z, 0.55);
-    sfx.boom(0.5);
+    G.fx.explosion(p.x, p.y + 0.3, p.z, 0.55, null, 'small');
+    sfx.boom(p.x, p.z, 0.5, 'small');
     c.fire = rand(20, 40);
     blast(p.x, p.y, p.z, 14, 6, 'explosion');
     G.agents.launch(c, { x: rand(-0.3, 0.3), z: rand(-0.3, 0.3) }, 2, 7, true, 5);
@@ -177,13 +180,12 @@ export class Weapons {
     const vel = new THREE.Vector3().subVectors(p, start).divideScalar(T);
     vel.y = (p.y - start.y) / T + 0.5 * 30 * T; // compensate gravity 30 so it lands at p
     this.projectiles.push({ kind: 'bomb', mesh: m, vel, grav: 30, t: 0 });
-    sfx.whistle(1.0);
+    sfx.bombFall(p.x, p.z, T);
   }
 
   // ---------- 3. wind ----------
   wind(p) {
     const B = G.buildings, fx = G.fx;
-    sfx.wind();
     blast(p.x, p.y, p.z, 12, 9, 'wind');
     // tear loose already-damaged sections
     B.query(p.x, p.z, 7, (c) => {
@@ -219,7 +221,7 @@ export class Weapons {
     this.scene.add(m);
     const T = 1.5;
     this.projectiles.push({ kind: 'meteor', mesh: m, vel: new THREE.Vector3().subVectors(p, start).divideScalar(T), grav: 0, t: 0, spin: new THREE.Vector3(rand(-3, 3), rand(-3, 3), rand(-3, 3)) });
-    sfx.whistle(1.6, true);
+    sfx.meteorFall(p.x, p.z, T);
   }
 
   updateProjectiles(dt) {
@@ -258,19 +260,20 @@ export class Weapons {
   bombImpact(p) {
     const B = G.buildings, fx = G.fx;
     fx.explosion(p.x, p.y, p.z, 1.1);
-    sfx.boom(1);
+    sfx.boom(p.x, p.z, 1.1, 'bomb');
     B.damageSphere(p.x, p.y, p.z, 4.4, 280, 0.9, 0.45);
     if (p.y < 0.6) { fx.crater(p.x, p.z, 1.7); this.groundChunks(p, 10, 8); }
     for (let i = 0; i < 3; i++) fx.groundFire(p.x + rand(-2, 2), Math.max(0, p.y), p.z + rand(-2, 2), rand(8, 20), rand(0.8, 1.4));
     blast(p.x, p.y, p.z, 24, 12, 'explosion');
+    G.emergency && G.emergency.report(p.x, p.z, 1.5);
   }
 
   meteorImpact(p) {
     const B = G.buildings, fx = G.fx;
-    fx.explosion(p.x, p.y, p.z, 2.3);
+    fx.explosion(p.x, p.y, p.z, 2.3, null, 'meteor');
     fx.fireball(p.x, p.y + 3, p.z, 9, 1.6, new THREE.Color(1, 0.45, 0.12));
     fx.flash(p.x, p.y + 8, p.z, 0xffb070, 400, 1.2, 120);
-    sfx.boom(2);
+    sfx.boom(p.x, p.z, 2.2, 'meteor');
     B.damageSphere(p.x, p.y, p.z, 8.5, 520, 1.2, 0.7);
     B.damageSphere(p.x, p.y, p.z, 13, 70, 0.4, 0.25);
     if (p.y < 2) fx.crater(p.x, p.z, 4.6);
@@ -279,6 +282,7 @@ export class Weapons {
     fx.ring(p.x, 0.1, p.z, 40, 1.1, 0xffa060, 0.6);
     G.shake = 1.4;
     blast(p.x, p.y, p.z, 45, 26, 'meteor');
+    G.emergency && G.emergency.report(p.x, p.z, 3);
   }
 
   groundChunks(p, n, sp) {
@@ -297,7 +301,7 @@ export class Weapons {
     orb.frustumCulled = false;
     this.scene.add(orb);
     const top = p.clone().add(new THREE.Vector3(0, 30, 0));
-    sfx.charge();
+    sfx.charge(p.x, p.z);
     fx.anims.push({ dur: 0.45, t: 0, fn: (k) => {
       orb.position.lerpVectors(top, p.clone().add(new THREE.Vector3(0, 2, 0)), k * k);
       orb.scale.setScalar(0.4 + k * 1.3 + Math.random() * 0.2);
@@ -307,7 +311,7 @@ export class Weapons {
 
   energyStrike(p) {
     const B = G.buildings, fx = G.fx;
-    sfx.zap();
+    sfx.zap(p.x, p.z);
     const sky = p.clone().add(new THREE.Vector3(rand(-3, 3), 60, rand(-3, 3)));
     const targets = [];
     B.query(p.x, p.z, 9, (c) => { if (c.alive && !c.falling && Math.random() < 0.08) targets.push(new THREE.Vector3(c.x, c.y, c.z)); });
@@ -342,5 +346,6 @@ export class Weapons {
     fx.anims.push({ dur: 2.2, t: 0, fn: () => { if (Math.random() < 0.4) fx.sparks(p.x + rand(-2, 2), p.y + rand(0, 1.5), p.z + rand(-2, 2), 5, 1.5, 1.8, 5, 3); } });
     G.shake = Math.max(G.shake, 0.5);
     blast(p.x, p.y, p.z, 26, 11, 'energy');
+    G.emergency && G.emergency.report(p.x, p.z, 1.2);
   }
 }

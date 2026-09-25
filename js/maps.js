@@ -51,6 +51,25 @@ function outskirts(ctx, kind) {
   }
 }
 
+// Groups of people standing around: street corners, storefronts, plazas.
+function crowdsAroundBlock(city, b, pCorner, pFront, big = 1) {
+  const cr = (city.crowds ||= []), s = city.sw;
+  for (const [x, z] of [[b.x0 + 0.9, b.z0 + 0.9], [b.x1 - 0.9, b.z0 + 0.9], [b.x0 + 0.9, b.z1 - 0.9], [b.x1 - 0.9, b.z1 - 0.9]]) {
+    if (Math.random() < pCorner) cr.push({ x, z, r: 0.7, n: Math.round(rand(3, 6) * big) });
+  }
+  for (let x = b.x0 + 4; x < b.x1 - 4; x += 6) {
+    if (Math.random() < pFront) cr.push({ x: x + rand(-1, 1), z: b.z0 + s * 0.55, r: 0.55, n: Math.round(rand(2, 4) * big) });
+    if (Math.random() < pFront) cr.push({ x: x + rand(-1, 1), z: b.z1 - s * 0.55, r: 0.55, n: Math.round(rand(2, 4) * big) });
+  }
+  for (let z = b.z0 + 4; z < b.z1 - 4; z += 6) {
+    if (Math.random() < pFront) cr.push({ x: b.x0 + s * 0.55, z: z + rand(-1, 1), r: 0.55, n: Math.round(rand(2, 4) * big) });
+    if (Math.random() < pFront) cr.push({ x: b.x1 - s * 0.55, z: z + rand(-1, 1), r: 0.55, n: Math.round(rand(2, 4) * big) });
+  }
+}
+function crowdsIn(city, z0, n, sizeMin = 3, sizeMax = 7) {
+  for (let i = 0; i < n; i++) (city.crowds ||= []).push({ x: rand(z0.x0, z0.x1), z: rand(z0.z0, z0.z1), r: rand(0.7, 1.2), n: Math.round(rand(sizeMin, sizeMax)) });
+}
+
 function makeCtx(o, B) {
   const city = new City(o);
   const g = new Ground(o.extent, 4096);
@@ -80,6 +99,8 @@ export function downtown(B) {
       for (let i = 0; i < 26; i++) city.addTree(rand(b.lx0 + 1, b.lx1 - 1), rand(b.lz0 + 1, b.lz1 - 1), rand(1.1, 1.5));
       for (let i = 0; i < 6; i++) city.addProp('bench', cx + rand(-5, 5), cz + rand(-5, 5), rand(0, 6));
       city.wanderZones.push({ x0: b.lx0 + 0.5, x1: b.lx1 - 0.5, z0: b.lz0 + 0.5, z1: b.lz1 - 0.5 });
+      crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx1 - 1, z0: b.lz0 + 1, z1: b.lz1 - 1 }, 5, 3, 6);
+      crowdsAroundBlock(city, b, 0.5, 0.1);
     } else if (kind === 'plaza') {
       g.rect(b.lx0 - 0.5, b.lz0 - 0.5, b.lx1 + 0.5, b.lz1 + 0.5, '#b9b2a4');
       for (let x = b.lx0; x < b.lx1; x += 1.2) g.line(x, b.lz0, x, b.lz1, 0.03, 'rgba(0,0,0,.12)');
@@ -87,6 +108,8 @@ export function downtown(B) {
       B.add({ x: cx, z: b.lz0 + 3, w: b.lx1 - b.lx0, d: 5.5, floors: 20, style: 'office', tint: TINT.office(), cell: 1.7, gh: 1.8, setbacks: [{ f: 14, n: 1 }] });
       for (let x = b.lx0 + 1.5; x < b.lx1; x += 3) for (let z = cz + 1; z < b.lz1; z += 3) { city.addTree(x, z, 0.9); }
       city.wanderZones.push({ x0: b.lx0, x1: b.lx1, z0: cz, z1: b.lz1 });
+      crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx1 - 1, z0: cz + 1, z1: b.lz1 - 1 }, 7, 4, 9);
+      crowdsAroundBlock(city, b, 0.8, 0.35);
     } else if (kind === 'parking') {
       const spots = city.paintParking(g, b.lx0 - 0.3, b.lz0 - 0.3, b.lx1 + 0.3, b.lz1 + 0.3);
       for (const s of spots) if (Math.random() < 0.72) city.parked.push(s);
@@ -96,25 +119,43 @@ export function downtown(B) {
       const hf = 3 + 13 * Math.exp(-((d / 42) ** 2));
       const W = b.lx1 - b.lx0 + 1.2, D = b.lz1 - b.lz0 + 1.2;
       g.rect(b.lx0 - 0.6, b.lz0 - 0.6, b.lx1 + 0.6, b.lz1 + 0.6, '#5c5955');
-      const xw = partition(W, Math.random() < 0.5 ? 2 : 3, 3.6), zw = partition(D, 2, 4.5);
-      let x = b.lx0 - 0.6;
-      for (const pw of xw) {
-        let z = b.lz0 - 0.6;
-        for (const pd of zw) {
-          let floors = Math.round(hf * rand(0.55, 1.35));
-          floors = Math.max(2, Math.min(24, floors));
-          const style = floors > 11 ? pick(['office', 'office', 'concrete']) : pick(['brick', 'brick', 'brick', 'concrete']);
-          B.add({ x: x + pw / 2, z: z + pd / 2, w: pw - 0.3, d: pd - 0.3, floors, style, tint: TINT[style](), cell: 1.6, fh: 1, gh: 1.35,
-            setbacks: floors > 12 ? [{ f: floors - 4, n: 1 }] : null });
-          z += pd;
+      const lx = b.lx0 - 0.6, lz = b.lz0 - 0.6;
+      const r = Math.random();
+      if (r < 0.14 && hf > 7) {
+        // superblock: a broad podium with a slender tower rising out of it
+        const floors = Math.round(rand(18, 30));
+        const style = pick(['office', 'concrete']);
+        B.add({ x: lx + W / 2, z: lz + D / 2, w: W - 0.3, d: D - 0.3, floors, style, tint: TINT[style](), cell: 1.7, fh: rand(0.95, 1.1), gh: 1.7,
+          setbacks: [{ f: Math.round(rand(3, 6)), n: 2 }, { f: floors - Math.round(rand(3, 6)), n: 3 }] });
+      } else {
+        // irregular lots: skinny walk-ups next to wide mid-rises and the odd tall tower
+        const xw = partition(W, pick([2, 3, 3, 4]), 2.8), zw = partition(D, pick([1, 2, 2, 3]), 3.2);
+        let x = lx;
+        for (const pw of xw) {
+          let z = lz;
+          for (const pd of zw) {
+            const kind = Math.random();
+            let floors = kind < 0.2 ? Math.round(rand(2, 4)) : kind > 0.9 ? Math.round(hf * rand(1.4, 2.0)) : Math.round(hf * rand(0.5, 1.3));
+            floors = Math.max(2, Math.min(32, floors));
+            const style = floors > 11 ? pick(['office', 'office', 'concrete']) : pick(['brick', 'brick', 'brick', 'concrete']);
+            // not every building fills its lot; leaves small gaps, alleys and forecourts
+            const shrinkW = Math.random() < 0.3 ? rand(0.3, 1.4) : 0, shrinkD = Math.random() < 0.3 ? rand(0.3, 1.4) : 0;
+            const sb = floors > 12 ? [{ f: floors - Math.round(rand(3, 7)), n: 1 }] : floors > 7 && Math.random() < 0.3 ? [{ f: floors - 2, n: 1 }] : null;
+            B.add({ x: x + pw / 2, z: z + pd / 2 + (Math.random() < 0.5 ? shrinkD / 2 : -shrinkD / 2), w: Math.max(2.4, pw - 0.3 - shrinkW), d: Math.max(2.4, pd - 0.3 - shrinkD),
+              floors, style, tint: TINT[style](), cell: floors > 16 ? 1.8 : 1.6, fh: rand(0.92, 1.15), gh: rand(1.2, 1.6), setbacks: sb });
+            z += pd;
+          }
+          x += pw;
         }
-        x += pw;
       }
       if (Math.random() < 0.45) city.treesAlongBlock(b, 6, 'round', 0.75);
+      // the denser the core, the busier the sidewalks
+      const busy = Math.min(1, hf / 12);
+      crowdsAroundBlock(city, b, 0.35 + busy * 0.45, 0.12 + busy * 0.3);
     }
   }
   outskirts(ctx, 'city');
-  return { ...ctx, agents: { cars: 56, peds: 330, wanderFrac: 0.1 }, fog: 0xc6cdd3, start: { x: 0, z: 8 } };
+  return { ...ctx, agents: { cars: 60, peds: 400, wanderFrac: 0.1 }, fog: 0xc6cdd3, start: { x: 0, z: 8 } };
 }
 
 // ================= TROPICAL =================
@@ -132,6 +173,7 @@ export function tropical(B) {
   for (let x = -112; x < 112; x += 1.2) g.circle(x, shore + Math.sin(x * 0.2) * 0.8, 1.1, 'rgba(190,172,130,.5)');
   g.line(-112, -15.3, 112, -15.3, 0.4, '#bfb8a8');
   city.wanderZones.push({ x0: -60, x1: 60, z0: shore + 2, z1: -18 });
+  crowdsIn(city, { x0: -58, x1: 58, z0: shore + 3, z1: -20 }, 14, 3, 7);
   for (let x = -62; x < 64; x += rand(4, 7)) city.addTree(x, rand(-19, -17), rand(0.9, 1.2), 'palm');
   for (let i = 0; i < 40; i++) {
     const x = rand(-58, 58), z = rand(shore + 4, -21);
@@ -152,6 +194,7 @@ export function tropical(B) {
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 9);
     city.treesAlongBlock(b, 7, 'palm', 0.75);
+    crowdsAroundBlock(city, b, b.j === 0 ? 0.6 : 0.2, b.j === 0 ? 0.3 : 0.06);
     if (b.j === 0) {
       // beachfront: hotels + restaurants
       g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#bdb6a6');
@@ -160,8 +203,8 @@ export function tropical(B) {
         for (const s of spots) if (Math.random() < 0.6) city.parked.push(s);
         continue;
       }
-      const floors = Math.round(rand(8, 15));
-      B.add({ x: cx - 3.5, z: b.lz0 + 3.6, w: 12, d: 6.4, floors, style: 'stucco', tint: TINT.stucco(), cell: 1.6, gh: 1.5, setbacks: [{ f: floors - 3, n: 1 }] });
+      const floors = Math.round(rand(5, 19)), hw = rand(8, 13), hd = rand(4.5, 7);
+      B.add({ x: cx - 3.5, z: b.lz0 + hd / 2 + 0.4, w: hw, d: hd, floors, fh: rand(0.9, 1.1), style: 'stucco', tint: TINT.stucco(), cell: 1.6, gh: 1.5, setbacks: [{ f: floors - 3, n: 1 }] });
       g.rect(cx + 4.5, b.lz0 + 1, b.lx1 - 0.5, b.lz0 + 7, '#d8d2c4');
       g.rect(cx + 5.5, b.lz0 + 2, b.lx1 - 1.5, b.lz0 + 5.5, '#3fb6c8'); // pool
       g.rect(cx + 5.8, b.lz0 + 2.3, b.lx1 - 1.8, b.lz0 + 5.2, '#5fd2dc');
@@ -181,7 +224,7 @@ export function tropical(B) {
     }
   }
   outskirts(ctx, 'tropical');
-  return { ...ctx, agents: { cars: 38, peds: 300, wanderFrac: 0.42 }, fog: 0xcfdde3, start: { x: 0, z: 0 }, water: { shore }, zMin: -40 };
+  return { ...ctx, agents: { cars: 40, peds: 300, wanderFrac: 0.4 }, fog: 0xcfdde3, start: { x: 0, z: 0 }, water: { shore }, zMin: -40 };
 }
 
 // ================= SUBURBS =================
@@ -208,6 +251,8 @@ export function suburbs(B) {
       g.rect(b.lx0 + 1, b.lz1 - 7, b.lx0 + 8, b.lz1 - 1, '#c9a574');
       city.addProp('swing', b.lx0 + 3, b.lz1 - 5, 0); city.addProp('slide', b.lx0 + 6, b.lz1 - 4.5, 0.4); city.addProp('swing', b.lx0 + 4, b.lz1 - 2.5, 0.2);
       city.wanderZones.push({ x0: b.lx0 + 1, x1: b.lx0 + 8, z0: b.lz1 - 7, z1: b.lz1 - 1 }, { x0: cx, x1: cx + 10, z0: cz + 2, z1: cz + 8 });
+      crowdsIn(city, { x0: cx, x1: cx + 10, z0: cz + 2, z1: cz + 8 }, 3, 3, 6);
+      crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx0 + 8, z0: b.lz1 - 7, z1: b.lz1 - 1 }, 2, 3, 5);
       const spots = city.paintParking(g, cx + 3, b.lz0 + 0.5, b.lx1, b.lz0 + 5.2);
       for (const s of spots) if (Math.random() < 0.7) city.parked.push(s);
     } else if (key === '2,2') { // strip mall + gas station
@@ -231,8 +276,8 @@ export function suburbs(B) {
       // two rows of houses facing the streets, driveways out to the curb
       for (const [zz, face] of [[b.lz0 + 4.2, -1], [b.lz1 - 4.2, 1]]) {
         for (let x = b.lx0 + 3.6; x < b.lx1 - 3; x += 6.8) {
-          const w = rand(4.2, 5), d = rand(3.6, 4.2);
-          B.add({ x, z: zz, w, d, floors: Math.random() < 0.45 ? 2 : 1, style: 'house', tint: TINT.house(), cell: 1.5, fh: 0.95, gh: 1, gable: true, roofTint: pick(ROOF_TINTS) });
+          const big = Math.random() < 0.25, w = big ? rand(5, 5.8) : rand(3.6, 5), d = big ? rand(4.2, 4.8) : rand(3.2, 4.2);
+          B.add({ x, z: zz, w, d, floors: big || Math.random() < 0.35 ? 2 : 1, style: 'house', tint: TINT.house(), cell: 1.5, fh: 0.95, gh: 1, gable: true, roofTint: pick(ROOF_TINTS) });
           const dx = x + w / 2 + 0.9, curb = face < 0 ? b.z0 : b.z1;
           g.rect(dx - 0.7, Math.min(zz, curb), dx + 0.7, Math.max(zz, curb), '#bdb8ad');
           g.line(x - 1.5, zz - face * (d / 2 + 0.2), x - 1.5, curb - face * 0.2, 0.35, '#c9c4b8'); // front path
@@ -243,10 +288,12 @@ export function suburbs(B) {
         }
       }
       city.wanderZones.push({ x0: b.lx0 + 1, x1: b.lx1 - 1, z0: cz - 2, z1: cz + 2 });
+      // neighbours chatting on the sidewalk
+      crowdsAroundBlock(city, b, 0.1, 0.03, 0.6);
     }
   }
   outskirts(ctx, 'houses');
-  return { ...ctx, agents: { cars: 28, peds: 150, wanderFrac: 0.25 }, fog: 0xcdd6d8, start: { x: 0, z: 10 } };
+  return { ...ctx, agents: { cars: 28, peds: 120, wanderFrac: 0.25 }, fog: 0xcdd6d8, start: { x: 0, z: 10 } };
 }
 
 export const MAPS = { downtown, tropical, suburbs };

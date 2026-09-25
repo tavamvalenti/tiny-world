@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, clamp, blast } from './core.js';
 import { makeShingles } from './textures.js';
+import { sfx } from './audio.js';
 
 // Buildings are grids of box "cells" (one bay wide, one floor tall). Every cell of a style lives in one
 // InstancedMesh; per-instance attributes drive a patched standard shader: which faces are exterior
@@ -146,6 +147,7 @@ export class Buildings {
       sh.uniforms.maskMap = { value: F.mask };
       sh.uniforms.roofColor = { value: ROOF[style] };
       sh.uniforms.uTime = timeU;
+      sh.uniforms.uNight = (G.nightU ||= { value: 0 });
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
           attribute float faceId; attribute float aMask; attribute vec4 aState;
@@ -156,7 +158,7 @@ export class Buildings {
           vWPos = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
-          uniform sampler2D maskMap; uniform vec3 roofColor; uniform float uTime;
+          uniform sampler2D maskMap; uniform vec3 roofColor; uniform float uTime; uniform float uNight;
           varying float vFace; varying float vExt; varying vec4 vState; varying vec3 vWPos; varying vec2 vUv0;
           float hsh(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
           float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
@@ -193,7 +195,17 @@ export class Buildings {
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           float fl = 0.6 + 0.4 * sin(uTime * 13.0 + vWPos.x * 3.1 + vWPos.y * 5.3) * sin(uTime * 5.3 + vWPos.z * 2.7);
           float glowMask = mix(0.35, 1.6, max(winO, (1.0 - vExt)));
-          totalEmissiveRadiance += vec3(1.0, 0.36, 0.07) * heat * 2.6 * glowMask * (0.45 + 0.55 * sn) * fl;`);
+          totalEmissiveRadiance += vec3(1.0, 0.36, 0.07) * heat * 2.6 * glowMask * (0.45 + 0.55 * sn) * fl;
+          // lit windows after dark: each window independently on/off with a few colour temperatures
+          if (uNight > 0.01 && winO > 0.5) {
+            float wid = floor(vWPos.x * 0.62) * 17.0 + floor(vWPos.z * 0.62) * 31.0 + floor(vWPos.y * 0.98) * 7.0 + step(0.5, vMapUv.x) * 3.0 + vFace * 11.0;
+            float r1 = hsh(vec2(wid, 1.7)), r2 = hsh(vec2(wid, 9.1));
+            float shop = vState.w;
+            float on = shop > 0.5 ? 1.0 : step(1.0 - (0.12 + 0.3 * uNight), r1);
+            vec3 wc = r2 < 0.55 ? vec3(1.0, 0.7, 0.38) : r2 < 0.85 ? vec3(1.0, 0.86, 0.62) : vec3(0.62, 0.78, 1.0);
+            float flick = r2 > 0.97 ? 0.6 + 0.4 * sin(uTime * 9.0 + wid) : 1.0;
+            totalEmissiveRadiance += wc * on * flick * uNight * (1.0 - broken) * (1.0 - clamp(burn * 1.5, 0.0, 1.0)) * (shop > 0.5 ? 2.4 : 1.25) * (0.7 + 0.5 * r2);
+          }`);
     };
     return mat;
   }
@@ -357,7 +369,9 @@ export class Buildings {
   damage(c, amount, heat = 0, src = null) {
     if (!c.alive || c.falling) return;
     c.hp -= amount;
+    const was = c.dmg;
     c.dmg = clamp(1 - c.hp / c.max, c.dmg, 1);
+    if (was < 0.3 && c.dmg >= 0.3 && G.time - (this.glassT || 0) > 0.15) { this.glassT = G.time; sfx.glass(c.x, c.z, 4); }
     if (heat) {
       this.heat(c, heat);
       c.burn = Math.min(1, c.burn + heat * 0.35);
@@ -402,7 +416,9 @@ export class Buildings {
         vel, c.hx * 2 * s, c.hy * 2 * s * rand(0.5, 1), c.hz * 2 * s, col);
     }
     if (!opts.quiet) fx.dust(c.x, c.y, c.z, 0.6);
+    if (!opts.quiet && G.time - (this.crumbleT || 0) > 0.09) { this.crumbleT = G.time; sfx.crumble(c.x, c.z, 0.5 + Math.min(1, c.y / 10)); }
     if (c.fire > 0 || c.burn > 0.5) fx.emitFire(c.x, c.y, c.z, 4);
+    if (c.heat > 0.3 && camD < 70) fx.blowout(c.x, c.y, c.z);
     if (c.props) for (const p of c.props) {
       p.mesh.setMatrixAt(p.idx, ZERO); p.mesh.instanceMatrix.needsUpdate = true;
       fx.debris.spawn(p.x, p.y + 0.2, p.z, new THREE.Vector3(rand(-2, 2), rand(1, 3), rand(-2, 2)), 0.4, 0.25, 0.35, new THREE.Color(0.55, 0.55, 0.55));
@@ -540,6 +556,8 @@ export class Buildings {
     for (let i = 0; i < Math.min(8, 2 + many / 10); i++) G.fx.dust(cx + rand(-2, 2), Math.max(0.3, lowY), cz + rand(-2, 2), s);
     G.shake = Math.max(G.shake, Math.min(1, many * 0.015));
     blast(cx, lowY, cz, 10 + many * 0.3, 1.5 + many * 0.04, 'collapse');
+    if (many > 6) sfx.collapse(cx, cz, many); else sfx.crumble(cx, cz, 1);
+    if (many > 20 && G.emergency) G.emergency.report(cx, cz, many / 20);
   }
 
   // ---------- per-frame ----------

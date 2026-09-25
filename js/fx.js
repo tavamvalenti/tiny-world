@@ -64,6 +64,13 @@ class Particles {
         vel[i3 + 1] -= 16 * dt;
         size[i] = s0[i] * (1 - t);
         col[i4] = base[i4]; col[i4 + 1] = base[i4 + 1]; col[i4 + 2] = base[i4 + 2]; col[i4 + 3] = 1 - t;
+      } else if (mode === 'ember') {
+        vel[i3 + 1] += (0.6 - vel[i3 + 1] * 0.8) * dt;
+        vel[i3] += (wx * 1.2 - vel[i3]) * dt * 0.8 + Math.sin(life[i] * 5 + this.seed[i]) * dt * 1.5;
+        vel[i3 + 2] += (wz * 1.2 - vel[i3 + 2]) * dt * 0.8 + Math.cos(life[i] * 4 + this.seed[i]) * dt * 1.5;
+        size[i] = s0[i] * (1 - t * 0.5);
+        const fl = 0.6 + 0.4 * Math.sin(life[i] * 20 + this.seed[i] * 7);
+        col[i4] = base[i4] * fl; col[i4 + 1] = base[i4 + 1] * fl; col[i4 + 2] = base[i4 + 2] * fl; col[i4 + 3] = 1 - t;
       } else { // bits: leaves, paper, glass, sand
         const flutter = base[i4 + 3] < 0.95;
         vel[i3 + 1] -= (flutter ? 2.2 : 12) * dt;
@@ -202,7 +209,8 @@ export class FX {
     this.fire = new Particles(3500, 'fire', soft, THREE.AdditiveBlending);
     this.spark = new Particles(2500, 'spark', soft, THREE.AdditiveBlending);
     this.bits = new Particles(2500, 'bits', soft, THREE.NormalBlending);
-    for (const p of [this.smoke, this.bits, this.fire, this.spark]) scene.add(p.points);
+    this.ember = new Particles(1500, 'ember', soft, THREE.AdditiveBlending);
+    for (const p of [this.smoke, this.bits, this.fire, this.spark, this.ember]) scene.add(p.points);
     this.fire.points.renderOrder = 2; this.spark.points.renderOrder = 3;
     this.debris = new Debris(scene);
     this.groundFires = [];
@@ -214,6 +222,16 @@ export class FX {
     for (let i = 0; i < 3; i++) { const l = new THREE.PointLight(0xff7a2a, 0, 22, 1.8); scene.add(l); this.fireLights.push(l); }
     this.fireLightT = 0;
     this.sphereGeo = new THREE.IcosahedronGeometry(1, 3);
+    this.lumpGeos = [0, 1, 2].map((k) => {
+      const g = new THREE.IcosahedronGeometry(1, 3), p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const n = 1 + 0.22 * Math.sin(x * 3.1 + k * 2) * Math.cos(y * 2.7 + k) + 0.14 * Math.sin(z * 5.3 + y * 4.1 + k * 3);
+        p.setXYZ(i, x * n, y * n, z * n);
+      }
+      g.computeVertexNormals();
+      return g;
+    });
     this.ringGeo = new THREE.RingGeometry(0.85, 1, 64).rotateX(-Math.PI / 2);
     this.craterGeo = this.makeCraterGeo();
     this.craterMesh = new THREE.InstancedMesh(this.craterGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), 400);
@@ -270,10 +288,12 @@ export class FX {
   fireball(x, y, z, r, dur = 0.9, color = new THREE.Color(1, 0.55, 0.2)) {
     const mat = new THREE.ShaderMaterial({ uniforms: { t: { value: 0 }, c1: { value: color } }, vertexShader: FIREBALL_VS, fragmentShader: FIREBALL_FS,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-    const m = new THREE.Mesh(this.sphereGeo, mat);
+    const m = new THREE.Mesh(this.lumpGeos[(Math.random() * 3) | 0], mat);
     m.position.set(x, y, z);
+    m.rotation.set(rand(0, 6), rand(0, 6), rand(0, 6));
+    const sx = rand(0.75, 1.25), sy = rand(0.6, 1.1), sz = rand(0.75, 1.25), rise = rand(0.3, 0.8), spin = rand(-1, 1);
     this.scene.add(m);
-    this.anims.push({ dur, t: 0, fn: (k) => { mat.uniforms.t.value = k; const s = r * (0.3 + Math.pow(k, 0.35) * 0.9); m.scale.set(s, s * 0.8, s); m.position.y = y + k * r * 0.5; },
+    this.anims.push({ dur, t: 0, fn: (k) => { mat.uniforms.t.value = k; const s = r * (0.3 + Math.pow(k, 0.35) * 0.9); m.scale.set(s * sx, s * sy, s * sz); m.position.y = y + k * r * rise; m.rotation.y += spin * 0.02; },
       end: () => { this.scene.remove(m); mat.dispose(); } });
   }
 
@@ -297,29 +317,71 @@ export class FX {
     G.city && G.city.addObstacle(x, z, r * 1.2, 'crater');
   }
 
-  // Standard explosion composite; scale ~1 for a bomb.
-  explosion(x, y, z, s = 1, tint = null) {
-    this.fireball(x, y + 0.5 * s, z, 3.2 * s, 0.9 + s * 0.2, tint || new THREE.Color(1, 0.55, 0.2));
-    this.fireball(x + rand(-1, 1) * s, y + 1.2 * s, z + rand(-1, 1) * s, 2.2 * s, 1.1, new THREE.Color(1, 0.4, 0.1));
+  later(delay, fn) { this.anims.push({ dur: delay, t: 0, fn: () => {}, end: fn }); }
+
+  // Explosion composite, built from several irregular lobes that bloom at slightly different times.
+  // kind shapes it: 'bomb' compact and punchy, 'meteor' huge column + ground surge, 'small' car/gas blasts.
+  explosion(x, y, z, s = 1, tint = null, kind = 'bomb') {
+    const base = tint || new THREE.Color(1, 0.55, 0.2);
+    const lobes = kind === 'meteor' ? 9 : kind === 'small' ? 3 : 5 + ((Math.random() * 3) | 0);
+    for (let i = 0; i < lobes; i++) {
+      const a = Math.random() * 6.283, rr = rand(0, 1.4) * s, delay = i === 0 ? 0 : rand(0.02, 0.28) * (kind === 'meteor' ? 2 : 1);
+      const col = base.clone().offsetHSL(rand(-0.03, 0.02), 0, rand(-0.12, 0.05));
+      this.later(delay, () => this.fireball(x + Math.cos(a) * rr, y + rand(0.2, 1.6) * s, z + Math.sin(a) * rr, rand(1.3, 2.6) * s, rand(0.7, 1.2) + s * 0.15, col));
+    }
     this.flash(x, y + 3 * s, z, 0xffa860, 120 * s, 0.5 + s * 0.2, 45 * s);
-    this.sparks(x, y + 0.5, z, 60 * s, 4, 2, 0.7, 14 * s);
-    for (let i = 0; i < 40 * s; i++) {
-      const a = Math.random() * 6.28, sp = rand(1, 5) * s;
-      this.fire.emit(x + rand(-1, 1) * s, y + rand(0, 1.5) * s, z + rand(-1, 1) * s, Math.cos(a) * sp, rand(1, 5) * s, Math.sin(a) * sp, rand(1.4, 2.8) * s, rand(0.4, 1.0));
+    this.sparks(x, y + 0.5, z, 50 * s, 4, 2, 0.7, 14 * s);
+    // flame tongues licking outwards (not a sphere): directional jets
+    for (let j = 0; j < 7; j++) {
+      const a = Math.random() * 6.283, up = rand(0.2, 1.2);
+      for (let i = 0; i < 8 * s; i++) {
+        const sp = rand(2, 7) * s;
+        this.fire.emit(x + rand(-0.5, 0.5) * s, y + rand(0, 1) * s, z + rand(-0.5, 0.5) * s, Math.cos(a) * sp + rand(-1, 1), up * sp + rand(0, 2), Math.sin(a) * sp + rand(-1, 1), rand(0.9, 2.2) * s, rand(0.3, 0.8));
+      }
     }
-    // mushroom-ish smoke column
-    for (let i = 0; i < 38 * s; i++) {
-      const c = rand(0.07, 0.2);
-      this.smoke.emit(x + rand(-1.5, 1.5) * s, y + rand(0.5, 3.5) * s, z + rand(-1.5, 1.5) * s, rand(-1.5, 1.5) * s, rand(1.5, 4.5) * s, rand(-1.5, 1.5) * s,
-        rand(1.8, 3.2) * s, rand(7, 14), c, c * 0.95, c * 0.9, 0.7);
+    // glowing embers drifting on the heat
+    for (let i = 0; i < 70 * s; i++) {
+      const a = Math.random() * 6.283, sp = rand(1, 7) * s;
+      this.ember.emit(x, y + rand(0.3, 2) * s, z, Math.cos(a) * sp, rand(2, 8) * s, Math.sin(a) * sp, rand(0.05, 0.12), rand(2, 6), rand(3, 5), rand(1, 1.8), 0.2, 1);
     }
+    // smoke: a rolling column with varied tones
+    const col = kind === 'meteor' ? 70 : 38;
+    for (let i = 0; i < col * s; i++) {
+      const c = rand(0.06, 0.22), h = Math.random();
+      const delay = rand(0, 0.6);
+      this.later(delay, () => this.smoke.emit(x + rand(-1.5, 1.5) * s, y + (0.5 + h * 4) * s, z + rand(-1.5, 1.5) * s, rand(-1.4, 1.4) * s, rand(1.2, 4.5) * s * (1 - h * 0.5), rand(-1.4, 1.4) * s,
+        rand(1.6, 3.4) * s, rand(8, 18), c * 1.05, c, c * 0.92, 0.7));
+    }
+    // ground surge of dust
     this.dust(x, 0.2, z, 2.2 * s);
-    this.ring(x, 0.05, z, 14 * s, 0.6, 0xffc080, 0.5);
-    for (let i = 0; i < 30 * s; i++) {
-      const a = Math.random() * 6.28, sp = rand(3, 12) * s, c = rand(0.15, 0.35);
-      this.bits.emit(x, y + 0.5, z, Math.cos(a) * sp, rand(4, 12) * s, Math.sin(a) * sp, rand(0.08, 0.18), rand(1.5, 3), c, c * 0.9, c * 0.8, 1);
+    for (let i = 0; i < 24 * s; i++) {
+      const a = Math.random() * 6.283, sp = rand(4, 9) * s, c = rand(0.45, 0.6);
+      this.smoke.emit(x + Math.cos(a), 0.3, z + Math.sin(a), Math.cos(a) * sp, rand(0.2, 0.8), Math.sin(a) * sp, rand(1, 2) * s, rand(4, 8), c, c * 0.93, c * 0.84, 0.45);
     }
-    G.shake = Math.max(G.shake, 0.35 * s);
+    this.ring(x, 0.05, z, 14 * s, 0.6, 0xffc080, 0.5);
+    for (let i = 0; i < 40 * s; i++) {
+      const a = Math.random() * 6.283, sp = rand(3, 12) * s, c = rand(0.15, 0.35);
+      this.bits.emit(x, y + 0.5, z, Math.cos(a) * sp, rand(4, 12) * s, Math.sin(a) * sp, rand(0.06, 0.16), rand(1.5, 3), c, c * 0.9, c * 0.8, 1);
+    }
+    // secondary pops (gas lines, cars, debris flashes)
+    const pops = kind === 'meteor' ? 5 : kind === 'small' ? 0 : 1 + ((Math.random() * 2) | 0);
+    for (let i = 0; i < pops; i++) {
+      const a = Math.random() * 6.283, r = rand(2, 5) * s;
+      this.later(rand(0.4, 1.8), () => {
+        const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+        this.fireball(px, rand(0.3, 1.5), pz, rand(0.8, 1.4) * s, 0.6, new THREE.Color(1, 0.5, 0.15));
+        this.sparks(px, 0.6, pz, 20, 4, 2, 0.7, 7);
+        this.flash(px, 2, pz, 0xff9040, 40, 0.3, 25);
+      });
+    }
+    G.shake = Math.max(G.shake, 0.25 * s);
+  }
+
+  // laser/energy section blowouts: no big fireball, just a burst of molten material, sparks and dust
+  blowout(x, y, z, hot = true) {
+    this.sparks(x, y, z, 14, 5, 2.6, 1, 6);
+    if (hot) for (let i = 0; i < 10; i++) this.ember.emit(x, y, z, rand(-2, 2), rand(0, 3), rand(-2, 2), rand(0.05, 0.1), rand(1, 3), 4, 1.6, 0.3, 1);
+    this.dust(x, y, z, 0.5);
   }
 
   onBlast(x, y, z, r, power, kind) {
@@ -330,7 +392,7 @@ export class FX {
   update(dt, camera, renderer) {
     // point size: world units -> pixels
     const scale = renderer.domElement.height * camera.projectionMatrix.elements[5] * 0.5;
-    for (const p of [this.smoke, this.fire, this.spark, this.bits]) { p.mat.uniforms.uScale.value = scale; p.update(dt); }
+    for (const p of [this.smoke, this.fire, this.spark, this.bits, this.ember]) { p.mat.uniforms.uScale.value = scale; p.update(dt); }
     this.debris.update(dt);
     for (let i = this.anims.length - 1; i >= 0; i--) {
       const a = this.anims[i];

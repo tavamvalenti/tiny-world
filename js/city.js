@@ -282,14 +282,27 @@ export class City {
     this.palmTrunks = new THREE.InstancedMesh(palmTrunk, new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 1 }), Math.max(1, palms.length));
     this.palmTops = new THREE.InstancedMesh(palmFronds(), palmMat, Math.max(1, palms.length));
     palms.forEach((t, i) => { t.trunk = i; t.canopy = i; t.canopyMesh = this.palmTops; t.color = new THREE.Color().setHSL(rand(0.22, 0.3), 0.45, rand(0.24, 0.32), THREE.SRGBColorSpace); this.writeTree(t); });
+    // meshes are allocated with at least one slot; hide unused ones (an empty map would otherwise draw one at the origin)
+    this.trunks.count = round.length; this.palmTrunks.count = this.palmTops.count = palms.length;
     for (const m of [this.trunks, ...this.canopies, this.palmTrunks, this.palmTops]) { m.castShadow = m.receiveShadow = true; scene.add(m); m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
 
     // lamps
     this.lampMesh = new THREE.InstancedMesh(lampGeo(), new THREE.MeshStandardMaterial({ color: 0x2d3033, roughness: 0.5, metalness: 0.6 }), Math.max(1, this.lamps.length));
     this.lampHeads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.06, 0.3), new THREE.MeshBasicMaterial({ color: 0xffffff }), Math.max(1, this.lamps.length));
     this.lamps.forEach((l, i) => { l.i = i; this.writeLamp(l); this.lampHeads.setColorAt(i, new THREE.Color(1.4, 1.3, 1.1)); });
+    this.lampMesh.count = this.lampHeads.count = this.lamps.length;
     this.lampMesh.castShadow = true;
     scene.add(this.lampMesh, this.lampHeads);
+    // pools of light under each lamp, only visible after dark
+    const pc = canvas(64, 64), px = pc.getContext('2d'), pg = px.createRadialGradient(32, 32, 0, 32, 32, 32);
+    pg.addColorStop(0, 'rgba(255,255,255,0.85)'); pg.addColorStop(0.4, 'rgba(255,255,255,0.35)'); pg.addColorStop(1, 'rgba(255,255,255,0)');
+    px.fillStyle = pg; px.fillRect(0, 0, 64, 64);
+    this.lampPools = new THREE.InstancedMesh(new THREE.PlaneGeometry(4, 4).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(pc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x000000 }), Math.max(1, this.lamps.length));
+    this.lampPools.renderOrder = 1;
+    this.lamps.forEach((l) => this.writePool(l));
+    this.lampPools.count = this.lamps.length;
+    scene.add(this.lampPools);
 
     // traffic lights
     const lit = this.nodes.filter((n) => n.lit);
@@ -305,7 +318,7 @@ export class City {
     ]);
     this.tlMesh = new THREE.InstancedMesh(poleGeo, new THREE.MeshStandardMaterial({ color: 0x2a2c2e, roughness: 0.6, metalness: 0.4 }), Math.max(1, poles.length));
     this.tlLamp = new THREE.InstancedMesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial(), Math.max(1, poles.length * 3));
-    this.tlLamp.count = poles.length;
+    this.tlLamp.count = this.tlMesh.count = poles.length;
     poles.forEach((p, i) => {
       _q.setFromAxisAngle(UP, p.rot);
       _m.compose(_p.set(p.x, 0, p.z), _q, _s.set(1, 1, 1)); this.tlMesh.setMatrixAt(i, _m);
@@ -339,6 +352,13 @@ export class City {
     if (t.canopyMesh.instanceColor) t.canopyMesh.instanceColor.needsUpdate = true;
   }
 
+  writePool(l) {
+    if (!this.lampPools) return;
+    const hx = Math.sin(l.rot) * 0.62, hz = Math.cos(l.rot) * 0.62;
+    _m.makeTranslation(l.x + hx, 0.05, l.z + hz);
+    this.lampPools.setMatrixAt(l.i, l.alive && !l.tilt ? _m : ZERO);
+    this.lampPools.instanceMatrix.needsUpdate = true;
+  }
   writeLamp(l) {
     _e.set(l.tilt ? l.tilt * Math.cos(l.tr) : 0, l.rot, l.tilt ? l.tilt * Math.sin(l.tr) : 0);
     _q.setFromEuler(_e);
@@ -348,6 +368,7 @@ export class City {
     _m.compose(_p.set(l.x + head.x, head.y, l.z + head.z), _q, _s.set(1, 1, 1));
     this.lampHeads.setMatrixAt(l.i, l.alive ? _m : ZERO);
     this.lampMesh.instanceMatrix.needsUpdate = true; this.lampHeads.instanceMatrix.needsUpdate = true;
+    this.writePool(l);
   }
 
   buildProps(scene) {
@@ -465,6 +486,9 @@ export class City {
     }
     this.tlLamp.instanceMatrix.needsUpdate = true;
     if (this.tlLamp.instanceColor) this.tlLamp.instanceColor.needsUpdate = true;
+    const n = G.night || 0;
+    this.lampHeads.material.color.setScalar(0.7 + n * 2.6);
+    this.lampPools.material.color.setRGB(n * 0.34, n * 0.26, n * 0.15);
     // electrical flicker from the energy weapon
     let any = false;
     const col = new THREE.Color();

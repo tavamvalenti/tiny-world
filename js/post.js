@@ -34,23 +34,26 @@ void main(){ vec3 c = texture2D(tSrc, vUv).rgb; float l = max(max(c.r,c.g),c.b);
   gl_FragColor = vec4(c * smoothstep(1.4, 3.5, l), 1.); }`;
 
 const FINAL_FS = `
-uniform sampler2D tSrc; uniform sampler2D tBloom; uniform float time; uniform float exposure; uniform vec2 res;
+uniform sampler2D tSrc; uniform sampler2D tBloom; uniform float time; uniform float exposure; uniform vec2 res; uniform vec3 tint;
 varying vec2 vUv;
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0., 1.); }
 float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
 void main(){
-  vec3 c = texture2D(tSrc, vUv).rgb + texture2D(tBloom, vUv).rgb * 0.9;
-  c *= exposure;
+  vec3 bloom = texture2D(tBloom, vUv).rgb;
+  vec3 c = texture2D(tSrc, vUv).rgb + bloom * vec3(1.0, 0.9, 0.8);   // slightly warm halation
+  c *= exposure * tint;
   c = aces(c);
-  // miniature-photo grade: punchier saturation, cool shadows, warm highlights
+  // cinematic miniature grade: gentle S-curve, cool shadows, warm highlights, restrained saturation
   float l = dot(c, vec3(0.299,0.587,0.114));
-  c = mix(vec3(l), c, 1.12);
-  c += vec3(-0.012, 0.0, 0.018) * (1.0 - l) + vec3(0.02, 0.008, -0.015) * l;
-  c = (c - 0.5) * 1.05 + 0.5;
+  c = mix(vec3(l), c, 1.08);
+  c += vec3(-0.014, 0.002, 0.02) * (1.0 - l) * (1.0 - l) + vec3(0.024, 0.01, -0.018) * l * l;
+  c = c * c * (3.0 - 2.0 * c) * 0.35 + c * 0.65;
   c = pow(max(c, 0.), vec3(1.0/2.2));
+  c = c * 0.975 + 0.012;                                   // film toe: blacks never fully crush
   vec2 q = vUv - 0.5;
-  c *= 1.0 - dot(q, q) * 0.55;
-  c += (h(vUv * res + fract(time) * 100.) - 0.5) * 0.025;
+  c *= 1.0 - dot(q, q) * 0.62;
+  float g = h(vUv * res + fract(time * 7.13) * 100.) - 0.5;
+  c += g * mix(0.045, 0.02, l);                           // grain sits mostly in the shadows
   gl_FragColor = vec4(c, 1.);
 }`;
 
@@ -73,7 +76,7 @@ export class Post {
     this.blur = new THREE.ShaderMaterial({ uniforms: u(), vertexShader: VS, fragmentShader: BLUR_FS, depthTest: false });
     this.bright = new THREE.ShaderMaterial({ uniforms: { tSrc: { value: null } }, vertexShader: VS, fragmentShader: BRIGHT_FS, depthTest: false });
     this.final = new THREE.ShaderMaterial({
-      uniforms: { tSrc: { value: null }, tBloom: { value: null }, time: { value: 0 }, exposure: { value: 0.72 }, res: { value: new THREE.Vector2() } },
+      uniforms: { tSrc: { value: null }, tBloom: { value: null }, time: { value: 0 }, exposure: { value: 0.72 }, res: { value: new THREE.Vector2() }, tint: { value: new THREE.Color(1, 1, 1) } },
       vertexShader: VS, fragmentShader: FINAL_FS, depthTest: false,
     });
     this.focusY = 0.5; this.band = 0.3; this.maxBlur = 14;

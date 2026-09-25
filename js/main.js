@@ -8,6 +8,12 @@ import { Agents } from './agents.js';
 import { Weapons, WEAPONS } from './weapons.js';
 import { MAPS } from './maps.js';
 import { sfx } from './audio.js';
+import { Ambience } from './ambience.js';
+import { TimeOfDay } from './tod.js';
+import { Signs } from './signs.js';
+import { buildBackdrop } from './backdrop.js';
+
+export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'GLOCKTON' };
 
 const $ = (s) => document.querySelector(s);
 const canvasEl = $('#game');
@@ -42,17 +48,17 @@ window.addEventListener('resize', resize);
 resize();
 
 // ---------- environment ----------
-function makeEnv() {
+function makeEnv(top = [0.42, 0.6, 0.9], hor = [0.95, 0.9, 0.82], sunC = [8, 7, 5]) {
   const s = new THREE.Scene();
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
     fragmentShader: `varying vec3 vP; void main(){ float y = vP.y;
-      vec3 sky = mix(vec3(0.95,0.9,0.82), vec3(0.42,0.6,0.9), smoothstep(0.0, 0.6, y));
-      vec3 gnd = mix(vec3(0.5,0.47,0.42), vec3(0.3,0.28,0.25), smoothstep(0.0, -0.5, y));
+      vec3 sky = mix(vec3(${hor.join(',')}), vec3(${top.join(',')}), smoothstep(0.0, 0.6, y));
+      vec3 gnd = mix(vec3(${hor.join(',')}) * 0.5, vec3(0.3,0.28,0.25) * vec3(${top.join(',')}) * 2.0, smoothstep(0.0, -0.5, y));
       vec3 c = y > 0. ? sky : gnd;
-      float sun = pow(max(dot(vP, normalize(vec3(-0.5,0.6,-0.4))), 0.), 64.);
-      gl_FragColor = vec4(c * 0.75 + sun * vec3(8.,7.,5.), 1.); }`,
+      float sun = pow(max(dot(vP, normalize(vec3(-0.5,0.4,-0.4))), 0.), 48.);
+      gl_FragColor = vec4(c * 0.75 + sun * vec3(${sunC.join(',')}), 1.); }`,
   });
   s.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), mat));
   const pm = new THREE.PMREMGenerator(renderer);
@@ -74,7 +80,7 @@ scene.add(hemi);
 // ---------- water (tropical) ----------
 function makeWater(shore) {
   const timeU = { value: 0 };
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.06, metalness: 0.15, transparent: true, envMapIntensity: 1.3, depthWrite: false });
+  const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.42, metalness: 0.0, specularIntensity: 0.45, transparent: true, envMapIntensity: 0.55, depthWrite: false });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = timeU; sh.uniforms.shore = { value: shore };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;')
@@ -82,7 +88,8 @@ function makeWater(shore) {
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vW; uniform float uTime; uniform float shore;')
       .replace('#include <color_fragment>', `#include <color_fragment>
         float depth = clamp((shore - vW.z) / 16., 0., 1.);
-        diffuseColor.rgb = mix(vec3(0.22,0.72,0.70), vec3(0.03,0.2,0.32), sqrt(depth));
+        float wpatch = 0.5 + 0.5 * sin(vW.x * 0.07 + vW.z * 0.05 + uTime * 0.05) * sin(vW.x * 0.023 - vW.z * 0.041);
+        diffuseColor.rgb = mix(vec3(0.2,0.62,0.6), mix(vec3(0.03,0.17,0.27), vec3(0.05,0.24,0.3), wpatch), sqrt(depth));
         diffuseColor.a = mix(0.2, 0.95, smoothstep(0., 0.45, depth));
         float edge = shore - 0.8 + 0.7 * sin(vW.x * 0.35 + uTime * 1.1) + 0.3 * sin(vW.x * 1.3 - uTime * 0.7);
         float foam = smoothstep(0.9, 0.0, abs(vW.z - edge)) * (0.6 + 0.4 * sin(vW.x * 4.0 + uTime * 3.0));
@@ -91,18 +98,19 @@ function makeWater(shore) {
         diffuseColor.a = max(diffuseColor.a, clamp(foam, 0., 1.) * 0.9);`)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         vec2 wv = vec2(sin(vW.x * 1.3 + uTime * 1.7) + sin(vW.x * 0.6 + vW.z * 1.1 + uTime * 1.2) + 0.5 * sin(vW.x * 3.1 - vW.z * 2.3 + uTime * 2.6),
-                       cos(vW.z * 1.5 + uTime * 1.3) + sin(vW.z * 0.7 - vW.x * 0.9 + uTime) + 0.5 * cos(vW.z * 2.9 + vW.x * 2.1 - uTime * 2.2)) * 0.07;
-        normal = normalize(normal + (viewMatrix * vec4(wv.x, 0., wv.y, 0.)).xyz);`);
+                       cos(vW.z * 1.5 + uTime * 1.3) + sin(vW.z * 0.7 - vW.x * 0.9 + uTime) + 0.5 * cos(vW.z * 2.9 + vW.x * 2.1 - uTime * 2.2)) * 0.05
+                  + vec2(sin(vW.x * 0.21 + vW.z * 0.13 + uTime * 0.6), cos(vW.z * 0.19 - vW.x * 0.11 + uTime * 0.5)) * 0.05;
+        normal = normalize(normal + (viewMatrix * vec4(wv.x, 0., wv.y, 0.)).xyz * 0.8);`);
   };
   const m = new THREE.Mesh(new THREE.PlaneGeometry(700, 400).rotateX(-Math.PI / 2), mat);
   m.position.set(0, 0.05, shore + 1.5 - 200);
-  m.receiveShadow = true;
+  m.receiveShadow = false;
   m.renderOrder = 1;
   return { mesh: m, timeU };
 }
 
 // ---------- load a map ----------
-let running = false, water = null, mapName = '';
+let running = false, water = null, mapName = '', tod = null, ambience = null, signs = null;
 function load(name) {
   mapName = name;
   scene.environment = makeEnv();
@@ -117,19 +125,23 @@ function load(name) {
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.g.E * 2, map.g.E * 2).rotateX(-Math.PI / 2), gmat);
   ground.receiveShadow = true;
   scene.add(ground);
-  const outer = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: map.water ? 0x0b3346 : 0x5e5c55, roughness: 1 }));
-  outer.position.y = -0.05;
-  scene.add(outer);
   if (map.water) { water = makeWater(map.water.shore); scene.add(water.mesh); }
 
   B.finalize(scene);
   map.city.build(scene);
+  buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
+  signs = new Signs(scene, name, B, map.city);
+  if (map.city.crowdsLate) (map.city.crowds ||= []).push(...map.city.crowdsLate);
   G.fx = new FX(scene);
   G.agents = new Agents(scene, map.city, map.agents);
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
   cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half;
-  $('#mapname').firstChild.textContent = { downtown: 'DOWNTOWN', tropical: 'TROPICAL TOWN', suburbs: 'SUBURBS' }[name];
+  $('#mapname').firstChild.textContent = MAP_NAMES[name];
+  tod = new TimeOfDay({ scene, sun, hemi, post, renderer, fogDay: map.fog });
+  G.tod = tod; G.makeEnv = makeEnv;
+  ambience = new Ambience(name);
+  setTodButtons();
   selectWeapon(0);
   updateCamera(0);
   renderer.compile(scene, camera);
@@ -162,9 +174,9 @@ function updateCamera(dt) {
   const hx = Math.sin(G.time * 0.31) * 0.25, hy = Math.sin(G.time * 0.23) * 0.3;
   const sh = G.shake;
   camera.position.set(
-    cam.x + Math.sin(cam.yaw) * Math.cos(pitch) * cam.dist + hx + (Math.random() - 0.5) * sh * 1.2,
-    Math.sin(pitch) * cam.dist + hy + (Math.random() - 0.5) * sh * 1.2,
-    cam.z + Math.cos(cam.yaw) * Math.cos(pitch) * cam.dist + (Math.random() - 0.5) * sh * 1.2,
+    cam.x + Math.sin(cam.yaw) * Math.cos(pitch) * cam.dist + hx + (Math.random() - 0.5) * sh * 0.45,
+    Math.sin(pitch) * cam.dist + hy + (Math.random() - 0.5) * sh * 0.45,
+    cam.z + Math.cos(cam.yaw) * Math.cos(pitch) * cam.dist + (Math.random() - 0.5) * sh * 0.45,
   );
   camera.lookAt(cam.x, 0, cam.z);
   G.shake = Math.max(0, G.shake - dt * 1.6);
@@ -182,7 +194,8 @@ function updateCamera(dt) {
   const texel = (ext * 2) / 4096;
   const tx = Math.round(cam.x / texel) * texel, tz = Math.round(cam.z / texel) * texel;
   sun.target.position.set(tx, 0, tz);
-  sun.position.set(tx + SUN_DIR.x * 200, SUN_DIR.y * 200, tz + SUN_DIR.z * 200);
+  const sd = tod ? tod.sunDir : SUN_DIR;
+  sun.position.set(tx + sd.x * 200, sd.y * 200, tz + sd.z * 200);
 }
 
 function aim() {
@@ -223,7 +236,10 @@ function step(dt) {
   G.dt = dt; G.time += dt;
   updateCamera(dt);
   aim();
+  tod && tod.update(dt);
   G.city.update(dt);
+  signs && signs.update();
+  ambience && ambience.update(dt);
   updateBoats(dt);
   G.agents.update(dt);
   G.weapons.update(dt, input);
@@ -255,6 +271,8 @@ window.addEventListener('keydown', (e) => {
   if (!running) return;
   if (e.code >= 'Digit1' && e.code <= 'Digit5') selectWeapon(+e.code.slice(5) - 1);
   if (e.code === 'Escape') location.reload();
+  if (e.code === 'KeyT') { tod.cycle(makeEnv); setTodButtons(); }
+  if (e.code === 'KeyM') { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; }
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; input.down = false; });
@@ -264,6 +282,9 @@ window.addEventListener('mouseup', (e) => { if (e.button === 0) input.down = fal
 canvasEl.addEventListener('contextmenu', (e) => e.preventDefault());
 canvasEl.addEventListener('wheel', (e) => { e.preventDefault(); cam.distT = clamp(cam.distT * Math.exp(e.deltaY * 0.0012), cam.minD, cam.maxD); }, { passive: false });
 document.querySelectorAll('#weapons .w').forEach((el) => el.addEventListener('click', () => selectWeapon(+el.dataset.w)));
+function setTodButtons() { document.querySelectorAll('#tod .t').forEach((el) => el.classList.toggle('on', tod && el.dataset.t === tod.mode)); }
+document.querySelectorAll('#tod .t').forEach((el) => el.addEventListener('click', () => { tod.set(el.dataset.t, makeEnv); setTodButtons(); }));
+$('#mute').addEventListener('click', () => { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; });
 
 document.querySelectorAll('#menu button').forEach((btn) => btn.addEventListener('click', () => {
   sfx.unlock();

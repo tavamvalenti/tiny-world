@@ -1,0 +1,233 @@
+// City identity: storefront signs, rooftop billboards, bus shelters, directional and landmark signs.
+// Everything is drawn into canvas atlases and rendered with a few instanced meshes; signs glow at night.
+import * as THREE from 'three';
+import { G, rand, pick } from './core.js';
+
+const NAMES = {
+  downtown: [
+    ['HARBOR BANK', '#0f3b5c', '#f2e6c8'], ['GASLAMP GRILL', '#2b1a12', '#f7b24a'], ['QUIKMART', '#c8102e', '#ffffff'], ['BLUE LINE CAFE', '#1d4e89', '#f4f1e8'],
+    ['MORENO DRUGS', '#ffffff', '#c8102e'], ['CORNER DELI', '#1f5130', '#f5e7b8'], ['PIER 9 TAVERN', '#141414', '#e8c170'], ['UNION HOTEL', '#3a1f2b', '#f0d9a0'],
+    ['CITY SHOES', '#f2c230', '#1a1a1a'], ['LUCKY NOODLE', '#b3120f', '#ffd24a'], ['5TH AVE PIZZA', '#0e6b3a', '#ffffff'], ['METRO BOOKS', '#f1ede4', '#20304a'],
+    ['FIRST PACIFIC', '#10243f', '#9fd0ff'], ['STARLIGHT', '#1a1030', '#ff5ab4'], ['EL FAROLITO', '#e25b1c', '#fff4d6'], ['COPPER KETTLE', '#6b3a1f', '#f4d29c'],
+  ],
+  tropical: [
+    ['LA PLAYA HOTEL', '#f4f1e8', '#0e7c86'], ['SURF SHACK', '#0e9fb0', '#fff7d6'], ['TACOS EL MAR', '#e8b320', '#7a1e10'], ['COCO BEACH BAR', '#1f6b52', '#ffe7a8'],
+    ['SUNSET RENTALS', '#f07a3a', '#ffffff'], ['MARISCOS LUNA', '#1a3a6b', '#ffd98a'], ['PALM MOTEL', '#f7d9e3', '#d03a6a'], ['HELADOS', '#ff9fc3', '#6b1f3a'],
+    ['BAIT & TACKLE', '#2b2b2b', '#f5c400'], ['CASA AZUL', '#1f63b8', '#ffffff'], ['SEA BREEZE INN', '#dff3f1', '#0c6c74'], ['OCEAN MART', '#c8102e', '#ffffff'],
+    ['FARMACIA', '#0d7a3a', '#ffffff'], ['PESCADERIA', '#0b4a6f', '#e8f4ff'], ['LA CANTINA', '#6b1a10', '#ffcf6a'], ['DIVE SHOP', '#f5c400', '#0b2d4a'],
+  ],
+  suburbs: [
+    ['GLOCKTON SAVINGS', '#12324f', '#e9dcb8'], ['QUIKMART', '#c8102e', '#ffffff'], ['FUELCO', '#f5c400', '#b3120f'], ['MAPLE DENTAL', '#ffffff', '#2c6b4f'],
+    ['PIZZA PALACE', '#b3120f', '#fff1c1'], ['HAIR BY ANNA', '#f7e6ee', '#8a2455'], ['PRESTO CLEANERS', '#1d4e89', '#ffffff'], ['PET WORLD', '#f28c28', '#ffffff'],
+    ['DAYSTOP MARKET', '#1f6b3a', '#ffffff'], ['GLOCKTON HARDWARE', '#8a1c1c', '#f2e2b0'], ['SUNNY DINER', '#f2c230', '#1d3a6b'], ['BOOK NOOK', '#3b2a1a', '#f2d9a0'],
+    ['FLOWER BOX', '#f5f0e6', '#c43b6a'], ['TAE KWON DO', '#101010', '#ff3b30'], ['YOGURT BAR', '#b6e3f5', '#1b4f72'], ['POST OFFICE', '#223a70', '#ffffff'],
+  ],
+};
+const ADS = [
+  ['SUNNY COLA', 'Taste the sun.', '#d7261e', '#ffffff'], ['VOLTA MOTORS', 'The electric city car.', '#101820', '#5ce1e6'],
+  ['FLY PACIFICA', 'Daily flights to paradise', '#0b62a4', '#ffffff'], ['GLOCKTON SAVINGS', 'Your neighborhood bank', '#12324f', '#f2d27a'],
+  ['KOAST 98.1 FM', 'Surf rock all day', '#f28c28', '#1a1a1a'], ['NOVA PHONE X', 'See more.', '#f4f4f4', '#111111'],
+  ['MIDNIGHT BURGER', 'Open late', '#1c1c1c', '#ffcc00'], ['BAYVIEW CONDOS', 'Now leasing', '#2f5d50', '#f5efe0'],
+];
+
+function signAtlas(list) {
+  const W = 1024, H = 1024, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  list.forEach(([name, bg, fg], i) => {
+    const cx = (i % 4) * 256, cy = Math.floor(i / 4) * 64;
+    x.fillStyle = bg; x.fillRect(cx, cy, 256, 64);
+    x.strokeStyle = fg; x.globalAlpha = 0.5; x.lineWidth = 3; x.strokeRect(cx + 5, cy + 5, 246, 54); x.globalAlpha = 1;
+    x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle';
+    let size = 34; x.font = `800 ${size}px Inter, Helvetica, Arial, sans-serif`;
+    while (x.measureText(name).width > 226 && size > 12) { size -= 2; x.font = `800 ${size}px Inter, Helvetica, Arial, sans-serif`; }
+    x.fillText(name, cx + 128, cy + 34);
+  });
+  // row 4+: ads, 512x128 each
+  ADS.forEach(([t1, t2, bg, fg], i) => {
+    const cx = (i % 2) * 512, cy = 256 + Math.floor(i / 2) * 128;
+    const g = x.createLinearGradient(cx, cy, cx + 512, cy + 128);
+    g.addColorStop(0, bg); g.addColorStop(1, shade(bg, -30));
+    x.fillStyle = g; x.fillRect(cx, cy, 512, 128);
+    x.fillStyle = fg; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+    x.font = '900 52px Inter, Helvetica, Arial, sans-serif'; x.fillText(t1, cx + 26, cy + 70);
+    x.font = '500 24px Inter, Helvetica, Arial, sans-serif'; x.globalAlpha = 0.85; x.fillText(t2, cx + 28, cy + 104); x.globalAlpha = 1;
+    x.beginPath(); x.arc(cx + 452, cy + 64, 36, 0, 6.283); x.fillStyle = shade(fg, 0); x.globalAlpha = 0.25; x.fill(); x.globalAlpha = 1;
+  });
+  // landmark + directional sign strips (row at y=768, 1024x64 each)
+  const strips = [['GASLAMP DISTRICT', '#0e2a1c', '#f2d27a'], ['WELCOME TO LA PLAYA', '#0e6f7c', '#fff4d6'], ['GLOCKTON  ·  EST. 1952', '#3b2a1a', '#f2e2b0'], ['←  HARBOR DR        CITY CENTER  ↑        I-5 NORTH  →', '#0f5a2e', '#ffffff']];
+  strips.forEach(([t, bg, fg], i) => {
+    const cy = 768 + i * 64;
+    x.fillStyle = bg; x.fillRect(0, cy, 1024, 64);
+    x.strokeStyle = fg; x.lineWidth = 4; x.strokeRect(6, cy + 6, 1012, 52);
+    x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = '800 40px Inter, Helvetica, Arial, sans-serif'; x.fillText(t, 512, cy + 34);
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, (n >> 16) + amt)), g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amt)), b = Math.max(0, Math.min(255, (n & 255) + amt));
+  return `rgb(${r},${g},${b})`;
+}
+
+// Instanced quads that each show a different rectangle of the atlas (per-instance UV transform).
+function atlasMesh(tex, count, emissive = true) {
+  const geo = new THREE.PlaneGeometry(1, 1);
+  const uvT = new Float32Array(count * 4);
+  geo.setAttribute('aUvT', new THREE.InstancedBufferAttribute(uvT, 4));
+  const mat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: emissive ? tex : null, emissive: emissive ? 0xffffff : 0x000000, emissiveIntensity: 0.1, roughness: 0.55, side: THREE.DoubleSide });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aUvT;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv = aUvT.xy + uv * aUvT.zw;\n#endif\n#ifdef USE_EMISSIVEMAP\nvEmissiveMapUv = aUvT.xy + uv * aUvT.zw;\n#endif');
+  };
+  const mesh = new THREE.InstancedMesh(geo, mat, Math.max(1, count));
+  mesh.count = 0;
+  mesh.castShadow = true;
+  return { mesh, uvT };
+}
+
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+
+export class Signs {
+  constructor(scene, mapName, B, city) {
+    this.city = city;
+    const list = NAMES[mapName];
+    const tex = signAtlas(list);
+    const shop = atlasMesh(tex, 700), post = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.5 }), 900);
+    post.count = 0; post.castShadow = true;
+    this.shop = shop; this.post = post; this.tex = tex;
+    const add = (obj, x, y, z, rot, w, h, uv) => {
+      const i = obj.mesh.count++;
+      _q.setFromAxisAngle(UP, rot);
+      _m.compose(_p.set(x, y, z), _q, _s.set(w, h, 1));
+      obj.mesh.setMatrixAt(i, _m);
+      obj.uvT.set(uv, i * 4);
+      return { mesh: obj.mesh, idx: i, x, y, z };
+    };
+    const box = (x, y, z, w, h, d, rot = 0, cell = null) => {
+      const i = post.count++;
+      _q.setFromAxisAngle(UP, rot);
+      _m.compose(_p.set(x, y, z), _q, _s.set(w, h, d));
+      post.setMatrixAt(i, _m);
+      const pr = { mesh: post, idx: i, x, y, z };
+      if (cell) (cell.props ||= []).push(pr);
+      return pr;
+    };
+    // uv rect helpers (canvas y grows down, texture v grows up)
+    const nameUV = (k) => [(k % 4) / 4, 1 - (Math.floor(k / 4) + 1) * 64 / 1024, 1 / 4, 64 / 1024];
+    const adUV = (k) => [(k % 2) / 2, 1 - (256 + (Math.floor(k / 2) + 1) * 128) / 1024, 1 / 2, 128 / 1024];
+    const stripUV = (k) => [0, 1 - (768 + (k + 1) * 64) / 1024, 1, 64 / 1024];
+
+    // nearest street for a point: used to pick the facade that faces the road
+    const roadDist = (x, z) => Math.min(...city.xs.map((v) => Math.abs(x - v)), ...city.zs.map((v) => Math.abs(z - v)));
+
+    // ---- storefront signs ----
+    let k = 0;
+    for (const b of B.list) {
+      if (b.style === 'house' || b.gable || !b.grid[0]) continue;
+      if (Math.max(b.w, b.d) < 2.6 || b.nx * b.nz > 120) continue;
+      if (Math.random() > (mapName === 'suburbs' ? 0.9 : 0.75)) continue;
+      const sides = [
+        { nx: 0, nz: 1, x: b.x, z: b.z + b.d / 2, len: b.w, rot: 0 }, { nx: 0, nz: -1, x: b.x, z: b.z - b.d / 2, len: b.w, rot: Math.PI },
+        { nx: 1, nz: 0, x: b.x + b.w / 2, z: b.z, len: b.d, rot: Math.PI / 2 }, { nx: -1, nz: 0, x: b.x - b.w / 2, z: b.z, len: b.d, rot: -Math.PI / 2 },
+      ].sort((a, c) => roadDist(a.x + a.nx * 2, a.z + a.nz * 2) - roadDist(c.x + c.nx * 2, c.z + c.nz * 2));
+      const sd = sides[0];
+      const g = b.grid[0], gh = g[0][0] ? g[0][0].hy * 2 : 1.3;
+      const cell = sd.nz ? g[Math.floor(b.nx / 2)][sd.nz > 0 ? b.nz - 1 : 0] : g[sd.nx > 0 ? b.nx - 1 : 0][Math.floor(b.nz / 2)];
+      if (!cell) continue;
+      const w = Math.min(sd.len * 0.85, 3.4), h = w / 4;
+      const pr = add(shop, sd.x + sd.nx * 0.04, gh * 0.83, sd.z + sd.nz * 0.04, sd.rot, w, Math.min(h, 0.5), nameUV(k++ % list.length));
+      (cell.props ||= []).push(pr);
+      // occasional projecting blade sign on taller brick buildings (old downtown look)
+      if (mapName === 'downtown' && b.floors > 4 && Math.random() < 0.35) {
+        const up = cell.b.grid[Math.min(2, b.floors - 1)];
+        const bx = sd.x + sd.nx * 0.45 + (sd.nz ? rand(-sd.len / 3, sd.len / 3) : 0), bz = sd.z + sd.nz * 0.45 + (sd.nx ? rand(-sd.len / 3, sd.len / 3) : 0);
+        const pr2 = add(shop, bx, gh + 1.6, bz, sd.rot + Math.PI / 2, 0.8, 2.4, nameUV(k++ % list.length));
+        (cell.props ||= []).push(pr2);
+      }
+    }
+
+    // ---- rooftop billboards ----
+    const ads = atlasMesh(tex, 80);
+    this.ads = ads;
+    let n = 0;
+    for (const b of B.list) {
+      if (b.gable || b.style === 'house' || n >= 40) continue;
+      if (b.floors < (mapName === 'suburbs' ? 1 : 3) || b.floors > 14 || b.w < 3.5) continue;
+      if (Math.random() > (mapName === 'downtown' ? 0.22 : 0.12)) continue;
+      const top = b.cells.filter((c) => c.topExposed && c.f === b.floors - 1);
+      if (!top.length) continue;
+      const c = top[Math.floor(top.length / 2)];
+      const y0 = c.y + c.hy;
+      // face the viewer's side of the block and the nearest street
+      const rot = pick([0, 0, Math.PI / 2, -Math.PI / 2]);
+      const W = Math.min(4.2, Math.max(b.w, b.d) * 0.9), H = W / 4;
+      add(ads, c.x, y0 + 0.9 + H / 2, c.z, rot, W, H, adUV(n % ADS.length));
+      c.props ||= [];
+      c.props.push({ mesh: ads.mesh, idx: ads.mesh.count - 1, x: c.x, y: y0 + 1, z: c.z });
+      for (const s of [-1, 1]) box(c.x + Math.cos(rot) * s * W * 0.35, y0 + 0.55, c.z - Math.sin(rot) * s * W * 0.35, 0.07, 1.1, 0.07, rot, c);
+      box(c.x, y0 + 0.9, c.z, W, 0.06, 0.1, rot, c);
+      n++;
+    }
+
+    // ---- bus shelters + transit signs (with people waiting) ----
+    const shelters = mapName === 'suburbs' ? 3 : 10;
+    const blocks = city.blocks.slice().sort(() => Math.random() - 0.5);
+    for (let i = 0; i < Math.min(shelters, blocks.length); i++) {
+      const bl = blocks[i];
+      const onZ = Math.random() < 0.5;
+      const x = onZ ? rand(bl.x0 + 4, bl.x1 - 4) : bl.x1 - 0.55, z = onZ ? bl.z1 - 0.55 : rand(bl.z0 + 4, bl.z1 - 4);
+      const rot = onZ ? 0 : Math.PI / 2;
+      box(x, 0.95, z, 1.8, 0.05, 0.7, rot);                                  // roof
+      box(x - (onZ ? 0 : 0.3), 0.5, z - (onZ ? 0.3 : 0), onZ ? 1.8 : 0.03, 0.9, onZ ? 0.03 : 1.8, 0); // back panel
+      add(shop, x + (onZ ? 0.95 : 0), 0.55, z + (onZ ? 0 : 0.95), rot + Math.PI / 2, 0.6, 0.8, adUV(i % ADS.length));
+      box(x + (onZ ? -1.3 : 0), 0.7, z + (onZ ? 0 : -1.3), 0.04, 1.4, 0.04);
+      (city.crowdsLate ||= []).push({ x: x - (onZ ? 0 : 0.2), z: z - (onZ ? 0.2 : 0), r: 0.6, n: Math.round(rand(2, 5)) });
+    }
+
+    // ---- landmark sign + a directional gantry ----
+    const B0 = city.blocks.find((b) => b.i === 2 && b.j === 2) || city.blocks[0];
+    if (mapName === 'downtown') {
+      // arch over the street, the district's postcard shot
+      const x = (B0.x0 + B0.x1) / 2, z = B0.z1 + city.roadW / 2, span = city.roadW + 1.2;
+      box(x - span / 2, 1.6, z, 0.18, 3.2, 0.18); box(x + span / 2, 1.6, z, 0.18, 3.2, 0.18);
+      box(x, 3.25, z, span + 0.3, 0.12, 0.14);
+      const s1 = add(shop, x, 3.65, z, Math.PI / 2 - Math.PI / 2, span, span / 16 * 1.4, stripUV(0));
+      this.landmark = s1;
+      // lamps along the arch
+      for (let t = -0.4; t <= 0.4; t += 0.2) box(x + t * span, 3.18, z, 0.08, 0.08, 0.08);
+    } else if (mapName === 'tropical') {
+      const x = 0, z = -13 + city.roadW / 2 + 0.3, span = 7;
+      box(x - span / 2, 1.8, z, 0.3, 3.6, 0.3); box(x + span / 2, 1.8, z, 0.3, 3.6, 0.3);
+      add(shop, x, 3.4, z, 0, span, span / 16 * 1.5, stripUV(1));
+    } else {
+      const x = B0.x0 + 2.5, z = B0.z1 - 1.2;
+      box(x, 0.3, z, 3.6, 0.6, 0.5);
+      add(shop, x, 0.95, z + 0.01, 0, 3.4, 0.45, stripUV(2));
+    }
+    // overhead directional sign on an entry road
+    {
+      const x = city.xs[Math.floor(city.xs.length / 2)], z = city.zs[city.zs.length - 1] - city.roadW / 2 - 4;
+      const w = city.roadW + 1.6;
+      box(x - w / 2, 1.9, z, 0.12, 3.8, 0.12); box(x + w / 2, 1.9, z, 0.12, 3.8, 0.12); box(x, 3.7, z, w, 0.1, 0.1);
+      add(shop, x, 3.2, z + 0.06, 0, w * 0.95, 0.8, stripUV(3));
+    }
+
+    for (const o of [shop, ads]) {
+      o.mesh.geometry.attributes.aUvT.needsUpdate = true;
+      o.mesh.instanceMatrix.needsUpdate = true;
+      scene.add(o.mesh);
+    }
+    post.instanceMatrix.needsUpdate = true;
+    scene.add(post);
+  }
+
+  update() {
+    const n = G.night || 0;
+    // neon/backlit signage wakes up after dark
+    this.shop.mesh.material.emissiveIntensity = 0.12 + n * 1.5;
+    this.ads.mesh.material.emissiveIntensity = 0.1 + n * 1.2;
+  }
+}
