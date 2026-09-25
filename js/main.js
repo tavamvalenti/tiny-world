@@ -137,7 +137,9 @@ function load(name) {
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
   cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half;
-  $('#mapname').firstChild.textContent = MAP_NAMES[name];
+  $('#mapTitle').textContent = MAP_NAMES[name];
+  // reuse the region label (flag/logo + place) from the menu button
+  $('#mapRegion').innerHTML = document.querySelector(`#menu button[data-map="${name}"] .region`).innerHTML;
   tod = new TimeOfDay({ scene, sun, hemi, post, renderer, fogDay: map.fog });
   G.tod = tod; G.makeEnv = makeEnv;
   ambience = new Ambience(name);

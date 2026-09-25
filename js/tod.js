@@ -72,7 +72,7 @@ export class TimeOfDay {
 
   update(dt) {
     if (this.from && this.k < 1) {
-      this.k = Math.min(1, this.k + dt / 2.2);
+      this.k = Math.min(1, this.k + dt / 1.1);
       const t = this.k * this.k * (3 - 2 * this.k), a = this.from, b = this.target;
       const o = (this.cur = { ...b });
       for (const key of ['sun', 'sky', 'gnd', 'fog', 'horizon', 'zenith', 'glow', 'tint']) o[key] = a[key].clone().lerp(b[key], t);
