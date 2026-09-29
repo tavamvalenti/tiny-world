@@ -18,6 +18,7 @@ import { Chaos } from './chaos.js';
 import { Concert } from './concert.js';
 import { Court } from './court.js';
 import { Gangs } from './gangs.js';
+import { Gore } from './gore.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -155,6 +156,7 @@ function load(name) {
   G.court = map.city.court ? new Court(scene, map.city.court, map.g) : null;
   G.gangs = map.city.gangs ? new Gangs(scene, map.city) : null;
   G.fx = new FX(scene);
+  G.gore = new Gore(scene);
   G.agents = new Agents(scene, map.city, map.agents);
   G.chaos = new Chaos(G.agents);
   G.weapons = new Weapons(scene, camera);
@@ -276,6 +278,7 @@ function step(dt) {
   G.concert && G.concert.update(dt);
   G.court && G.court.update(dt);
   G.gangs && G.gangs.update(dt);
+  G.gore && G.gore.update(dt);
   signs && signs.update();
   ambience && ambience.update(dt);
   updateBoats(dt);

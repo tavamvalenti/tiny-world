@@ -305,7 +305,7 @@ export class Gangs {
             weapon: pick(k === 0 ? ['ak', 'ar', 'shotgun'] : WEAPONS), hood: Math.random() < 0.4, scarf: !factionTop || Math.random() < 0.35, headwear,
             fireT: rand(0, 2), burst: 0, peek: false, phaseT: rand(1, 3), hp: 1, idleA: rand(0, 6),
           };
-          this.I.torso.setColorAt(i, new THREE.Color(top));
+          this.I.torso.setColorAt(i, new THREE.Color(top)); m.torsoCol = new THREE.Color(top);
           this.I.head.setColorAt(i, new THREE.Color(pick(SKIN)));
           this.I.cap.setColorAt(i, new THREE.Color(headwear === 'capblack' ? 0x151515 : S.col));
           this.I.wrap.setColorAt(i, new THREE.Color(S.col));
@@ -353,7 +353,7 @@ export class Gangs {
     for (const g of this.groups) {
       g.mode = 'hang'; g.t = rand(20, 50);
       for (const m of g.members) {
-        if (m.state === 'down') { m.recover = rand(6, 12); continue; }
+        if (m.state === 'down') { if (!m.dead) m.recover = rand(6, 12); continue; }
         this.sendHome(m);
       }
     }
@@ -404,6 +404,12 @@ export class Gangs {
   think(m, dt, near) {
     if (m.state === 'down') {
       if (m.recover != null && (m.recover -= dt) <= 0) { m.recover = null; m.hp = 1; this.sendHome(m); }
+      // the dead are eventually replaced by someone new turning up at the hangout
+      if (m.dead && !this.fight && (m.respawn -= dt) <= 0) {
+        m.dead = false; m.lost = null; m.state = 'idle'; m.route = null;
+        const p = this.clampTo(m.side, m.grp.post.x + rand(-0.6, 0.6), m.grp.post.z + rand(-0.6, 0.6)); m.x = p.x; m.z = p.z;
+        this.I.torso.setColorAt(m.i, m.torsoCol); this.I.torso.instanceColor.needsUpdate = true;
+      }
       return;
     }
     // follow a route (every waypoint clamped to our own zone: territory is strict)
@@ -473,10 +479,22 @@ export class Gangs {
     }
     const t = m.target;
     const f = this.fight;
-    if (t && f && t.state !== 'down' && (f.down[t.side] || 0) < MAX_DOWN && Math.random() < FIRE[m.weapon].hit * (t.peek ? 1 : 0.25)) { f.down[t.side] = (f.down[t.side] || 0) + 1; this.hit(t); }
+    if (t && f && t.state !== 'down' && (f.down[t.side] || 0) < MAX_DOWN && Math.random() < FIRE[m.weapon].hit * (t.peek ? 1 : 0.25)) { f.down[t.side] = (f.down[t.side] || 0) + 1; this.hit(t, { dx: (t.x - m.x) / d, dz: (t.z - m.z) / d }); }
   }
-  hit(t) {
+  hit(t, how = {}) {
     t.state = 'down'; t.route = null; t.peek = false; t.recover = null; t.downH = t.h + rand(-0.6, 0.6);
+    const Gr = G.gore;
+    if (Gr && Gr.on) {
+      const dx = how.dx ?? rand(-1, 1), dz = how.dz ?? rand(-1, 1);
+      if (how.f) {
+        const c = (mesh, k) => new THREE.Color().fromArray(mesh.instanceColor.array, k * 3);
+        const r = Gr.blast(t.x, 0, t.z, how.f, dx, dz, { skin: c(this.I.head, t.i), arm: c(this.I.arm, t.i * 2 + 1), leg: c(this.I.leg, t.i * 2) }, how.kind);
+        t.lost = r.lost; if (r.dead) t.dead = true;
+        Gr.pool(t.x, t.z, t.dead ? rand(0.36, 0.5) : 0.28);
+      } else Gr.shot(t.x, t.z, dx, dz);
+      this.I.torso.setColorAt(t.i, Gr.stain(t.torsoCol, t.dead ? 0.55 : 0.4)); this.I.torso.instanceColor.needsUpdate = true;
+      if (t.dead) t.respawn = rand(60, 120);
+    }
     if (t.cover) { t.cover.used = null; t.cover = null; }
     // the rest of the group closes ranks; nearby groups on that side come to help
     for (const g of this.groups) if (g.side === t.side && Math.abs(g.post.x - t.x) < 18) this.engage(g);
@@ -492,7 +510,11 @@ export class Gangs {
     const inArea = x > Zb.x0 - 8 && x < Zb.x1 + 8 && z > Zb.z0 - 8 && z < Zr.z1 + 8;
     if (!inArea || kind === 'collapse') return;
     const kill = kind === 'wind' ? r * 0.55 : r * 0.3;
-    for (const m of this.members) if (m.state !== 'down' && Math.hypot(m.x - x, m.z - z) < kill && power > 1.5) this.hit(m);
+    for (const m of this.members) {
+      if (m.state === 'down') continue;
+      const dx = m.x - x, dz = m.z - z, d = Math.hypot(dx, dz);
+      if (d < kill && power > 1.5) this.hit(m, { f: power * (1 - d / kill), dx: dx / (d || 1), dz: dz / (d || 1), kind });
+    }
     if (!this.fight && power > 0.5) this.startFight(null, x);
   }
 
@@ -521,12 +543,19 @@ export class Gangs {
     I.wrap.setMatrixAt(i, m.headwear === 'wrap' ? _b : ZERO);
     I.scarf.setMatrixAt(i, m.scarf ? _b : ZERO);
     I.hood.setMatrixAt(i, m.hood && m.headwear !== 'wrap' ? _b : ZERO);
+    if (m.lost && m.lost.head) for (const k of ['head', 'cap', 'wrap', 'scarf', 'hood']) I[k].setMatrixAt(i, ZERO);
     const r = m.moving ? Math.sin(m.run) : 0, kneel = m.state === 'down' ? 0 : m.crouch;
     this.limb(I.leg, i * 2, -0.035, 0.31, r * 0.8 - kneel * 1.1);
     this.limb(I.leg, i * 2 + 1, 0.035, 0.31, -r * 0.8 - kneel * 0.3);
     const A = this.armAngles(m);
     this.limb(I.arm, i * 2, -0.088, 0.55, A.l, -A.lz);
     const hand = this.limb(I.arm, i * 2 + 1, 0.088, 0.55, A.r, 0);
+    if (m.lost) {
+      if (m.lost.armL) I.arm.setMatrixAt(i * 2, ZERO);
+      if (m.lost.armR) I.arm.setMatrixAt(i * 2 + 1, ZERO);
+      if (m.lost.legL) I.leg.setMatrixAt(i * 2, ZERO);
+      if (m.lost.legR) I.leg.setMatrixAt(i * 2 + 1, ZERO);
+    }
     // the weapon sits in the right hand, pointing down the arm
     for (const k of WEAPONS) {
       if (k !== m.weapon || m.state === 'down') { this.W[k].setMatrixAt(i, ZERO); continue; }

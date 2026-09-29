@@ -21,6 +21,7 @@ export const SCHEMA = [
   { id: 'grain', label: 'Film grain', type: 'range', min: 0, max: 200, def: 100, unit: '%' },
   { section: 'World' },
   { id: 'incidents', label: 'Random incidents', type: 'select', def: 'normal', options: [['off', 'Off'], ['low', 'Low'], ['normal', 'Normal'], ['high', 'High']], hint: 'Car crashes and shootings the police and ambulances respond to' },
+  { id: 'gore', label: 'Blood & gore', type: 'select', def: 'on', options: [['on', 'On'], ['off', 'Off']], hint: 'Blood, and limbs lost in explosions' },
   { id: 'crowds', label: 'Crowd density', type: 'select', def: 'normal', options: [['low', 'Low'], ['normal', 'Normal'], ['high', 'High']], hint: 'Applies when a map loads' },
 ];
 

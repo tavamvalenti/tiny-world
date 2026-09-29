@@ -114,7 +114,15 @@ export class Chaos {
     }
     const dur = 300 + shots * 260;
     setTimeout(() => {
-      for (const v of victims) { if (v.state !== 'air') { v.state = 'down'; v.timer = rand(30, 55); v.heading = rand(0, 6.28); } }
+      for (const v of victims) {
+        if (v.state === 'air') continue;
+        v.state = 'down'; v.timer = rand(30, 55); v.heading = rand(0, 6.28);
+        if (G.gore && G.gore.on) {
+          const dx = v.pos.x - x, dz = v.pos.z - z, d = Math.hypot(dx, dz) || 1;
+          G.gore.shot(v.pos.x, v.pos.z, dx / d, dz / d);
+          const A = G.agents; A.pTorso.setColorAt(v.i, G.gore.stain(new THREE.Color().fromArray(A.pTorso.instanceColor.array, v.i * 3), 0.4)); A.pTorso.instanceColor.needsUpdate = true;
+        }
+      }
       // everyone nearby scatters; the shooter runs off
       for (const p of A.peds) {
         if (p === shooter || victims.includes(p)) continue;

@@ -142,7 +142,8 @@ function makePlayer(scene, jersey, shorts, trim) {
   g.scale.setScalar(1.2);
   g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
   scene.add(g);
-  return { g, legs, arms, x: 0, z: 0, y: 0, h: 0, tx: 0, tz: 0, jumpT: 0, jumpDur: 0.5, jumpH: 0.2, spotT: 0, run: 0 };
+  const heads = g.children.filter((o) => o === h || (o.geometry && o.geometry.type === 'TorusGeometry'));
+  return { g, legs, arms, heads, skin: skin.color, jersey: t.material, shorts: sh.material.color, x: 0, z: 0, y: 0, h: 0, tx: 0, tz: 0, jumpT: 0, jumpDur: 0.5, jumpH: 0.2, spotT: 0, run: 0 };
 }
 
 const HAND = (p, up = false) => ({ x: p.x + Math.sin(p.h) * 0.13 + Math.cos(p.h) * 0.1, y: p.y + (up ? 0.98 : 0.5), z: p.z + Math.cos(p.h) * 0.13 - Math.sin(p.h) * 0.1 });
@@ -166,6 +167,9 @@ class Game {
   reset() {
     this.players.forEach((p) => {
       p.x = this.cx + (p.team ? 1 : -1) * rand(0.6, 2.5); p.z = this.cz + rand(-W / 3, W / 3); p.y = 0; p.jumpT = 0;
+      // back in one piece for the next game
+      for (const o of [...p.legs, ...p.arms, ...p.heads]) o.visible = true;
+      if (p.jerseyCol) p.jersey.color.copy(p.jerseyCol);
       p.tx = p.x; p.tz = p.z; p.g.visible = true; p.g.rotation.set(0, 0, 0); p.gone = false; p.flee = null; p.fly = null;
     });
     this.poss = Math.random() < 0.5 ? 0 : 1;
@@ -317,7 +321,7 @@ class Game {
   updateFly(p, dt) {
     const f = p.fly;
     f.v.y += -14 * dt; p.x += f.v.x * dt; p.z += f.v.z * dt; p.y += f.v.y * dt; f.rot += f.spin * dt;
-    if (p.y <= 0 && f.v.y < 0) { p.y = 0.04; p.g.rotation.set(Math.PI / 2, p.h, 0, 'YXZ'); p.g.position.set(p.x, p.y, p.z); p.fly = null; p.gone = true; return; }
+    if (p.y <= 0 && f.v.y < 0) { p.y = 0.04; p.g.rotation.set(Math.PI / 2, p.h, 0, 'YXZ'); p.g.position.set(p.x, p.y, p.z); p.fly = null; p.gone = true; if (G.gore) G.gore.pool(p.x, p.z, f.dead ? rand(0.36, 0.5) : 0.3); return; }
     p.g.position.set(p.x, p.y, p.z); p.g.rotation.set(f.rot, p.h, 0, 'YXZ');
   }
 }
@@ -427,7 +431,18 @@ export class Court {
       for (const p of gm.players) {
         if (p.gone || p.fly) continue;
         const dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz);
-        if (d < kill && power > 1.5) { const f = power * (1 - d / kill) * 0.8; p.flee = null; p.fly = { v: new THREE.Vector3(dx / (d + 0.1) * f, f * 0.9 + 1, dz / (d + 0.1) * f), rot: 0, spin: rand(-8, 8) }; continue; }
+        if (d < kill && power > 1.5) {
+          const f = power * (1 - d / kill) * 0.8; p.flee = null; p.fly = { v: new THREE.Vector3(dx / (d + 0.1) * f, f * 0.9 + 1, dz / (d + 0.1) * f), rot: 0, spin: rand(-8, 8) };
+          if (G.gore && G.gore.on) {
+            // limbs come off by force; the player's parts are separate meshes, so they're simply hidden
+            const r = G.gore.blast(p.x, p.y, p.z, power * (1 - d / kill), dx / (d + 0.1), dz / (d + 0.1), { skin: p.skin, arm: p.skin, leg: p.skin }, kind);
+            const map = { legL: p.legs[0], legR: p.legs[1], armL: p.arms[0], armR: p.arms[1] };
+            for (const k of Object.keys(r.lost)) { if (k === 'head') for (const o of p.heads) o.visible = false; else map[k].visible = false; }
+            p.fly.dead = r.dead;
+            p.jerseyCol ||= p.jersey.color.clone(); p.jersey.color.copy(G.gore.stain(p.jerseyCol, r.dead ? 0.55 : 0.35));
+          }
+          continue;
+        }
         if (p.flee) continue;
         const gx = this.gate.x + rand(-this.gate.w, this.gate.w) * 0.7;
         p.flee = { x: gx, z: A.z1 - 0.5, next: { x: gx, z: A.z1 + 2.2, next: { x: gx + rand(-14, 14), z: A.z1 + 2.2 + rand(-0.8, 0.8) } } };

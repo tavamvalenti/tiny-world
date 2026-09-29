@@ -354,6 +354,7 @@ export class Agents {
       this.carBody.instanceColor.needsUpdate = true;
     } else {
       a.state = 'down'; a.timer = rand(1.5, 3.5);
+      if (a.bleed && G.gore) { G.gore.pool(a.pos.x, a.pos.z, a.dead ? rand(0.36, 0.5) : 0.26); a.bleed = false; }
     }
   }
   launch(a, dir, f, up, isCar, spin = 6) {
@@ -517,6 +518,7 @@ export class Agents {
     switch (p.state) {
       case 'air': return this.updateAir(p, dt, false);
       case 'down':
+        if (p.dead) return;                  // killed: stays where they fell
         p.timer -= dt;
         if (p.timer <= 0) { p.state = 'flee'; p.timer = rand(4, 8); p.q.identity(); }
         return;
@@ -643,7 +645,16 @@ export class Agents {
       p.threat = threat;
       if (d < kill && power > 1.5 && p.state !== 'air') {
         const f = power * (1 - d / kill);
-        if (f > 1) { this.launch(p, { x: dx / d, z: dz / d }, f * 1.3, f * (kind === 'wind' ? 0.6 : 1.1), false, 10); scared++; continue; }
+        if (f > 1) {
+          if (G.gore && G.gore.on) {
+            const col = (m) => new THREE.Color().fromArray(m.instanceColor.array, p.i * 3);
+            const r = G.gore.blast(p.pos.x, p.pos.y, p.pos.z, f, dx / d, dz / d, { skin: col(this.pHead), arm: col(this.pArmL), leg: col(this.pLegL) }, kind);
+            p.lost = { ...(p.lost || {}), ...r.lost }; if (r.dead) p.dead = true;
+            p.bleed = f > 2 || r.dead;
+            this.pTorso.setColorAt(p.i, G.gore.stain(col(this.pTorso), r.dead ? 0.55 : 0.3)); this.pTorso.instanceColor.needsUpdate = true;
+          }
+          this.launch(p, { x: dx / d, z: dz / d }, f * 1.3, f * (kind === 'wind' ? 0.6 : 1.1), false, 10); scared++; continue;
+        }
       }
       if (p.state === 'walk' || p.state === 'wait' || p.state === 'wander' || p.state === 'idle' || p.state === 'return') {
         p.state = 'alert'; p.timer = rand(0.1, 0.7); scared++;
@@ -756,6 +767,13 @@ export class Agents {
       this.limb(this.pLegR, i, -0.034, 0.31, -leg);
       this.limb(this.pArmL, i, 0.084, 0.535, arm, armOut);
       this.limb(this.pArmR, i, -0.084, 0.535, p.state === 'idle' ? 0 : -arm, -armOut);
+      if (p.lost) {
+        if (p.lost.armL) this.pArmL.setMatrixAt(i, ZERO);
+        if (p.lost.armR) this.pArmR.setMatrixAt(i, ZERO);
+        if (p.lost.legL) this.pLegL.setMatrixAt(i, ZERO);
+        if (p.lost.legR) this.pLegR.setMatrixAt(i, ZERO);
+        if (p.lost.head) { this.pHead.setMatrixAt(i, ZERO); this.pHair.setMatrixAt(i, ZERO); }
+      }
     }
     for (const m of this.pMeshes) m.instanceMatrix.needsUpdate = true;
   }

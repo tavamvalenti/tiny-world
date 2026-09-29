@@ -551,7 +551,9 @@ export class Concert {
       if (d >= kill) continue;
       const f = power * (1 - d / kill) * 0.8;
       h.gone = true; h.run = null; this.setJump(i, 0);
-      this.flyers.push({ i, p: new THREE.Vector3(h[0], h[1], h[2]), v: new THREE.Vector3(dx / (d + 0.1) * f, f * 0.9 + 1, dz / (d + 0.1) * f), rot: 0, spin: rand(-8, 8), yaw: rand(0, 6.28) });
+      this.flyers.push({ i, p: new THREE.Vector3(h[0], h[1], h[2]), v: new THREE.Vector3(dx / (d + 0.1) * f, f * 0.9 + 1, dz / (d + 0.1) * f), rot: 0, spin: rand(-8, 8), yaw: rand(0, 6.28), bleed: f > 2 });
+      // fans are one merged mesh, so no limbs come off here: spray and spatter, and a pool where they land
+      if (G.gore && G.gore.on && Math.random() < 0.6) { G.gore.spray(h[0], h[1] + 0.35, h[2], 6 + Math.round(Math.min(12, f * 2)), dx / (d + 0.1), dz / (d + 0.1), 0.7 + Math.min(1.2, f * 0.15)); if (Math.random() < 0.5) G.gore.splat(h[0], h[2], 0.2 + Math.min(0.3, f * 0.03), dx / (d + 0.1), dz / (d + 0.1)); }
     }
     this.evacuate(x, z);
   }
@@ -676,7 +678,7 @@ export class Concert {
     // people blown into the air land and stay down; shoved people stumble back to a new spot
     for (const fl of [...this.flyers]) {
       fl.v.y -= 14 * dt; fl.p.addScaledVector(fl.v, dt); fl.rot += fl.spin * dt;
-      if (fl.p.y <= 0 && fl.v.y < 0) { fl.p.y = 0.05; this.place(fl.i, fl.p.x, 0.05, fl.p.z, fl.yaw, Math.PI / 2); this.flyers.splice(this.flyers.indexOf(fl), 1); }
+      if (fl.p.y <= 0 && fl.v.y < 0) { fl.p.y = 0.05; this.place(fl.i, fl.p.x, 0.05, fl.p.z, fl.yaw, Math.PI / 2); this.flyers.splice(this.flyers.indexOf(fl), 1); if (fl.bleed && G.gore && Math.random() < 0.7) G.gore.pool(fl.p.x, fl.p.z, rand(0.24, 0.4)); }
       else this.place(fl.i, fl.p.x, fl.p.y, fl.p.z, fl.yaw, fl.rot);
     }
     for (const mv of [...this.movers]) {
