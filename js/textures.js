@@ -157,7 +157,7 @@ export function makeFacades() {
     win(158, S + 88, 68, 84, 20);
   });
 
-  // ---- Glockton: Chicago-style brick two/three-flats ----
+  // ---- Chicago: brick two/three-flats ----
   const commonBrick = (c) => {
     c.fillStyle = '#a89c90'; c.fillRect(0, 0, S, S * 2);
     for (let y = 0; y < S * 2; y += 8) {

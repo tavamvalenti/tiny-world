@@ -10,7 +10,7 @@
 1. Higher-quality **cruise ships, docks/terminal and bridge cars** in `js/harbor.js`
    (balcony-textured superstructure, bridge wings, funnel, pool deck, lifeboats; bollards, fenders, glass terminal,
    gangways, buses; bridge traffic using `carGeos()` exported from `agents.js` with head/tail lights and trucks/buses).
-2. **Glockton** rebuild to look like a dense, run-down Chicago-style neighbourhood (reference photo in chat):
+2. **Chicago (was Glockton)** rebuild to look like a dense, run-down Chicago-style neighbourhood (reference photo in chat):
    brick 2-3 flat walk-ups close together, flat roofs, rear alleys with garages, weathered/boarded buildings
    (pre-set cell damage/soot), vacant lots, fences, dumpsters, potholes.
 3. **Random civilian incidents** in all maps (new `js/chaos.js`): car crashes and shootings (non-graphic:

@@ -274,8 +274,8 @@ export function tropical(B) {
   return { ...ctx, agents: { cars: 40, peds: 300, wanderFrac: 0.4 }, fog: 0xcfdde3, start: { x: 0, z: 0 }, water: { shore }, zMin: -40 };
 }
 
-// ================= GLOCKTON =================
-// A dense, run-down Chicago-style neighbourhood: brick two- and three-flats shoulder to shoulder with
+// ================= CHICAGO =================
+// A dense, run-down Chicago neighbourhood: brick two- and three-flats shoulder to shoulder with
 // stoops and chain-link, rear alleys lined with garages and dumpsters, vacant lots, boarded and
 // fire-scarred buildings, corner stores, potholed streets.
 const chicagoBrick = () => {

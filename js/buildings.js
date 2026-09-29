@@ -236,7 +236,7 @@ export class Buildings {
     const tops = [];
     for (const b of this.list) {
       if (b.gable || b.style === 'house') continue;
-      const p = b.style === 'flat' || b.style === 'garage' ? 0.04 : 0.14; // Glockton roofs stay mostly bare tar
+      const p = b.style === 'flat' || b.style === 'garage' ? 0.04 : 0.14; // Chicago roofs stay mostly bare tar
       for (const c of b.cells) if (c.topExposed && c.f > 0 && Math.random() < p) tops.push(c);
     }
     const ac = new THREE.BoxGeometry(0.55, 0.28, 0.42);

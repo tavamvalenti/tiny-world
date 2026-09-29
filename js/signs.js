@@ -17,15 +17,15 @@ const NAMES = {
     ['FARMACIA', '#0d7a3a', '#ffffff'], ['PESCADERIA', '#0b4a6f', '#e8f4ff'], ['LA CANTINA', '#6b1a10', '#ffcf6a'], ['DIVE SHOP', '#f5c400', '#0b2d4a'],
   ],
   suburbs: [
-    ['GLOCKTON SAVINGS', '#12324f', '#e9dcb8'], ['QUIKMART', '#c8102e', '#ffffff'], ['FUELCO', '#f5c400', '#b3120f'], ['MAPLE DENTAL', '#ffffff', '#2c6b4f'],
+    ['SOUTH SIDE SAVINGS', '#12324f', '#e9dcb8'], ['QUIKMART', '#c8102e', '#ffffff'], ['FUELCO', '#f5c400', '#b3120f'], ['MAPLE DENTAL', '#ffffff', '#2c6b4f'],
     ['PIZZA PALACE', '#b3120f', '#fff1c1'], ['HAIR BY ANNA', '#f7e6ee', '#8a2455'], ['PRESTO CLEANERS', '#1d4e89', '#ffffff'], ['PET WORLD', '#f28c28', '#ffffff'],
-    ['DAYSTOP MARKET', '#1f6b3a', '#ffffff'], ['GLOCKTON HARDWARE', '#8a1c1c', '#f2e2b0'], ['SUNNY DINER', '#f2c230', '#1d3a6b'], ['BOOK NOOK', '#3b2a1a', '#f2d9a0'],
+    ['DAYSTOP MARKET', '#1f6b3a', '#ffffff'], ['WINDY CITY HARDWARE', '#8a1c1c', '#f2e2b0'], ['SUNNY DINER', '#f2c230', '#1d3a6b'], ['BOOK NOOK', '#3b2a1a', '#f2d9a0'],
     ['FLOWER BOX', '#f5f0e6', '#c43b6a'], ['TAE KWON DO', '#101010', '#ff3b30'], ['YOGURT BAR', '#b6e3f5', '#1b4f72'], ['POST OFFICE', '#223a70', '#ffffff'],
   ],
 };
 const ADS = [
   ['SUNNY COLA', 'Taste the sun.', '#d7261e', '#ffffff'], ['VOLTA MOTORS', 'The electric city car.', '#101820', '#5ce1e6'],
-  ['FLY PACIFICA', 'Daily flights to paradise', '#0b62a4', '#ffffff'], ['GLOCKTON SAVINGS', 'Your neighborhood bank', '#12324f', '#f2d27a'],
+  ['FLY PACIFICA', 'Daily flights to paradise', '#0b62a4', '#ffffff'], ['SOUTH SIDE SAVINGS', 'Your neighborhood bank', '#12324f', '#f2d27a'],
   ['KOAST 98.1 FM', 'Surf rock all day', '#f28c28', '#1a1a1a'], ['NOVA PHONE X', 'See more.', '#f4f4f4', '#111111'],
   ['MIDNIGHT BURGER', 'Open late', '#1c1c1c', '#ffcc00'], ['PADRES BASEBALL', 'Tonight 7:10 · Petco Park', '#2f241d', '#ffc425'],
 ];
@@ -54,7 +54,7 @@ function signAtlas(list) {
     x.beginPath(); x.arc(cx + 452, cy + 64, 36, 0, 6.283); x.fillStyle = shade(fg, 0); x.globalAlpha = 0.25; x.fill(); x.globalAlpha = 1;
   });
   // landmark + directional sign strips (row at y=768, 1024x64 each)
-  const strips = [['GASLAMP DISTRICT', '#0e2a1c', '#f2d27a'], ['WELCOME TO LA PLAYA', '#0e6f7c', '#fff4d6'], ['GLOCKTON  ·  EST. 1952', '#3b2a1a', '#f2e2b0'], ['←  HARBOR DR        CITY CENTER  ↑        I-5 NORTH  →', '#0f5a2e', '#ffffff']];
+  const strips = [['GASLAMP DISTRICT', '#0e2a1c', '#f2d27a'], ['WELCOME TO LA PLAYA', '#0e6f7c', '#fff4d6'], ['CHICAGO  ·  EST. 1837', '#3b2a1a', '#f2e2b0'], ['←  HARBOR DR        CITY CENTER  ↑        I-5 NORTH  →', '#0f5a2e', '#ffffff']];
   strips.forEach(([t, bg, fg], i) => {
     const cy = 768 + i * 64;
     x.fillStyle = bg; x.fillRect(0, cy, 1024, 64);

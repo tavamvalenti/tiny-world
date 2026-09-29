@@ -388,7 +388,7 @@ export class City {
       hedge: [new THREE.BoxGeometry(1, 0.4, 0.4).translate(0, 0.2, 0), 0x3f5e2a],
       boat: [mergeGeometries([new THREE.BoxGeometry(0.6, 0.2, 1.8).translate(0, 0.1, 0), new THREE.BoxGeometry(0.45, 0.25, 0.6).translate(0, 0.32, -0.1)]), 0xf4f4f4],
       car_wreck: [new THREE.BoxGeometry(0.1, 0.1, 0.1), 0x222222],
-      // Glockton: chain-link and wood fences, alley dumpsters, front stoops, junk in vacant lots
+      // Chicago: chain-link and wood fences, alley dumpsters, front stoops, junk in vacant lots
       chainlink: [mergeGeometries([new THREE.BoxGeometry(1, 0.75, 0.015).translate(0, 0.4, 0), new THREE.BoxGeometry(1, 0.03, 0.03).translate(0, 0.78, 0),
         new THREE.BoxGeometry(0.03, 0.8, 0.03).translate(-0.5, 0.4, 0)]), 0x9aa0a4, { transparent: true, opacity: 0.55, metalness: 0.6 }],
       woodfence: [new THREE.BoxGeometry(1, 0.7, 0.05).translate(0, 0.35, 0), 0x7a6248],

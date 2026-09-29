@@ -17,7 +17,7 @@ import { Harbor } from './harbor.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
-export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'GLOCKTON' };
+export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO' };
 
 const $ = (s) => document.querySelector(s);
 const canvasEl = $('#game');
