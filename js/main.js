@@ -309,7 +309,11 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; input.down = false; });
-canvasEl.addEventListener('mousemove', (e) => { input.mx = e.clientX; input.my = e.clientY; });
+canvasEl.addEventListener('mousemove', (e) => {
+  input.mx = e.clientX; input.my = e.clientY;
+  if (input.down && e.pointerType !== 'touch' && !(e.buttons & 1) && !touch) input.down = false; // released outside the window
+});
+document.addEventListener('mouseleave', () => { if (!touch) input.down = false; });
 canvasEl.addEventListener('mousedown', (e) => { if (e.button === 0) { input.down = true; input.pressed = true; sfx.unlock(); } });
 window.addEventListener('mouseup', (e) => { if (e.button === 0) input.down = false; });
 canvasEl.addEventListener('contextmenu', (e) => e.preventDefault());

@@ -429,7 +429,14 @@ export class Concert {
   // any weapon fired at the venue: people right there are knocked flying, then the whole place empties
   // (the game's own random incidents never clear the venue: only the player's weapons do)
   onBlast(x, y, z, r, power, kind) {
-    if (kind === 'collapse' || !this.inVenue(x, z, 8)) return;
+    if (kind === 'collapse' || !this.inVenue(x, z, 3)) return;
+    // a brushed laser click isn't an attack: it takes about a second of holding the beam on the venue
+    if (kind === 'laser') {
+      this.laserHits = (this.laserHits || []).filter((t) => G.time - t < 2);
+      this.laserHits.push(G.time);
+      if (this.laserHits.length < 3 && !this.evac) return;
+    }
+    this.lastAttack = { kind, x, z, time: G.time };
     const kill = kind === 'wind' ? r * 0.55 : r * 0.28;
     if (power > 1.5) for (let i = 0; i < this.N; i++) {
       const h = this.home[i]; if (h.gone || h.out) continue;

@@ -21,11 +21,16 @@ export class Chaos {
     if (!mean) return;
     this.t -= dt;
     if (this.t > 0) return;
-    // crowded places (the festival) see incidents more often, and more of them are shootings
-    const hs = this.A.city.hotspot, T = G.camTarget;
-    const hot = hs && Math.hypot(T.x - hs.x, T.z - hs.z) < hs.r + 20;
-    this.t = mean * rand(0.6, 1.4) * (hot ? 0.55 : 1);
-    if (!(Math.random() < (hot ? 0.3 : 0.55) ? this.crash() : this.shooting())) this.t = 4; // nothing suitable nearby: retry soon
+    this.t = mean * rand(0.6, 1.4);
+    if (!(Math.random() < 0.55 ? this.crash() : this.shooting())) this.t = 4; // nothing suitable nearby: retry soon
+  }
+
+  // the festival is a no-incident zone: the game never starts a crash or shooting within a wide ring of it
+  safe(o) {
+    const S = G.concert && G.concert.site;
+    if (!S) return true;
+    const M = 35, x = o.pos.x, z = o.pos.z;
+    return !(x > S.x0 - M && x < S.x1 + M && z > S.z0 - M && z < S.z1 + M);
   }
 
   // somewhere the player can plausibly see or hear it
@@ -50,7 +55,7 @@ export class Chaos {
   // ---------- car crash ----------
   crash() {
     const A = this.A;
-    const driving = A.cars.filter((c) => c.state === 'drive' && !c.emerg && !c.leaving && c.speed > 1);
+    const driving = A.cars.filter((c) => c.state === 'drive' && !c.emerg && !c.leaving && c.speed > 1 && this.safe(c));
     const a = this.near(driving);
     if (!a) return false;
     const b = driving.filter((o) => o !== a).sort((p, q) => p.pos.distanceTo(a.pos) - q.pos.distanceTo(a.pos))[0];
@@ -89,7 +94,7 @@ export class Chaos {
   // ---------- street shooting ----------
   shooting() {
     const A = this.A;
-    const calm = A.peds.filter((p) => !p.officer && ['walk', 'wander', 'idle', 'wait'].includes(p.state));
+    const calm = A.peds.filter((p) => !p.officer && ['walk', 'wander', 'idle', 'wait'].includes(p.state) && this.safe(p));
     const shooter = this.crowded(calm);
     if (!shooter) return false;
     const { x, z } = shooter.pos;
