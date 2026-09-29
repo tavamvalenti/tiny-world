@@ -393,7 +393,7 @@ export class Agents {
         c.pos.set(e.x, 0, e.z); c.heading = Math.atan2(B.x - A.x, B.z - A.z);
         c.from = A.id; c.to = B.id; c.queue = [this.stopPoint(A, B)];
         c.state = 'drive'; c.speed = 2; c.dest = target.id; c.incident = inc; c.flee = 0; c.sirenOn = true;
-        c.sirenOffAt = G.time + rand(40, 60); // even en route, sirens eventually wind down
+        c.sirenOffAt = G.time + rand(18, 28); // even en route, sirens wind down fairly soon
       }, k * rand(900, 2200));
     });
   }
@@ -408,7 +408,7 @@ export class Agents {
   }
   arrive(c) {
     c.state = 'onscene'; c.speed = 0; c.queue = [];
-    c.sirenOffAt = Math.min(c.sirenOffAt ?? 1e9, G.time + rand(8, 15));
+    c.sirenOffAt = Math.min(c.sirenOffAt ?? 1e9, G.time + rand(3, 6));
     // angle the vehicle a little, the way responders park
     c.heading += rand(-0.35, 0.35);
   }
@@ -425,14 +425,21 @@ export class Agents {
       const b = G.buildings.burnArr;
       if (b.length > 6) { const c = pick(b); if (c && c.alive) this.report(c.x, c.z, Math.min(3, b.length / 30)); }
     }
-    // only the nearest few sirens are audible at once
+    // one siren voice at a time: the nearest active responder, kept until another is clearly closer, with a
+    // short breather after a siren winds down before the next one starts
     this.sirenT -= dt;
+    this.sirenRest = Math.max(0, (this.sirenRest || 0) - dt);
     if (this.sirenT <= 0) {
       this.sirenT = 0.4;
-      const T = G.camTarget;
-      const active = this.cars.filter((c) => c.emerg && (c.state === 'drive' || c.state === 'onscene') && G.time < (c.sirenOffAt ?? 1e9));
-      active.sort((a, b) => Math.hypot(a.pos.x - T.x, a.pos.z - T.z) - Math.hypot(b.pos.x - T.x, b.pos.z - T.z));
-      const keep = new Set(active.slice(0, 3));
+      const T = G.camTarget, dist = (c) => Math.hypot(c.pos.x - T.x, c.pos.z - T.z);
+      const active = this.cars.filter((c) => c.emerg && !c.posted && (c.state === 'drive' || c.state === 'onscene') && G.time < (c.sirenOffAt ?? 1e9));
+      active.sort((a, b) => dist(a) - dist(b));
+      let voice = this.sirenVoice && active.includes(this.sirenVoice) ? this.sirenVoice : null;
+      if (voice && active[0] !== voice && dist(active[0]) < dist(voice) * 0.6) voice = active[0];
+      if (!voice && active.length && this.sirenRest <= 0) voice = active[0];
+      if (this.sirenVoice && !voice) this.sirenRest = rand(4, 8);
+      this.sirenVoice = voice;
+      const keep = new Set(voice ? [voice] : []);
       for (const c of this.cars) {
         if (!c.emerg) continue;
         if (keep.has(c)) { if (!c.siren) c.siren = sfx.siren(c.emerg); if (c.siren) c.siren.set(c.pos.x, c.pos.z, true); }

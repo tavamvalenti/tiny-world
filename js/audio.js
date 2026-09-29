@@ -616,7 +616,7 @@ export const sfx = {
   },
   siren(type) {
     if (!init()) return null;
-    const ch = chain(0, 0, { vol: 0.5, echoAmt: 0.4 });
+    const ch = chain(0, 0, { vol: 0.34, echoAmt: 0.3 });
     const o = osc(type === 'fire' ? 'sawtooth' : 'square', 700), lp = filt('lowpass', 2200), g = amp(0.0001);
     const lfo = osc(type === 'ambulance' ? 'square' : 'sine', type === 'police' ? 0.28 : type === 'ambulance' ? 1.6 : 0.18);
     const lfoG = amp(type === 'ambulance' ? 180 : 420);
@@ -628,7 +628,7 @@ export const sfx = {
       ch, g, on: false,
       set(x, z, on) {
         this.ch.move(x, z, 0.2);
-        if (on !== this.on) { this.on = on; g.gain.setTargetAtTime(on ? 0.12 : 0.0001, now(), 0.3); }
+        if (on !== this.on) { this.on = on; g.gain.setTargetAtTime(on ? 0.1 : 0.0001, now(), 0.6); }
       },
       stop(slow = false) {
         // slow: wind down gradually over several seconds instead of cutting off
