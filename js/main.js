@@ -151,7 +151,7 @@ function load(name) {
   G.petco = map.city.petco ? new Petco(scene, map.city, map.city.petco, B) : null;
   if (map.city.crowdsLate) (map.city.crowds ||= []).push(...map.city.crowdsLate);
   G.concert = map.city.concert ? new Concert(scene, map.city.concert, map.city) : null;
-  G.court = map.city.court ? new Court(scene, map.city.court) : null;
+  G.court = map.city.court ? new Court(scene, map.city.court, map.g) : null;
   G.fx = new FX(scene);
   G.agents = new Agents(scene, map.city, map.agents);
   G.chaos = new Chaos(G.agents);

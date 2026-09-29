@@ -23,9 +23,10 @@ export function paintCourts(g, area) {
   g.grainRect(area.x0, area.z0, area.x1, area.z1, 0.4, 50);
   const X = g.x, K = g.k;
   for (const { cx, cz } of courtLayout(area)) {
-    g.rect(cx - L / 2 - 0.3, cz - W / 2 - 0.3, cx + L / 2 + 0.3, cz + W / 2 + 0.3, '#8a4e44');
+    g.rect(cx - L / 2 - 0.3, cz - W / 2 - 0.3, cx + L / 2 + 0.3, cz + W / 2 + 0.3, '#1d1b1b');      // black apron
     g.rect(cx - L / 2, cz - W / 2, cx + L / 2, cz + W / 2, '#a8604f');
-    for (const s of [-1, 1]) g.rect(Math.min(cx + s * L / 2, cx + s * (L / 2 - 5.8 * M)), cz - 2.45 * M, Math.max(cx + s * L / 2, cx + s * (L / 2 - 5.8 * M)), cz + 2.45 * M, '#c2956f');
+    for (const s of [-1, 1]) g.rect(Math.min(cx + s * L / 2, cx + s * (L / 2 - 5.8 * M)), cz - 2.45 * M, Math.max(cx + s * L / 2, cx + s * (L / 2 - 5.8 * M)), cz + 2.45 * M, '#a51c30');
+    X.fillStyle = '#a51c30'; for (const s of [-1, 1]) { X.beginPath(); X.arc(g.px(cx + s * (L / 2 - 5.8 * M)), g.px(cz), 1.8 * M * K, 0, 6.283); X.fill(); }  // Bulls-red keys
     g.grainRect(cx - L / 2, cz - W / 2, cx + L / 2, cz + W / 2, 0.45, 60);
     X.save(); X.strokeStyle = 'rgba(240,236,228,.85)'; X.lineWidth = 0.06 * K;
     X.strokeRect(g.px(cx - L / 2), g.px(cz - W / 2), L * K, W * K);
@@ -71,7 +72,7 @@ function graffitiTex() {
   return canvasTex(1024, 96, (x, w, h) => {
     x.fillStyle = '#5a5b5d'; x.fillRect(0, 0, w, h);
     for (let y = 0; y < h; y += 16) for (let i = (y / 16) % 2 ? -20 : 0; i < w; i += 40) { x.strokeStyle = 'rgba(0,0,0,.22)'; x.strokeRect(i, y, 40, 16); }
-    const words = ['773', 'SMASH', 'CHI', 'DRILL', 'OMERTA', 'SOUTHSIDE', 'O-BLOCK', 'KRONIK'];
+    const words = ['773', 'CHI', 'BULLS', 'SOUTHSIDE', '312', 'O-BLOCK', '23', 'DRILL', 'SMASH'];
     const cols = ['#35c6b4', '#e84393', '#f2f2f2', '#f7e531', '#2a6fb5', '#e8453c', '#8e5cf0'];
     let px = 10;
     while (px < w - 60) {
@@ -86,6 +87,41 @@ function graffitiTex() {
     }
     // scribbled tags on top
     for (let k = 0; k < 14; k++) { x.strokeStyle = pick(['#111', '#fff', '#e84393']); x.lineWidth = 2; x.beginPath(); let a = rand(0, w), b = rand(8, h - 8); x.moveTo(a, b); for (let j = 0; j < 6; j++) { a += rand(4, 14); b += rand(-10, 10); x.lineTo(a, b); } x.stroke(); }
+  });
+}
+
+const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+function cropTex(img, sx, sy, sw, sh, bg = null) {
+  return canvasTex(256, Math.round(256 * sh / sw), (x, w, h) => { if (bg) { x.fillStyle = bg; x.fillRect(0, 0, w, h); } x.drawImage(img, sx, sy, sw, sh, 0, 0, w, h); });
+}
+// the Chicago flag: white field, two light-blue bars, four red six-pointed stars
+function flagBanner(vertical = false) {
+  const star = (x, cx, cy, r) => { x.beginPath(); for (let i = 0; i < 12; i++) { const a = -Math.PI / 2 + i * Math.PI / 6, rr = i % 2 ? r * 0.5 : r; x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } x.closePath(); x.fill(); };
+  return canvasTex(vertical ? 128 : 256, vertical ? 256 : 128, (x, w, h) => {
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h);
+    x.fillStyle = '#b3ddf2';
+    if (vertical) { x.fillRect(w * 0.16, 0, w * 0.17, h); x.fillRect(w * 0.67, 0, w * 0.17, h); }
+    else { x.fillRect(0, h * 0.16, w, h * 0.17); x.fillRect(0, h * 0.67, w, h * 0.17); }
+    x.fillStyle = '#e4002b';
+    for (let i = 0; i < 4; i++) vertical ? star(x, w / 2, h * (0.14 + i * 0.24), w * 0.13) : star(x, w * (0.14 + i * 0.24), h / 2, h * 0.13);
+  });
+}
+function bannerTex(img, kind) {
+  return canvasTex(256, 128, (x, w, h) => {
+    if (kind === 'bulls') {
+      x.fillStyle = '#ce1141'; x.fillRect(0, 0, w, h);
+      x.fillStyle = '#fff'; x.beginPath(); x.roundRect(w / 2 - 54, 6, 108, 116, 12); x.fill();
+      if (img) x.drawImage(img, w / 2 - 50, 10, 100, 106);
+      x.fillStyle = '#111'; x.fillRect(0, h - 8, w, 8);
+    } else if (kind === 'nba') {
+      x.fillStyle = '#17408b'; x.fillRect(0, 0, w, h);
+      if (img) x.drawImage(img, 270, 5, 160, 385, w / 2 - 22, 8, 44, 106);
+      x.fillStyle = '#fff'; x.font = '800 22px Inter, Arial, sans-serif'; x.textBaseline = 'middle';
+      x.textAlign = 'right'; x.fillText('CHI', w / 2 - 34, h / 2); x.textAlign = 'left'; x.fillText('TOWN', w / 2 + 34, h / 2);
+    } else {
+      x.fillStyle = '#0b0b0b'; x.fillRect(0, 0, w, h);
+      if (img) x.drawImage(img, 0, 50, 750, 900, w / 2 - 50, 4, 100, 120);
+    }
   });
 }
 
@@ -115,11 +151,11 @@ class Game {
   constructor(scene, cx, cz, ballMat) {
     this.cx = cx; this.cz = cz; this.time = rand(0, 5);
     this.hoops = [-1, 1].map((s) => ({ s, x: cx + s * (L / 2 - 1.575 * M), y: RIM_Y, z: cz, net: null }));
-    const kits = [[0x2a4fbf, 0xe8453c, 0xe8453c], [0xf2f2f0, 0x1c1d20, 0x1c1d20]];
+    const kits = [[0xce1141, 0x1c1d20, 0xf2f2f0], [0x1c1d20, 0xce1141, 0xce1141]];   // Bulls red vs. black
     this.players = [];
     for (let team = 0; team < 2; team++) for (let k = 0; k < 3; k++) {
       const [j, s, trim] = kits[team];
-      const p = makePlayer(scene, team === 1 && Math.random() < 0.4 ? pick([0x6b6f76, 0x1c1d20, 0x8a2b2b]) : j, s, trim);
+      const p = makePlayer(scene, team === 1 && Math.random() < 0.35 ? pick([0x6b6f76, 0xf2f2f0]) : j, s, trim);
       p.team = team; p.k = k;
       this.players.push(p);
     }
@@ -287,8 +323,8 @@ class Game {
 }
 
 export class Court {
-  constructor(scene, area) {
-    this.area = area;
+  constructor(scene, area, ground) {
+    this.area = area; this.ground = ground;
     const layout = courtLayout(area);
     const P = [];
     // ---- fence: tall chain-link on posts, gate gap on the south side; graffiti wall on the north ----
@@ -344,6 +380,41 @@ export class Court {
     const pool = canvasTex(128, 128, (x, w, h) => { const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
     this.pools = layout.map(({ cx, cz }) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(L + 3, W + 3).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: pool, color: 0xfff1d6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); p.position.set(cx, 0.03, cz); scene.add(p); return p; });
     this.gate = gate; this.halt = 0;
+    this.decorate(scene, layout, boardMat);
+  }
+
+  // Bulls / NBA / South Side Chicago dressing: center-court logos, backboard logos, wall murals, fence and pole banners
+  decorate(scene, layout, boardMat) {
+    const { x0, x1, z0, z1 } = this.area;
+    Promise.all(['assets/bulls.png', 'assets/nba.png', 'assets/southside.png'].map(loadImg)).then(([bulls, nba, south]) => {
+      const g = this.ground;
+      if (g && bulls) {
+        const X = g.x;
+        X.save(); X.globalCompositeOperation = 'multiply'; X.globalAlpha = 0.92;   // white drops out: reads as paint on the court
+        for (const { cx, cz } of layout) { const s = 2.1 * g.k; X.drawImage(bulls, g.px(cx) - s / 2, g.px(cz) - s / 2, s, s * 905 / 900); }
+        X.restore();
+        g.tex.needsUpdate = true;
+      }
+      if (nba) { const t = boardMat.map, c = t.image, x = c.getContext('2d'); x.drawImage(nba, 270, 5, 160, 385, c.width / 2 - 5, 4, 10, 18); t.needsUpdate = true; }
+      const banners = [flagBanner(), bannerTex(bulls, 'bulls'), bannerTex(nba, 'nba'), bannerTex(south, 'south')];
+      // vinyl banners zip-tied along the south fence, both faces
+      let k = 0;
+      for (let x = x0 + 1.4; x < x1 - 1; x += 2.6) {
+        if (Math.abs(x - this.gate.x) < this.gate.w + 0.8) continue;
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.9), new THREE.MeshStandardMaterial({ map: banners[k++ % banners.length], side: THREE.DoubleSide, roughness: 0.8 }));
+        m.position.set(x, 1.45, z1 + 0.02); scene.add(m);
+      }
+      // murals painted on the wall facing the courts
+      const mural = (tex, w, h, x) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 })); m.position.set(x, h / 2 + 0.05, z0 + 0.012); scene.add(m); };
+      if (south) { const t = cropTex(south, 0, 50, 750, 900); mural(t, 1.35, 1.6, layout[0].cx); mural(t, 1.35, 1.6, layout[1].cx); }
+      if (bulls) mural(cropTex(bulls, 0, 0, 900, 905, '#ffffff'), 1.6, 1.6, this.gate.x);
+      // Chicago flag banners on the light poles
+      const flagV = flagBanner(true);
+      for (const l of this.lamps) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1.0), new THREE.MeshStandardMaterial({ map: flagV, side: THREE.DoubleSide }));
+        m.position.set(l.x + 0.3, 3.2, l.z + l.s * 0.36); scene.add(m);
+      }
+    });
   }
 
   // a player weapon near the courts: people right there go flying, everyone else runs out of the gate
