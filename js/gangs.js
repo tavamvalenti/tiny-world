@@ -368,7 +368,10 @@ export class Gangs {
   update(dt) {
     const T = G.camTarget, cx = (this.border.x0 + this.border.x1) / 2;
     const near = Math.hypot(T.x - cx, T.z - this.border.z) < 70;
-    this.shotBudget = Math.min(12, this.shotBudget + dt * 14);   // cap gunshot sounds per second
+    // gunshot sounds are sparse on purpose: one per burst at most, ~2.5 a second across the whole fight, never
+    // two on top of each other; the flashes and tracers still show every round
+    this.shotBudget = Math.min(2, this.shotBudget + dt * 2.5);
+    this.shotGap = Math.max(0, (this.shotGap || 0) - dt);
     if (this.fight) { if ((this.fight.t -= dt) <= 0) this.endFight(); }
     else if ((this.calm -= dt) <= 0) this.startFight();
     // groups on patrol walk their own sidewalks, then come back
@@ -447,7 +450,7 @@ export class Gangs {
             const free = this.cover[m.side].filter((c) => !c.used && Math.abs(c.x - m.x) < 6);
             if (free.length) { const c = pick(free); if (m.cover) m.cover.used = null; c.used = m; m.cover = c; m.state = 'toCover'; m.route = [{ x: c.x, z: c.z }]; return; }
           }
-          m.peek = true; m.phaseT = rand(0.9, 1.8); m.burst = Math.round(rand(...FIRE[m.weapon].burst)); m.fireT = rand(0.15, 0.35);
+          m.peek = true; m.phaseT = rand(0.9, 1.8); m.burst = Math.round(rand(...FIRE[m.weapon].burst)); m.fireT = rand(0.15, 0.35); m.voiced = false;
         }
       }
     }
@@ -460,7 +463,12 @@ export class Gangs {
     if (near) {
       G.fx.fire.emit(_v.x, _v.y, _v.z, dx / d * 2, 0.2, dz / d * 2, 0.28, 0.05);
       G.fx.spark.emit(_v.x, _v.y, _v.z, dx / d * 45 + rand(-2, 2), rand(-1, 1.5), dz / d * 45 + rand(-2, 2), 0.1, 0.18, 4, 3, 1.4, 1);
-      if (this.shotBudget >= 1) { this.shotBudget--; sfx.gunshot(_v.x, _v.z, 1); }
+      if (!m.voiced && this.shotBudget >= 1 && this.shotGap <= 0) {
+        // nearer shooters win the few sound slots
+        const T = G.camTarget, dist = Math.hypot(_v.x - T.x, _v.z - T.z);
+        if (Math.random() < Math.max(0.35, 1 - dist / 60)) { this.shotBudget--; this.shotGap = rand(0.14, 0.3); sfx.gunshot(_v.x, _v.z, 1); }
+        m.voiced = true;
+      }
       if (Math.random() < 0.35) G.fx.dust(tx + rand(-0.6, 0.6), 0.25, tz + rand(-0.3, 0.3), 0.25);
     }
     const t = m.target;

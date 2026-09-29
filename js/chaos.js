@@ -109,7 +109,7 @@ export class Chaos {
         const hx = shooter.pos.x + Math.sin(facing) * 0.15, hz = shooter.pos.z + Math.cos(facing) * 0.15;
         G.fx.flash(hx, 0.6, hz, 0xffd08a, 6, 0.06, 8);
         G.fx.sparks(hx, 0.5, hz, 3, 5, 3.5, 1.2, 2);
-        sfx.gunshot(hx, hz, 1);
+        if (k === 0 || Math.random() < 0.35) sfx.gunshot(hx, hz, 1);   // not every round needs its own report
       }, 300 + k * rand(140, 320));
     }
     const dur = 300 + shots * 260;
