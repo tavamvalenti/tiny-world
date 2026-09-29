@@ -245,6 +245,8 @@ export class City {
   // ---------- props ----------
   addTree(x, z, s = 1, kind = 'round') { this.trees.push({ x, z, s: s * rand(0.85, 1.15), kind, alive: true, burn: 0, rot: rand(0, 6.28), tilt: 0 }); }
   addLamp(x, z, rot) { this.lamps.push({ x, z, rot, alive: true, flick: 0 }); }
+  // areas ordinary pedestrians never enter (faction territory)
+  pedBlocked(x, z) { return (this.noPeds || []).some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1); }
   addProp(type, x, z, rot = 0, s = 1) { this.props.push({ type, x, z, rot, s, alive: true }); }
 
   lampsAlongBlock(b, spacing = 8) {

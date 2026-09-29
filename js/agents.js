@@ -467,7 +467,7 @@ export class Agents {
       p.target = { x: rand(p.zone.x0, p.zone.x1), z: rand(p.zone.z0, p.zone.z1) };
       if (Math.random() < 0.3) { p.state = 'idle'; p.timer = rand(5, 40); }
     } else {
-      let nodes = C.pedNodes.filter((n) => n.edges.length);
+      let nodes = C.pedNodes.filter((n) => n.edges.length && !C.pedBlocked(n.x, n.z));
       const hs = C.hotspot;
       if (hs && Math.random() < 0.55) { const near = nodes.filter((n) => Math.hypot(n.x - hs.x, n.z - hs.z) < hs.r); if (near.length) nodes = near; }
       const n = pick(nodes), e = pick(n.edges.filter((e) => !e.light)) || n.edges[0];
@@ -500,7 +500,7 @@ export class Agents {
     const C = this.city, n = C.pedNodes[p.to];
     let opts = n.edges.filter((e) => e.to !== p.from);
     if (!opts.length) opts = n.edges;
-    opts = opts.filter((e) => { const m = C.pedNodes[e.to]; return !C.obstacleNear((n.x + m.x) / 2, (n.z + m.z) / 2, 0.8); });
+    opts = opts.filter((e) => { const m = C.pedNodes[e.to]; return !C.pedBlocked(m.x, m.z) && !C.obstacleNear((n.x + m.x) / 2, (n.z + m.z) / 2, 0.8); });
     if (!opts.length) { [p.from, p.to] = [p.to, p.from]; return; }
     const e = pick(opts);
     p.pending = e;

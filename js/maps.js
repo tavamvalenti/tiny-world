@@ -413,6 +413,46 @@ function paintPotholes(ctx) {
   }
 }
 
+// ---- faction blocks: the row facing the border street is a corner store, two walk-ups and two open hangout
+// lots with garages on the alley; the back row stays an ordinary Chicago row ----
+function gangRow(ctx, b, side, alleyW) {
+  const { city, B, g } = ctx;
+  const face = side === 'blue' ? 1 : -1;                      // blue's front row faces north (z1), red's faces south (z0)
+  const dirIn = -face, street = face < 0 ? b.lz0 : b.lz1, cz = (b.lz0 + b.lz1) / 2, alleyEdge = cz - dirIn * alleyW / 2;
+  const zr = (a, c) => [Math.min(street + dirIn * a, street + dirIn * c), Math.max(street + dirIn * a, street + dirIn * c)];
+  const depth = Math.abs(alleyEdge - street);
+  const plan = side === 'blue' ? [['store', 5], ['lot', 6.6], ['flat', 3.6], ['flat', 3.6], ['lot', 6.2]] : [['lot', 6.2], ['flat', 3.6], ['flat', 3.6], ['lot', 6.6], ['store', 5]];
+  const out = { lots: [], stores: [], street, dirIn, alleyEdge };
+  let x = b.lx0 + 0.3;
+  for (const [kind, w] of plan) {
+    const lx = x + w / 2;
+    if (kind === 'store') {
+      const d = 7, z = street + dirIn * (0.1 + d / 2);
+      const st = B.add({ x: lx, z, w: w - 0.1, d, floors: 2, style: 'brick', tint: chicagoBrick(), cell: 1.3, gh: 1.35, fh: 1 });
+      st.noSigns = true; weather(st);
+      const [a, c] = zr(d + 0.2, depth); g.rect(x, a, x + w, c, '#555553');
+      out.stores.push({ x: lx, z, w: w - 0.1, d });
+    } else if (kind === 'flat') {
+      const fy = 1.2, d = rand(5.6, 6.4), [ya, yb] = zr(0, fy);
+      g.rect(x, ya, x + w, yb, '#6c7446');
+      const fl = weather(B.add({ x: lx, z: street + dirIn * (fy + d / 2), w: w - 0.35, d, floors: 3, style: 'flat', tint: chicagoBrick(), cell: 1.25, gh: 1.25, fh: 1 }));
+      fl.noSigns = true;
+      city.addProp('stoop', lx, street + dirIn * fy, dirIn > 0 ? Math.PI : 0);
+      const [ra, rb] = zr(fy + d, depth); g.rect(x, ra, x + w, rb, '#77694f');
+    } else {
+      const [a, c] = zr(0, depth);
+      g.rect(x, a, x + w, c, '#58564f'); g.grainRect(x, a, x + w, c, 0.4, 50);
+      for (let k = 0; k < 4; k++) g.circle(rand(x, x + w), rand(a, c), rand(0.4, 1), 'rgba(110,92,70,.6)');
+      const ga = B.add({ x: lx, z: alleyEdge - dirIn * 1.3, w: Math.min(w - 0.6, 4.2), d: 2.5, floors: 1, style: 'garage', tint: chicagoBrick().lerp(new THREE.Color(0.6, 0.58, 0.55), 0.4), cell: 1.5, gh: 1.2 });
+      ga.noSigns = true; weather(ga);
+      city.parked.push({ x: x + 1.2, z: street + dirIn * depth * 0.62, rot: 0 });
+      out.lots.push({ x0: x, x1: x + w, cx: lx, cz: street + dirIn * depth * 0.38, garageZ: alleyEdge - dirIn * 2.6 });
+    }
+    x += w + 0.1;
+  }
+  return out;
+}
+
 export function suburbs(B) {
   const P = [-66, -33, 0, 33, 66];
   const ctx = makeCtx({ xs: P, zs: P, roadW: 4.2, sw: 1.3, half: 66, extent: 112, centerLine: null, lights: false, noCrosswalks: false, baseColor: '#5d6442' }, B);
@@ -469,6 +509,20 @@ export function suburbs(B) {
     city.lampsAlongBlock(b, 11);
     city.treesAlongBlock(b, 8.5, 'round', 0.95);
     const key = `${b.i},${b.j}`;
+    if (key === '3,0' || key === '3,1') { // faction territory: Blue Line (south block) vs. Red Row (north block), border = the street between
+      const side = key === '3,0' ? 'blue' : 'red';
+      g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#646b43');
+      paintAlley(ctx, b, alleyW);
+      const gs = (city.gangs ||= { zones: {} });
+      gs[side] = gangRow(ctx, b, side, alleyW);
+      flatsRow(ctx, b, side === 'blue' ? -1 : 1, alleyW, { stores: 0.3, abandoned: 0.25 });
+      gs.zones[side] = { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1 };
+      (city.noPeds ||= []).push({ x0: b.x0 - 0.2, x1: b.x1 + 0.2, z0: b.z0 - 0.2, z1: b.z1 + 0.2 });
+      // faction-coloured curbs all round the block
+      const col = side === 'blue' ? '#2f6fe0' : '#d6262e';
+      for (const [ax, az, bx, bz] of [[b.x0, b.z0, b.x1, b.z0], [b.x0, b.z1, b.x1, b.z1], [b.x0, b.z0, b.x0, b.z1], [b.x1, b.z0, b.x1, b.z1]]) g.line(ax, az, bx, bz, 0.16, col);
+      continue;
+    }
     if (key === '1,1') { // public school: three-storey brick, asphalt schoolyard, a small field
       g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#5e5d59'); g.grainRect(b.lx0, b.lz0, b.lx1, b.lz1, 0.25, 40);
       B.add({ x: cx - 4, z: b.lz0 + 4, w: 18, d: 6, floors: 3, style: 'brick', tint: chicagoBrick(), cell: 1.7, gh: 1.4, fh: 1.1 });
@@ -524,6 +578,25 @@ export function suburbs(B) {
     }
   }
   paintPotholes(ctx);
+  if (city.gangs) {
+    const zb = city.gangs.zones.blue, zred = city.gangs.zones.red, bz = (zb.z1 + zred.z0) / 2;
+    city.gangs.border = { z: bz, x0: zb.x0, x1: zb.x1 };
+    // spray-painted border line down the middle of the street, and whose side is whose
+    const X = g.x;
+    for (const [dz, col] of [[-0.18, '#2f6fe0'], [0.18, '#d6262e']]) {
+      X.save(); X.strokeStyle = col; X.lineWidth = 0.22 * g.k; X.lineCap = 'round'; X.beginPath();
+      for (let x = zb.x0; x <= zb.x1; x += 0.8) X.lineTo(g.px(x), g.px(bz + dz + rand(-0.06, 0.06)));
+      X.stroke(); X.restore();
+    }
+    for (const [z, txt, col] of [[bz - 1.2, 'BLUE SIDE', '#2f6fe0'], [bz + 1.25, 'RED SIDE', '#d6262e']]) for (const x of [zb.x0 + 6, (zb.x0 + zb.x1) / 2, zb.x1 - 6]) {
+      X.save(); X.translate(g.px(x), g.px(z)); X.rotate(rand(-0.05, 0.05));
+      X.font = `900 ${0.9 * g.k}px Impact, "Arial Black", sans-serif`; X.textAlign = 'center'; X.textBaseline = 'middle';
+      X.globalAlpha = 0.85; X.fillStyle = col; X.fillText(txt, 0, 0); X.restore();
+    }
+    const blocked = (x, z) => city.pedBlocked(x, z);
+    city.crowds = city.crowds.filter((c) => !blocked(c.x, c.z));
+    city.wanderZones = city.wanderZones.filter((w) => !blocked((w.x0 + w.x1) / 2, (w.z0 + w.z1) / 2));
+  }
   outskirts(ctx, 'flats');
   return { ...ctx, agents: { cars: 46, peds: 240, wanderFrac: 0.25 }, fog: 0xc9cfcf, start: { x: -33, z: 30 } };
 }
