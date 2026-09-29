@@ -157,6 +157,78 @@ export function makeFacades() {
     win(158, S + 88, 68, 84, 20);
   });
 
+  // ---- Glockton: Chicago-style brick two/three-flats ----
+  const commonBrick = (c) => {
+    c.fillStyle = '#a89c90'; c.fillRect(0, 0, S, S * 2);
+    for (let y = 0; y < S * 2; y += 8) {
+      const off = (y / 8) % 2 ? 0 : 10;
+      for (let x = -20; x < S; x += 20) {
+        const v = 150 + Math.random() * 55;
+        c.fillStyle = `rgb(${v},${v * 0.9},${v * 0.82})`;
+        c.fillRect(x + off + 1, y + 1, 18, 6);
+      }
+    }
+    // grime: rain streaks and soot darkening toward the top of each floor
+    for (let i = 0; i < 14; i++) {
+      const x = Math.random() * S, w = 3 + Math.random() * 10, y = Math.random() * S * 2;
+      c.fillStyle = `rgba(40,32,26,${0.08 + Math.random() * 0.12})`; c.fillRect(x, y, w, 40 + Math.random() * 120);
+    }
+  };
+  const flatWindows = (c, boarded, win) => {
+    // upper floor: one tall double-hung window with limestone lintel + sill
+    c.fillStyle = '#cfc6b4'; c.fillRect(70, 28, 116, 14); c.fillRect(72, 212, 112, 10);
+    if (boarded) plywood(c, 82, 42, 92, 170);
+    else {
+      win(82, 42, 92, 170, -5);
+      c.fillStyle = '#e2ddd2'; c.fillRect(82, 124, 92, 7); c.fillRect(82, 42, 92, 5); c.fillRect(82, 42, 5, 170); c.fillRect(169, 42, 5, 170);
+      if (Math.random() < 0.5) { c.fillStyle = 'rgba(235,228,210,.75)'; c.fillRect(87, 47, 82, 20 + Math.random() * 50); } // blinds
+    }
+    c.fillStyle = 'rgba(30,24,20,.45)'; c.fillRect(0, 0, S, 6);
+    // ground (garden unit): window above a limestone base with a small basement window
+    c.fillStyle = '#b3aa98'; c.fillRect(0, S * 2 - 70, S, 70);
+    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(0, S * 2 - 70, S, 5);
+    c.fillStyle = '#cfc6b4'; c.fillRect(70, S + 34, 116, 14); c.fillRect(72, S + 196, 112, 10);
+    if (boarded) { plywood(c, 82, S + 48, 92, 148); plywood(c, 96, S * 2 - 52, 64, 34); }
+    else {
+      win(82, S + 48, 92, 148, -8);
+      c.fillStyle = '#e2ddd2'; c.fillRect(82, S + 118, 92, 6);
+      c.fillStyle = '#1c1a18'; c.fillRect(96, S * 2 - 52, 64, 34);
+      c.fillStyle = '#3a3633'; for (let x = 100; x < 160; x += 9) c.fillRect(x, S * 2 - 52, 3, 34); // security bars
+    }
+  };
+  function plywood(c, x, y, w, h) {
+    c.fillStyle = '#a8845a'; c.fillRect(x, y, w, h);
+    for (let i = x; i < x + w; i += 4) { c.fillStyle = `rgba(90,62,34,${Math.random() * 0.25})`; c.fillRect(i, y, 2, h); }
+    c.fillStyle = 'rgba(60,40,22,.55)'; c.fillRect(x + w / 2 - 1, y, 2, h); c.fillRect(x, y + h * 0.6, w, 2);
+    c.fillStyle = 'rgba(40,30,20,.35)'; c.fillRect(x, y, w, 4); c.fillRect(x, y + h - 4, w, 4);
+    if (Math.random() < 0.6) { // spray tag
+      c.strokeStyle = pickTag(); c.lineWidth = 5; c.lineCap = 'round'; c.beginPath();
+      let px = x + 10, py = y + h * 0.4;
+      c.moveTo(px, py);
+      for (let k = 0; k < 6; k++) { px += w / 8; py += (Math.random() - 0.5) * h * 0.3; c.lineTo(px, py); }
+      c.stroke();
+    }
+  }
+  const pickTag = () => ['#2d63c8', '#d23a8a', '#e8e8e8', '#1b1b1b', '#3aa655'][Math.floor(Math.random() * 5)];
+
+  F.flat = mk((c, win) => { commonBrick(c); flatWindows(c, false, win); });
+  F.boarded = mk((c, win) => {
+    commonBrick(c); flatWindows(c, true, win);
+    c.fillStyle = 'rgba(20,16,14,.25)'; c.fillRect(0, 0, S, S * 2); // neglect
+    c.strokeStyle = pickTag(); c.lineWidth = 7; c.beginPath(); c.moveTo(20, S * 2 - 110);
+    for (let x = 20; x < 236; x += 18) c.lineTo(x, S * 2 - 110 + (Math.random() - 0.5) * 40);
+    c.stroke();
+  });
+  F.garage = mk((c) => {
+    commonBrick(c);
+    // roll-up garage door with horizontal panels, rust and a tag
+    c.fillStyle = '#cfcac0'; c.fillRect(22, S + 60, 212, 196);
+    for (let y = S + 60; y < S * 2; y += 28) { c.fillStyle = 'rgba(0,0,0,.22)'; c.fillRect(22, y, 212, 3); }
+    for (let i = 0; i < 6; i++) { c.fillStyle = `rgba(120,70,30,${0.15 + Math.random() * 0.2})`; c.fillRect(22 + Math.random() * 200, S + 60 + Math.random() * 100, 4 + Math.random() * 10, 40 + Math.random() * 60); }
+    c.fillStyle = '#6d6356'; c.fillRect(14, S + 48, 228, 12);
+    if (Math.random() < 0.7) { c.strokeStyle = pickTag(); c.lineWidth = 8; c.lineCap = 'round'; c.beginPath(); c.moveTo(50, S + 150); c.bezierCurveTo(90, S + 100, 130, S + 200, 200, S + 130); c.stroke(); }
+  });
+
   return F;
 }
 

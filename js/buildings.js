@@ -8,10 +8,11 @@ import { sfx } from './audio.js';
 // InstancedMesh; per-instance attributes drive a patched standard shader: which faces are exterior
 // (facade vs exposed interior slab), damage (broken glass, cracks), soot and heat glow.
 const HASH = 4;
-const HP = { brick: 100, office: 130, concrete: 150, stucco: 85, house: 60 };
+const HP = { brick: 100, office: 130, concrete: 150, stucco: 85, house: 60, flat: 90, boarded: 70, garage: 55 };
 const ROOF = {
   brick: new THREE.Color(0.16, 0.15, 0.14), office: new THREE.Color(0.22, 0.23, 0.24),
   concrete: new THREE.Color(0.2, 0.19, 0.18), stucco: new THREE.Color(0.5, 0.45, 0.38), house: new THREE.Color(0.15, 0.15, 0.15),
+  flat: new THREE.Color(0.13, 0.12, 0.12), boarded: new THREE.Color(0.12, 0.11, 0.1), garage: new THREE.Color(0.2, 0.19, 0.18),
 };
 const GRAV = 14;
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
@@ -128,6 +129,7 @@ export class Buildings {
         mask[idx] = m;
         c.topExposed = !!(m & 4);
         state[idx * 4 + 3] = c.ground ? 1 : 0;
+        if (c.dmg || c.burn) { state[idx * 4] = c.dmg; state[idx * 4 + 1] = c.burn; c.hp = c.max * (1 - c.dmg * 0.6); }
         this.writeMatrix(c);
         mesh.setColorAt(idx, b.tint);
         this.hashInsert(c);
@@ -234,7 +236,8 @@ export class Buildings {
     const tops = [];
     for (const b of this.list) {
       if (b.gable || b.style === 'house') continue;
-      for (const c of b.cells) if (c.topExposed && c.f > 0 && Math.random() < 0.14) tops.push(c);
+      const p = b.style === 'flat' || b.style === 'garage' ? 0.04 : 0.14; // Glockton roofs stay mostly bare tar
+      for (const c of b.cells) if (c.topExposed && c.f > 0 && Math.random() < p) tops.push(c);
     }
     const ac = new THREE.BoxGeometry(0.55, 0.28, 0.42);
     const tank = mergeGeometries([

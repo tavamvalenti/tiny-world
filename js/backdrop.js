@@ -6,7 +6,7 @@ import { G, rand, pick, seeded } from './core.js';
 function tileTexture(map, pitch, roadW) {
   const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
   const x = c.getContext('2d'), k = S / pitch, r = roadW * k;
-  const lot = map === 'suburbs' ? '#62743f' : map === 'tropical' ? '#8f8a6c' : '#5f5c57';
+  const lot = map === 'suburbs' ? '#5d6442' : map === 'tropical' ? '#8f8a6c' : '#5f5c57';
   x.fillStyle = lot; x.fillRect(0, 0, S, S);
   // sidewalks
   x.fillStyle = '#a19c92';
@@ -21,6 +21,7 @@ function tileTexture(map, pitch, roadW) {
     const v = map === 'suburbs' ? pick(['#4f5a36', '#7a6e62', '#6d4f45', '#58503f']) : map === 'tropical' ? pick(['#d9cdb8', '#c98e6a', '#e8e0cf', '#b9a58c']) : pick(['#6c6a66', '#7c7874', '#565450', '#8a857d']);
     x.fillStyle = v; x.globalAlpha = 0.8; x.fillRect(px, py, w, h); x.globalAlpha = 1;
   }
+  if (map === 'suburbs') { x.fillStyle = '#58575a'; x.fillRect(r, S / 2 - 0.9 * k, S - 2 * r, 1.8 * k); } // alleys
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
   return t;
@@ -64,7 +65,7 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
 
   const rnd = seeded(mapName.length * 977);
   const R = (a, b) => a + rnd() * (b - a);
-  const style = mapName === 'tropical' ? 'stucco' : mapName === 'suburbs' ? 'house' : 'concrete';
+  const style = mapName === 'tropical' ? 'stucco' : mapName === 'suburbs' ? 'flat' : 'concrete';
   const mat = backdropMaterial(facades[style]);
   const boxes = [];
   const trees = [];
@@ -77,11 +78,13 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
     if (city.bridgeClear && city.bridgeClear.some((c) => Math.hypot(cx - c.x, cz - c.z) < c.r + 8)) continue;
     const lot = pitch - city.roadW - 3.4, lotZ = pitchZ - city.roadW - 3.4;
     if (mapName === 'suburbs') {
-      for (let k = 0; k < 6; k++) {
-        const x = cx + R(-lot / 2 + 2, lot / 2 - 2), z = cz + (k < 3 ? -lotZ / 3 : lotZ / 3);
-        boxes.push([x, z, R(3.5, 5), R(3.2, 4.2), R(1.1, 2.1)]);
-        trees.push([x + R(-4, 4), cz + R(-3, 3), R(1, 1.6)]);
+      // rows of narrow flat-roofed walk-ups on both street fronts, garages on the alley
+      for (const sd of [-1, 1]) for (let x = cx - lot / 2 + 1.8; x < cx + lot / 2 - 1.5; x += R(3.2, 3.9)) {
+        if (rnd() < 0.1) continue; // vacant lot
+        boxes.push([x, cz + sd * (lotZ / 2 - 4.2), R(2.8, 3.3), R(5.4, 6.6), R(2.4, 3.5)]);
+        if (rnd() < 0.6) boxes.push([x, cz + sd * 2.2, R(2.4, 2.9), 2.3, 1.15]);
       }
+      for (let k = 0; k < 4; k++) trees.push([cx + R(-lot / 2, lot / 2), cz + (k % 2 ? 1 : -1) * (lotZ / 2 + 0.6), R(0.9, 1.3)]);
     } else if (mapName === 'tropical') {
       const n = 2 + Math.floor(R(0, 3));
       for (let k = 0; k < n; k++) boxes.push([cx + R(-lot / 3, lot / 3), cz + R(-lotZ / 3, lotZ / 3), R(4, 8), R(4, 8), R(1.5, 6) * (Math.abs(cz - (water?.shore ?? 0)) < 60 ? 2 : 1)]);
@@ -104,21 +107,11 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
     mesh.setMatrixAt(i, m);
     if (mapName === 'downtown') col.setHSL(R(0.05, 0.12), R(0.05, 0.25), R(0.55, 0.8), THREE.SRGBColorSpace);
     else if (mapName === 'tropical') col.setHSL(R(0, 1), R(0.1, 0.4), R(0.78, 0.92), THREE.SRGBColorSpace);
-    else col.setHSL(pick([0.08, 0.12, 0.55, 0.3]), R(0.1, 0.3), R(0.7, 0.85), THREE.SRGBColorSpace);
+    else col.setHSL(pick([0.02, 0.04, 0.1, 0.06]), R(0.2, 0.45), R(0.42, 0.7), THREE.SRGBColorSpace);
     mesh.setColorAt(i, col);
   });
   mesh.castShadow = true; mesh.receiveShadow = true;
   scene.add(mesh);
-  // gable roofs for suburban backdrop houses
-  if (mapName === 'suburbs') {
-    const roofGeo = new THREE.ConeGeometry(0.75, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0);
-    const roofs = new THREE.InstancedMesh(roofGeo, new THREE.MeshStandardMaterial({ roughness: 0.9 }), boxes.length);
-    boxes.forEach(([x, z, w, d, h], i) => {
-      m.makeScale(w * 0.95, 1.2, d * 0.95).setPosition(x, h, z); roofs.setMatrixAt(i, m);
-      roofs.setColorAt(i, col.setHSL(pick([0, 0.05, 0.6]), 0.2, R(0.25, 0.45), THREE.SRGBColorSpace));
-    });
-    roofs.castShadow = true; scene.add(roofs);
-  }
   const tgeo = new THREE.IcosahedronGeometry(1, 1).scale(1, 0.85, 1).translate(0, 1.6, 0);
   const tmesh = new THREE.InstancedMesh(tgeo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: false }), Math.max(1, trees.length));
   trees.forEach(([x, z, s], i) => {

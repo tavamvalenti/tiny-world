@@ -33,7 +33,15 @@ function outskirts(ctx, kind) {
     const blk = { x0, x1, z0, z1 };
     city.paintSidewalk(g, blk);
     const s = city.sw;
-    if (kind === 'houses') {
+    if (kind === 'flats') {
+      g.rect(x0 + s, z0 + s, x1 - s, z1 - s, '#5d6442');
+      g.rect(x0, cz - 0.9, x1, cz + 0.9, '#595753');
+      for (const [zz, dirIn] of [[z0 + s + 4, 1], [z1 - s - 4, -1]]) for (let x = x0 + s + 1.8; x < x1 - s - 1.5; x += rand(3.3, 3.9)) {
+        if (Math.random() < 0.1) continue;
+        const b = B.add({ x, z: zz, w: rand(2.8, 3.2), d: rand(5, 6), floors: Math.random() < 0.55 ? 2 : 3, style: 'flat', tint: chicagoBrick(), cell: 1.6, gh: 1.25, fh: 1 });
+        b.noSigns = true; weather(b, Math.random() < 0.12);
+      }
+    } else if (kind === 'houses') {
       city.paintGrass(g, x0 + s, z0 + s, x1 - s, z1 - s);
       for (const zz of [z0 + s + 4, z1 - s - 4]) for (let x = x0 + s + 3.5; x < x1 - s - 3; x += 7) {
         B.add({ x, z: zz, w: 4.4, d: 4, floors: 1 + (Math.random() < 0.4), style: 'house', tint: TINT.house(), cell: 2.2, fh: 0.95, gh: 1, gable: true, roofTint: pick(ROOF_TINTS) });
@@ -266,73 +274,212 @@ export function tropical(B) {
   return { ...ctx, agents: { cars: 40, peds: 300, wanderFrac: 0.4 }, fog: 0xcfdde3, start: { x: 0, z: 0 }, water: { shore }, zMin: -40 };
 }
 
-// ================= SUBURBS =================
+// ================= GLOCKTON =================
+// A dense, run-down Chicago-style neighbourhood: brick two- and three-flats shoulder to shoulder with
+// stoops and chain-link, rear alleys lined with garages and dumpsters, vacant lots, boarded and
+// fire-scarred buildings, corner stores, potholed streets.
+const chicagoBrick = () => {
+  const r = Math.random();
+  if (r < 0.4) return hsl(rand(0.02, 0.05), rand(0.35, 0.5), rand(0.42, 0.54));   // red-brown
+  if (r < 0.7) return hsl(rand(0.09, 0.11), rand(0.3, 0.45), rand(0.64, 0.74));   // yellow "Chicago common"
+  if (r < 0.9) return hsl(rand(0.04, 0.07), rand(0.3, 0.4), rand(0.4, 0.47));   // dark brown
+  return hsl(0.1, 0.05, rand(0.62, 0.72));                                       // painted grey
+};
+// age a building: grimy/cracked cells, the odd boarded window; abandoned ones are boarded up and fire-scarred
+function weather(b, abandoned = false) {
+  const scorched = abandoned && Math.random() < 0.5, fireFloor = Math.floor(rand(0, b.floors));
+  for (const c of b.cells) {
+    if (abandoned) {
+      c.dmg = rand(0.15, 0.45);
+      if (Math.random() < 0.65 && c.style !== 'garage') c.style = 'boarded';
+      c.burn = scorched && c.f >= fireFloor ? rand(0.45, 0.95) : rand(0, 0.12);
+    } else {
+      c.dmg = rand(0, 0.16);
+      if (Math.random() < 0.04 && c.style === 'flat') c.style = 'boarded';
+      if (Math.random() < 0.08) c.burn = rand(0.1, 0.3);
+    }
+  }
+  return b;
+}
+function junk(city, x, z) {
+  city.addProp('junk', x, z, rand(0, 6.28), rand(0.6, 1.4));
+  city.props[city.props.length - 1].color = hsl(rand(0.05, 0.6), rand(0, 0.12), rand(0.25, 0.5));
+}
+
+// One side of a block: walk-ups facing the street, back yards, garages on the alley.
+function flatsRow(ctx, b, face, alleyW, opts = {}) {
+  const { city, B, g } = ctx;
+  const dirIn = -face, street = face < 0 ? b.lz0 : b.lz1, cz = (b.lz0 + b.lz1) / 2;
+  const alleyEdge = cz - dirIn * alleyW / 2;
+  const lots = [];
+  for (let x = b.lx0; x < b.lx1 - 0.5;) {
+    let w = rand(3.1, 3.9);
+    if (b.lx1 - x - w < 2.8) w = b.lx1 - x;
+    lots.push([x, w]); x += w;
+  }
+  lots.forEach(([x0, w], li) => {
+    const lx = x0 + w / 2, corner = li === 0 || li === lots.length - 1;
+    const zr = (a, c) => [Math.min(street + dirIn * a, street + dirIn * c), Math.max(street + dirIn * a, street + dirIn * c)];
+    // corner store: brick, flush to the sidewalk, storefront signs
+    if (corner && Math.random() < (opts.stores ?? 0.45)) {
+      const d = rand(6.5, 8);
+      weather(B.add({ x: lx, z: street + dirIn * (0.1 + d / 2), w: w - 0.1, d, floors: Math.random() < 0.5 ? 2 : 3, style: 'brick', tint: chicagoBrick(), cell: 1.3, gh: 1.35, fh: 1 }), Math.random() < 0.15);
+      const [za, zb] = zr(d + 0.1, Math.abs(alleyEdge - street));
+      g.rect(x0, za, x0 + w, zb, '#5f5e5a');
+      city.addProp('dumpster', lx, alleyEdge - dirIn * 0.5, 0);
+      (city.crowds ||= []).push({ x: lx, z: street - dirIn * 0.7, r: 0.6, n: Math.round(rand(2, 5)) });
+      return;
+    }
+    if (Math.random() < 0.14) {
+      // vacant lot: weeds, dirt, junk, chain-link along the sidewalk, sometimes a burned-out shell
+      const [za, zb] = zr(0, Math.abs(alleyEdge - street));
+      g.rect(x0, za, x0 + w, zb, '#6e7446');
+      for (let k = 0; k < 5; k++) g.circle(rand(x0, x0 + w), rand(za, zb), rand(0.4, 1.2), 'rgba(122,104,80,.8)');
+      g.grainRect(x0, za, x0 + w, zb, 0.35, 50);
+      for (let k = 0; k < 4; k++) junk(city, rand(x0 + 0.4, x0 + w - 0.4), rand(za + 1, zb - 1));
+      for (let fx = x0 + 0.5; fx < x0 + w; fx += 1) city.addProp('chainlink', fx, street + dirIn * 0.15, 0);
+      if (Math.random() < 0.35) {
+        const d = rand(4.5, 6);
+        const shell = B.add({ x: lx, z: street + dirIn * (1.4 + d / 2), w: w - 0.5, d, floors: 2, style: 'boarded', tint: chicagoBrick(), cell: 1.25, gh: 1.25, fh: 1 });
+        shell.noSigns = true;
+        for (const c of shell.cells) { c.dmg = rand(0.35, 0.7); c.burn = rand(0.7, 1); }
+      }
+      return;
+    }
+    // the walk-up
+    const fy = rand(1.1, 1.5), d = rand(5.4, 6.8), bw = w - rand(0.3, 0.6), floors = Math.random() < 0.55 ? 2 : 3;
+    const [ya, yb] = zr(0, fy);
+    g.rect(x0, ya, x0 + w, yb, Math.random() < 0.6 ? '#6c7a45' : '#7b7456');              // scrappy front yard
+    const bz = street + dirIn * (fy + d / 2);
+    const fl = weather(B.add({ x: lx, z: bz, w: bw, d, floors, style: 'flat', tint: chicagoBrick(), cell: 1.25, gh: 1.25, fh: 1 }), Math.random() < (opts.abandoned ?? 0.15));
+    fl.noSigns = true;
+    const sx = lx + rand(-0.4, 0.4);
+    city.addProp('stoop', sx, street + dirIn * fy, dirIn > 0 ? Math.PI : 0);
+    g.rect(sx - 0.35, ya, sx + 0.35, yb, '#aaa59b');                                          // front walk
+    if (Math.random() < 0.55) for (let fx = x0 + 0.5; fx < x0 + w; fx += 1) if (Math.abs(fx - sx) > 0.6) city.addProp(Math.random() < 0.85 ? 'chainlink' : 'woodfence', fx, street + dirIn * 0.15, 0);
+    // back yard: dirt and patchy grass out to the alley, a fence down the lot line
+    const rear = street + dirIn * (fy + d);
+    const [ra, rb] = [Math.min(rear, alleyEdge), Math.max(rear, alleyEdge)];
+    g.rect(x0, ra, x0 + w, rb, Math.random() < 0.5 ? '#66703f' : '#77694f');
+    g.grainRect(x0, ra, x0 + w, rb, 0.3, 45);
+    const fenceType = Math.random() < 0.5 ? 'woodfence' : 'chainlink';
+    if (li > 0) for (let fz = ra + 0.5; fz < rb; fz += 1) city.addProp(fenceType, x0, fz, Math.PI / 2);
+    if (Math.random() < 0.62) {
+      const gw = Math.min(bw, rand(2.6, 3));
+      const ga = B.add({ x: lx + rand(-0.2, 0.2), z: alleyEdge - dirIn * 1.25, w: gw, d: 2.4, floors: 1, style: 'garage', tint: chicagoBrick().lerp(new THREE.Color(0.6, 0.58, 0.55), 0.4), cell: 1.5, gh: 1.15 });
+      ga.noSigns = true; weather(ga, Math.random() < 0.1);
+      if (Math.random() < 0.4) city.addProp('bin', lx + gw / 2 + 0.25, alleyEdge - dirIn * 0.3, 0);
+    } else {
+      g.rect(lx - 1.2, Math.min(alleyEdge, alleyEdge - dirIn * 2.6), lx + 1.2, Math.max(alleyEdge, alleyEdge - dirIn * 2.6), '#6b6863');
+      if (Math.random() < 0.5) city.parked.push({ x: lx, z: alleyEdge - dirIn * 1.3, rot: 0 });
+      else if (Math.random() < 0.5) junk(city, lx, alleyEdge - dirIn * 1.5);
+      for (let fx = x0 + 0.5; fx < x0 + w; fx += 1) if (Math.abs(fx - lx) > 1.3) city.addProp('chainlink', fx, alleyEdge - dirIn * 0.1, 0);
+    }
+  });
+}
+
+function paintAlley(ctx, b, alleyW) {
+  const { city, g } = ctx, cz = (b.lz0 + b.lz1) / 2;
+  g.rect(b.x0, cz - alleyW / 2, b.x1, cz + alleyW / 2, '#595753');
+  g.grainRect(b.x0, cz - alleyW / 2, b.x1, cz + alleyW / 2, 0.35, 50);
+  for (let k = 0; k < 6; k++) { const x = rand(b.lx0, b.lx1); g.line(x, cz - alleyW / 2, x + rand(-1, 1), cz + alleyW / 2, 0.04, 'rgba(30,28,26,.6)'); }
+  for (let x = b.lx0 + rand(2, 6); x < b.lx1 - 1; x += rand(7, 12)) city.addProp('dumpster', x, cz + pick([-1, 1]) * (alleyW / 2 - 0.35), 0);
+  city.wanderZones.push({ x0: b.lx0 + 1, x1: b.lx1 - 1, z0: cz - 0.5, z1: cz + 0.5 });
+}
+
+// potholes, patches and cracks all over the streets
+function paintPotholes(ctx) {
+  const { city, g } = ctx, hw = city.roadW / 2 - 0.3, X = g.x;
+  const spots = [];
+  for (const z of city.zs) for (let i = 0; i < 26; i++) spots.push([rand(city.xs[0], city.xs[city.xs.length - 1]), z + rand(-hw, hw)]);
+  for (const x of city.xs) for (let i = 0; i < 26; i++) spots.push([x + rand(-hw, hw), rand(city.zs[0], city.zs[city.zs.length - 1])]);
+  for (const [x, z] of spots) {
+    const r = Math.random();
+    if (r < 0.4) {
+      const rx = rand(0.18, 0.5), rz = rand(0.15, 0.4), a = rand(0, 3);
+      X.fillStyle = '#6a6863'; X.beginPath(); X.ellipse(g.px(x), g.px(z), (rx + 0.06) * g.k, (rz + 0.06) * g.k, a, 0, 6.283); X.fill();
+      X.fillStyle = '#262523'; X.beginPath(); X.ellipse(g.px(x), g.px(z), rx * g.k, rz * g.k, a, 0, 6.283); X.fill();
+    } else if (r < 0.7) {
+      X.save(); X.translate(g.px(x), g.px(z)); X.rotate(rand(-0.1, 0.1));
+      X.fillStyle = pick(['#333331', '#3b3a38', '#2d2d2c']); X.fillRect(-rand(0.6, 1.4) * g.k, -rand(0.4, 1) * g.k, rand(1.2, 2.8) * g.k, rand(0.8, 2) * g.k);
+      X.restore();
+    } else {
+      X.strokeStyle = 'rgba(28,27,25,.7)'; X.lineWidth = 0.05 * g.k; X.beginPath(); X.moveTo(g.px(x), g.px(z));
+      let px = x, pz = z;
+      for (let k = 0; k < 6; k++) { px += rand(-0.6, 0.6); pz += rand(-0.6, 0.6); X.lineTo(g.px(px), g.px(pz)); }
+      X.stroke();
+    }
+  }
+}
+
 export function suburbs(B) {
   const P = [-66, -33, 0, 33, 66];
-  const ctx = makeCtx({ xs: P, zs: P, roadW: 4.2, sw: 1.3, half: 66, extent: 112, centerLine: null, lights: false, noCrosswalks: false, baseColor: '#6a7a48' }, B);
+  const ctx = makeCtx({ xs: P, zs: P, roadW: 4.2, sw: 1.3, half: 66, extent: 112, centerLine: null, lights: false, noCrosswalks: false, baseColor: '#5d6442' }, B);
   const { city, g } = ctx;
+  const alleyW = 1.8;
   for (const b of city.blocks) {
-    city.paintSidewalk(g, b, '#b8b4aa');
+    city.paintSidewalk(g, b, '#aaa59b');
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 11);
-    city.treesAlongBlock(b, 6.5, 'round', 1.0);
+    city.treesAlongBlock(b, 8.5, 'round', 0.95);
     const key = `${b.i},${b.j}`;
-    if (key === '1,1') { // school
-      city.paintGrass(g, b.lx0, b.lz0, b.lx1, b.lz1, '#6c8c44');
-      B.add({ x: cx - 4, z: b.lz0 + 4, w: 18, d: 6, floors: 2, style: 'brick', tint: TINT.brick(), cell: 1.7, gh: 1.4, fh: 1.1 });
-      B.add({ x: b.lx0 + 3.5, z: cz + 2, w: 5, d: 8, floors: 2, style: 'brick', tint: TINT.brick(), cell: 1.7, gh: 1.4, fh: 1.1 });
-      // track + field
-      g.x.save(); g.x.strokeStyle = '#b5553a'; g.x.lineWidth = 1.3 * g.k;
-      g.x.beginPath(); g.x.ellipse(g.px(cx + 5), g.px(cz + 5), 6 * g.k, 3.6 * g.k, 0, 0, 6.283); g.x.stroke(); g.x.restore();
-      g.x.save(); g.x.strokeStyle = 'rgba(255,255,255,.7)'; g.x.lineWidth = 0.06 * g.k;
-      g.x.beginPath(); g.x.ellipse(g.px(cx + 5), g.px(cz + 5), 5.4 * g.k, 3 * g.k, 0, 0, 6.283); g.x.stroke(); g.x.restore();
-      // playground
-      g.rect(b.lx0 + 1, b.lz1 - 7, b.lx0 + 8, b.lz1 - 1, '#c9a574');
+    if (key === '1,1') { // public school: three-storey brick, asphalt schoolyard, a small field
+      g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#5e5d59'); g.grainRect(b.lx0, b.lz0, b.lx1, b.lz1, 0.25, 40);
+      B.add({ x: cx - 4, z: b.lz0 + 4, w: 18, d: 6, floors: 3, style: 'brick', tint: chicagoBrick(), cell: 1.7, gh: 1.4, fh: 1.1 });
+      B.add({ x: b.lx0 + 3.5, z: cz + 2, w: 5, d: 8, floors: 3, style: 'brick', tint: chicagoBrick(), cell: 1.7, gh: 1.4, fh: 1.1 });
+      city.paintGrass(g, cx - 1.5, cz + 0.5, cx + 11.5, cz + 9.5, '#667a3e');
+      g.x.save(); g.x.strokeStyle = '#a4553d'; g.x.lineWidth = 1.2 * g.k;
+      g.x.beginPath(); g.x.ellipse(g.px(cx + 5), g.px(cz + 5), 5.6 * g.k, 3.4 * g.k, 0, 0, 6.283); g.x.stroke(); g.x.restore();
+      for (let fx = b.lx0 + 0.5; fx < b.lx1; fx += 1) { city.addProp('chainlink', fx, b.lz1 - 0.15, 0); city.addProp('chainlink', fx, b.lz0 + 0.15, 0); }
+      g.rect(b.lx0 + 1, b.lz1 - 7, b.lx0 + 8, b.lz1 - 1, '#8a7a62');
       city.addProp('swing', b.lx0 + 3, b.lz1 - 5, 0); city.addProp('slide', b.lx0 + 6, b.lz1 - 4.5, 0.4); city.addProp('swing', b.lx0 + 4, b.lz1 - 2.5, 0.2);
       city.wanderZones.push({ x0: b.lx0 + 1, x1: b.lx0 + 8, z0: b.lz1 - 7, z1: b.lz1 - 1 }, { x0: cx, x1: cx + 10, z0: cz + 2, z1: cz + 8 });
       crowdsIn(city, { x0: cx, x1: cx + 10, z0: cz + 2, z1: cz + 8 }, 3, 3, 6);
       crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx0 + 8, z0: b.lz1 - 7, z1: b.lz1 - 1 }, 2, 3, 5);
       const spots = city.paintParking(g, cx + 3, b.lz0 + 0.5, b.lx1, b.lz0 + 5.2);
-      for (const s of spots) if (Math.random() < 0.7) city.parked.push(s);
-    } else if (key === '2,2') { // strip mall + gas station
-      g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#5a5b5e');
-      g.grainRect(b.lx0, b.lz0, b.lx1, b.lz1, 0.2, 30);
-      let x = b.lx0 + 0.3;
-      for (const w of partition(b.lx1 - b.lx0 - 11, 4, 3)) {
-        B.add({ x: x + w / 2, z: b.lz1 - 3, w: w - 0.2, d: 5.4, floors: 1, style: pick(['brick', 'stucco', 'concrete']), tint: TINT.brick(), cell: 1.6, gh: 1.5 });
+      for (const s of spots) if (Math.random() < 0.5) city.parked.push(s);
+    } else if (key === '2,2') { // commercial strip: two-storey brick storefronts, a gas station, a cracked lot
+      g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#555553'); g.grainRect(b.lx0, b.lz0, b.lx1, b.lz1, 0.3, 40);
+      let x = b.lx0 + 0.2;
+      for (const w of partition(b.lx1 - b.lx0 - 11, 5, 3)) {
+        weather(B.add({ x: x + w / 2, z: b.lz1 - 3.2, w: w - 0.1, d: 6, floors: 2, style: 'brick', tint: chicagoBrick(), cell: 1.4, gh: 1.5, fh: 1 }), Math.random() < 0.25);
         x += w;
       }
       const spots = city.paintParking(g, b.lx0 + 0.5, cz - 4, b.lx1 - 11.5, cz + 4);
-      for (const s of spots) if (Math.random() < 0.55) city.parked.push(s);
-      // gas station
+      for (const s of spots) if (Math.random() < 0.4) city.parked.push(s);
+      for (let k = 0; k < 5; k++) junk(city, rand(b.lx0 + 1, b.lx1 - 12), rand(cz - 4, cz + 4));
       const gx = b.lx1 - 5.5, gz = b.lz0 + 5;
       city.addProp('canopy', gx, gz, 0); Object.assign(city.props[city.props.length - 1], { sx: 7, sy: 1, sz: 5, color: hsl(0.0, 0.7, 0.5) });
       for (const [dx, dz] of [[-3, -2], [3, -2], [-3, 2], [3, 2]]) city.addProp('pillar', gx + dx, gz + dz, 0);
       for (const dx of [-1.6, 1.6]) city.addProp('pump', gx + dx, gz, 0);
       B.add({ x: gx, z: b.lz1 - 3, w: 7, d: 5, floors: 1, style: 'concrete', tint: TINT.concrete(), cell: 1.7, gh: 1.5 });
-    } else {
-      city.paintGrass(g, b.lx0, b.lz0, b.lx1, b.lz1);
-      // two rows of houses facing the streets, driveways out to the curb
-      for (const [zz, face] of [[b.lz0 + 4.2, -1], [b.lz1 - 4.2, 1]]) {
-        for (let x = b.lx0 + 3.6; x < b.lx1 - 3; x += 6.8) {
-          const big = Math.random() < 0.25, w = big ? rand(5, 5.8) : rand(3.6, 5), d = big ? rand(4.2, 4.8) : rand(3.2, 4.2);
-          B.add({ x, z: zz, w, d, floors: big || Math.random() < 0.35 ? 2 : 1, style: 'house', tint: TINT.house(), cell: 1.5, fh: 0.95, gh: 1, gable: true, roofTint: pick(ROOF_TINTS) });
-          const dx = x + w / 2 + 0.9, curb = face < 0 ? b.z0 : b.z1;
-          g.rect(dx - 0.7, Math.min(zz, curb), dx + 0.7, Math.max(zz, curb), '#bdb8ad');
-          g.line(x - 1.5, zz - face * (d / 2 + 0.2), x - 1.5, curb - face * 0.2, 0.35, '#c9c4b8'); // front path
-          if (Math.random() < 0.6) city.parked.push({ x: dx, z: zz + face * (d / 2 + 1.2), rot: 0 });
-          if (Math.random() < 0.5) city.addProp('hedge', x - w / 2 - 0.4, zz, Math.PI / 2, 1);
-          if (Math.random() < 0.25) { const pz = zz - face * (d / 2 + 3); g.rect(x - 1.5, pz - 1, x + 1.5, pz + 1, '#48b6d2'); }
-          city.addTree(x + rand(-1.5, 1.5), zz - face * rand(4.5, 6), rand(1, 1.4));
-        }
+      crowdsAroundBlock(city, b, 0.6, 0.15);
+    } else if (key === '2,1') { // U-shaped courtyard apartment building facing the north street, flats behind
+      paintAlley(ctx, b, alleyW);
+      const z0 = b.lz0 + 1.2, D = cz - alleyW / 2 - 1.5 - z0, W = b.lx1 - b.lx0 - 3, tint = chicagoBrick();
+      g.rect(b.lx0, b.lz0, b.lx1, cz - alleyW / 2, '#5f5e5a');
+      city.paintGrass(g, cx - W / 2 + 5, z0, cx + W / 2 - 5, z0 + D - 4.5, '#667a3e');
+      g.rect(cx - 0.5, b.lz0, cx + 0.5, z0 + D - 4.5, '#aaa59b');
+      const abandoned = Math.random() < 0.3;
+      for (const o of [{ x: cx - W / 2 + 2.5, z: z0 + D / 2, w: 5, d: D }, { x: cx + W / 2 - 2.5, z: z0 + D / 2, w: 5, d: D }, { x: cx, z: z0 + D - 2.25, w: W - 10, d: 4.5 }]) {
+        const a = B.add({ ...o, floors: 3, style: 'flat', tint, cell: 1.25, gh: 1.25, fh: 1 });
+        a.noSigns = true; weather(a, abandoned);
       }
-      city.wanderZones.push({ x0: b.lx0 + 1, x1: b.lx1 - 1, z0: cz - 2, z1: cz + 2 });
-      // neighbours chatting on the sidewalk
-      crowdsAroundBlock(city, b, 0.1, 0.03, 0.6);
+      for (const x of [cx - 3, cx + 3]) city.addTree(x, z0 + 2, 1.1);
+      for (let fx = b.lx0 + 0.5; fx < b.lx1; fx += 1) if (Math.abs(fx - cx) > 0.7) city.addProp('chainlink', fx, b.lz0 + 0.15, 0);
+      crowdsIn(city, { x0: cx - 3, x1: cx + 3, z0: z0, z1: z0 + 4 }, 2, 2, 5);
+      flatsRow(ctx, b, 1, alleyW);
+    } else {
+      g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#646b43');
+      paintAlley(ctx, b, alleyW);
+      flatsRow(ctx, b, -1, alleyW);
+      flatsRow(ctx, b, 1, alleyW);
+      crowdsAroundBlock(city, b, 0.35, 0.05, 0.8);
     }
   }
-  outskirts(ctx, 'houses');
-  return { ...ctx, agents: { cars: 28, peds: 120, wanderFrac: 0.25 }, fog: 0xcdd6d8, start: { x: 0, z: 10 } };
+  paintPotholes(ctx);
+  outskirts(ctx, 'flats');
+  return { ...ctx, agents: { cars: 26, peds: 140, wanderFrac: 0.25 }, fog: 0xc9cfcf, start: { x: 0, z: 10 } };
 }
 
 export const MAPS = { downtown, tropical, suburbs };
