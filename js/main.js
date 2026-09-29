@@ -16,6 +16,7 @@ import { Trolley } from './trolley.js';
 import { Harbor } from './harbor.js';
 import { Chaos } from './chaos.js';
 import { Concert } from './concert.js';
+import { Court } from './court.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -150,6 +151,7 @@ function load(name) {
   G.petco = map.city.petco ? new Petco(scene, map.city, map.city.petco, B) : null;
   if (map.city.crowdsLate) (map.city.crowds ||= []).push(...map.city.crowdsLate);
   G.concert = map.city.concert ? new Concert(scene, map.city.concert, map.city) : null;
+  G.court = map.city.court ? new Court(scene, map.city.court) : null;
   G.fx = new FX(scene);
   G.agents = new Agents(scene, map.city, map.agents);
   G.chaos = new Chaos(G.agents);
@@ -270,6 +272,7 @@ function step(dt) {
   G.harbor && G.harbor.update(dt);
   G.petco && G.petco.update(dt);
   G.concert && G.concert.update(dt);
+  G.court && G.court.update(dt);
   signs && signs.update();
   ambience && ambience.update(dt);
   updateBoats(dt);

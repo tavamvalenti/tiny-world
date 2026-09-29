@@ -570,6 +570,24 @@ export const sfx = {
     burst(ch.input, t, { buf: pink, type: 'bandpass', f: 1800, q: 0.8, a: 0.02, peak: 0.35, d: 0.4 });
     for (let i = 0; i < (big ? 18 : 6); i++) burst(ch.input, t + R(0.05, 0.9), { f: R(2000, 6000), q: 3, a: 0.001, peak: R(0.04, 0.12), d: 0.03 });
   },
+  // streetball: ball on asphalt, rim clank, net swish
+  bounce(x, z, v = 1) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.35 * v });
+    tone(ch.input, t, { f: 140, f1: 70, a: 0.002, peak: 0.5, d: 0.07 });
+    burst(ch.input, t, { buf: brown, type: 'lowpass', f: 900, a: 0.001, peak: 0.25, d: 0.04 });
+  },
+  rim(x, z) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.4, echoAmt: 0.3 });
+    for (const f of [690, 1140, 1830]) tone(ch.input, t, { type: 'triangle', f, a: 0.001, peak: 0.12, d: 0.35 });
+    burst(ch.input, t, { f: 2500, q: 2, a: 0.001, peak: 0.2, d: 0.05 });
+  },
+  swish(x, z) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.35 });
+    burst(ch.input, t, { buf: pink, f: 3200, q: 0.7, a: 0.03, peak: 0.25, d: 0.22 });
+  },
   horn(x, z, vol = 0.5) {
     if (!init()) return;
     const t = now(), ch = chain(x, z, { vol });

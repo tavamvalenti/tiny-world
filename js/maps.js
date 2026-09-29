@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { rand, pick } from './core.js';
 import { City, Ground } from './city.js';
 import { petcoLayout, paintPetco } from './petco.js';
+import { paintCourts } from './court.js';
 
 const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace);
 const TINT = {
@@ -444,12 +445,19 @@ export function suburbs(B) {
   }
   for (const b of city.blocks) {
     if (b.i <= 1 && b.j >= 2) { b.closed = true; continue; }
-    if (b.i === 0 && b.j === 1) { // festival parking: packed lot, tailgaters, police at the entrance
+    if (b.i === 0 && b.j === 1) { // streetball courts behind a tall chain-link fence, festival parking below
       city.paintSidewalk(g, b, '#aaa59b');
       g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#4f4f4e');
-      const spots = city.paintParking(g, b.lx0 + 0.5, b.lz0 + 0.5, b.lx1 - 0.5, b.lz1 - 0.5);
+      const court = { x0: b.lx0 + 0.4, x1: b.lx1 - 0.4, z0: b.lz0 + 0.5, z1: b.lz0 + 10.5 };
+      city.court = court;
+      paintCourts(g, court);
+      const spots = city.paintParking(g, b.lx0 + 0.5, court.z1 + 1.2, b.lx1 - 0.5, b.lz1 - 0.5);
       for (const sp of spots) if (Math.random() < 0.9) city.parked.push(sp);
-      crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx1 - 1, z0: b.lz0 + 1, z1: b.lz1 - 1 }, 10, 3, 6);
+      crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx1 - 1, z0: court.z1 + 1.5, z1: b.lz1 - 1 }, 5, 3, 6);
+      // spectators: on the benches along the south fence, and hanging on the fence from the sidewalk
+      for (let x = court.x0 + 1.2; x < court.x1 - 1; x += 2.2) city.crowds.push({ x: x + rand(-0.3, 0.3), z: court.z1 - 0.9, r: 0.45, n: Math.round(rand(2, 4)) });
+      for (let x = court.x0 + 2; x < court.x1 - 1; x += 3.5) if (Math.random() < 0.7) city.crowds.push({ x, z: court.z1 + 0.7, r: 0.4, n: Math.round(rand(2, 3)) });
+      for (let z = court.z0 + 1.5; z < court.z1 - 1; z += 3) city.crowds.push({ x: b.x0 + 0.65, z, r: 0.4, n: 2 });
       const st = { x: b.lx1 - 2, z: b.lz1 - 1.5, rot: 0 };
       city.stationed.push(st, { x: b.lx0 + 2, z: b.lz1 - 1.5, rot: 0 });
       city.crowds.push({ x: st.x - 1.3, z: st.z - 0.8, r: 0.5, n: 2, uniform: 0x1d2a44 });

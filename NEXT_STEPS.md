@@ -10,6 +10,8 @@
   wrecks get towed. Settings > World > Random incidents (Off / Low / Normal / High).
 - **Summer Smash** (`js/concert.js`) in Chicago: plays `assets/omerta.mp3` (151.5 BPM, measured) muffled by distance, 7k-fan jumping crowd, performers, beams, pyro.
   Only player weapons make the crowd evacuate (gate + two emergency exits, around the stands, out to the street).
+- **Streetball courts** (`js/court.js`) in the lot north of the festival: two courts, tall chain-link, graffiti wall, lights,
+  live 3-on-3 games (dribble, pass, shots, dunks, rebounds); players scatter from weapons and the games restart.
 - Artifact republished: https://claude.ai/artifact/71DVzhiQHyfQR28ge9C7TV
 
 ## Publishing

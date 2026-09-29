@@ -34,4 +34,5 @@ export function blast(x, y, z, radius, power, kind = 'explosion') {
   G.fx && G.fx.onBlast(x, y, z, radius, power, kind);
   G.trains && G.trains.onBlast(x, y, z, radius, power, kind);
   G.concert && G.concert.onBlast(x, y, z, radius, power, kind);
+  G.court && G.court.onBlast(x, y, z, radius, power, kind);
 }
