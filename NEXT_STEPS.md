@@ -8,7 +8,7 @@
   boarded/fire-scarred buildings, corner stores, a courtyard building and potholed streets. Illinois flag in `assets/`.
 - **Random incidents** (`js/chaos.js`): car crashes and street shootings, emergency response, scenes clear and
   wrecks get towed. Settings > World > Random incidents (Off / Low / Normal / High).
-- **Summer Smash** (`js/concert.js`) in Chicago: drill beat (muffled, quiet), 7k-fan jumping crowd, performers, beams, pyro.
+- **Summer Smash** (`js/concert.js`) in Chicago: plays `assets/omerta.mp3` (151.5 BPM, measured) muffled by distance, 7k-fan jumping crowd, performers, beams, pyro.
   Only player weapons make the crowd evacuate (gate + two emergency exits, around the stands, out to the street).
 - Artifact republished: https://claude.ai/artifact/71DVzhiQHyfQR28ge9C7TV
 
