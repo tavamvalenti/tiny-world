@@ -18,6 +18,8 @@ export const SCHEMA = [
   { id: 'quality', label: 'Quality', type: 'select', def: 'high', options: [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], hint: 'Resolution and shadow detail' },
   { id: 'tiltShift', label: 'Tilt-shift blur', type: 'range', min: 0, max: 200, def: 100, unit: '%' },
   { id: 'grain', label: 'Film grain', type: 'range', min: 0, max: 200, def: 100, unit: '%' },
+  { section: 'World' },
+  { id: 'incidents', label: 'Random incidents', type: 'select', def: 'normal', options: [['off', 'Off'], ['low', 'Low'], ['normal', 'Normal'], ['high', 'High']], hint: 'Car crashes and shootings the police and ambulances respond to' },
   { id: 'crowds', label: 'Crowd density', type: 'select', def: 'normal', options: [['low', 'Low'], ['normal', 'Normal'], ['high', 'High']], hint: 'Applies when a map loads' },
 ];
 

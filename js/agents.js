@@ -111,7 +111,7 @@ export class Agents {
     this.carBody.setColorAt(i, c.color);
     return c;
   }
-  spawnCar(i) {
+  spawnCar(i, replace = null) {
     const r = Math.random();
     const c = this.newCar(i, r < 0.05 ? 'bus' : r < 0.14 ? 'van' : r < 0.3 ? 'suv' : 'car');
     const C = this.city;
@@ -125,12 +125,13 @@ export class Agents {
       const off = C.roadW / 4;
       const x = A.x + (B.x - A.x) * t - d.z * off, z = A.z + (B.z - A.z) * t + d.x * off;
       if (this.cars.some((o) => o.pos.distanceTo(_p.set(x, 0, z)) < 3)) continue;
+      if (replace && G.camTarget && Math.hypot(x - G.camTarget.x, z - G.camTarget.z) < 40 && tries < 25) continue;
       c.pos.set(x, 0, z); c.heading = Math.atan2(d.x, d.z); c.from = a; c.to = b;
       c.queue = [this.stopPoint(A, B)];
       c.speed = c.maxSpeed * 0.6;
       break;
     }
-    this.cars.push(c);
+    if (replace) this.cars[this.cars.indexOf(replace)] = c; else this.cars.push(c);
   }
   spawnParked(i, p) {
     const c = this.newCar(i, Math.random() < 0.2 ? 'suv' : 'car');
@@ -239,6 +240,9 @@ export class Agents {
     if (c.state === 'wreck' || c.state === 'parked' || c.state === 'onscene') { c.speed = 0; return; }
     if (c.timer > 0) { c.timer -= dt; c.speed = Math.max(0, c.speed - 14 * dt); this.moveCar(c, dt); return; }
     if (c.flee > 0) c.flee -= dt;
+    if (c.leaving && G.camTarget && Math.hypot(c.pos.x - G.camTarget.x, c.pos.z - G.camTarget.z) > 60) {
+      c.leaving = false; c.state = 'hidden'; if (c.siren) { c.siren.stop(true); c.siren = null; } return;
+    }
     // responders pull up and park once they're close to the incident
     if (c.incident && Math.hypot(c.pos.x - c.incident.x, c.pos.z - c.incident.z) < 10 + c.ei % 3 * 2) { this.arrive(c); return; }
     if (!c.queue.length) {
@@ -378,6 +382,15 @@ export class Agents {
         c.sirenOffAt = G.time + rand(40, 60); // even en route, sirens eventually wind down
       }, k * rand(900, 2200));
     });
+  }
+  // scene cleared: responders drive off and return to the pool once out of sight
+  release(inc) {
+    for (const c of this.cars) {
+      if (c.incident !== inc) continue;
+      c.incident = null; c.dest = null; c.leaving = true; c.sirenOn = false; c.sirenOffAt = G.time;
+      if (c.state === 'onscene') { c.state = 'drive'; c.speed = 0.5; c.queue = []; }
+    }
+    const k = this.incidents.indexOf(inc); if (k >= 0) this.incidents.splice(k, 1);
   }
   arrive(c) {
     c.state = 'onscene'; c.speed = 0; c.queue = [];

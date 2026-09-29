@@ -14,6 +14,7 @@ import { Signs } from './signs.js';
 import { buildBackdrop } from './backdrop.js';
 import { Trolley } from './trolley.js';
 import { Harbor } from './harbor.js';
+import { Chaos } from './chaos.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -148,6 +149,7 @@ function load(name) {
   if (map.city.crowdsLate) (map.city.crowds ||= []).push(...map.city.crowdsLate);
   G.fx = new FX(scene);
   G.agents = new Agents(scene, map.city, map.agents);
+  G.chaos = new Chaos(G.agents);
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
   cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half;
@@ -268,6 +270,7 @@ function step(dt) {
   ambience && ambience.update(dt);
   updateBoats(dt);
   G.agents.update(dt);
+  G.chaos.update(dt);
   G.weapons.update(dt, input);
   input.pressed = false;
   G.buildings.update(dt);

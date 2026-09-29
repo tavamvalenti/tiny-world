@@ -533,6 +533,34 @@ export const sfx = {
     for (const k of [0, 0.09]) burst(ch.input, t + k, { f: R(900, 1600), q: 3, a: 0.001, peak: 0.12, d: 0.04 });
     burst(ch.input, t, { buf: brown, type: 'lowpass', f: 260, a: 0.02, peak: 0.25, d: 0.5 });
   },
+  // Gunfire: a sharp crack, a short body and a long slap echo down the street.
+  gunshot(x, z, n = 1, gap = 0.18) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.9, echoAmt: 0.9, wetBoost: 0.2 });
+    for (let k = 0; k < n; k++) {
+      const t0 = t + k * gap * R(0.7, 1.4);
+      burst(ch.input, t0, { type: 'highpass', f: 1800, a: 0.0005, peak: 1.0, d: 0.035 });
+      burst(ch.input, t0, { buf: pink, type: 'lowpass', f: 2600, sweep: 300, a: 0.001, peak: 0.8, d: 0.16 });
+      tone(ch.input, t0, { f: 140, f1: 55, a: 0.001, peak: 0.5, d: 0.09 });
+    }
+  },
+  // Tyre squeal leading into a collision
+  skid(x, z, d = 0.6) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.45 });
+    burst(ch.input, t, { f: 2300, q: 9, a: 0.04, peak: 0.5, d, sweep: 1500 });
+    tone(ch.input, t, { type: 'sawtooth', f: 1150, f1: 900, a: 0.04, peak: 0.05, d });
+  },
+  // Car crash: thud, crumpling metal, glass and a few settling clanks
+  crash(x, z, size = 1) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.9 * size, echoAmt: 0.5 });
+    burst(ch.input, t, { buf: brown, type: 'lowpass', f: 700, a: 0.003, peak: 1.1, d: 0.45 });
+    burst(ch.input, t, { buf: pink, type: 'bandpass', f: 1400, q: 1.2, a: 0.002, peak: 0.7, d: 0.3 });
+    for (let i = 0; i < 7; i++) tone(ch.input, t + R(0, 0.25), { type: 'triangle', f: R(260, 1300), f1: R(200, 900), a: 0.002, peak: R(0.05, 0.14), d: R(0.25, 0.8) });
+    for (let i = 0; i < 5; i++) burst(ch.input, t + R(0.3, 1.4), { f: R(900, 3000), q: 4, a: 0.001, peak: R(0.05, 0.15), d: 0.05 });
+    sfx.glass(x, z, 6, 0.02);
+  },
   horn(x, z, vol = 0.5) {
     if (!init()) return;
     const t = now(), ch = chain(x, z, { vol });
