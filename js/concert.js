@@ -194,6 +194,21 @@ export class Concert {
   }
   drawScreen(x, w, h, beat) {
     const bar = Math.floor(beat / 4), f = beat % 1;
+    if (bar % 4 >= 2) {
+      x.fillStyle = '#0b0b0c'; x.fillRect(0, 0, w, h);
+      x.fillStyle = `rgba(160,20,16,${0.25 + (1 - f) * 0.25})`; x.fillRect(0, 0, w, h);
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillStyle = '#c42a22'; x.font = `900 ${h * 0.34}px Impact, "Arial Black", sans-serif`;
+      x.fillText('CHUCKYY', w / 2, h * 0.38);
+      // distressed print
+      x.fillStyle = '#0b0b0c';
+      for (let k = 0; k < 140; k++) { const px = ((k * 73.1) % 1) * w, py = h * 0.2 + ((k * 37.7) % 1) * h * 0.36; x.fillRect((px + k * 11) % w, py, 2 + (k % 3), 1 + (k % 2)); }
+      x.fillStyle = '#f2ede4'; x.font = `800 ${h * 0.1}px Inter, Arial, sans-serif`;
+      x.fillText('PERFORMING LIVE', w / 2, h * 0.66);
+      x.font = `700 ${h * 0.07}px Inter, Arial, sans-serif`; x.fillStyle = '#f7e531';
+      x.fillText('SUMMER SMASH  ·  CHICAGO', w / 2, h * 0.84);
+      return;
+    }
     const hue = (bar * 47) % 360;
     const g = x.createLinearGradient(0, 0, w, h);
     g.addColorStop(0, `hsl(${hue},90%,${28 + (1 - f) * 22}%)`); g.addColorStop(1, `hsl(${(hue + 60) % 360},90%,${18 + (1 - f) * 12}%)`);
@@ -350,24 +365,91 @@ export class Concert {
 
   // ---------- performers ----------
   buildPerformers(scene) {
-    const outfits = [[0xffffff, 0x1c1d20], [0xd23b2e, 0x2b3a55], [0x1c1d20, 0x1c1d20], [0xf7e531, 0x3a3f46]];
-    this.acts = outfits.map(([shirt, pants], k) => {
+    const mat = (c, r = 0.7) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+    // headliner first, then two hype men and the DJ
+    this.acts = [this.makeChuckyy(scene, mat)];
+    const outfits = [[0xd23b2e, 0x2b3a55], [0x1c1d20, 0x1c1d20], [0xf7e531, 0x3a3f46]];
+    outfits.forEach(([shirt, pants], k) => {
       const g = new THREE.Group();
-      const mat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7 });
       const skin = mat(pick(SKIN));
       const t = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.062, 0.26, 8).scale(1, 1, 0.65), mat(shirt)); t.position.y = 0.44; g.add(t);
       const h = new THREE.Mesh(new THREE.SphereGeometry(0.054, 10, 8), skin); h.position.y = 0.64; g.add(h);
       const legs = [-1, 1].map((s) => { const p = new THREE.Group(); p.position.set(s * 0.036, 0.31, 0); const l = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.022, 0.31, 6).translate(0, -0.155, 0), mat(pants)); p.add(l); g.add(p); return p; });
       const arms = [-1, 1].map((s) => { const p = new THREE.Group(); p.position.set(s * 0.085, 0.55, 0); const a = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.016, 0.26, 5).translate(0, -0.13, 0), skin); p.add(a); g.add(p); return p; });
-      if (k < 3) { const mic = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.008, 0.08, 5), mat(0x111111)); mic.position.set(0, -0.26, 0.02); arms[1].add(mic); }
-      g.scale.setScalar(2);
+      const dj = k === 2;
+      if (!dj) { const mic = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.008, 0.08, 5), mat(0x111111)); mic.position.set(0, -0.26, 0.02); arms[1].add(mic); }
+      g.scale.setScalar(2.8);
       g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
       scene.add(g);
-      const dj = k === 3;
-      const p = { g, legs, arms, dj, x: dj ? this.cx : rand(this.stage.x0 + 2, this.stage.x1 - 2), z: dj ? this.stage.z0 + 2.6 : rand(this.stage.z0 + 5, this.stage.z1 - 1), tx: 0, tz: 0, wait: 0, phase: rand(0, 6), yaw: 0 };
+      const p = { g, legs, arms, dj, sp: 3.4, x: dj ? this.cx : rand(this.stage.x0 + 2, this.stage.x1 - 2), z: dj ? this.stage.z0 + 2.6 : rand(this.stage.z0 + 5, this.stage.z1 - 1), tx: 0, tz: 0, wait: 0, phase: rand(0, 6), yaw: 0 };
       p.tx = p.x; p.tz = p.z;
+      this.acts.push(p);
+    });
+  }
+  // Chuckyy, the headliner: a bobblehead-proportioned figure (big head on a small body) after the collectible —
+  // red-brown dreads, neck tattoos, grey hoodie over a white tee, gold and silver chains, grey pants, tan boots
+  makeChuckyy(scene, mat) {
+    const g = new THREE.Group();
+    const skin = mat(0xb87a52, 0.6), grey = mat(0x9a9ca1, 0.85), greyD = mat(0x7d7f84, 0.85), white = mat(0xf4f4f0), boot = mat(0xd9962e, 0.6);
+    const gold = new THREE.MeshStandardMaterial({ color: 0xf2c14e, metalness: 0.9, roughness: 0.25 }), silver = new THREE.MeshStandardMaterial({ color: 0xd8dde2, metalness: 0.9, roughness: 0.25 });
+    const add = (parent, geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); parent.add(o); return o; };
+    // legs + boots
+    const legs = [-1, 1].map((s) => {
+      const p = new THREE.Group(); p.position.set(s * 0.075, 0.36, 0); g.add(p);
+      add(p, new THREE.CylinderGeometry(0.058, 0.052, 0.3, 8).translate(0, -0.15, 0), greyD);
+      add(p, new THREE.BoxGeometry(0.12, 0.08, 0.19), boot, 0, -0.31, 0.03);
       return p;
     });
+    // hoodie body (open at the front over a white tee), hood bunched behind the neck
+    add(g, new THREE.CylinderGeometry(0.15, 0.165, 0.36, 12).scale(1, 1, 0.72), grey, 0, 0.55, 0);
+    add(g, new THREE.BoxGeometry(0.11, 0.33, 0.02), white, 0, 0.56, 0.115);
+    add(g, new THREE.CylinderGeometry(0.17, 0.17, 0.05, 12).scale(1, 1, 0.74), greyD, 0, 0.38, 0);   // waistband
+    add(g, new THREE.TorusGeometry(0.1, 0.035, 6, 12).scale(1, 0.6, 0.8), grey, 0, 0.73, -0.06);        // hood
+    // neck with tattoos, chains
+    add(g, new THREE.CylinderGeometry(0.055, 0.06, 0.09, 10), mat(0x7a4a32, 0.7), 0, 0.77, 0);
+    for (const [r, y, m, t] of [[0.085, 0.69, gold, 0.013], [0.1, 0.64, gold, 0.011], [0.12, 0.6, silver, 0.006]]) {
+      const c = add(g, new THREE.TorusGeometry(r, t, 5, 20), m, 0, y, 0.035); c.rotation.x = Math.PI / 2 - 0.5; c.scale.set(1, 0.85, 1);
+    }
+    // arms in hoodie sleeves, hands
+    const arms = [-1, 1].map((s) => {
+      const p = new THREE.Group(); p.position.set(s * 0.17, 0.68, 0); g.add(p);
+      add(p, new THREE.CylinderGeometry(0.05, 0.045, 0.3, 8).translate(0, -0.15, 0), grey);
+      add(p, new THREE.SphereGeometry(0.04, 8, 6), skin, 0, -0.32, 0);
+      return p;
+    });
+    const mic = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.014, 0.12, 6), mat(0x111111)); mic.position.set(0, -0.37, 0.03); arms[1].add(mic);
+    // the bobble head: pivots on the neck
+    const head = new THREE.Group(); head.position.set(0, 0.82, 0); g.add(head);
+    add(head, new THREE.SphereGeometry(0.2, 18, 14).scale(0.92, 1.08, 0.95), skin, 0, 0.19, 0);
+    for (const s of [-1, 1]) {
+      add(head, new THREE.SphereGeometry(0.03, 8, 6).scale(1.2, 0.55, 0.5), mat(0xf2ede4), s * 0.07, 0.21, 0.172);       // heavy-lidded eyes
+      add(head, new THREE.SphereGeometry(0.016, 6, 5), mat(0x2a1a12), s * 0.07, 0.205, 0.186);
+      add(head, new THREE.BoxGeometry(0.07, 0.014, 0.02), mat(0x2a1a12), s * 0.07, 0.255, 0.17);                           // brows
+      add(head, new THREE.SphereGeometry(0.035, 8, 6), skin, s * 0.185, 0.18, 0);                                             // ears
+    }
+    add(head, new THREE.SphereGeometry(0.035, 8, 6).scale(1, 0.8, 0.9), skin, 0, 0.15, 0.195);                               // nose
+    add(head, new THREE.SphereGeometry(0.05, 10, 6).scale(1, 0.45, 0.4), mat(0x6e3a2e), 0, 0.075, 0.18);                    // mouth
+    add(head, new THREE.BoxGeometry(0.035, 0.012, 0.01), white, 0, 0.078, 0.2);                                               // teeth
+    // dreads: a thick crown plus locs hanging all round, clear of the face
+    const locs = [];
+    const locCols = [0x9a3a22, 0x8a321e, 0xa8452a, 0x7a2c1a, 0xb04e30];
+    locs.push(tint(new THREE.SphereGeometry(0.215, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.45).scale(0.95, 1.1, 1).translate(0, 0.19, -0.01), 0x8e3620));
+    for (let k = 0; k < 46; k++) {
+      const a = (k / 46) * Math.PI * 2 + rand(-0.06, 0.06);
+      const front = Math.cos(a);                       // +z is the face
+      const bang = front > 0.55, len = bang ? rand(0.08, 0.13) : rand(0.3, 0.46);
+      const r0 = 0.2, y0 = (bang ? 0.37 : 0.3) + rand(-0.02, 0.04);
+      // negative X tilt + Y turn points each loc outward from the head
+      const geo = new THREE.CylinderGeometry(0.02, 0.013, len, 5).translate(0, -len / 2, 0)
+        .rotateX(bang ? -1.1 : -0.22).rotateY(a).translate(Math.sin(a) * r0 * 0.95, y0, Math.cos(a) * r0 * 0.9);
+      locs.push(tint(geo, pick(locCols)));
+    }
+    add(head, mergeGeometries(locs), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }));
+    g.scale.setScalar(2.6);
+    g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+    scene.add(g);
+    const p = { g, legs, arms, head, star: true, sp: 2.8, x: this.cx, z: this.stage.z1 - 2, tx: this.cx, tz: this.stage.z1 - 2, wait: 1, phase: 0, yaw: 0 };
+    return p;
   }
   updatePerformers(dt, beat) {
     const st = this.stage, f = beat % 1;
@@ -382,17 +464,24 @@ export class Concert {
       if (this.halt > 0) { p.tx = Math.max(st.x0 + 1, Math.min(st.x1 - 1, p.x)); p.tz = st.z0 + 1.6; }
       else if ((p.wait -= dt) <= 0 && Math.hypot(p.tx - p.x, p.tz - p.z) < 0.3) {
         // dart to a new spot on the front half of the stage, or hang at the lip to hype the crowd
-        p.tx = rand(st.x0 + 1.5, st.x1 - 1.5); p.tz = Math.random() < 0.4 ? st.z1 - 0.8 : rand(st.z0 + 4, st.z1 - 1);
+        if (p.star) { p.tx = this.cx + rand(-8, 8); p.tz = Math.random() < 0.55 ? st.z1 - 1.3 : rand(st.z0 + 5, st.z1 - 1.5); }
+        else { p.tx = rand(st.x0 + 1.5, st.x1 - 1.5); p.tz = Math.random() < 0.4 ? st.z1 - 0.8 : rand(st.z0 + 4, st.z1 - 1); }
         p.wait = rand(0.4, 2.2);
       }
       const dx = p.tx - p.x, dz = p.tz - p.z, d = Math.hypot(dx, dz);
-      const moving = d > 0.3, sp = this.halt > 0 ? 4 : 3.2;
+      const moving = d > 0.3, sp = this.halt > 0 ? 4 : p.sp;
       if (moving) { p.x += dx / d * Math.min(d, sp * dt); p.z += dz / d * Math.min(d, sp * dt); p.yaw = Math.atan2(dx, dz); }
       else p.yaw += (Math.atan2(0, 1) - p.yaw) * Math.min(1, dt * 6); // face the crowd
       const run = moving ? Math.sin(G.time * 16 + p.phase) : 0;
       p.g.position.set(p.x, st.y + (moving ? Math.abs(run) * 0.04 : hop * (this.halt > 0 ? 0 : 0.18)), p.z);
       p.g.rotation.y = p.yaw;
       p.legs[0].rotation.x = run * 0.8; p.legs[1].rotation.x = -run * 0.8;
+      if (p.head) {
+        // bobblehead: nods hard on every beat, wobbles side to side, sloshes when he runs
+        const on = this.halt > 0 ? 0.3 : 1;
+        p.head.rotation.x = on * (0.2 * Math.sin(beat * Math.PI * 2) + (moving ? 0.12 * Math.sin(G.time * 16) : 0));
+        p.head.rotation.z = on * 0.14 * Math.sin(beat * Math.PI + 0.6);
+      }
       if (this.halt > 0) { p.arms[0].rotation.x = p.arms[1].rotation.x = 0; continue; }
       // mic hand up, free hand pumping on the beat
       p.arms[1].rotation.x = -2.3 + Math.sin(G.time * 3 + p.phase) * 0.2;
