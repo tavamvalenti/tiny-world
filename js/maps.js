@@ -104,9 +104,10 @@ export function downtown(B) {
     for (let t = outer.x0 + 3; t < outer.x1 - 2; t += 5) { city.addTree(t, outer.z1 - 0.9, 0.9, 'palm'); city.addTree(t, outer.z0 + 0.9, 0.9, 'palm'); }
     for (let t = outer.z0 + 3; t < outer.z1 - 2; t += 5) { city.addTree(outer.x0 + 0.9, t, 0.9, 'palm'); city.addTree(outer.x1 - 0.9, t, 0.9, 'palm'); }
     const { H } = petcoLayout(site);
-    city.westernMetal = B.add({ x: H.x + 3.8, z: H.z - 17.7, w: 5, d: 3.4, floors: 4, style: 'brick', tint: hsl(0.03, 0.5, 0.42), cell: 1.6, fh: 1.05, gh: 1.4 });
+    city.westernMetal = B.add({ x: H.x + 3.8, z: H.z - 21.2, w: 5, d: 3.4, floors: 4, style: 'brick', tint: hsl(0.03, 0.5, 0.42), cell: 1.6, fh: 1.05, gh: 1.4 });
+    city.westernMetal.noSigns = true; // keeps its own painted sign, no random shop/billboard signs
     city.petco = site;
-    const pos = [[0, 0], [2.15, -2.15], [4.8, 0.3], [4.6, -3.6], [2.6, -4.9], [0.3, -4.8], [10, -2], [8.5, -8.5], [2, -10], [-0.5, 0.5], [0.4, 0.8]];
+    const pos = [[0, 0], [2.15, -2.15], [4.8, 0.3], [4.6, -3.6], [2.6, -4.9], [0.3, -4.8], [12.5, -2.5], [10.5, -10.5], [2.5, -12.5], [-0.5, 0.5], [0.4, 0.8]];
     for (const [px, pz] of pos) (city.crowds ||= []).push({ x: H.x + px, z: H.z + pz, r: 0.2, n: 1 });
     crowdsAroundBlock(city, outer, 1, 0.9, 1.5);
     crowdsIn(city, { x0: site.x1 - 7, x1: site.x1 - 1.5, z0: site.z0 + 1.5, z1: site.z0 + 8 }, 5, 3, 7);

@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick } from './core.js';
 
 const NAVY = new THREE.Color(0x1c2945), NAVY2 = new THREE.Color(0x24345a);
-const FANS = [0xf2efe6, 0xffc425, 0x6b4a2e, 0xe8c4a8, 0x9a6b4c, 0x2f241d, 0xd23b2e, 0xbfd3e6].map((c) => new THREE.Color(c));
+const FANS = [0xf2efe6, 0xf2efe6, 0xffc425, 0x6b4a2e, 0x6b4a2e, 0xe8c4a8, 0x9a6b4c, 0x2f241d, 0x2f241d, 0xbfd3e6].map((c) => new THREE.Color(c).lerp(NAVY, 0.35));
 
 function textPlane(w, h, draw, emissive = true) {
   const c = document.createElement('canvas'); c.width = Math.round(w * 64); c.height = Math.round(h * 64);
@@ -19,7 +19,7 @@ function textPlane(w, h, draw, emissive = true) {
 // Layout shared with maps.js (field painting, Western Metal building, players).
 export function petcoLayout(site) {
   const H = { x: site.x0 + 10.6, z: site.z1 - 10.6 }; // home plate; +x and -z are the foul lines
-  const wallR = (a) => 15.2 + 2.4 * Math.sin(2 * a);  // a: 0 along +x line .. PI/2 along -z line
+  const wallR = (a) => 18.6 + 2.6 * Math.sin(2 * a);  // a: 0 along +x line .. PI/2 along -z line
   return { H, wallR };
 }
 
@@ -41,9 +41,9 @@ export function paintPetco(g, site, city) {
   X.beginPath(); X.moveTo(0, 0);
   for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI / 2, r = wallR(a) - 0.9; X.lineTo(Math.cos(a) * r * K, -Math.sin(a) * r * K); }
   X.closePath(); X.save(); X.clip();
-  X.fillStyle = '#4f8a33'; X.fillRect(-2 * K, -20 * K, 24 * K, 22 * K);
+  X.fillStyle = '#4f8a33'; X.fillRect(-2 * K, -24 * K, 28 * K, 26 * K);
   X.fillStyle = 'rgba(255,255,255,.07)';
-  for (let i = -20; i < 24; i += 2) for (let j = -22; j < 4; j += 2) if (((i + j) / 2) % 2 === 0) X.fillRect(i * K, j * K, 2 * K, 2 * K);
+  for (let i = -2; i < 26; i += 2) for (let j = -24; j < 2; j += 2) if (((i + j) / 2) % 2 === 0) X.fillRect(i * K, j * K, 2 * K, 2 * K);
   X.restore();
   // infield
   X.fillStyle = '#b98a5a'; X.beginPath(); X.arc(0, 0, 6.3 * K, -Math.PI / 2, 0); X.lineTo(0, 0); X.fill();
@@ -52,7 +52,7 @@ export function paintPetco(g, site, city) {
   X.beginPath(); X.arc(0, 0, 1.0 * K, 0, 6.283); X.fill();
   X.fillStyle = '#fff'; for (const [bx, bz] of [[0, 0], [4.3, 0], [4.3, -4.3], [0, -4.3]]) X.fillRect(bx * K - 4, bz * K - 4, 8, 8);
   X.strokeStyle = 'rgba(255,255,255,.9)'; X.lineWidth = 0.08 * K;
-  X.beginPath(); X.moveTo(0, 0); X.lineTo(15.2 * K, 0); X.moveTo(0, 0); X.lineTo(0, -15.2 * K); X.stroke();
+  X.beginPath(); X.moveTo(0, 0); X.lineTo(18.6 * K, 0); X.moveTo(0, 0); X.lineTo(0, -18.6 * K); X.stroke();
   X.restore();
 }
 
@@ -63,7 +63,7 @@ export class Petco {
     this.H = H;
     this.center = { x: H.x + 7, z: H.z - 7 };
     // ---- the bowl: a stepped profile swept along a path hugging the foul lines and home plate ----
-    const R0 = 2.5, L = 16.5;
+    const R0 = 2.5, L = 19.5;
     const path = [];
     for (let x = H.x + L; x > H.x; x -= 0.32) path.push({ x, z: H.z + R0, nx: 0, nz: 1 });
     for (let a = Math.PI / 2; a <= Math.PI + 1e-6; a += 0.06) path.push({ x: H.x + Math.cos(a) * R0, z: H.z + Math.sin(a) * R0, nx: Math.cos(a), nz: Math.sin(a) });
@@ -85,7 +85,7 @@ export class Petco {
         let c;
         if (kind === 'seat') {
           // mostly navy seats, heavily speckled with fans in their colours; aisles every ~12 steps
-          c = i % 12 === 0 ? tint.conc : Math.random() < 0.58 ? pick(FANS) : (k % 2 ? NAVY : NAVY2);
+          c = i % 12 === 0 ? tint.conc : Math.random() < 0.4 ? pick(FANS) : (k % 2 ? NAVY : NAVY2);
         } else c = tint[kind];
         pos.push(...v[0], ...v[1], ...v[2], ...v[0], ...v[2], ...v[3]);
         for (let q = 0; q < 6; q++) col.push(c.r, c.g, c.b);
@@ -158,7 +158,7 @@ export class Petco {
     this.fieldLight.position.set(this.center.x, 14, this.center.z); scene.add(this.fieldLight);
 
     // ---- left-field video board ----
-    const bx = H.x + 3.5, bz = H.z - wallR(Math.PI / 2) - 5.6;
+    const bx = H.x + 3.5, bz = H.z - wallR(Math.PI / 2) - 6.2;
     const board = textPlane(9, 3.4, (x, w, h) => {
       x.fillStyle = '#111'; x.fillRect(0, 0, w, h);
       x.fillStyle = '#2f241d'; x.fillRect(8, 8, w * 0.62, h - 16);
@@ -185,9 +185,15 @@ export class Petco {
       x.fillStyle = '#1c2945'; x.font = `800 ${h * 0.62}px Inter, Arial`; x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillText('PETCO PARK', w / 2, h * 0.55);
     });
-    const corner = { x: H.x - R0 * 0.707 - 8.1 * 0.707, z: H.z + R0 * 0.707 + 8.1 * 0.707 };
-    sign.position.set(corner.x, 4.6, corner.z); sign.rotation.y = -Math.PI / 4;
+    // freestanding monument on the plaza outside the home-plate gate (clear of the canopy overhang)
+    const corner = { x: H.x - (R0 + 10.4) * 0.707, z: H.z + (R0 + 10.4) * 0.707 };
+    sign.position.set(corner.x, 1.25, corner.z); sign.rotation.y = -Math.PI / 4;
     scene.add(sign);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.7, 0.5).translate(0, 0.35, -0.28), new THREE.MeshStandardMaterial({ color: 0x9c8466, roughness: 0.9 }));
+    base.position.set(corner.x, 0, corner.z); base.rotation.y = sign.rotation.y; base.castShadow = true;
+    const back = new THREE.Mesh(new THREE.BoxGeometry(8.2, 1.2, 0.3).translate(0, 1.25, -0.18), new THREE.MeshStandardMaterial({ color: 0x1c2945, roughness: 0.8 }));
+    back.position.copy(base.position); back.rotation.y = sign.rotation.y; back.castShadow = true;
+    scene.add(base, back);
     this.sign = sign;
 
     // ---- Western Metal Supply Co. sign on its brick building (the building itself is destructible) ----

@@ -126,7 +126,7 @@ export class Signs {
     // ---- storefront signs ----
     let k = 0;
     for (const b of B.list) {
-      if (b.style === 'house' || b.gable || !b.grid[0]) continue;
+      if (b.style === 'house' || b.gable || !b.grid[0] || b.noSigns) continue;
       if (Math.max(b.w, b.d) < 2.6 || b.nx * b.nz > 120) continue;
       if (Math.random() > (mapName === 'suburbs' ? 0.9 : 0.75)) continue;
       const sides = [
@@ -154,7 +154,7 @@ export class Signs {
     this.ads = ads;
     let n = 0;
     for (const b of B.list) {
-      if (b.gable || b.style === 'house' || n >= 40) continue;
+      if (b.gable || b.style === 'house' || b.noSigns || n >= 40) continue;
       if (b.floors < (mapName === 'suburbs' ? 1 : 3) || b.floors > 14 || b.w < 3.5) continue;
       if (Math.random() > (mapName === 'downtown' ? 0.22 : 0.12)) continue;
       const top = b.cells.filter((c) => c.topExposed && c.f === b.floors - 1);
