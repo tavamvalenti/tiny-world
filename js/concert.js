@@ -209,7 +209,9 @@ export class Concert {
   buildStands(scene) {
     const S = this.site, P = [];
     // main grandstand along the east side, rising away from the field (like the photo)
-    const gx0 = S.x1 - 12.2, gz0 = S.z0 + 9, gz1 = S.z1 - 12, rows = 13;
+    // starts behind the stage wing so the side screen and carton stay clear of the seats
+    const gx0 = S.x1 - 12.2, gz0 = S.z0 + 15, gz1 = S.z1 - 12, rows = 13;
+    this.grand = { x0: gx0, z0: gz0, z1: gz1 };
     this.standRows = [];
     for (let r = 0; r < rows; r++) {
       const x = gx0 + r * 0.9 + 0.45, h = 0.6 + r * 0.5;
@@ -232,12 +234,12 @@ export class Concert {
       this.westRows.push({ x, y: h, z0: S.z0 + 17.5, z1: S.z0 + 42.5 });
     }
     // two stadium light towers
-    for (const z of [gz0 - 2, gz1 + 2]) {
+    for (const z of [gz0 - 2, gz1 - 0.5]) {
       P.push(box(0.5, 18, 0.5, S.x1 - 1, 9, z, 0x8f949a), box(3, 1.6, 0.4, S.x1 - 1.2, 18.4, z, 0x2b2e33));
     }
     const m = new THREE.Mesh(mergeGeometries(P), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }));
     m.castShadow = m.receiveShadow = true; scene.add(m);
-    this.towerLamps = [gz0 - 2, gz1 + 2].map((z) => { const l = plane(2.8, 1.4, null, 0); l.material = new THREE.MeshBasicMaterial({ color: 0xffffff }); l.position.set(S.x1 - 1.45, 18.4, z); l.rotation.y = -Math.PI / 2 - 0.3; scene.add(l); return l; });
+    this.towerLamps = [gz0 - 2, gz1 - 0.5].map((z) => { const l = plane(2.8, 1.4, null, 0); l.material = new THREE.MeshBasicMaterial({ color: 0xffffff }); l.position.set(S.x1 - 1.45, 18.4, z); l.rotation.y = -Math.PI / 2 - 0.3; scene.add(l); return l; });
   }
   buildPlaza(scene, city) {
     const S = this.site, cx = this.cx, P = [];
@@ -245,8 +247,9 @@ export class Concert {
     const fence = canvasTex(1024, 64, drawFence); fence.wrapS = THREE.RepeatWrapping; onLogo.push(() => fence.redraw());
     const fm = new THREE.MeshStandardMaterial({ map: fence, emissiveMap: fence, emissive: 0xffffff, emissiveIntensity: 0.15, side: THREE.DoubleSide, roughness: 0.7 });
     this.mats.push(fm);
-    const wz = (S.z0 + S.z1) / 2, ez = S.z1 - 8;
-    this.exits = [{ x: cx, z: S.z1, ox: 0, oz: 1, w: 4 }, { x: S.x0, z: wz, ox: -1, oz: 0, w: 2 }, { x: S.x1, z: ez, ox: 1, oz: 0, w: 2 }];
+    // emergency exits sit in the clear lanes between the stands and the plaza, never behind seating
+    const wz = this.westRows[0].z1 + 3, ez = this.grand.z1 + 3;
+    this.exits = [{ x: cx, z: S.z1, ox: 0, oz: 1, w: 3.5 }, { x: S.x0, z: wz, ox: -1, oz: 0, w: 1.6 }, { x: S.x1, z: ez, ox: 1, oz: 0, w: 1.6 }];
     const runs = [[S.x0, S.z0, S.x1, S.z0], [S.x0, S.z0, S.x0, wz - 2.5], [S.x0, wz + 2.5, S.x0, S.z1], [S.x1, S.z0, S.x1, ez - 2.5], [S.x1, ez + 2.5, S.x1, S.z1],
       [S.x0, S.z1, cx - 5, S.z1], [cx + 5, S.z1, S.x1, S.z1]];
     const fg = [];
@@ -267,7 +270,6 @@ export class Concert {
     const arch2 = plane(12, 1.9, this.banner, 0.35); arch2.position.set(cx, 5.6, gz - 0.56); arch2.rotation.y = Math.PI; scene.add(arch2);
     P.push(box(12.2, 2.1, 1, cx, 5.6, gz, 0x1b43c0));
     for (let x = cx - 4; x <= cx + 4; x += 1.6) P.push(box(0.5, 1, 0.5, x, 0.5, gz, 0x9aa0a4)); // turnstiles
-    for (let z = gz + 1.5; z < gz + 4; z += 1) P.push(box(10, 0.9, 0.06, cx, 0.45, z, 0xb8bcc0));  // queue rails out on the sidewalk
     // food trucks + merch tents in the plaza
     const TRUCKS = [0xf7e531, 0xd23b2e, 0xf2f2f0, 0x2a6fb5, 0x2f7a45, 0xe88a2e];
     let k = 0;
@@ -425,8 +427,9 @@ export class Concert {
   // ---------- reactions ----------
   inVenue(x, z, m = 0) { const S = this.site; return x > S.x0 - m && x < S.x1 + m && z > S.z0 - m && z < S.z1 + m; }
   // any weapon fired at the venue: people right there are knocked flying, then the whole place empties
+  // (the game's own random incidents never clear the venue: only the player's weapons do)
   onBlast(x, y, z, r, power, kind) {
-    if (!this.inVenue(x, z, 8)) return;
+    if (kind === 'collapse' || !this.inVenue(x, z, 8)) return;
     const kill = kind === 'wind' ? r * 0.55 : r * 0.28;
     if (power > 1.5) for (let i = 0; i < this.N; i++) {
       const h = this.home[i]; if (h.gone || h.out) continue;
@@ -438,24 +441,33 @@ export class Concert {
     }
     this.evacuate(x, z);
   }
-  // gunfire inside the venue is an attack too
-  onThreat(x, z) { if (this.inVenue(x, z)) this.evacuate(x, z); }
 
   evacuate(x, z) {
     this.halt = 1e9; this.resetT = null;
     if (this.evac) return;
     this.evac = { x, z, t: 0 };
-    const S = this.site, standFront = this.standRows[0].x - 1.2, westFront = this.westRows[0].x + 1.2;
+    const S = this.site, eastFront = this.grand.x0 - 1.5, westFront = this.westRows[0].x + 1.7;
+    const street = { gate: S.z1 + 3.4, east: S.x1 + 3.4, west: S.x0 - 3.4 };    // road centre lines around the site
     for (let i = 0; i < this.N; i++) {
       const h = this.home[i]; if (h.gone) continue;
       const wps = [];
-      if (h[1] > 0) wps.push({ x: h[0] > this.cx ? standFront : westFront, z: h[2] + rand(-1, 1) });   // down out of the stands
-      // nearest exit, avoiding the one closest to the danger
+      // off the seats first: straight down the rows to the field edge
+      if (h[1] > 0) wps.push({ x: h[0] > this.cx ? eastFront : westFront, z: h[2] + rand(-0.6, 0.6) });
       const from = wps[0] || { x: h[0], z: h[2] };
-      const ex = this.exits.map((e) => ({ e, c: Math.hypot(e.x - from.x, e.z - from.z) + (Math.hypot(e.x - x, e.z - z) < 14 ? 40 : 0) })).sort((a, b) => a.c - b.c)[0].e;
-      const j = rand(-ex.w, ex.w);
-      wps.push({ x: ex.x - ex.ox * 1.5 + (ex.oz ? j : 0), z: ex.z - ex.oz * 1.5 + (ex.ox ? j : 0) });
-      wps.push({ x: ex.x + ex.ox * rand(6, 14) + (ex.oz ? j * 2 + rand(-4, 4) : 0), z: ex.z + ex.oz * rand(6, 14) + (ex.ox ? j * 2 + rand(-4, 4) : 0) });
+      const routes = this.exits.map((e, k) => {
+        const j = rand(-e.w, e.w);
+        let path;
+        if (k === 0) path = [{ x: Math.max(this.cx - 3.5, Math.min(this.cx + 3.5, from.x)), z: S.z1 - 11 }, { x: e.x + j, z: S.z1 - 1.5 }, { x: e.x + j * 1.4, z: street.gate + rand(-1.2, 1.2) }];
+        else if (k === 1) path = [{ x: westFront, z: e.z + j }, { x: S.x0 + 1, z: e.z + j }, { x: street.west + rand(-1.2, 1.2), z: e.z + j * 1.4 }];
+        else path = [{ x: eastFront, z: e.z + j }, { x: S.x1 - 1, z: e.z + j }, { x: street.east + rand(-1.2, 1.2), z: e.z + j * 1.4 }];
+        // then off down the street, away from the venue
+        const last = path[path.length - 1], along = rand(10, 28) * (Math.random() < 0.5 ? -1 : 1);
+        path.push(k === 0 ? { x: last.x + along, z: last.z } : { x: last.x, z: last.z + along });
+        let len = 0, p0 = from;
+        for (const q of path) { len += Math.hypot(q.x - p0.x, q.z - p0.z); p0 = q; }
+        return { path, cost: len + (Math.hypot(e.x - x, e.z - z) < 16 ? 45 : 0) + rand(0, 6) };
+      }).sort((a, b) => a.cost - b.cost);
+      wps.push(...routes[0].path);
       h.run = { wps, delay: rand(0.1, 2.5), sp: rand(1.6, 2.8), y0: h[1] };
       this.setJump(i, 0);
     }

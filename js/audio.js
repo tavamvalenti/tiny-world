@@ -619,16 +619,28 @@ export const REACT = ['What was that?', 'Did you see that?', 'What happened?', '
 export function pickLine(arr) { return arr[(Math.random() * arr.length) | 0]; }
 
 
-// ---------- concert music: a procedural trap beat that plays from one spot in the world ----------
-// 142 BPM half-time: 808 + kick, clap on 3, rolling hats, a dark bell loop, a muffled rap-cadence vocal and
-// a crowd bed. Everything is heard through a lowpass/gain/pan that tracks the camera, so it is faint and
-// boomy from across the map and full and bright up close. The beat clock is shared with the visuals.
+// ---------- concert music: a procedural Chicago drill beat that plays from one spot in the world ----------
+// 142 BPM half-time drill: distorted sliding 808s, triplet hi-hat bounce, off-grid ghost snares, an eerie
+// harmonic-minor piano line, a dark string pad and a low bell, plus a muffled rap-cadence vocal and a crowd
+// bed. Everything is heard through a lowpass/gain/pan that tracks the camera, so it is faint and boomy from
+// across the map and full up close. The beat clock is shared with the visuals.
 const BPM = 142, STEP = 60 / BPM / 4;
-const ROOTS = [87.31, 69.3, 77.78, 65.41];                       // F2 Db2 Eb2 C2 (808 notes, one per bar)
-const CHORDS = [[698.5, 830.6, 1046.5], [554.4, 698.5, 830.6], [622.3, 784, 932.3], [523.3, 659.3, 784]];
-const ARP = [0, 1, 2, 1, 0, 2, 1, 2];
-const KICKS = [[0, 7, 10], [0, 3, 6, 11, 14], [0, 7, 10, 13], [0, 3, 10]];
-const FLOW = [1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0];     // rap syllables on 16ths
+// C harmonic minor, one chord per bar: Cm  Cm  Ab  G
+const ROOTS = [65.41, 65.41, 51.91, 49.0];
+const PADS = [[130.8, 155.6, 196.0], [130.8, 155.6, 196.0], [103.8, 130.8, 155.6], [98.0, 123.5, 146.8]];
+// eerie piano motif over two bars: [step, freq]; the B natural is the menace
+const MOTIF = [
+  [[0, 783.99], [3, 830.61], [6, 783.99], [8, 622.25], [11, 587.33], [14, 523.25]],
+  [[0, 622.25], [3, 587.33], [6, 523.25], [8, 493.88], [12, 523.25]],
+  [[0, 830.61], [3, 783.99], [6, 622.25], [8, 523.25], [11, 622.25], [14, 587.33]],
+  [[0, 587.33], [3, 493.88], [6, 587.33], [8, 783.99], [10, 739.99], [12, 587.33], [14, 493.88]],
+];
+// 808 hits per bar; 'u' slides up a fifth into the note, 'd' drops from the octave (the drill glide)
+const BASS = [[[0, ''], [6, 'u'], [10, '']], [[0, ''], [3, ''], [7, 'd'], [10, ''], [14, 'u']], [[0, ''], [6, ''], [10, 'd'], [13, '']], [[0, ''], [3, 'u'], [6, ''], [10, 'd']]];
+// hats: straight 16ths/8ths with triplet rolls (three hits across two 16ths) and gaps — the drill bounce
+const HATS = [[0, 2, 4, 't6', 8, 10, 12, 't14'], [0, 2, 3, 4, 6, 8, 't10', 12, 't13'], [0, 2, 4, 't6', 8, 10, 12, 14], [0, 't2', 4, 6, 8, 10, 't12', 't14']];
+const GHOSTS = [[], [14], [11], [7, 15]];                           // off-grid ghost snares
+const FLOW = [1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0];     // rap syllables on 16ths
 export const music = {
   bus: null, t0: 0, next: 0, step: 0, x: 0, z: 0, on: false, crowd: null,
   get bpm() { return BPM; },
@@ -658,9 +670,10 @@ export const music = {
     if (!ctx || !this.on) return;
     const s = spatial(this.x, this.z), t = now();
     // a stadium rig carries: never quite silent anywhere on the map
-    const g = Math.max(0.05, Math.min(1, s.gain * 2.4));
+    // heard over the walls: quiet and muffled, a little clearer up close
+    const g = Math.max(0.02, Math.min(0.4, s.gain * 1.1));
     this.out.gain.setTargetAtTime(paused ? 0 : g, t, 0.15);
-    this.lp.frequency.setTargetAtTime(Math.max(260, Math.min(16000, s.cutoff * 1.4)), t, 0.15);
+    this.lp.frequency.setTargetAtTime(Math.max(180, Math.min(2200, s.cutoff * 0.35)), t, 0.15);
     this.pan.pan.setTargetAtTime(s.pan * 0.8, t, 0.15);
     this.send.gain.setTargetAtTime(Math.min(0.8, s.wet), t, 0.2);
     if (paused) { this.next = Math.max(this.next, t + 0.05); return; }
@@ -672,43 +685,53 @@ export const music = {
   },
   play(i, t) {
     const d = this.in, st = i % 16, bar = Math.floor(i / 16), bi = bar % 4, phrase = bar % 16;
-    const breakdown = phrase === 15;                   // one bar of just melody before every drop
-    const root = ROOTS[bi], chord = CHORDS[bi];
-    // bell/pluck loop on 8ths
-    if (st % 2 === 0) {
-      const f = chord[ARP[(st / 2) % 8]] * (phrase >= 8 && st % 4 === 2 ? 2 : 1);
-      tone(d, t, { type: 'triangle', f, a: 0.003, peak: 0.07, d: 0.32 });
-      tone(d, t, { type: 'sine', f: f * 2.01, a: 0.002, peak: 0.025, d: 0.18 });
+    const breakdown = phrase === 15;                   // one bar of just piano + pad before every drop
+    const root = ROOTS[bi];
+    if (!this.b808) { this.b808 = amp(0.8); const sat = saturator(6), lp = filt('lowpass', 900); this.b808.connect(sat); sat.connect(lp); lp.connect(d); }
+    // eerie piano: soft attack, long decay, a quiet octave doubling and a detuned shadow
+    for (const [s2, f] of MOTIF[(bar % 2) * 2 + (bi >= 2 ? 1 : 0)]) if (s2 === st) {
+      tone(d, t, { type: 'triangle', f, a: 0.004, peak: 0.08, d: STEP * 7 });
+      tone(d, t, { type: 'sine', f: f * 2, a: 0.003, peak: 0.02, d: STEP * 3 });
+      tone(d, t, { type: 'sine', f: f * 1.004, a: 0.01, peak: 0.03, d: STEP * 6 });
     }
-    // dark pad under each bar
-    if (st === 0) for (const f of chord) { const o = osc('sawtooth', f / 2), lp = filt('lowpass', 700), g = amp(); o.connect(lp); lp.connect(g); g.connect(d); env(g.gain, t, 0.3, 0.018, STEP * 15); o.start(t); o.stop(t + STEP * 16 + 0.1); }
+    // low bell on the downbeat of every other bar
+    if (st === 0 && bar % 2 === 0) { tone(d, t, { type: 'sine', f: root * 4, a: 0.002, peak: 0.05, d: 1.6 }); tone(d, t, { type: 'sine', f: root * 4 * 2.76, a: 0.002, peak: 0.015, d: 0.9 }); }
+    // dark strings: detuned saw pairs through a low filter, swelling over the bar
+    if (st === 0) for (const f of PADS[bi]) for (const det of [0.996, 1.004]) {
+      const o = osc('sawtooth', f * det), lp = filt('lowpass', 520, 0.8), g = amp();
+      o.connect(lp); lp.connect(g); g.connect(d);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.022, t + STEP * 6); g.gain.exponentialRampToValueAtTime(0.0001, t + STEP * 16);
+      o.start(t); o.stop(t + STEP * 16 + 0.1);
+    }
     if (breakdown) return;
-    // kick + 808
-    if (KICKS[bi].includes(st)) {
-      tone(d, t, { f: 150, f1: 45, a: 0.002, peak: 0.9, d: 0.16, glide: 0.07 });
-      burst(d, t, { type: 'highpass', f: 3000, a: 0.0005, peak: 0.15, d: 0.012 });
-      const slide = st === 14 && bi === 1;
-      tone(d, t, { f: slide ? root * 1.5 : root, f1: slide ? root : null, a: 0.004, peak: 0.55, d: st === 0 ? STEP * 6 : STEP * 3, glide: STEP * 2 });
+    // 808: distorted, long, gliding
+    for (const [s2, kind] of BASS[bi]) if (s2 === st) {
+      const from = kind === 'u' ? root / 1.5 : kind === 'd' ? root * 2 : root;
+      tone(this.b808, t, { f: from, f1: kind ? root : null, a: 0.005, peak: 0.7, d: st === 0 ? STEP * 7 : STEP * 3.5, glide: STEP * 1.2 });
+      if (st === 0) { tone(d, t, { f: 160, f1: 50, a: 0.002, peak: 0.75, d: 0.12, glide: 0.06 }); burst(d, t, { type: 'highpass', f: 3500, a: 0.0005, peak: 0.12, d: 0.01 }); }
     }
-    // clap/snare on beat 3 (half time), with a ghost in some bars
-    if (st === 8 || (st === 15 && bi === 3)) {
-      const v = st === 8 ? 1 : 0.35;
-      burst(d, t, { f: 1500, q: 0.9, a: 0.001, peak: 0.55 * v, d: 0.13 });
-      burst(d, t + 0.011, { type: 'highpass', f: 900, a: 0.001, peak: 0.35 * v, d: 0.09 });
-      tone(d, t, { type: 'triangle', f: 220, f1: 170, a: 0.001, peak: 0.25 * v, d: 0.07 });
+    // snare on 3 (half time) + ghost snares
+    const snare = (v) => {
+      burst(d, t, { f: 1900, q: 1.1, a: 0.001, peak: 0.5 * v, d: 0.12 });
+      burst(d, t + 0.008, { type: 'highpass', f: 1200, a: 0.001, peak: 0.3 * v, d: 0.08 });
+      tone(d, t, { type: 'triangle', f: 240, f1: 180, a: 0.001, peak: 0.22 * v, d: 0.06 });
+    };
+    if (st === 8) snare(1);
+    else if (GHOSTS[bi].includes(st)) snare(0.3);
+    // hats with the triplet bounce
+    for (const h of HATS[bi]) {
+      const trip = typeof h === 'string', hs = trip ? +h.slice(1) : h;
+      if (hs !== st) continue;
+      const n = trip ? 3 : 1;
+      for (let k = 0; k < n; k++) burst(d, t + k * (STEP * 2 / 3), { type: 'highpass', f: 8200, a: 0.0005, peak: (trip ? 0.08 : 0.11) * (st % 4 === 0 ? 1.2 : 1), d: 0.018 });
     }
-    // hats: 8ths, with 32nd/triplet rolls at the end of every other bar
-    const roll = bar % 2 === 1 && st >= 12;
-    if (roll) for (let k = 0; k < (st >= 14 ? 3 : 2); k++) burst(d, t + k * STEP / (st >= 14 ? 3 : 2), { type: 'highpass', f: 8000, a: 0.0005, peak: 0.1, d: 0.02 });
-    else if (st % 2 === 0) burst(d, t, { type: 'highpass', f: 7500, a: 0.0005, peak: st % 4 === 0 ? 0.14 : 0.09, d: 0.03 });
-    if (st === 6 && bi % 2 === 0) burst(d, t, { type: 'highpass', f: 6000, a: 0.001, peak: 0.08, d: 0.16 }); // open hat
-    // rap cadence: formant-filtered buzz syllables (no words), muffled so it reads as a far-off vocal
+    // rap cadence: low formant-filtered buzz syllables (no words), muffled so it reads as a far-off vocal
     if (phrase >= 2 && phrase < 14 && FLOW[st] && Math.random() < 0.9) {
-      const f0 = R(115, 150) * (st === 0 ? 1.15 : 1), o = osc('sawtooth', f0), g = amp();
-      const f1 = filt('bandpass', R(500, 900), 5), f2 = filt('bandpass', R(1100, 2200), 6), mix = amp(1);
+      const f0 = R(95, 125) * (st === 0 ? 1.12 : 1), o = osc('sawtooth', f0), g = amp();
+      const f1 = filt('bandpass', R(450, 800), 5), f2 = filt('bandpass', R(1000, 1900), 6), mix = amp(1);
       o.connect(f1); o.connect(f2); f1.connect(mix); f2.connect(mix); mix.connect(g); g.connect(d);
-      o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * R(0.85, 1.05), t + STEP * 0.9);
-      env(g.gain, t, 0.01, 0.16, STEP * R(0.6, 0.95));
+      o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * R(0.8, 1.0), t + STEP * 0.9);
+      env(g.gain, t, 0.01, 0.15, STEP * R(0.6, 0.95));
       o.start(t); o.stop(t + STEP + 0.05);
     }
   },

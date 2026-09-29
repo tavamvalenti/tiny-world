@@ -117,7 +117,6 @@ export class Chaos {
         if (d < 22 && p.state !== 'down' && p.state !== 'air') { p.threat = { x, z }; p.state = 'flee'; p.timer = rand(6, 12); }
       }
       if (around.length > 1) sfx.screams(x, z, Math.min(5, 1 + around.length));
-      G.concert && G.concert.onThreat(x, z);
       shooter.state = 'flee'; shooter.timer = rand(10, 16); shooter.threat = { x: x - Math.sin(facing) * 3, z: z - Math.cos(facing) * 3 };
       for (const c of A.cars) {
         if (c.state !== 'drive' || c.emerg) continue;
