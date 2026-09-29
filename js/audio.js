@@ -9,6 +9,12 @@ let ctx = null, master, sfxBus, ambBus, ambVol, voiceBus, reverb, revSend, echo,
 // user volume settings (0..1), applied whenever the engine exists
 const VOL = { master: 0.8, sfx: 0.5, ambience: 0.35, voices: 0.15, music: 0.6 };
 let white, pink, brown;
+let shotBuf = null, shotLoading = false;   // recorded gunshot sample
+function loadShot() {
+  if (shotBuf || shotLoading || !ctx) return;
+  shotLoading = true;
+  fetch('assets/gunshot.wav').then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)).then((b) => { shotBuf = b; }).catch(() => { shotLoading = false; });
+}
 const voicePool = { talk: [], laugh: [], scream: [], murmur: null };
 
 const R = (a, b) => a + Math.random() * (b - a);
@@ -334,7 +340,7 @@ function stopWind() {
 
 // ---------- public API ----------
 export const sfx = {
-  unlock() { if (init() && ctx.state === 'suspended') ctx.resume(); },
+  unlock() { if (init()) { if (ctx.state === 'suspended') ctx.resume(); loadShot(); } },
   get ready() { return !!ctx; },
   setVolumes(v) {
     Object.assign(VOL, v);
@@ -534,15 +540,22 @@ export const sfx = {
     for (const k of [0, 0.09]) burst(ch.input, t + k, { f: R(900, 1600), q: 3, a: 0.001, peak: 0.12, d: 0.04 });
     burst(ch.input, t, { buf: brown, type: 'lowpass', f: 260, a: 0.02, peak: 0.25, d: 0.5 });
   },
-  // Gunfire: a sharp crack, a short body and a long slap echo down the street.
+  // Gunfire: the recorded AK shot (assets/gunshot.wav, trimmed so the crack is at t = 0), placed in the world
+  // with the usual distance lowpass/pan and a slap echo; a hair of pitch variation keeps bursts from sounding cloned.
+  // Falls back to a synthesized crack until the sample has loaded.
   gunshot(x, z, n = 1, gap = 0.18) {
     if (!init()) return;
-    const t = now(), ch = chain(x, z, { vol: 0.9, echoAmt: 0.9, wetBoost: 0.2 });
+    loadShot();
+    const t = now(), ch = chain(x, z, { vol: 0.9, echoAmt: 0.7, wetBoost: 0.15 });
     for (let k = 0; k < n; k++) {
       const t0 = t + k * gap * R(0.7, 1.4);
-      burst(ch.input, t0, { type: 'highpass', f: 1800, a: 0.0005, peak: 1.0, d: 0.035 });
-      burst(ch.input, t0, { buf: pink, type: 'lowpass', f: 2600, sweep: 300, a: 0.001, peak: 0.8, d: 0.16 });
-      tone(ch.input, t0, { f: 140, f1: 55, a: 0.001, peak: 0.5, d: 0.09 });
+      if (shotBuf) {
+        const src = ctx.createBufferSource(); src.buffer = shotBuf; src.playbackRate.value = R(0.94, 1.06);
+        src.connect(ch.input); src.start(t0);
+      } else {
+        burst(ch.input, t0, { type: 'highpass', f: 1800, a: 0.0005, peak: 1.0, d: 0.035 });
+        burst(ch.input, t0, { buf: pink, type: 'lowpass', f: 2600, sweep: 300, a: 0.001, peak: 0.8, d: 0.16 });
+      }
     }
   },
   // Tyre squeal leading into a collision

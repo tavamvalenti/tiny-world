@@ -518,9 +518,6 @@ export function suburbs(B) {
       flatsRow(ctx, b, side === 'blue' ? -1 : 1, alleyW, { stores: 0.3, abandoned: 0.25 });
       gs.zones[side] = { x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1 };
       (city.noPeds ||= []).push({ x0: b.x0 - 0.2, x1: b.x1 + 0.2, z0: b.z0 - 0.2, z1: b.z1 + 0.2 });
-      // faction-coloured curbs all round the block
-      const col = side === 'blue' ? '#2f6fe0' : '#d6262e';
-      for (const [ax, az, bx, bz] of [[b.x0, b.z0, b.x1, b.z0], [b.x0, b.z1, b.x1, b.z1], [b.x0, b.z0, b.x0, b.z1], [b.x1, b.z0, b.x1, b.z1]]) g.line(ax, az, bx, bz, 0.16, col);
       continue;
     }
     if (key === '1,1') { // public school: three-storey brick, asphalt schoolyard, a small field
@@ -580,19 +577,7 @@ export function suburbs(B) {
   paintPotholes(ctx);
   if (city.gangs) {
     const zb = city.gangs.zones.blue, zred = city.gangs.zones.red, bz = (zb.z1 + zred.z0) / 2;
-    city.gangs.border = { z: bz, x0: zb.x0, x1: zb.x1 };
-    // spray-painted border line down the middle of the street, and whose side is whose
-    const X = g.x;
-    for (const [dz, col] of [[-0.18, '#2f6fe0'], [0.18, '#d6262e']]) {
-      X.save(); X.strokeStyle = col; X.lineWidth = 0.22 * g.k; X.lineCap = 'round'; X.beginPath();
-      for (let x = zb.x0; x <= zb.x1; x += 0.8) X.lineTo(g.px(x), g.px(bz + dz + rand(-0.06, 0.06)));
-      X.stroke(); X.restore();
-    }
-    for (const [z, txt, col] of [[bz - 1.2, 'BLUE SIDE', '#2f6fe0'], [bz + 1.25, 'RED SIDE', '#d6262e']]) for (const x of [zb.x0 + 6, (zb.x0 + zb.x1) / 2, zb.x1 - 6]) {
-      X.save(); X.translate(g.px(x), g.px(z)); X.rotate(rand(-0.05, 0.05));
-      X.font = `900 ${0.9 * g.k}px Impact, "Arial Black", sans-serif`; X.textAlign = 'center'; X.textBaseline = 'middle';
-      X.globalAlpha = 0.85; X.fillStyle = col; X.fillText(txt, 0, 0); X.restore();
-    }
+    city.gangs.border = { z: bz, x0: zb.x0, x1: zb.x1 };   // the street itself is left unmarked: flags say whose side is whose
     const blocked = (x, z) => city.pedBlocked(x, z);
     city.crowds = city.crowds.filter((c) => !blocked(c.x, c.z));
     city.wanderZones = city.wanderZones.filter((w) => !blocked((w.x0 + w.x1) / 2, (w.z0 + w.z1) / 2));

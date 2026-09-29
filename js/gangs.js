@@ -159,12 +159,16 @@ export class Gangs {
         if (kind === 'barrier') { P.push(box(1.5, 0.42, 0.34, x, 0.21, sideZ, 0x9c9a94), box(1.5, 0.12, 0.44, x, 0.06, sideZ, 0x8e8c86)); panels.push([tagTex(side, 256, 64, Math.random() < 0.4), 1.5, 0.36, x, 0.22, sideZ + d * 0.175, d > 0 ? 0 : Math.PI]); }
         else if (kind === 'wreck') { P.push(box(1.6, 0.24, 0.72, x, 0.2, sideZ, 0x3b2e28), box(0.8, 0.2, 0.64, x - 0.1, 0.42, sideZ, 0x201a17), box(1.62, 0.04, 0.74, x, 0.08, sideZ, 0x5a3a24)); }  // burned-out car along the curb
         else { P.push(box(1.0, 0.55, 0.62, x, 0.28, sideZ, side === 'blue' ? 0x243a6e : 0x6e2430), box(1.04, 0.05, 0.66, x, 0.58, sideZ, 0x1c1d20)); }
+        // faction cloth thrown over the top and hanging down the street side
+        P.push(box(kind === 'barrier' ? 1.1 : 0.9, 0.015, kind === 'barrier' ? 0.38 : 0.5, x + rand(-0.15, 0.15), kind === 'barrier' ? 0.43 : kind === 'wreck' ? 0.53 : 0.61, sideZ, S.col));
+        P.push(box(kind === 'barrier' ? 0.9 : 0.7, kind === 'barrier' ? 0.3 : 0.4, 0.012, x, kind === 'barrier' ? 0.28 : 0.36, sideZ + d * (kind === 'barrier' ? 0.2 : kind === 'wreck' ? 0.37 : 0.33), S.col));
         this.cover[side].push({ x, z: behind, used: null }, { x: x + 0.5, z: behind, used: null });
       }
-      // faction sign at each end of the border sidewalk
-      for (const x of [Z.x0 + 0.8, Z.x1 - 0.8]) {
-        P.push(box(0.06, 1.3, 0.06, x, 0.65, sideZ - d * 0.2, 0x2f3338));
-        panels.push([signTex(side === 'blue' ? 'BLUE SIDE ONLY' : 'RED SIDE ONLY', side, 256, 64), 1.1, 0.28, x, 1.2, sideZ - d * 0.2 + d * 0.04, d > 0 ? 0 : Math.PI]);
+      // the front line: a row of flags along the border sidewalk, cloth draped over the cover, emblem boards
+      for (let x = Z.x0 + 0.5; x < Z.x1; x += 2.4) this.flagAt(scene, side, x, row.street + d * 1.22, rand(2.5, 3), rand(-0.25, 0.25) + (d > 0 ? 0 : Math.PI), 1.4);  // at the curb edge, flying toward the street
+      for (const x of [Z.x0 + 0.9, (Z.x0 + Z.x1) / 2 + 1.3, Z.x1 - 0.9]) {
+        P.push(box(0.06, 1.6, 0.06, x - 0.4, 0.8, sideZ - d * 0.35, 0x2f3338), box(0.06, 1.6, 0.06, x + 0.4, 0.8, sideZ - d * 0.35, 0x2f3338));
+        panels.push([this.emblem(side), 0.95, 0.95, x, 1.2, sideZ - d * 0.35 + d * 0.035, d > 0 ? 0 : Math.PI]);
       }
       // corner store: faction sign, posters, tags down the side walls, a flag, lights over the door
       for (const st of row.stores) {
@@ -173,6 +177,8 @@ export class Gangs {
         for (const sx of [-1, 1]) panels.push([tagTex(side, 512, 128, true), st.d * 0.9, 1.1, st.x + sx * (st.w / 2 + 0.02), 0.62, st.z, sx * Math.PI / 2]);
         for (let i = 0; i < 3; i++) panels.push([posterTex(side), 0.24, 0.36, st.x - st.w * 0.35 + i * 0.3, 0.75, fz + d * 0.005, d > 0 ? 0 : Math.PI]);
         this.flagAt(scene, side, st.x + st.w * 0.42, fz + d * 0.3, 2.4);
+        for (const bx of [st.x - st.w * 0.46, st.x + st.w * 0.46]) panels.push([this.vbanner(side), 0.5, 1.4, bx, 2.45, fz + d * 0.03, d > 0 ? 0 : Math.PI]);
+        panels.push([this.emblem(side), 0.8, 0.8, st.x, 2.6, fz + d * 0.025, d > 0 ? 0 : Math.PI]);
         (this.lamps ||= []).push([st.x - 0.8, 1.35, fz + d * 0.05], [st.x + 0.8, 1.35, fz + d * 0.05]);
         // an ammo crate by the door with pistols on it
         const tx = st.x + st.w * 0.3, tz = row.street + d * 0.12;     // against the storefront
@@ -195,6 +201,7 @@ export class Gangs {
         for (const s of [-1, 1]) P.push(box(0.22, 0.04, 0.22, gx + s * 1.4, 0.2, cz, 0xeeeeea), box(0.22, 0.2, 0.03, gx + s * 1.4, 0.3, cz - 0.1, 0xeeeeea));
         P.push(tint(new THREE.CylinderGeometry(0.16, 0.12, 0.14, 10).translate(gx + 2, 0.36, cz - d * 0.5), 0x1c1d20), box(0.03, 0.3, 0.03, gx + 2, 0.15, cz - d * 0.5, 0x1c1d20));
         P.push(box(0.34, 0.22, 0.22, gx - 1.3, 0.11, cz - d * 0.6, S.col), box(0.35, 0.04, 0.23, gx - 1.3, 0.23, cz - d * 0.6, 0xf2f2f0));
+        panels.push([this.emblem(side), 1.0, 1.0, gx, 0.7, lot.garageZ + d * 0.02, d > 0 ? 0 : Math.PI]);   // emblem sprayed on the garage door
         // rifles leaning on the garage
         for (let i = 0; i < 3; i++) lean[side].push([gx - 0.6 + i * 0.35, lot.garageZ + d * 0.25, pick(['ak', 'ar', 'shotgun', 'smg'])]);
         // tagged wooden fence on the lot line + a flag on each lot, bunting at the street end
@@ -207,7 +214,7 @@ export class Gangs {
         this.hangouts[side].push({ x: gx, z: cz, exit: { x: gx, z: row.street + d * 0.35 } });
       }
       // a few more flags along the side streets of the block
-      for (const [fx, fz] of [[Z.x0 + 0.5, (Z.z0 + Z.z1) / 2], [Z.x1 - 0.5, (Z.z0 + Z.z1) / 2 - 3]]) this.flagAt(scene, side, fx, fz, 2);
+      for (const [fx, fz] of [[Z.x0 + 0.5, (Z.z0 + Z.z1) / 2], [Z.x1 - 0.5, (Z.z0 + Z.z1) / 2 - 3], [Z.x0 + 0.5, Z.z0 + 0.5], [Z.x1 - 0.5, Z.z0 + 0.5], [Z.x0 + 0.5, Z.z1 - 0.5], [Z.x1 - 0.5, Z.z1 - 0.5]]) this.flagAt(scene, side, fx, fz, 2.2);
       for (const st of row.stores) { this.hangouts[side].push({ x: st.x, z: row.street + d * 0.35, exit: { x: st.x, z: row.street + d * 0.35 } }); }
       this.sidewalkZ = this.sidewalkZ || {}; this.sidewalkZ[side] = row.street + d * 0.35;
     }
@@ -243,12 +250,32 @@ export class Gangs {
     P.push(box(x1 - x0, 0.01, 0.01, (x0 + x1) / 2, y, z, 0x222222), box(0.04, y, 0.04, x0, y / 2, z, 0x2f3338), box(0.04, y, 0.04, x1, y / 2, z, 0x2f3338));
     for (let x = x0 + 0.15, i = 0; x < x1 - 0.1; x += 0.3, i++) P.push(tint(new THREE.ConeGeometry(0.08, 0.18, 3).rotateX(Math.PI).translate(x, y - 0.1 - Math.sin((x - x0) / (x1 - x0) * Math.PI) * 0.12, z), i % 3 === 2 ? 0x111111 : i % 3 === 1 ? 0xf2f2f0 : S.col));
   }
-  flagAt(scene, side, x, z, h) {
+  // crew emblem: a star in a ring over the crew initials, on the crew colour
+  emblem(side) {
+    return ((this.emblems ||= {})[side] ||= canvasTex(128, 128, (x, w, h) => {
+      const S = SIDE[side];
+      x.fillStyle = '#111'; x.fillRect(0, 0, w, h);
+      x.fillStyle = S.css; x.beginPath(); x.arc(w / 2, h / 2, w * 0.46, 0, 6.283); x.fill();
+      x.strokeStyle = '#fff'; x.lineWidth = 5; x.beginPath(); x.arc(w / 2, h / 2, w * 0.4, 0, 6.283); x.stroke();
+      x.fillStyle = '#fff'; x.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 12 : 28; x.lineTo(w / 2 + Math.cos(a) * r, h * 0.4 + Math.sin(a) * r); } x.closePath(); x.fill();
+      x.font = '900 26px Impact, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(side === 'blue' ? 'BL' : 'RR', w / 2, h * 0.74);
+    }));
+  }
+  vbanner(side) {
+    return ((this.vbanners ||= {})[side] ||= canvasTex(64, 180, (x, w, h) => {
+      const S = SIDE[side];
+      x.fillStyle = S.css; x.fillRect(0, 0, w, h); x.fillStyle = S.cssDark; x.fillRect(0, 0, w, 10); x.fillRect(0, h - 10, w, 10);
+      x.fillStyle = '#fff'; x.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 8 : 18; x.lineTo(w / 2 + Math.cos(a) * r, 40 + Math.sin(a) * r); } x.closePath(); x.fill();
+      x.font = '900 20px Impact, sans-serif'; x.textAlign = 'center';
+      S.name.split(' ').forEach((t, k) => x.fillText(t, w / 2, 100 + k * 30));
+    }));
+  }
+  flagAt(scene, side, x, z, h, yaw = null, size = 1) {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, h, 5), new THREE.MeshLambertMaterial({ color: 0x9aa0a4 }));
     pole.position.set(x, h / 2, z); scene.add(pole);
-    const geo = new THREE.PlaneGeometry(0.7, 0.44, 8, 1).translate(0.35, 0, 0);
+    const geo = new THREE.PlaneGeometry(0.7 * size, 0.44 * size, 8, 1).translate(0.35 * size, 0, 0);
     const flag = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: (this.flagTexs ||= {})[side] ||= flagTex(side), side: THREE.DoubleSide }));
-    flag.position.set(x, h - 0.24, z); flag.rotation.y = rand(-0.6, 0.6) + (side === 'blue' ? 0 : Math.PI);
+    flag.position.set(x, h - 0.24 * size, z); flag.rotation.y = yaw ?? rand(-0.6, 0.6) + (side === 'blue' ? 0 : Math.PI);
     scene.add(flag);
     this.flags.push({ geo, base: geo.attributes.position.array.slice(), ph: rand(0, 6) });
   }
