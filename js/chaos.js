@@ -21,8 +21,11 @@ export class Chaos {
     if (!mean) return;
     this.t -= dt;
     if (this.t > 0) return;
-    this.t = mean * rand(0.6, 1.4);
-    if (!(Math.random() < 0.55 ? this.crash() : this.shooting())) this.t = 4; // nothing suitable nearby: retry soon
+    // crowded places (the festival) see incidents more often, and more of them are shootings
+    const hs = this.A.city.hotspot, T = G.camTarget;
+    const hot = hs && Math.hypot(T.x - hs.x, T.z - hs.z) < hs.r + 20;
+    this.t = mean * rand(0.6, 1.4) * (hot ? 0.55 : 1);
+    if (!(Math.random() < (hot ? 0.3 : 0.55) ? this.crash() : this.shooting())) this.t = 4; // nothing suitable nearby: retry soon
   }
 
   // somewhere the player can plausibly see or hear it
@@ -30,6 +33,18 @@ export class Chaos {
     const T = G.camTarget;
     const close = list.filter((o) => Math.hypot(o.pos.x - T.x, o.pos.z - T.z) < r);
     return close.length ? pick(close) : null;
+  }
+
+  // pick someone near the camera, favouring spots with lots of people around them
+  crowded(list, r = 48) {
+    const T = G.camTarget;
+    const close = list.filter((o) => Math.hypot(o.pos.x - T.x, o.pos.z - T.z) < r);
+    if (!close.length) return null;
+    const sample = close.length > 40 ? Array.from({ length: 40 }, () => pick(close)) : close;
+    const w = sample.map((p) => 1 + close.filter((o) => Math.abs(o.pos.x - p.pos.x) < 6 && Math.abs(o.pos.z - p.pos.z) < 6).length ** 1.5);
+    let k = Math.random() * w.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < sample.length; i++) if ((k -= w[i]) <= 0) return sample[i];
+    return sample[0];
   }
 
   // ---------- car crash ----------
@@ -74,8 +89,8 @@ export class Chaos {
   // ---------- street shooting ----------
   shooting() {
     const A = this.A;
-    const calm = A.peds.filter((p) => ['walk', 'wander', 'idle', 'wait'].includes(p.state));
-    const shooter = this.near(calm);
+    const calm = A.peds.filter((p) => !p.officer && ['walk', 'wander', 'idle', 'wait'].includes(p.state));
+    const shooter = this.crowded(calm);
     if (!shooter) return false;
     const { x, z } = shooter.pos;
     const around = calm.filter((p) => p !== shooter && Math.hypot(p.pos.x - x, p.pos.z - z) < 7);
@@ -102,6 +117,7 @@ export class Chaos {
         if (d < 22 && p.state !== 'down' && p.state !== 'air') { p.threat = { x, z }; p.state = 'flee'; p.timer = rand(6, 12); }
       }
       if (around.length > 1) sfx.screams(x, z, Math.min(5, 1 + around.length));
+      G.concert && G.concert.onThreat(x, z);
       shooter.state = 'flee'; shooter.timer = rand(10, 16); shooter.threat = { x: x - Math.sin(facing) * 3, z: z - Math.cos(facing) * 3 };
       for (const c of A.cars) {
         if (c.state !== 'drive' || c.emerg) continue;

@@ -44,7 +44,8 @@ export class Agents {
     this.incidents = [];
     const E = (this.EMERG = EMERG_TYPES.length);
     const { body, dark } = carGeos();
-    const nCars = opts.cars + city.parked.length + E;
+    const stationed = city.stationed || [];
+    const nCars = opts.cars + city.parked.length + E + stationed.length;
     this.carBody = new THREE.InstancedMesh(body, new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.4, envMapIntensity: 1.2 }), nCars);
     this.carDark = new THREE.InstancedMesh(dark, new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.15, metalness: 0.7 }), nCars);
     for (const m of [this.carBody, this.carDark]) { m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); }
@@ -88,6 +89,12 @@ export class Agents {
     for (let i = 0; i < opts.cars; i++) this.spawnCar(i);
     city.parked.forEach((p, i) => this.spawnParked(opts.cars + i, p));
     for (let i = 0; i < E; i++) this.spawnEmergency(opts.cars + city.parked.length + i, EMERG_TYPES[i]);
+    // police posted at events: parked with lights going, sirens silent, never dispatched
+    stationed.forEach((st, k) => {
+      this.spawnEmergency(opts.cars + city.parked.length + E + k, 'police');
+      const c = this.cars[this.cars.length - 1];
+      c.state = 'onscene'; c.posted = true; c.sirenOffAt = -1; c.pos.set(st.x, 0, st.z); c.heading = st.rot;
+    });
     let pi = 0;
     for (; pi < opts.peds; pi++) this.spawnPed(pi, opts.wanderFrac || 0);
     for (const spot of this.crowdSpots) for (let k = 0; k < spot.n; k++) this.spawnCrowdPed(pi++, spot, k);
@@ -115,7 +122,12 @@ export class Agents {
     const r = Math.random();
     const c = this.newCar(i, r < 0.05 ? 'bus' : r < 0.14 ? 'van' : r < 0.3 ? 'suv' : 'car');
     const C = this.city;
-    const edges = [...C.edges.values()].filter((e) => !e.blocked);
+    let edges = [...C.edges.values()].filter((e) => !e.blocked);
+    const hs = C.hotspot;
+    if (hs && Math.random() < 0.5) {
+      const near = edges.filter((e) => Math.hypot((C.nodes[e.a].x + C.nodes[e.b].x) / 2 - hs.x, (C.nodes[e.a].z + C.nodes[e.b].z) / 2 - hs.z) < hs.r);
+      if (near.length) edges = near;
+    }
     for (let tries = 0; tries < 30; tries++) {
       const e = pick(edges);
       const [a, b] = Math.random() < 0.5 ? [e.a, e.b] : [e.b, e.a];
@@ -364,11 +376,13 @@ export class Agents {
     const want = ['police', 'fire', 'ambulance'];
     if (inc.sev > 1.5) want.push('police', 'fire');
     if (inc.sev > 2.5) want.push('ambulance', 'fire');
+    const hs = this.city.hotspot;
+    if (hs && Math.hypot(inc.x - hs.x, inc.z - hs.z) < hs.r + 15) want.push('police', 'police');
     const C = this.city;
     const target = C.nodes.filter((n) => !n.dead && n.edges.length).sort((a, b) => Math.hypot(a.x - inc.x, a.z - inc.z) - Math.hypot(b.x - inc.x, b.z - inc.z))[0];
     const starts = C.nodes.filter((n) => !n.dead && n.edges.length && Math.hypot(n.x - inc.x, n.z - inc.z) > 45);
     want.forEach((type, k) => {
-      const c = this.cars.find((o) => o.emerg === type && o.state === 'hidden');
+      const c = this.cars.find((o) => o.emerg === type && o.state === 'hidden' && !o.posted);
       if (!c || !starts.length) return;
       setTimeout(() => {
         const A = pick(starts);
@@ -453,7 +467,10 @@ export class Agents {
       p.target = { x: rand(p.zone.x0, p.zone.x1), z: rand(p.zone.z0, p.zone.z1) };
       if (Math.random() < 0.3) { p.state = 'idle'; p.timer = rand(5, 40); }
     } else {
-      const n = pick(C.pedNodes.filter((n) => n.edges.length)), e = pick(n.edges.filter((e) => !e.light)) || n.edges[0];
+      let nodes = C.pedNodes.filter((n) => n.edges.length);
+      const hs = C.hotspot;
+      if (hs && Math.random() < 0.55) { const near = nodes.filter((n) => Math.hypot(n.x - hs.x, n.z - hs.z) < hs.r); if (near.length) nodes = near; }
+      const n = pick(nodes), e = pick(n.edges.filter((e) => !e.light)) || n.edges[0];
       const t = Math.random(), m = C.pedNodes[e.to];
       p.pos.set(n.x + (m.x - n.x) * t, 0, n.z + (m.z - n.z) * t);
       p.from = n.id; p.to = m.id;
@@ -471,6 +488,7 @@ export class Agents {
     p.state = 'idle'; p.timer = rand(4, 40); p.target = { x: p.pos.x, z: p.pos.z };
     p.heading = Math.atan2(spot.x - p.pos.x, spot.z - p.pos.z);
     this.pedColors(i);
+    if (spot.uniform) { const u = new THREE.Color(spot.uniform); for (const m of [this.pTorso, this.pArmL, this.pArmR, this.pLegL, this.pLegR]) m.setColorAt(i, u); p.officer = true; }
     this.peds.push(p);
   }
   pedTarget(p) {

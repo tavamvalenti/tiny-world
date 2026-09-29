@@ -7,6 +7,7 @@ export const SCHEMA = [
   { id: 'master', label: 'Master volume', type: 'range', min: 0, max: 100, def: 80, unit: '%' },
   { id: 'sfx', label: 'Weapons & destruction', type: 'range', min: 0, max: 100, def: 50, unit: '%' },
   { id: 'ambience', label: 'City ambience', type: 'range', min: 0, max: 100, def: 35, unit: '%' },
+  { id: 'music', label: 'Concert music', type: 'range', min: 0, max: 100, def: 60, unit: '%', hint: 'Summer Smash in Chicago' },
   { id: 'voices', label: 'Crowd voices', type: 'range', min: 0, max: 100, def: 15, unit: '%' },
   { section: 'Controls' },
   { id: 'moveSpeed', label: 'Camera move speed', type: 'range', min: 25, max: 250, def: 100, unit: '%' },

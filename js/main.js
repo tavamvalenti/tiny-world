@@ -15,6 +15,7 @@ import { buildBackdrop } from './backdrop.js';
 import { Trolley } from './trolley.js';
 import { Harbor } from './harbor.js';
 import { Chaos } from './chaos.js';
+import { Concert } from './concert.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -147,6 +148,7 @@ function load(name) {
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
   G.petco = map.city.petco ? new Petco(scene, map.city, map.city.petco, B) : null;
   if (map.city.crowdsLate) (map.city.crowds ||= []).push(...map.city.crowdsLate);
+  G.concert = map.city.concert ? new Concert(scene, map.city.concert, map.city) : null;
   G.fx = new FX(scene);
   G.agents = new Agents(scene, map.city, map.agents);
   G.chaos = new Chaos(G.agents);
@@ -266,6 +268,7 @@ function step(dt) {
   G.trains && G.trains.update(dt);
   G.harbor && G.harbor.update(dt);
   G.petco && G.petco.update(dt);
+  G.concert && G.concert.update(dt);
   signs && signs.update();
   ambience && ambience.update(dt);
   updateBoats(dt);
@@ -358,7 +361,7 @@ document.querySelectorAll('.open-settings').forEach((b) => b.addEventListener('c
 settingsRoot.addEventListener('mousedown', (e) => { if (e.target === settingsRoot) closeSettings(); });
 let lastQuality = null;
 onSettingsChange((s) => {
-  sfx.setVolumes({ master: s.master / 100, sfx: s.sfx / 100, ambience: s.ambience / 100, voices: s.voices / 100 });
+  sfx.setVolumes({ master: s.master / 100, sfx: s.sfx / 100, ambience: s.ambience / 100, voices: s.voices / 100, music: s.music / 100 });
   post.final.uniforms.grain.value = s.grain / 100;
   if (s.quality !== lastQuality) {
     lastQuality = s.quality;

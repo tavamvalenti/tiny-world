@@ -417,7 +417,45 @@ export function suburbs(B) {
   const ctx = makeCtx({ xs: P, zs: P, roadW: 4.2, sw: 1.3, half: 66, extent: 112, centerLine: null, lights: false, noCrosswalks: false, baseColor: '#5d6442' }, B);
   const { city, g } = ctx;
   const alleyW = 1.8;
+  // Summer Smash takes the 2x2 site north-west of the start (blocks 0..1 x 2..3); streets through it close
+  const outer = { x0: P[0] + 2.1, x1: P[2] - 2.1, z0: P[2] + 2.1, z1: P[4] - 2.1 };
+  const site = { x0: outer.x0 + 1.3, x1: outer.x1 - 1.3, z0: outer.z0 + 1.3, z1: outer.z1 - 1.3 };
+  {
+    city.crowds ||= [];
+    city.paintSidewalk(g, outer, '#aaa59b');
+    g.rect(site.x0, site.z0, site.x1, site.z1, '#56693a');                    // trampled field
+    for (let k = 0; k < 40; k++) g.circle(rand(site.x0, site.x1), rand(site.z0 + 14, site.z1 - 10), rand(0.8, 3), 'rgba(110,92,64,.55)');
+    g.grainRect(site.x0, site.z0, site.x1, site.z1, 0.35, 50);
+    g.rect(site.x0, site.z0, site.x1, site.z0 + 15.5, '#3b3b3a');              // backstage + pit asphalt
+    g.rect(site.x0, site.z1 - 10, site.x1, site.z1, '#8e8a82');                // gate plaza
+    g.grainRect(site.x0, site.z1 - 10, site.x1, site.z1, 0.3, 40);
+    city.lampsAlongBlock(outer, 7);
+    city.closeArea(outer);
+    city.concert = site;
+    const cx = (site.x0 + site.x1) / 2;
+    city.hotspot = { x: cx, z: (site.z0 + site.z1) / 2, r: 60 };
+    // lines at the gate, groups on every side walk, police posted around the venue
+    for (let x = cx - 4; x <= cx + 4; x += 1.4) city.crowds.push({ x, z: outer.z1 + 1.2 + rand(0, 1.5), r: 0.5, n: Math.round(rand(3, 5)) });
+    for (let x = outer.x0 + 3; x < outer.x1 - 2; x += 3.5) city.crowds.push({ x, z: outer.z1 - 0.6, r: 0.5, n: Math.round(rand(2, 5)) });
+    for (let z = outer.z0 + 3; z < outer.z1 - 2; z += 3.5) city.crowds.push({ x: outer.x1 - 0.6, z, r: 0.5, n: Math.round(rand(2, 4)) });
+    crowdsIn(city, { x0: site.x0 + 2, x1: site.x1 - 2, z0: site.z1 - 9, z1: site.z1 - 1.5 }, 14, 4, 8);
+    city.stationed = [{ x: cx - 8, z: site.z1 - 1.8, rot: Math.PI / 2 }, { x: cx + 8, z: site.z1 - 1.8, rot: -Math.PI / 2 }, { x: site.x1 - 3, z: site.z0 + 3, rot: 0 }];
+    for (const s of city.stationed) city.crowds.push({ x: s.x + 1.3, z: s.z - 0.6, r: 0.5, n: 2, uniform: 0x1d2a44 });
+  }
   for (const b of city.blocks) {
+    if (b.i <= 1 && b.j >= 2) { b.closed = true; continue; }
+    if (b.i === 0 && b.j === 1) { // festival parking: packed lot, tailgaters, police at the entrance
+      city.paintSidewalk(g, b, '#aaa59b');
+      g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#4f4f4e');
+      const spots = city.paintParking(g, b.lx0 + 0.5, b.lz0 + 0.5, b.lx1 - 0.5, b.lz1 - 0.5);
+      for (const sp of spots) if (Math.random() < 0.9) city.parked.push(sp);
+      crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx1 - 1, z0: b.lz0 + 1, z1: b.lz1 - 1 }, 10, 3, 6);
+      const st = { x: b.lx1 - 2, z: b.lz1 - 1.5, rot: 0 };
+      city.stationed.push(st, { x: b.lx0 + 2, z: b.lz1 - 1.5, rot: 0 });
+      city.crowds.push({ x: st.x - 1.3, z: st.z - 0.8, r: 0.5, n: 2, uniform: 0x1d2a44 });
+      city.lampsAlongBlock(b, 11);
+      continue;
+    }
     city.paintSidewalk(g, b, '#aaa59b');
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 11);
@@ -479,7 +517,7 @@ export function suburbs(B) {
   }
   paintPotholes(ctx);
   outskirts(ctx, 'flats');
-  return { ...ctx, agents: { cars: 26, peds: 140, wanderFrac: 0.25 }, fog: 0xc9cfcf, start: { x: 0, z: 10 } };
+  return { ...ctx, agents: { cars: 46, peds: 240, wanderFrac: 0.25 }, fog: 0xc9cfcf, start: { x: -33, z: 30 } };
 }
 
 export const MAPS = { downtown, tropical, suburbs };

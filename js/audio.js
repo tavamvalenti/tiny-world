@@ -7,7 +7,7 @@ import { G } from './core.js';
 export const A = { ctx: null, muted: false };
 let ctx = null, master, sfxBus, ambBus, ambVol, voiceBus, reverb, revSend, echo, echoSend;
 // user volume settings (0..1), applied whenever the engine exists
-const VOL = { master: 0.8, sfx: 0.5, ambience: 0.35, voices: 0.15 };
+const VOL = { master: 0.8, sfx: 0.5, ambience: 0.35, voices: 0.15, music: 0.6 };
 let white, pink, brown;
 const voicePool = { talk: [], laugh: [], scream: [], murmur: null };
 
@@ -344,6 +344,7 @@ export const sfx = {
     sfxBus.gain.setTargetAtTime(VOL.sfx, t, 0.05);
     ambVol.gain.setTargetAtTime(VOL.ambience, t, 0.05);
     voiceBus.gain.setTargetAtTime(VOL.voices, t, 0.05);
+    if (music.bus) music.bus.gain.setTargetAtTime(VOL.music, t, 0.05);
   },
   toggleMute() {
     if (!init()) return false;
@@ -561,6 +562,14 @@ export const sfx = {
     for (let i = 0; i < 5; i++) burst(ch.input, t + R(0.3, 1.4), { f: R(900, 3000), q: 4, a: 0.001, peak: R(0.05, 0.15), d: 0.05 });
     sfx.glass(x, z, 6, 0.02);
   },
+  // concert pyro: a gas whoomp with crackle
+  pyro(x, z, big = false) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: big ? 0.8 : 0.45, echoAmt: 0.4 });
+    burst(ch.input, t, { buf: brown, type: 'lowpass', f: 900, sweep: 200, a: 0.03, peak: 0.9, d: big ? 0.9 : 0.5 });
+    burst(ch.input, t, { buf: pink, type: 'bandpass', f: 1800, q: 0.8, a: 0.02, peak: 0.35, d: 0.4 });
+    for (let i = 0; i < (big ? 18 : 6); i++) burst(ch.input, t + R(0.05, 0.9), { f: R(2000, 6000), q: 3, a: 0.001, peak: R(0.04, 0.12), d: 0.03 });
+  },
   horn(x, z, vol = 0.5) {
     if (!init()) return;
     const t = now(), ch = chain(x, z, { vol });
@@ -608,3 +617,99 @@ export const sfx = {
 export const CASUAL = ['Excuse me.', 'Come on.', "Let's go.", 'Over here.', 'Hey!', 'See you later.', 'No way.', 'I know, right?', 'Hang on.', 'This way.', 'Good morning.', 'Oh, hi!', 'Wait up.', 'Sounds good.', 'Is it this way?'];
 export const REACT = ['What was that?', 'Did you see that?', 'What happened?', 'Run!', 'Oh my god!', 'Get back!', 'Somebody call nine one one!', 'Move, move!', 'Hey, what is going on?', 'Look out!', 'Is everyone okay?'];
 export function pickLine(arr) { return arr[(Math.random() * arr.length) | 0]; }
+
+
+// ---------- concert music: a procedural trap beat that plays from one spot in the world ----------
+// 142 BPM half-time: 808 + kick, clap on 3, rolling hats, a dark bell loop, a muffled rap-cadence vocal and
+// a crowd bed. Everything is heard through a lowpass/gain/pan that tracks the camera, so it is faint and
+// boomy from across the map and full and bright up close. The beat clock is shared with the visuals.
+const BPM = 142, STEP = 60 / BPM / 4;
+const ROOTS = [87.31, 69.3, 77.78, 65.41];                       // F2 Db2 Eb2 C2 (808 notes, one per bar)
+const CHORDS = [[698.5, 830.6, 1046.5], [554.4, 698.5, 830.6], [622.3, 784, 932.3], [523.3, 659.3, 784]];
+const ARP = [0, 1, 2, 1, 0, 2, 1, 2];
+const KICKS = [[0, 7, 10], [0, 3, 6, 11, 14], [0, 7, 10, 13], [0, 3, 10]];
+const FLOW = [1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0];     // rap syllables on 16ths
+export const music = {
+  bus: null, t0: 0, next: 0, step: 0, x: 0, z: 0, on: false, crowd: null,
+  get bpm() { return BPM; },
+  // beats since the song started, aligned to what is currently heard
+  beat() {
+    if (!ctx || !this.on) return G.time * BPM / 60;
+    return Math.max(0, (now() - (ctx.outputLatency || 0.02) - this.t0) / (STEP * 4));
+  },
+  start(x, z) {
+    this.x = x; this.z = z;
+    if (!init() || this.on) return;
+    const out = ctx.createGain(); out.gain.value = 0;
+    this.lp = filt('lowpass', 1200, 0.6); this.pan = ctx.createStereoPanner(); this.send = amp(0.3);
+    this.bus = amp(VOL.music); this.in = amp(1);
+    const sat = saturator(1.6);
+    this.in.connect(sat); sat.connect(this.bus); this.bus.connect(this.lp); this.lp.connect(out); out.connect(this.pan); this.pan.connect(master);
+    out.connect(this.send); this.send.connect(revSend);
+    this.out = out;
+    // crowd bed: a broad roar that swells with the drops
+    const cr = noise(pink), cf = filt('bandpass', 900, 0.5); this.crowdG = amp(0.12);
+    cr.connect(cf); cf.connect(this.crowdG); this.crowdG.connect(this.lp); cr.start();
+    this.t0 = now() + 0.15; this.next = this.t0; this.step = 0; this.on = true;
+  },
+  stop() { if (this.on && this.out) this.out.gain.setTargetAtTime(0, now(), 0.3); this.on = false; },
+  // call every frame: moves the mix with the camera and keeps ~0.25 s of notes scheduled
+  update(paused = false) {
+    if (!ctx || !this.on) return;
+    const s = spatial(this.x, this.z), t = now();
+    // a stadium rig carries: never quite silent anywhere on the map
+    const g = Math.max(0.05, Math.min(1, s.gain * 2.4));
+    this.out.gain.setTargetAtTime(paused ? 0 : g, t, 0.15);
+    this.lp.frequency.setTargetAtTime(Math.max(260, Math.min(16000, s.cutoff * 1.4)), t, 0.15);
+    this.pan.pan.setTargetAtTime(s.pan * 0.8, t, 0.15);
+    this.send.gain.setTargetAtTime(Math.min(0.8, s.wet), t, 0.2);
+    if (paused) { this.next = Math.max(this.next, t + 0.05); return; }
+    while (this.next < t + 0.25) { this.play(this.step, this.next); this.step++; this.next += STEP; }
+  },
+  swell(amount = 0.35, hold = 1.5) {
+    if (!this.crowdG) return;
+    const t = now(); this.crowdG.gain.setTargetAtTime(amount, t, 0.1); this.crowdG.gain.setTargetAtTime(0.12, t + hold, 1);
+  },
+  play(i, t) {
+    const d = this.in, st = i % 16, bar = Math.floor(i / 16), bi = bar % 4, phrase = bar % 16;
+    const breakdown = phrase === 15;                   // one bar of just melody before every drop
+    const root = ROOTS[bi], chord = CHORDS[bi];
+    // bell/pluck loop on 8ths
+    if (st % 2 === 0) {
+      const f = chord[ARP[(st / 2) % 8]] * (phrase >= 8 && st % 4 === 2 ? 2 : 1);
+      tone(d, t, { type: 'triangle', f, a: 0.003, peak: 0.07, d: 0.32 });
+      tone(d, t, { type: 'sine', f: f * 2.01, a: 0.002, peak: 0.025, d: 0.18 });
+    }
+    // dark pad under each bar
+    if (st === 0) for (const f of chord) { const o = osc('sawtooth', f / 2), lp = filt('lowpass', 700), g = amp(); o.connect(lp); lp.connect(g); g.connect(d); env(g.gain, t, 0.3, 0.018, STEP * 15); o.start(t); o.stop(t + STEP * 16 + 0.1); }
+    if (breakdown) return;
+    // kick + 808
+    if (KICKS[bi].includes(st)) {
+      tone(d, t, { f: 150, f1: 45, a: 0.002, peak: 0.9, d: 0.16, glide: 0.07 });
+      burst(d, t, { type: 'highpass', f: 3000, a: 0.0005, peak: 0.15, d: 0.012 });
+      const slide = st === 14 && bi === 1;
+      tone(d, t, { f: slide ? root * 1.5 : root, f1: slide ? root : null, a: 0.004, peak: 0.55, d: st === 0 ? STEP * 6 : STEP * 3, glide: STEP * 2 });
+    }
+    // clap/snare on beat 3 (half time), with a ghost in some bars
+    if (st === 8 || (st === 15 && bi === 3)) {
+      const v = st === 8 ? 1 : 0.35;
+      burst(d, t, { f: 1500, q: 0.9, a: 0.001, peak: 0.55 * v, d: 0.13 });
+      burst(d, t + 0.011, { type: 'highpass', f: 900, a: 0.001, peak: 0.35 * v, d: 0.09 });
+      tone(d, t, { type: 'triangle', f: 220, f1: 170, a: 0.001, peak: 0.25 * v, d: 0.07 });
+    }
+    // hats: 8ths, with 32nd/triplet rolls at the end of every other bar
+    const roll = bar % 2 === 1 && st >= 12;
+    if (roll) for (let k = 0; k < (st >= 14 ? 3 : 2); k++) burst(d, t + k * STEP / (st >= 14 ? 3 : 2), { type: 'highpass', f: 8000, a: 0.0005, peak: 0.1, d: 0.02 });
+    else if (st % 2 === 0) burst(d, t, { type: 'highpass', f: 7500, a: 0.0005, peak: st % 4 === 0 ? 0.14 : 0.09, d: 0.03 });
+    if (st === 6 && bi % 2 === 0) burst(d, t, { type: 'highpass', f: 6000, a: 0.001, peak: 0.08, d: 0.16 }); // open hat
+    // rap cadence: formant-filtered buzz syllables (no words), muffled so it reads as a far-off vocal
+    if (phrase >= 2 && phrase < 14 && FLOW[st] && Math.random() < 0.9) {
+      const f0 = R(115, 150) * (st === 0 ? 1.15 : 1), o = osc('sawtooth', f0), g = amp();
+      const f1 = filt('bandpass', R(500, 900), 5), f2 = filt('bandpass', R(1100, 2200), 6), mix = amp(1);
+      o.connect(f1); o.connect(f2); f1.connect(mix); f2.connect(mix); mix.connect(g); g.connect(d);
+      o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * R(0.85, 1.05), t + STEP * 0.9);
+      env(g.gain, t, 0.01, 0.16, STEP * R(0.6, 0.95));
+      o.start(t); o.stop(t + STEP + 0.05);
+    }
+  },
+};
