@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick } from './core.js';
 import { music, sfx } from './audio.js';
+import { settings } from './settings.js';
 
 const BLUE = '#1f4fd6', YELLOW = '#f7e531', CARTON = '#74cdea';
 const SHIRTS = [0xf2f2f0, 0x1c1d20, 0xf7e531, 0x74cdea, 0xd23b2e, 0x2a6fb5, 0xe88a2e, 0x6b4a8a, 0x2f7a45, 0xf2a0b5, 0x8a9096, 0x111111, 0xffffff];
@@ -90,28 +91,36 @@ function drawCartonSide(x, w, h) {
   x.restore();
 }
 
-// a fan: shirt (torso), skin (head + raised arms), pants (legs); low-poly, ~0.65 tall like the street crowd
-function fanGeos() {
-  const torso = new THREE.CylinderGeometry(0.066, 0.056, 0.24, 7).scale(1, 1, 0.62).translate(0, 0.43, 0);
-  const head = new THREE.SphereGeometry(0.05, 7, 5).translate(0, 0.62, 0);
-  const arm = (s) => new THREE.CylinderGeometry(0.018, 0.015, 0.25, 4).translate(0, 0.125, 0).rotateZ(-s * 0.38).translate(s * 0.07, 0.52, 0);
-  const skin = mergeGeometries([head, arm(1), arm(-1)]);
-  const leg = (s) => new THREE.CylinderGeometry(0.028, 0.021, 0.31, 5).translate(s * 0.034, 0.155, 0);
-  const legs = mergeGeometries([leg(1), leg(-1)]);
-  return { torso, skin, legs };
+// a fan in one low-poly mesh (~60 triangles): aPart marks shirt / skin / pants so each instance can
+// carry three colours and the whole crowd draws in a single call; ~0.65 tall like the street crowd
+function fanGeo() {
+  const parts = [];
+  const put = (g, part) => { const n = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(n.attributes)) if (k !== 'position' && k !== 'normal') n.deleteAttribute(k); n.setAttribute('aPart', new THREE.BufferAttribute(new Float32Array(n.attributes.position.count).fill(part), 1)); parts.push(n); };
+  put(new THREE.CylinderGeometry(0.066, 0.056, 0.24, 5).scale(1, 1, 0.62).translate(0, 0.43, 0), 0);
+  put(new THREE.IcosahedronGeometry(0.052, 0).translate(0, 0.62, 0), 1);
+  for (const s of [-1, 1]) {
+    put(new THREE.CylinderGeometry(0.018, 0.015, 0.25, 3, 1, true).translate(0, 0.125, 0).rotateZ(-s * 0.38).translate(s * 0.07, 0.52, 0), 1);
+    put(new THREE.CylinderGeometry(0.028, 0.021, 0.31, 4, 1, true).translate(s * 0.034, 0.155, 0), 2);
+  }
+  return mergeGeometries(parts);
 }
-// jumping in the vertex shader: per-instance phase/amplitude, shared beat uniform
-function jumpify(mat, U) {
+// jumping in the vertex shader: per-instance phase/amplitude, shared beat uniform; optional 3-colour fans
+function jumpify(mat, U, fan = false) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uBeat = U.beat; sh.uniforms.uHype = U.hype;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 aJump; uniform float uBeat; uniform float uHype;')
+      .replace('#include <common>', `#include <common>\nattribute vec3 aJump; uniform float uBeat; uniform float uHype;
+        ${fan ? 'attribute float aPart; attribute vec3 aC0; attribute vec3 aC1; attribute vec3 aC2; varying vec3 vFan;' : ''}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
+        ${fan ? 'vFan = aPart < 0.5 ? aC0 : aPart < 1.5 ? aC1 : aC2;' : ''}
         float f = fract(uBeat + aJump.x);
         float hop = pow(sin(3.14159 * f), 0.8);
         transformed.y += uHype * aJump.y * mix(0.22, 1.0, aJump.z) * hop;
         // hands pump on the beat
         if (position.y > 0.5 && abs(position.x) > 0.06) transformed.y += uHype * 0.04 * hop;`);
+    if (fan) sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFan;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vFan;');
   };
   return mat;
 }
@@ -308,30 +317,32 @@ export class Concert {
   // ---------- the crowd ----------
   buildCrowd(scene) {
     const S = this.site, st = this.stage, pts = [];
+    const dens = { low: 0.45, normal: 0.75, high: 1 }[settings.crowds] || 0.75;
     const fx0 = S.x0 + 6.5, fx1 = S.x1 - 13, fz0 = st.z1 + 3, fz1 = S.z1 - 10.5, cell = 0.4;
     for (let x = fx0; x < fx1; x += cell) for (let z = fz0; z < fz1; z += cell) {
       const depth = (z - fz0) / (fz1 - fz0);
-      if (Math.random() > 0.97 - depth * 0.45) continue;
+      if (Math.random() > (0.97 - depth * 0.45) * dens) continue;
       if (Math.abs(x - this.foh.x) < 2.8 && Math.abs(z - this.foh.z) < 2.3) continue;
       pts.push([x + rand(-0.14, 0.14), 0, z + rand(-0.14, 0.14), 0.9 - depth * 0.5]);
     }
-    for (const rowset of [this.standRows, this.westRows]) for (const r of rowset) for (let z = r.z0; z < r.z1; z += 0.44) if (Math.random() < 0.62) pts.push([r.x + rand(-0.15, 0.15), r.y, z, 0.5]);
+    for (const rowset of [this.standRows, this.westRows]) for (const r of rowset) for (let z = r.z0; z < r.z1; z += 0.44) if (Math.random() < 0.62 * dens) pts.push([r.x + rand(-0.15, 0.15), r.y, z, 0.5]);
     const n = pts.length;
     this.N = n;
-    const { torso, skin, legs } = fanGeos();
     const aJump = new Float32Array(n * 3);
     this.home = pts;
     this.orig = pts.map((p) => p.slice());
-    this.origJump = null;
-    const mk = (geo, pal) => {
-      const g = geo.clone(); g.setAttribute('aJump', new THREE.InstancedBufferAttribute(aJump, 3));
-      const m = new THREE.InstancedMesh(g, jumpify(new THREE.MeshStandardMaterial({ roughness: 0.85 }), this.U), n);
-      m.receiveShadow = true; m.frustumCulled = false;
-      for (let i = 0; i < n; i++) m.setColorAt(i, new THREE.Color(pick(pal)));
-      scene.add(m); return m;
-    };
-    this.parts = [mk(torso, SHIRTS), mk(skin, SKIN), mk(legs, PANTS)];
-    this.aJump = this.parts.map((m) => m.geometry.attributes.aJump);
+    const g = fanGeo();
+    g.setAttribute('aJump', new THREE.InstancedBufferAttribute(aJump, 3));
+    const col = new THREE.Color();
+    for (const [k, pal] of [['aC0', SHIRTS], ['aC1', SKIN], ['aC2', PANTS]]) {
+      const a = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) col.set(pick(pal)).toArray(a, i * 3);
+      g.setAttribute(k, new THREE.InstancedBufferAttribute(a, 3));
+    }
+    const crowd = new THREE.InstancedMesh(g, jumpify(new THREE.MeshLambertMaterial(), this.U, true), n);
+    crowd.receiveShadow = true; crowd.frustumCulled = false; scene.add(crowd);
+    this.parts = [crowd];
+    this.aJump = [g.attributes.aJump];
     this.jump = aJump;
     const cx = this.cx, cz = this.stage.z1;
     pts.forEach(([x, y, z, eager], i) => {
@@ -351,7 +362,7 @@ export class Concert {
     this.phoneIdx = phones;
     phones.forEach((i, k) => { this.parts[0].getMatrixAt(i, _m); this.phones.setMatrixAt(k, _m); });
     this.phones.frustumCulled = false; scene.add(this.phones);
-    for (const m of this.parts) { m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
+    for (const m of this.parts) m.instanceMatrix.needsUpdate = true;
   }
   place(i, x, y, z, yaw, tilt = 0) {
     _q.setFromEuler(_e.set(tilt, yaw, 0, 'YXZ'));
@@ -501,8 +512,15 @@ export class Concert {
       m.frustumCulled = false; scene.add(m);
       this.beams.push({ m, k });
     }
-    this.wash = [0, 1].map((k) => { const l = new THREE.PointLight(BEAM_COLORS[k], 0, 45, 1.3); l.position.set(this.cx + (k ? 8 : -8), 9, st.z1 + 6); scene.add(l); return l; });
-    this.crowdLight = new THREE.PointLight(0xa24dff, 0, 60, 1.2); this.crowdLight.position.set(this.cx, 14, st.z1 + 18); scene.add(this.crowdLight);
+    // stage wash + crowd glow as additive light pools (no point lights: those cost every lit pixel in the map)
+    const pool = (w, d, x, y, z, c) => {
+      const tex = poolTex || (poolTex = canvasTex(128, 128, (x2, W, H) => { const g = x2.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x2.fillStyle = g; x2.fillRect(0, 0, W, H); }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: tex, color: c, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      m.position.set(x, y, z); scene.add(m); return m;
+    };
+    let poolTex = null;
+    this.wash = [0, 1].map((k) => pool(16, 11, this.cx + (k ? 6 : -6), st.y + 0.03, (st.z0 + st.z1) / 2, BEAM_COLORS[k]));
+    this.crowdLight = pool(46, 30, this.cx, 0.03, st.z1 + 17, 0xa24dff); // on the ground, under the fans
     this.jets = [-12, -8, -4, 4, 8, 12].map((dx) => ({ x: this.cx + dx, z: st.z1 - 0.3 }));
   }
   firePyro(big) {
@@ -648,8 +666,8 @@ export class Concert {
       b.m.material.opacity = on * (0.05 + n * 0.22) * (0.75 + 0.25 * (1 - f));
       if (f < 0.05) b.m.material.color.setHex(BEAM_COLORS[(bar + b.k) % BEAM_COLORS.length]);
     }
-    this.wash.forEach((l, k) => { l.intensity = on * (10 + n * 50) * (0.6 + 0.4 * (1 - f)); if (f < 0.05) l.color.setHex(BEAM_COLORS[(bar * 2 + k * 3) % BEAM_COLORS.length]); });
-    this.crowdLight.intensity = on * n * 40 * (0.5 + 0.5 * (1 - f));
+    this.wash.forEach((l, k) => { l.material.opacity = on * (0.25 + n * 0.5) * (0.6 + 0.4 * (1 - f)); if (f < 0.05) l.material.color.setHex(BEAM_COLORS[(bar * 2 + k * 3) % BEAM_COLORS.length]); });
+    this.crowdLight.material.opacity = on * n * 0.22 * (0.5 + 0.5 * (1 - f));
     for (const m of this.mats) m.emissiveIntensity = 0.25 + n * 0.9;
     for (const l of this.towerLamps) l.material.color.setScalar(0.8 + n * 3);
     this.phones.visible = !this.evac;

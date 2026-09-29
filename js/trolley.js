@@ -157,7 +157,7 @@ export class Trolley {
       t.secs.push({ m, dx: 0, rot: new THREE.Euler() });
     }
     // headlight glow on the leading end
-    t.lamp = new THREE.PointLight(0xfff0d0, 0, 10, 1.8); scene.add(t.lamp);
+    t.lamp = { position: new THREE.Vector3(), intensity: 0 }; // headlamp glow is emissive; no point light (performance)
     t.bodyMat = body; t.nose = nose;
     this.setMats(t);
     this.trains.push(t);

@@ -61,7 +61,7 @@ export class Agents {
     // emergency light bars
     this.beacons = new THREE.InstancedMesh(new THREE.BoxGeometry(0.15, 0.07, 0.12), new THREE.MeshBasicMaterial({ color: 0xffffff }), E * 2);
     this.beacons.frustumCulled = false; scene.add(this.beacons);
-    this.beaconLights = [0, 1].map(() => { const l = new THREE.PointLight(0xff2020, 0, 16, 1.6); scene.add(l); return l; });
+    this.beaconLights = []; // light bars glow on their own; no point lights (they cost every lit pixel)
 
     // pedestrians: articulated just enough to read as people from far above
     const torso = mergeGeometries([

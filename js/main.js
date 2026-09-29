@@ -30,6 +30,7 @@ const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
 let PR = DPR;
 renderer.setPixelRatio(1);
 const post = new Post(renderer);
+G.post = post; // exposed for tuning and tests
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(24, 1, 1, 1600);
@@ -369,7 +370,8 @@ onSettingsChange((s) => {
   post.final.uniforms.grain.value = s.grain / 100;
   if (s.quality !== lastQuality) {
     lastQuality = s.quality;
-    PR = { low: 0.75, medium: 1, high: DPR }[s.quality] || DPR;
+    // Retina screens at full density cost ~4x the pixels; the tilt-shift hides the difference, so cap it
+    PR = { low: 0.75, medium: 1, high: Math.min(DPR, 1.25) }[s.quality] || Math.min(DPR, 1.25);
     const ms = { low: 1024, medium: 2048, high: 4096 }[s.quality] || 4096;
     if (sun.shadow.mapSize.x !== ms) {
       sun.shadow.mapSize.set(ms, ms);

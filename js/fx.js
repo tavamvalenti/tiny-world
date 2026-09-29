@@ -215,11 +215,11 @@ export class FX {
     this.debris = new Debris(scene);
     this.groundFires = [];
     this.anims = [];
-    // pooled flash lights
+    // pooled flash lights (each point light costs every lit pixel, so the pools stay tiny)
     this.lights = [];
-    for (let i = 0; i < 4; i++) { const l = new THREE.PointLight(0xffa050, 0, 40, 1.6); scene.add(l); this.lights.push({ l, t: 0, max: 1, i0: 0 }); }
+    for (let i = 0; i < 1; i++) { const l = new THREE.PointLight(0xffa050, 0, 40, 1.6); scene.add(l); this.lights.push({ l, t: 0, max: 1, i0: 0 }); }
     this.fireLights = [];
-    for (let i = 0; i < 3; i++) { const l = new THREE.PointLight(0xff7a2a, 0, 22, 1.8); scene.add(l); this.fireLights.push(l); }
+    for (let i = 0; i < 1; i++) { const l = new THREE.PointLight(0xff7a2a, 0, 22, 1.8); scene.add(l); this.fireLights.push(l); }
     this.fireLightT = 0;
     this.sphereGeo = new THREE.IcosahedronGeometry(1, 3);
     this.lumpGeos = [0, 1, 2].map((k) => {
