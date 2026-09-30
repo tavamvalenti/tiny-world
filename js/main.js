@@ -221,14 +221,15 @@ function updateCamera(dt) {
   const l = keys.KeyA || keys.ArrowLeft ? 1 : 0, r = keys.KeyD || keys.ArrowRight ? 1 : 0;
   const sp = cam.dist * 0.75 * (keys.ShiftLeft ? 1.8 : 1) * settings.moveSpeed / 100;
   const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
-  // the touch thumbstick adds to the keys (a small dead zone, then a gentle curve for fine moves)
-  const dz = (v) => (Math.abs(v) < 0.12 ? 0 : Math.sign(v) * Math.pow((Math.abs(v) - 0.12) / 0.88, 1.4));
-  const jf = joy ? -dz(joy.y) : 0, jr = joy ? dz(joy.x) : 0;
-  const ax = (f - b + jf) * fx + (r - l + jr) * rx, az = (f - b + jf) * fz + (r - l + jr) * rz;
+  const ax = (f - b) * fx + (r - l) * rx, az = (f - b) * fz + (r - l) * rz;
   const k = 1 - Math.exp(-dt * 6);
   cam.vx = lerp(cam.vx, ax * sp, k); cam.vz = lerp(cam.vz, az * sp, k);
-  cam.x = clamp(cam.x + cam.vx * dt, cam.xMin ?? -cam.half, cam.half);
-  cam.z = clamp(cam.z + cam.vz * dt, cam.zMin, cam.zMax ?? cam.half);
+  // touch drag: take a share of the queued move each frame (smooth), plus a short glide after the finger lifts
+  const ease = 1 - Math.exp(-dt * 10), mx = drag.x * ease + drag.vx * dt, mz = drag.z * ease + drag.vz * dt;
+  drag.x -= drag.x * ease; drag.z -= drag.z * ease;
+  const fr = Math.exp(-dt * 4.5); drag.vx *= fr; drag.vz *= fr;
+  cam.x = clamp(cam.x + cam.vx * dt + mx, cam.xMin ?? -cam.half, cam.half);
+  cam.z = clamp(cam.z + cam.vz * dt + mz, cam.zMin, cam.zMax ?? cam.half);
   const rs = 0.9 * settings.rotateSpeed / 100;
   // vertical view: R looks up toward the horizon, F back down (V or the RESET VIEW button returns to the locked view)
   if (keys.KeyR) cam.tiltT = clamp(cam.tiltT - dt * 0.7, -1.1, 0.5);
@@ -428,6 +429,7 @@ canvasEl.addEventListener('mousemove', (e) => {
 });
 document.addEventListener('mouseleave', () => { if (!touch) input.down = false; });
 canvasEl.addEventListener('mousedown', (e) => {
+  if (TOUCH && !matchMedia('(any-pointer: fine)').matches) return;   // touch-only device: taps go through the touch code, not these copies
   if (e.button !== 0) return;
   sfx.unlock();
   if (G.world && G.world.armed) { startPlacing(); return; }      // placing from the WORLD menu, not firing
@@ -529,37 +531,19 @@ onSettingsChange((s) => {
 
 // ---------- touch: drag to move, pinch to zoom, tap / hold to fire ----------
 let touch = null;
-// ---------- touch thumbstick (bottom left): drag the knob to fly over the city, with the other thumb free to fire ----------
-const joyEl = $('#joy'), joyKnob = joyEl.querySelector('.knob');
-let joy = null;
-function joyMove(e) {
-  const R = joyEl.offsetWidth * 0.38;
-  let dx = e.clientX - joy.cx, dy = e.clientY - joy.cy;
-  const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
-  joy.x = dx / R; joy.y = dy / R;
-  joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-}
-joyEl.addEventListener('pointerdown', (e) => {
-  e.preventDefault(); e.stopPropagation(); sfx.unlock();
-  try { joyEl.setPointerCapture(e.pointerId); } catch (err) { /* synthetic or already-released pointer */ }
-  const r = joyEl.getBoundingClientRect();
-  joy = { id: e.pointerId, cx: r.left + r.width / 2, cy: r.top + r.height / 2, x: 0, y: 0 };
-  joyEl.classList.add('on'); joyMove(e);
-});
-joyEl.addEventListener('pointermove', (e) => { if (joy && e.pointerId === joy.id) joyMove(e); });
-const joyEnd = (e) => { if (!joy || e.pointerId !== joy.id) return; joy = null; joyKnob.style.transform = ''; joyEl.classList.remove('on'); };
-joyEl.addEventListener('pointerup', joyEnd); joyEl.addEventListener('pointercancel', joyEnd);
-joyEl.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+// ---------- one-finger drag: moves are queued and eased in by updateCamera, so the view glides instead of jumping ----------
+const drag = { x: 0, z: 0, vx: 0, vz: 0 };
 const pinchDist = (ts) => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
 const pinchAng = (ts) => Math.atan2(ts[1].clientY - ts[0].clientY, ts[1].clientX - ts[0].clientX);
 canvasEl.addEventListener('touchstart', (e) => {
   e.preventDefault();
   sfx.unlock();
-  const ts = e.targetTouches;                                  // only fingers on the map (a thumb on the joystick doesn't count)
+  const ts = e.targetTouches;                                  // only fingers that landed on the map, never ones on a button
   if (ts.length === 1) {
     const t = ts[0];
     input.mx = t.clientX; input.my = t.clientY;
-    touch = { x: t.clientX, y: t.clientY, moved: false, firing: false };
+    touch = { x: t.clientX, y: t.clientY, moved: false, firing: false, t: performance.now() };
+    drag.vx = drag.vz = 0;                                     // a new touch catches the glide
     touch.hold = setTimeout(() => { if (!touch || touch.moved || touch.pinch) return; if (G.world && G.world.armed) { touch.placing = true; startPlacing(); } else { touch.firing = true; input.down = true; input.pressed = true; } }, 220);
   } else if (ts.length === 2) {
     if (touch) clearTimeout(touch.hold);
@@ -584,13 +568,16 @@ canvasEl.addEventListener('touchmove', (e) => {
   input.mx = t.clientX; input.my = t.clientY;
   if (touch.firing) return;
   const dx = t.clientX - touch.x, dy = t.clientY - touch.y;
-  if (!touch.moved && Math.hypot(dx, dy) < 8) return;
-  touch.moved = true;
-  const k = cam.dist * 0.0022 * settings.moveSpeed / 100;
+  // the drag starts from where it passed the tap threshold, so the first move doesn't jump by the slack
+  if (!touch.moved) { if (Math.hypot(dx, dy) < 10) return; touch.moved = true; touch.x = t.clientX; touch.y = t.clientY; touch.t = performance.now(); return; }
+  const k = cam.dist * 0.0016 * settings.moveSpeed / 100;
   const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw), fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
-  cam.x = clamp(cam.x + (-dx * rx + dy * fx) * k, cam.xMin ?? -cam.half, cam.half);
-  cam.z = clamp(cam.z + (-dx * rz + dy * fz) * k, cam.zMin, cam.zMax ?? cam.half);
-  touch.x = t.clientX; touch.y = t.clientY;
+  const wx = (-dx * rx + dy * fx) * k, wz = (-dx * rz + dy * fz) * k;
+  drag.x += wx; drag.z += wz;
+  // remember how fast the finger was going (for the glide on release), smoothed so one twitchy event doesn't fling it
+  const now = performance.now(), sdt = Math.max(0.008, (now - touch.t) / 1000);
+  touch.gx = (touch.gx || 0) * 0.6 + (wx / sdt) * 0.4; touch.gz = (touch.gz || 0) * 0.6 + (wz / sdt) * 0.4;
+  touch.x = t.clientX; touch.y = t.clientY; touch.t = now;
 }, { passive: false });
 canvasEl.addEventListener('touchend', (e) => {
   e.preventDefault();
@@ -598,6 +585,13 @@ canvasEl.addEventListener('touchend', (e) => {
   clearTimeout(touch.hold);
   if (touch.placing) placeHold = false;
   else if (touch.firing) input.down = false;
-  else if (!touch.moved && !touch.pinch) { if (G.world && G.world.armed) placeArmed(); else { input.down = true; input.pressed = true; setTimeout(() => { input.down = false; }, 80); } }
+  else if (touch.moved && !touch.pinch) {
+    // a gentle glide if the finger was still moving when it lifted (none if it paused first)
+    const still = performance.now() - touch.t > 90, cap = cam.dist * 0.9;
+    if (!still) { drag.vx = clamp(touch.gx || 0, -cap, cap) * 0.35; drag.vz = clamp(touch.gz || 0, -cap, cap) * 0.35; }
+  } else if (!touch.moved && !touch.pinch) {
+    const ct = e.changedTouches[0], under = ct && document.elementFromPoint(ct.clientX, ct.clientY);
+    if (under === canvasEl) { if (G.world && G.world.armed) placeArmed(); else { input.down = true; input.pressed = true; setTimeout(() => { input.down = false; }, 80); } }
+  }
   touch = null;
 }, { passive: false });
