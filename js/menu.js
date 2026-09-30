@@ -613,7 +613,7 @@ export function initMenu() {
 
   // the ISS: passes behind everything, far from the camera, crossing the upper part of the view every minute or so
   const iss = makeISS(); iss.g.visible = false; scene.add(iss.g);
-  const issRun = { next: 9 + Math.random() * 8, pass: null, fade: 1 };
+  const issRun = { next: 6 + Math.random() * 6, pass: null, fade: 1 };
   function issTick(t, dt) {
     issRun.fade += ((shownHover ? 0 : 1) - issRun.fade) * Math.min(1, dt * 1.5);   // fades out with the stars while a world is hovered
     if (!issRun.pass) {
@@ -623,7 +623,7 @@ export function initMenu() {
       issRun.pass = { t0: t, dur: 30 + Math.random() * 14, dir, v0, slope: (Math.random() - 0.5) * 0.3, roll: Math.random() * 6.3, yaw: (Math.random() - 0.5) * 0.9, dist: 58 + Math.random() * 16 };
     }
     const p = issRun.pass, k = (t - p.t0) / p.dur;
-    if (k >= 1) { issRun.pass = null; iss.g.visible = false; issRun.next = 40 + Math.random() * 40; return; }
+    if (k >= 1) { issRun.pass = null; iss.g.visible = false; issRun.next = 18 + Math.random() * 20; return; }
     // a point on a line across the screen (a little past each edge), pushed out along the view ray to its distance
     const u = (-1.25 + 2.5 * k) * p.dir, v = p.v0 + p.slope * (k - 0.5) * 2;
     camera.updateMatrixWorld();
