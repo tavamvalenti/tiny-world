@@ -187,7 +187,7 @@ function load(name) {
   $('#mapRegion').innerHTML = document.querySelector(`#menu button[data-map="${name}"] .region`).innerHTML;
   tod = new TimeOfDay({ scene, sun, hemi, post, renderer, fogDay: map.fog });
   G.tod = tod; G.makeEnv = makeEnv;
-  ambience = new Ambience(name);
+  ambience = new Ambience(name); G.ambience = ambience;
   setTodButtons();
   selectWeapon(0);
   updateCamera(0);

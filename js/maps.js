@@ -155,8 +155,7 @@ export function downtown(B) {
     city.westernMetal = B.add({ x: H.x + 3.8, z: H.z - 21.2, w: 5, d: 3.4, floors: 4, style: 'brick', tint: hsl(0.03, 0.5, 0.42), cell: 1.6, fh: 1.05, gh: 1.4 });
     city.westernMetal.noSigns = true; // keeps its own painted sign, no random shop/billboard signs
     city.petco = site;
-    const pos = [[0, 0], [2.15, -2.15], [4.8, 0.3], [4.6, -3.6], [2.6, -4.9], [0.3, -4.8], [12.5, -2.5], [10.5, -10.5], [2.5, -12.5], [-0.5, 0.5], [0.4, 0.8]];
-    for (const [px, pz] of pos) (city.crowds ||= []).push({ x: H.x + px, z: H.z + pz, r: 0.2, n: 1 });
+    // (the players on the field are js/baseball.js now)
     crowdsAroundBlock(city, outer, 1, 0.9, 1.5);
     crowdsIn(city, { x0: site.x1 - 7, x1: site.x1 - 1.5, z0: site.z0 + 1.5, z1: site.z0 + 8 }, 5, 3, 7);
     city.closeArea(outer);

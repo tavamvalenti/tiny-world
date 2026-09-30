@@ -154,7 +154,7 @@ export class Sky {
     for (let k = 0; k < n; k++) {
       const i = this.free.pop();
       for (const m of this.birdParts) m.setColorAt(i, col);
-      f.birds.push({ i, ox: rand(-2.2, 2.2), oy: rand(-0.7, 0.7), oz: rand(-2.2, 2.2), ph: rand(0, 6.28), vx: 0, vy: 0, vz: 0 });
+      f.birds.push({ i, ox: rand(-7, 7), oy: rand(-1.8, 1.8), oz: rand(-7, 7), ph: rand(0, 6.28), vx: 0, vy: 0, vz: 0 });
     }
     for (const m of this.birdParts) m.instanceColor.needsUpdate = true;
     this.flocks.push(f);
@@ -199,14 +199,14 @@ export class Sky {
       const far = Math.hypot(f.x - T.x, f.z - T.z) > 200;
       for (const b of f.birds) {
         if (f.scatter > 0) { b.ox += b.vx * dt; b.oy += b.vy * dt; b.oz += b.vz * dt; b.vy *= 0.97; }
-        else { b.ox *= 1 - dt * 0.4; b.oz *= 1 - dt * 0.4; b.ox += Math.sin(G.time * 0.8 + b.ph) * dt * 0.8; b.oz += Math.cos(G.time * 0.7 + b.ph) * dt * 0.8; }
+        else { b.ox *= 1 - dt * 0.03; b.oz *= 1 - dt * 0.03; b.ox += Math.sin(G.time * 0.5 + b.ph) * dt * 1.1; b.oz += Math.cos(G.time * 0.45 + b.ph) * dt * 1.1; /* loose, spread-out flock */ }
         // wingbeats in bursts with long glides between (faster, constant beating when scattering)
         const glide = f.scatter > 0 ? 1 : Math.max(0, Math.sin(G.time * 0.45 + b.ph * 3));
         const beat = Math.sin(G.time * (f.scatter > 0 ? 16 : 9) + b.ph);
         const flap = 0.08 + beat * (f.scatter > 0 ? 0.75 : 0.62) * glide + (1 - glide) * 0.12;
         const bank = f.circle > 0 ? -0.35 : Math.sin(G.time * 0.6 + b.ph) * 0.12;
         _q.setFromEuler(_e.set(-beat * 0.05 * glide, -f.h + Math.PI / 2, bank, 'YXZ'));
-        _m.compose(_p.set(f.x + b.ox, f.y + b.oy + Math.sin(G.time * 2 + b.ph) * 0.2 - beat * 0.03 * glide, f.z + b.oz), _q, _s.set(2.6, 2.6, 2.6));   // a touch oversized so they read from up here
+        _m.compose(_p.set(f.x + b.ox, f.y + b.oy + Math.sin(G.time * 2 + b.ph) * 0.2 - beat * 0.03 * glide, f.z + b.oz), _q, _s.set(1.1, 1.1, 1.1));
         if (far && f.life < 0) { for (const m of this.birdParts) m.setMatrixAt(b.i, ZERO); continue; }
         this.birds.setMatrixAt(b.i, _m);
         // each wing hinges at its shoulder

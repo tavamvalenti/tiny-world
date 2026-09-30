@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick } from './core.js';
+import { Baseball } from './baseball.js';
 
 const NAVY = new THREE.Color(0x1c2945), NAVY2 = new THREE.Color(0x24345a);
 const FANS = [0xf2efe6, 0xf2efe6, 0xffc425, 0x6b4a2e, 0x6b4a2e, 0xe8c4a8, 0x9a6b4c, 0x2f241d, 0x2f241d, 0xbfd3e6].map((c) => new THREE.Color(c).lerp(NAVY, 0.35));
@@ -85,7 +86,7 @@ export class Petco {
         let c;
         if (kind === 'seat') {
           // mostly navy seats, heavily speckled with fans in their colours; aisles every ~12 steps
-          const fan = i % 12 !== 0 && Math.random() < 0.4;
+          const fan = false;                                   // (the crowd is real now: js/baseball.js)
           c = i % 12 === 0 ? tint.conc : fan ? pick(FANS) : (k % 2 ? NAVY : NAVY2);
           if (fan) fans.push({ o: col.length, c, e: k % 2 ? NAVY : NAVY2, r: Math.random() });   // a fan: this seat empties after the game
         } else c = tint[kind];
@@ -101,7 +102,10 @@ export class Petco {
     const bowlMesh = new THREE.Mesh(bowl, bowlMat);
     bowlMesh.castShadow = bowlMesh.receiveShadow = true;
     scene.add(bowlMesh);
-    this.bowl = bowl; this.fans = fans; this.fill = 1;
+    this.bowl = bowl; this.fans = fans; this.fill = 1; this.path = path; this.wallR = wallR;
+    this.seatRows = [];
+    for (let i = 1; i <= 9; i++) this.seatRows.push({ o: 0.15 + (i - 0.5) * 0.42, y: 0.45 + (i - 0.5) * 0.24 });
+    for (let i = 1; i <= 8; i++) this.seatRows.push({ o: 4.8 + (i - 0.5) * 0.36, y: 3.5 + (i - 0.5) * 0.33 });
     // game day: game -> ending (the stands empty, fans pour out, traffic builds) -> empty (staff clean) -> pregame
     this.phase = 'game'; this.phaseT = rand(220, 340); this.fillT = 0;
     // end caps where the bowl stops at the foul poles
@@ -177,6 +181,7 @@ export class Petco {
     board.position.set(bx, 6.6, bz); board.rotation.y = Math.atan2(H.x - bx, H.z - bz);
     scene.add(board);
     this.board = board;
+    this.game = new Baseball(scene, this);
     const legs = [];
     for (const s of [-3.5, 0, 3.5]) legs.push(new THREE.BoxGeometry(0.3, 4.9, 0.3).translate(s, 2.45, -0.2));
     legs.push(new THREE.BoxGeometry(9.3, 3.7, 0.3).translate(0, 6.6, -0.25));
@@ -220,6 +225,7 @@ export class Petco {
   // how full the stands look: fan-coloured seats go back to navy as people leave
   setFill(f) {
     this.fill = f;
+    if (this.game) this.game.crowd.setFill(f);
     const a = this.bowl.attributes.color;
     for (const s of this.fans) { const c = s.r < f ? s.c : s.e; for (let q = 0; q < 6; q++) { a.array[s.o + q * 3] = c.r; a.array[s.o + q * 3 + 1] = c.g; a.array[s.o + q * 3 + 2] = c.b; } }
     a.needsUpdate = true;
@@ -234,7 +240,8 @@ export class Petco {
     const A = G.agents, R = G.roles;
     if (this.phase === 'game' && this.phaseT <= 0) {
       this.phase = 'ending'; this.phaseT = 70;
-      this.news(pick(['Final out at Petco Park; fans heading home.', 'Ballgame over downtown; expect heavy traffic near Petco Park.']));
+      const sc = this.game ? this.game.score : null;
+      this.news(sc ? `Final at Petco Park: San Diego ${sc[0]}, Visitors ${sc[1]}` : 'Final out at Petco Park; fans heading home.');
       // traffic builds on the streets round the park
       if (A && G.world) for (let k = 0; k < 8; k++) { const c = A.borrowCar(this.center, 60); if (c && !c.moto) { const g = pick(this.gates()); G.world.onRoad(c, g.x + rand(-8, 8), g.z + rand(2, 6)); } }
     } else if (this.phase === 'ending') {
@@ -261,8 +268,17 @@ export class Petco {
     }
   }
   setFillSoon(f) { if (Math.abs(f - this.fill) > 0.04) this.setFill(f); }
+  // an explosion in the ballpark: the game is called and everyone heads out
+  onBlast(x, y, z, r, power, kind) {
+    if (!this.game || kind === 'collapse') return;
+    if (this.game.onBlast(x, y, z, r, power) && (this.phase === 'game' || this.phase === 'pregame')) {
+      this.phase = 'ending'; this.phaseT = 70;
+      this.news('Game suspended at Petco Park after an explosion in the stands');
+    }
+  }
   update(dt = 0) {
     this.updateDay(dt);
+    this.game && this.game.update(dt, this.phase);
     const n = G.night || 0;
     this.glow.material.color.setScalar(0.8 + n * 7);
     this.fieldLight.intensity = n * 60;
