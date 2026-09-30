@@ -27,6 +27,15 @@ function tileTexture(map, pitch, roadW) {
   return t;
 }
 
+function natureTexture() {
+  const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
+  const x = c.getContext('2d');
+  x.fillStyle = '#4f6a36'; x.fillRect(0, 0, S, S);
+  for (let i = 0; i < 700; i++) { x.fillStyle = pick(['rgba(62,86,40,.5)', 'rgba(96,110,58,.35)', 'rgba(96,76,54,.3)', 'rgba(40,62,30,.5)']); x.beginPath(); x.arc(rand(0, S), rand(0, S), rand(3, 26), 0, 6.3); x.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  return t;
+}
+
 // Box buildings with facade UVs derived from world position so windows keep a constant size at any scale.
 function backdropMaterial(facade) {
   const mat = new THREE.MeshStandardMaterial({ map: facade.map, roughness: 0.85 });
@@ -53,7 +62,8 @@ function backdropMaterial(facade) {
 export function buildBackdrop(scene, mapName, city, facades, E, water) {
   const pitch = city.xs[1] - city.xs[0], pitchZ = city.zs[1] - city.zs[0];
   // ground: a tiled street grid lined up with the playable grid
-  const tex = tileTexture(mapName, pitch, city.roadW);
+  // La Playa sits in open country: no street grid out there, just scrub and trees
+  const tex = mapName === 'tropical' ? natureTexture() : tileTexture(mapName, pitch, city.roadW);
   const SIZE = 3000;
   tex.repeat.set(SIZE / pitch, SIZE / pitchZ);
   const ox = (((city.xs[0] + SIZE / 2) / pitch) % 1 + 1) % 1, oz = (((SIZE / 2 - city.zs[0]) / pitchZ) % 1 + 1) % 1;
@@ -87,9 +97,7 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
       for (let k = 0; k < 4; k++) trees.push([cx + R(-lot / 2, lot / 2), cz + (k % 2 ? 1 : -1) * (lotZ / 2 + 0.6), R(0.9, 1.3)]);
     } else if (mapName === 'tropical') {
       if (cz > 58) continue;                                   // the hills stand there (js/playa.js)
-      const n = 2 + Math.floor(R(0, 3));
-      for (let k = 0; k < n; k++) boxes.push([cx + R(-lot / 3, lot / 3), cz + R(-lotZ / 3, lotZ / 3), R(4, 8), R(4, 8), R(1.5, 6) * (Math.abs(cz - (water?.shore ?? 0)) < 60 ? 2 : 1)]);
-      for (let k = 0; k < 3; k++) trees.push([cx + R(-lot / 2, lot / 2), cz + R(-lotZ / 2, lotZ / 2), R(1, 1.5)]);
+      for (let k = 0; k < 9; k++) trees.push([cx + R(-pitch / 2, pitch / 2), cz + R(-pitchZ / 2, pitchZ / 2), R(1.1, 2.2)]);   // just woods and scrub
     } else {
       // skyline: taller toward one side so the city seems to continue into a denser core
       const core = Math.exp(-(((cx + 40) ** 2 + (cz + 170) ** 2) / (140 ** 2)));

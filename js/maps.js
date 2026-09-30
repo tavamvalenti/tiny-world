@@ -339,7 +339,7 @@ function localBlock(ctx, b) {
 
 export function tropical(B) {
   const XS = [-65, -39, -13, 13, 39, 65], ZS = [-13, 13, 39, 65];
-  const ctx = makeCtx({ xs: XS, zs: ZS, roadW: 4.6, sw: 1.6, half: 66, extent: 112, centerLine: 'white', baseColor: '#8a8a6a', noSouthExtend: true }, B);
+  const ctx = makeCtx({ xs: XS, zs: ZS, roadW: 4.6, sw: 1.6, half: 66, extent: 112, centerLine: 'white', baseColor: '#4f6a36', noSouthExtend: true, extendRoads: false }, B);
   const { city, g } = ctx;
   const shore = -36;
   city.playa = { oxxo: [], food: [], loungers: [], palapas: [], piers: [{ x: -2, z0: -34.5, z1: -47 }, { x: 50, z0: -34.5, z1: -45 }], hotels: [] };
@@ -389,7 +389,12 @@ export function tropical(B) {
   // taco and fruit stands at the foot of the stairs, where the hill meets the street
   for (const x of [-58, -10, 16, 42]) city.playa.food.push({ x: x + 3, z: 68.2, kind: pick(['taco', 'fruit']) });
   buildHills(ctx);
-  outskirts(ctx, 'tropical');
+  // beyond the town it's all countryside: green scrub and trees either side, the roads simply end
+  for (const [x0, x1] of [[-112, -67.6], [67.6, 112]]) {
+    g.rect(x0, -15.3, x1, 70, '#4f6a36'); g.grainRect(x0, -15.3, x1, 70, 0.5, 60);
+    for (let k = 0; k < 600; k++) g.circle(rand(x0, x1), rand(-15, 70), rand(0.3, 2.2), pick(['rgba(62,86,40,.5)', 'rgba(96,110,58,.35)', 'rgba(96,76,54,.3)', 'rgba(44,66,32,.45)']));
+    for (let k = 0; k < 110; k++) city.addTree(rand(x0 + 1, x1 - 1), rand(-12, 64), rand(0.9, 1.6), Math.random() < 0.4 ? 'palm' : 'round');
+  }
   return { ...ctx, agents: { cars: 52, peds: 340, wanderFrac: 0.35 }, fog: 0xcfdde3, start: { x: 0, z: 4 }, water: { shore }, zMin: -40, zMax: 112, yaw: Math.PI + 0.28 };
 }
 
