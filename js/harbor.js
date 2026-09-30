@@ -246,7 +246,8 @@ export class Harbor {
 
   buildBridge(scene, M) {
     // sweeping curve from the south-west shore out over the bay and away into the haze
-    const pts = [[-40, 0.2, 128], [-72, 4, 108], [-108, 11, 84], [-150, 16, 48], [-190, 17, 2], [-222, 15, -52], [-248, 10, -110], [-268, 4, -170], [-282, 0.5, -230]]
+    // …over to Coronado, coming down on the island by the golf course (js/sandiego.js draws the island)
+    const pts = [[-40, 0.2, 128], [-70, 4, 112], [-100, 10, 96], [-128, 15, 80], [-152, 12, 64], [-170, 5, 52], [-186, 0.9, 44]]
       .map(([x, y, z]) => new THREE.Vector3(x, y, z));
     const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
     this.curve = curve;
@@ -362,15 +363,20 @@ export class Harbor {
         if (s.t < 25 && !s.warned) { s.warned = true; G.news && G.news.post('LOCAL', 'Cruise ship preparing to depart the harbor.', 1, 'cruise-dep'); }
         if (s.t <= 0) { s.phase = 'departing'; s.v = 0; s.warned = false; sfx.shipHorn && sfx.shipHorn(s.x, s.sz); }
       } else if (s.phase === 'departing') {
-        s.v = Math.min(3.2, s.v + dt * 0.12); s.x -= s.v * dt;
-        if (s.x < far) { s.phase = 'away'; s.t = rand(120, 260); s.g.visible = false; }
+        // out into the channel, swing round to the north and sail up the bay toward the sea
+        s.z ??= s.sz; s.yaw ??= Math.PI;
+        const lane = this.X0 - 58;
+        if (s.x > lane + 0.5) { s.v = Math.min(2.4, s.v + dt * 0.12); s.x -= s.v * dt; }
+        else { s.yaw += (Math.PI / 2 - s.yaw) * Math.min(1, dt * 0.35); s.v = Math.min(3.4, s.v + dt * 0.1); if (Math.abs(s.yaw - Math.PI / 2) < 0.3) s.z -= s.v * dt; }
+        if (s.z < -260) { s.phase = 'away'; s.t = rand(120, 260); s.g.visible = false; }
       } else if (s.phase === 'away') {
-        if (s.t <= 0) { s.phase = 'arriving'; s.x = far; s.g.visible = true; G.news && G.news.post('LOCAL', 'Cruise ship arriving at the downtown terminal.', 1, 'cruise-arr'); }
+        if (s.t <= 0) { s.phase = 'arriving'; s.x = this.X0 - 58; s.z = -260; s.yaw = -Math.PI / 2; s.v = 3.2; s.g.visible = true; G.news && G.news.post('LOCAL', 'Cruise ship arriving at the downtown terminal.', 1, 'cruise-arr'); }
       } else if (s.phase === 'arriving') {
-        const d = s.sx - s.x; s.x += Math.max(0.25, Math.min(3.2, d * 0.03)) * dt;
-        if (d < 0.05) { s.x = s.sx; s.phase = 'boarding'; s.t = rand(150, 280); sfx.shipHorn && sfx.shipHorn(s.x, s.sz); }
+        // down the bay, turn at the pier, back in to the berth
+        if (s.z < s.sz - 0.1) { const d = s.sz - s.z; s.z += Math.max(0.4, Math.min(3.2, d * 0.04)) * dt; }
+        else { s.z = s.sz; s.yaw += (Math.PI - s.yaw) * Math.min(1, dt * 0.35); if (Math.abs(s.yaw - Math.PI) < 0.05) { const d = s.sx - s.x; s.x += Math.max(0.25, Math.min(1.6, d * 0.05)) * dt; if (d < 0.05) { s.x = s.sx; s.yaw = Math.PI; s.phase = 'boarding'; s.t = rand(150, 280); sfx.shipHorn && sfx.shipHorn(s.x, s.sz); } } }
       }
-      s.g.position.x = s.x;
+      s.g.position.x = s.x; if (s.z != null) s.g.position.z = s.z; if (s.yaw != null) s.g.rotation.y = s.yaw;
     }
   }
   update(dt) {
@@ -419,7 +425,7 @@ export class Harbor {
       b.a += b.turn * dt;
       b.x += Math.cos(b.a) * b.sp * dt; b.z += Math.sin(b.a) * b.sp * dt;
       if (b.x > this.X0 - 8) b.a = Math.PI - b.a, b.x = this.X0 - 8;
-      if (b.x < this.X0 - 220 || Math.abs(b.z) > 150) b.a += Math.PI;
+      if (b.x < this.X0 - 84 || Math.abs(b.z) > 150) b.a += Math.PI;               // stay in the bay (Coronado is over there)
       _m.compose(_p.set(b.x, 0.03 + Math.sin(G.time * 2 + i) * 0.03, b.z), _q.setFromAxisAngle(UP, -b.a), _s.set(b.s, b.s, b.s));
       this.boatMesh.setMatrixAt(i, _m);
       if (Math.random() < dt * 5) G.fx.bits.emit(b.x - Math.cos(b.a) * b.s, 0.1, b.z - Math.sin(b.a) * b.s, 0, 0.3, 0, 0.18, 2, 0.95, 0.97, 1, 1);

@@ -190,7 +190,7 @@ export class Construction {
   }
   // ---------- window washers: a gondola works down one face of a tall tower, pausing floor by floor ----------
   addGondolas(scene, city) {
-    const towers = (city.towers || []).slice(0, 3);
+    const towers = (city.washTowers || city.towers || []).slice(0, 3);
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     for (const t of towers) {
       // the face toward the camera (+z); its depth steps back with the setbacks, so track it per floor

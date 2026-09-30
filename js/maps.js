@@ -4,6 +4,7 @@ import { City, Ground } from './city.js';
 import { petcoLayout, paintPetco } from './petco.js';
 import { paintCourts } from './court.js';
 import { buildHills } from './playa.js';
+import { buildLandmarks } from './sandiego.js';
 
 const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace);
 const TINT = {
@@ -134,7 +135,9 @@ export function downtown(B) {
   const P = [-66, -44, -22, 0, 22, 44, 66];
   const ctx = makeCtx({ xs: P, zs: P, roadW: 5, sw: 1.7, half: 66, extent: 112, centerLine: 'yellow' }, B);
   const { city, g } = ctx;
-  const special = { '2,3': 'park', '0,4': 'parking', '4,1': 'parking', '3,2': 'plaza', '5,5': 'petco', '4,4': 'petco', '5,4': 'petco', '4,5': 'petco', '2,1': 'tower', '3,1': 'tower', '1,3': 'tower' };
+  // the real skyline: One America Plaza and Emerald Plaza on Broadway by the depot, the Grand Hyatt on the Marina (js/sandiego.js)
+  const special = { '2,3': 'park', '0,4': 'hyatt', '0,5': 'hyatt', '4,1': 'parking', '3,2': 'plaza', '5,5': 'petco', '4,4': 'petco', '5,4': 'petco', '4,5': 'petco', '0,3': 'oneAmerica', '1,3': 'emerald' };
+  const landmarkBlocks = {};
   const towerFloors = { '2,1': 60, '3,1': 50, '1,3': 44 };
   // light rail runs down the street at z = 0 (a trolley-only transit mall), with two stations
   // the harbour is the west edge: seawall at x = -74, open water beyond (see harbor.js)
@@ -161,15 +164,25 @@ export function downtown(B) {
     crowdsIn(city, { x0: site.x1 - 7, x1: site.x1 - 1.5, z0: site.z0 + 1.5, z1: site.z0 + 8 }, 5, 3, 7);
     city.closeArea(outer);
   }
+  // the Grand Hyatt stretches over two blocks on the Marina; the street between them is closed
+  {
+    const outer = { x0: P[0] + 2.5, x1: P[1] - 2.5, z0: P[4] + 2.5, z1: P[6] - 2.5 };
+    city.paintSidewalk(g, outer);
+    city.lampsAlongBlock(outer, 7.5);
+    landmarkBlocks.hyatt = { lx0: outer.x0 + 1.7, lx1: outer.x1 - 1.7, lz0: outer.z0 + 1.7, lz1: outer.z1 - 1.7 };
+    crowdsAroundBlock(city, outer, 0.9, 0.45);
+    city.closeArea(outer);
+  }
   for (const b of city.blocks) {
     const kind = special[`${b.i},${b.j}`];
-    if (kind === 'petco') { b.closed = true; continue; }
+    if (kind === 'petco' || kind === 'hyatt') { b.closed = true; continue; }
     if (`${b.i},${b.j}` === '1,1') { city.paintSidewalk(g, b); policeHQ(ctx, b); continue; }
     city.paintSidewalk(g, b);
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 7.5);
     city.addProp('hydrant', b.x0 + 0.5, b.z0 + 2.2); city.addProp('bin', b.x1 - 0.5, b.z1 - 2.6);
     city.addProp('sign', b.x0 + 0.4, b.z1 - 0.4, 0);
+    if (kind === 'oneAmerica' || kind === 'emerald') { landmarkBlocks[kind] = b; crowdsAroundBlock(city, b, 0.9, 0.45); continue; }
     if (kind === 'park') {
       city.paintGrass(g, b.lx0 - 0.4, b.lz0 - 0.4, b.lx1 + 0.4, b.lz1 + 0.4, '#58793a');
       g.line(b.lx0, b.lz0, b.lx1, b.lz1, 1.1, '#c8b995'); g.line(b.lx1, b.lz0, b.lx0, b.lz1, 1.1, '#c8b995');
@@ -183,7 +196,7 @@ export function downtown(B) {
       g.rect(b.lx0 - 0.5, b.lz0 - 0.5, b.lx1 + 0.5, b.lz1 + 0.5, '#b9b2a4');
       for (let x = b.lx0; x < b.lx1; x += 1.2) g.line(x, b.lz0, x, b.lz1, 0.03, 'rgba(0,0,0,.12)');
       for (let z = b.lz0; z < b.lz1; z += 1.2) g.line(b.lx0, z, b.lx1, z, 0.03, 'rgba(0,0,0,.12)');
-      B.add({ x: cx, z: b.lz0 + 3, w: b.lx1 - b.lx0, d: 5.5, floors: 20, style: 'office', tint: TINT.office(), cell: 1.7, gh: 1.8, setbacks: [{ f: 14, n: 1 }] });
+      B.add({ x: cx, z: b.lz0 + 3, w: b.lx1 - b.lx0, d: 5.5, floors: 12, style: 'office', tint: TINT.office(), cell: 1.7, gh: 1.8, setbacks: [{ f: 14, n: 1 }] });
       for (let x = b.lx0 + 1.5; x < b.lx1; x += 3) for (let z = cz + 1; z < b.lz1; z += 3) { city.addTree(x, z, 0.9); }
       city.wanderZones.push({ x0: b.lx0, x1: b.lx1, z0: cz, z1: b.lz1 });
       crowdsIn(city, { x0: b.lx0 + 1, x1: b.lx1 - 1, z0: cz + 1, z1: b.lz1 - 1 }, 7, 4, 9);
@@ -211,7 +224,7 @@ export function downtown(B) {
       const r = Math.random();
       if (r < 0.14 && hf > 7) {
         // superblock: a broad podium with a slender tower rising out of it
-        const floors = Math.round(rand(18, 30));
+        const floors = Math.round(rand(10, 15));   // kept well under the landmark towers
         const style = pick(['office', 'concrete']);
         B.add({ x: lx + W / 2, z: lz + D / 2, w: W - 0.3, d: D - 0.3, floors, style, tint: TINT[style](), cell: 1.7, fh: rand(0.95, 1.1), gh: 1.7,
           setbacks: [{ f: Math.round(rand(3, 6)), n: 2 }, { f: floors - Math.round(rand(3, 6)), n: 3 }] });
@@ -224,7 +237,7 @@ export function downtown(B) {
           for (const pd of zw) {
             const kind = Math.random();
             let floors = kind < 0.2 ? Math.round(rand(2, 4)) : kind > 0.9 ? Math.round(hf * rand(1.4, 2.0)) : Math.round(hf * rand(0.5, 1.3));
-            floors = Math.max(2, Math.min(32, floors));
+            floors = Math.max(2, Math.min(17, floors));
             const style = floors > 11 ? pick(['office', 'office', 'concrete']) : pick(['brick', 'brick', 'brick', 'concrete']);
             // not every building fills its lot; leaves small gaps, alleys and forecourts
             const shrinkW = Math.random() < 0.3 ? rand(0.3, 1.4) : 0, shrinkD = Math.random() < 0.3 ? rand(0.3, 1.4) : 0;
@@ -242,6 +255,7 @@ export function downtown(B) {
       crowdsAroundBlock(city, b, 0.35 + busy * 0.45, 0.12 + busy * 0.3);
     }
   }
+  buildLandmarks(ctx, landmarkBlocks);
   outskirts(ctx, 'city');
   return { ...ctx, agents: { cars: 60, peds: 400, wanderFrac: 0.1 }, fog: 0xc6cdd3, start: { x: 0, z: 8 }, water: { shore: -74, axis: 'x' }, xMin: -110 };
 }

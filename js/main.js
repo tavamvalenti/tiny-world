@@ -29,6 +29,7 @@ import { Sky } from './sky.js';
 import { Director } from './director.js';
 import { initMenu } from './menu.js';
 import { Playa, terrainH } from './playa.js';
+import { SanDiego } from './sandiego.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -162,6 +163,7 @@ function load(name) {
   G.harbor = map.city.shoreX != null ? new Harbor(scene, map.city, map.g) : null;
   map.city.build(scene);
   G.playa = map.city.playa ? new Playa(scene, map.city) : null;
+  G.sandiego = map.city.landmarks ? new SanDiego(scene, map.city) : null;
   buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
@@ -327,6 +329,7 @@ function step(dt) {
   G.responders.update(dt);
   G.station && G.station.update();
   G.playa && G.playa.update(dt);
+  G.sandiego && G.sandiego.update();
   G.construction && G.construction.update(dt);
   G.world.update(dt);
   G.director && G.director.update(dt);
