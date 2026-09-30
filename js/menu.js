@@ -483,7 +483,7 @@ function starfield(menu, after) {
     const dt = Math.min(0.1, (t - last) / 1000);
     last = t;
     nextMeteor -= dt * 1000;
-    if (nextMeteor <= 0) { launch(t); if (Math.random() < 0.15) setTimeout(() => launch(performance.now()), 250 + Math.random() * 500); nextMeteor = 4000 + Math.random() * 7000; }
+    if (nextMeteor <= 0) { launch(t); if (Math.random() < 0.1) setTimeout(() => launch(performance.now()), 250 + Math.random() * 500); nextMeteor = 7000 + Math.random() * 9000; }
     cx.clearRect(0, 0, W, H); band();
     const s = t / 1000;
     for (const p of stars) {
