@@ -669,26 +669,53 @@ export const REACT = ['What was that?', 'Did you see that?', 'What happened?', '
 export function pickLine(arr) { return arr[(Math.random() * arr.length) | 0]; }
 
 
-// ---------- concert music: OMERTA (assets/omerta.mp3), looping from one spot in the world ----------
-// The track plays through a lowpass/gain/pan that tracks the camera, so it is faint and muffled from across
-// the map and fuller up close, plus a crowd bed. Its tempo and first downbeat were measured offline from the
-// file (beat-grid fit over the whole track), and that beat clock drives the crowd's jumping and the pyro.
-const TRACK = 'assets/omerta.mp3';
-const TEMPO = { bpm: 151.5, offset: 0.29 };
+// ---------- concert music: the Summer Smash set (OMERTA + three Chuckyy tracks), from one spot in the world ----------
+// The set plays in order and loops back round, with a short break between songs while the crowd cheers. It goes
+// through a lowpass/gain/pan that tracks the camera, so it is faint and muffled from across the map and fuller up
+// close, plus a crowd bed. Each song's tempo and first downbeat were measured offline from the file (beat-grid fit
+// over the whole track), and that beat clock drives the crowd's jumping and the pyro.
+const SET = [
+  { url: 'assets/omerta.mp3', bpm: 151.5, offset: 0.29 },
+  { url: 'assets/2am.mp3', bpm: 126, offset: 0.015 },
+  { url: 'assets/free-smurk.mp3', bpm: 123.25, offset: 0.472 },
+  { url: 'assets/testimony.mp3', bpm: 139.75, offset: 0.417 },
+];
+const GAP = 2.5;                                          // seconds between songs
 export const music = {
-  bus: null, t0: 0, x: 0, z: 0, on: false, crowd: null, buf: null, tempo: TEMPO,
+  bus: null, t0: 0, x: 0, z: 0, on: false, crowd: null, buf: null, tempo: SET[0], k: 0, beatBase: 0,
   get bpm() { return this.tempo.bpm; },
-  // beats since the song started, aligned to what is currently heard (and to the loop)
+  // beats since the set started, aligned to what is currently heard (holds still in the breaks between songs)
   beat() {
     const bpm = this.tempo.bpm;
     if (!ctx || !this.on || !this.buf) return G.time * bpm / 60;
-    const el = Math.max(0, now() - (ctx.outputLatency || 0.02) - this.t0), dur = this.buf.duration, bd = 60 / bpm;
-    const loops = Math.floor(el / dur), pos = el - loops * dur;
-    return loops * Math.ceil(dur / bd) + (pos - this.tempo.offset) / bd;
+    const el = now() - (ctx.outputLatency || 0.02) - this.t0;
+    return this.beatBase + Math.max(0, el - this.tempo.offset) / (60 / bpm);
+  },
+  // decoded audio is big, so only the playing song and the next one are ever held
+  load(k) { return fetch(SET[k].url).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)); },
+  play(buf, k, at) {
+    if (this.buf) {                                       // carry the beat count over the song change
+      const played = Math.max(0, this.buf.duration - this.tempo.offset) / (60 / this.tempo.bpm);
+      this.beatBase += Math.ceil(played);
+    }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(this.in);
+    this.buf = buf; this.tempo = SET[k]; this.k = k; this.t0 = at; this.src = src; this.on = true;
+    src.start(at);
+    src.onended = () => { if (this.src === src) this.next(); };
+    const n = (k + 1) % SET.length;
+    this.upcoming = this.load(n).then((b) => ({ b, n })).catch((e) => { console.warn('concert track unavailable', SET[n].url, e); return null; });
+  },
+  next() {
+    this.swell(0.45, GAP);                                // the crowd cheers between songs
+    const p = this.upcoming || Promise.resolve(null);
+    p.then((r) => {
+      if (r) this.play(r.b, r.n, now() + GAP);
+      else { const n = (this.k + 1) % SET.length; this.k = n; this.load(n).then((b) => this.play(b, n, now() + 0.5)).catch(() => {}); }
+    });
   },
   start(x, z) {
     this.x = x; this.z = z;
-    if (!init() || this.out) return;                     // build the chain once; the track loads in the background
+    if (!init() || this.out) return;                     // build the chain once; the first song loads in the background
     const out = ctx.createGain(); out.gain.value = 0;
     this.lp = filt('lowpass', 1200, 0.6); this.pan = ctx.createStereoPanner(); this.send = amp(0.3);
     this.bus = amp(VOL.music); this.in = amp(1);
@@ -698,12 +725,7 @@ export const music = {
     // crowd bed: a broad roar that swells with the drops
     const cr = noise(pink), cf = filt('bandpass', 900, 0.5); this.crowdG = amp(0.12);
     cr.connect(cf); cf.connect(this.crowdG); this.crowdG.connect(this.lp); cr.start();
-    fetch(TRACK).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)).then((buf) => {
-      this.buf = buf;
-      const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.connect(this.in);
-      this.t0 = now() + 0.1; src.start(this.t0);
-      this.src = src; this.on = true;
-    }).catch((e) => console.warn('concert track unavailable', e));
+    this.load(0).then((buf) => this.play(buf, 0, now() + 0.1)).catch((e) => console.warn('concert track unavailable', e));
   },
   stop() { if (this.on && this.out) this.out.gain.setTargetAtTime(0, now(), 0.3); },
   // call every frame: moves the mix with the camera (the track keeps rolling underneath while the show is halted)
