@@ -22,6 +22,14 @@
   placed people work (patrol, fight fires, treat the injured); police HQ on every map (`js/station.js` + guard detail in
   responders.js, threats near it are shot at once; police dispatch from HQ); motorcycles with riders in traffic;
   faster fire response (trucks roll in ~1 s, traffic pulls over, crews spray as soon as they're in range).
+- **Phase 2, people with reasons to be there** (2026-09-30): `js/roles.js` adds roles on existing pedestrians (no extra NPCs):
+  uniforms plus instanced accessories and one shared job runner (walk, act, carry, go inside, talk). Staffing is per map:
+  Gaslamp has hotel, restaurant, harbor and stadium crews; Chicago has festival staff, security, cleanup and vendors;
+  La Playa has resort staff, lifeguards, beach crew and tourists. Delivery vans stop and unload, and parked drivers run errands and drive off.
+  `js/construction.js` adds 3–6 unfinished buildings per map (bare top floors, steel frame, scaffolding with netting,
+  hoarding, materials, a mixer truck), tower cranes that lift loads, and window-washer gondolas on the Gaslamp towers.
+  Distance LOD: far jobs tick at 4 Hz, accessories are hidden when far, and both distances pull in when the FPS drops.
+  Not yet: La Playa rebuild, birds, planes, news, big event library.
 - Artifact republished: https://claude.ai/artifact/71DVzhiQHyfQR28ge9C7TV
 
 ## Publishing

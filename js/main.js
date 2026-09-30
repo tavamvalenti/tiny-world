@@ -22,6 +22,8 @@ import { Gore } from './gore.js';
 import { World, MENU } from './world.js';
 import { Responders } from './responders.js';
 import { Station } from './station.js';
+import { pickSites, Construction } from './construction.js';
+import { Roles } from './roles.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -134,6 +136,7 @@ function load(name) {
   const facades = makeFacades();
   const B = new Buildings(facades);
   const map = MAPS[name](B);
+  const sites = pickSites(B, map.city, name);             // a few buildings are still going up
   const density = { low: 0.5, normal: 1, high: 1.5 }[settings.crowds] || 1;
   map.agents.peds = Math.round(map.agents.peds * density);
   if (map.city.crowds) for (const c of map.city.crowds) c.n = Math.max(1, Math.round(c.n * density));
@@ -148,6 +151,7 @@ function load(name) {
   if (map.water) { water = makeWater(map.water.shore, map.water.axis); scene.add(water.mesh); }
 
   B.finalize(scene);
+  G.construction = new Construction(scene, sites, map.city, name);
   G.harbor = map.city.shoreX != null ? new Harbor(scene, map.city, map.g) : null;
   map.city.build(scene);
   buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
@@ -162,6 +166,7 @@ function load(name) {
   G.gore = new Gore(scene);
   G.agents = new Agents(scene, map.city, map.agents);
   G.chaos = new Chaos(G.agents);
+  new Roles(scene, map.city, name, sites);                 // sets G.roles
   G.responders = new Responders(scene, map.city);
   G.station = map.city.policeHQ ? new Station(scene, map.city.policeHQ, name) : null;
   G.world = new World(scene);
@@ -289,10 +294,12 @@ function step(dt) {
   signs && signs.update();
   ambience && ambience.update(dt);
   updateBoats(dt);
+  G.roles && G.roles.update(dt);
   G.agents.update(dt);
   G.chaos.update(dt);
   G.responders.update(dt);
   G.station && G.station.update();
+  G.construction && G.construction.update(dt);
   G.world.update(dt);
   updatePlacing(dt);
   G.weapons.update(dt, input);

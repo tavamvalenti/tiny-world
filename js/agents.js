@@ -6,6 +6,7 @@ import { sfx } from './audio.js';
 const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _m3 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), _e = new THREE.Euler();
 const UP = new THREE.Vector3(0, 1, 0), XAX = new THREE.Vector3(1, 0, 0), ZAX = new THREE.Vector3(0, 0, 1);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const POSE = { aL: 0, aR: 0, oL: 0, oR: 0, lL: 0, lR: 0, dy: 0 };
 const CAR_COLORS = [0xf2f2f0, 0x1c1d20, 0x8a9096, 0xb4bac0, 0x9e1b1b, 0x1e3f73, 0x2f5d3a, 0xd9c7a0, 0x5a1f2b, 0x3a3f46, 0xcfd6dc, 0x7a5230];
 const SHIRTS = [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a, 0xd87a3a, 0x9a5fb0, 0xf0f0f0, 0x6fb3c9, 0xc94f7c, 0x1f2a44, 0x8a8f96];
 const PANTS = [0x2a3448, 0x1f1f22, 0x5a5044, 0x7b8794, 0x3c4a3a, 0xb8ad96, 0x33415e];
@@ -485,6 +486,7 @@ export class Agents {
         const d = this.carPoint(c, 0.55, 0.1);
         drv.pos.set(d.x, 0, d.z); drv.heading = c.heading + Math.PI / 2; drv.car = null; drv.lost = null; drv.dead = false;
         this.resumePed(drv);
+        G.roles && G.roles.parked(drv, c);                       // an errand or a delivery, then back to the car
       }, 450);
     }, 500);
   }
@@ -708,6 +710,7 @@ export class Agents {
         if ((p.respawn -= dt) <= 0) this.respawnPed(p);
         return;
       case 'incar': return;                   // riding in a car: hidden until they get out
+      case 'job': return G.roles ? G.roles.tick(p, dt) : this.resumePed(p);   // working (roles.js)
       case 'carried': return;                 // on a stretcher, moved by the paramedics
       case 'toCar': {
         const c = p.car, d = c ? this.carPoint(c, 0.62, 0.1) : null;
@@ -721,7 +724,10 @@ export class Agents {
         return;
       }
       case 'entering':
-        if ((p.timer -= dt) <= 0) { p.state = 'incar'; const c = p.car; c.driver = p; c.reserved = false; c.pullOut = rand(0.8, 1.4); }
+        if ((p.timer -= dt) <= 0) {
+          p.state = 'incar'; const c = p.car; c.driver = p; c.reserved = false; c.pullOut = rand(0.8, 1.4);
+          if (p.dropLook && G.roles) G.roles.release(p);          // off shift: the courier's uniform goes with the van
+        }
         return;
       case 'riot': {
         // rioters mill around the flashpoint, pump fists, now and then hurl something at a car
@@ -761,7 +767,7 @@ export class Agents {
       }
       case 'return': {
         const dx = p.target.x - p.pos.x, dz = p.target.z - p.pos.z, d = Math.hypot(dx, dz);
-        if (d < 0.2) { p.state = p.zone ? (p.group ? 'idle' : 'wander') : 'walk'; p.timer = rand(5, 20); return; }
+        if (d < 0.2) { if (p.job) { p.state = 'job'; return; } p.state = p.zone ? (p.group ? 'idle' : 'wander') : 'walk'; p.timer = rand(5, 20); return; }
         // head back toward the sidewalk, stepping around a wall rather than freezing against it
         const want = Math.atan2(dx, dz);
         for (const off of [0, 0.7, -0.7, 1.4, -1.4, 2.2, -2.2]) {
@@ -826,9 +832,11 @@ export class Agents {
     p.pos.set(n.x, 0, n.z); p.q.identity(); p.from = n.id; p.to = e.to; p.state = 'walk';
     this.pedColors(p.i);
     for (const m of this.pMeshes) if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    G.roles && G.roles.respawned(p);
   }
   resumePed(p) {
     const C = this.city;
+    if (p.job) { p.hidden = false; p.carry = false; p.pose = null; p.job.steps = []; p.job.k = 0; p.job.chat = null; p.state = 'return'; p.target = { x: p.job.home.x, z: p.job.home.z }; return; }
     if (p.zone) { p.state = 'return'; p.target = { x: clamp(p.pos.x, p.zone.x0, p.zone.x1), z: clamp(p.pos.z, p.zone.z0, p.zone.z1) }; return; }
     let best = null, bd = 1e9;
     for (const n of C.pedNodes) { if (!n.edges.length) continue; const d = Math.hypot(n.x - p.pos.x, n.z - p.pos.z); if (d < bd && !C.obstacleNear(n.x, n.z, 0.5)) { bd = d; best = n; } }
@@ -869,6 +877,7 @@ export class Agents {
       }
     }
     for (const p of this.peds) {
+      if (p.state === 'job' && p.hidden) continue;             // indoors
       const dx = p.pos.x - x, dz = p.pos.z - z, d = Math.hypot(dx, dz) + 0.01;
       if (d > r * 1.2) continue;
       p.threat = threat;
@@ -885,7 +894,8 @@ export class Agents {
           this.launch(p, { x: dx / d, z: dz / d }, f * 1.3, f * (kind === 'wind' ? 0.6 : 1.1), false, 10); scared++; continue;
         }
       }
-      if (p.state === 'walk' || p.state === 'wait' || p.state === 'wander' || p.state === 'idle' || p.state === 'return') {
+      if (p.state === 'walk' || p.state === 'wait' || p.state === 'wander' || p.state === 'idle' || p.state === 'return' || p.state === 'job') {
+        if (p.state === 'job') { p.carry = false; p.pose = null; if (p.pos.y > 0.3) p.pos.y = 0; }
         p.state = 'alert'; p.timer = rand(0.1, 0.7); scared++;
       } else if (p.state === 'flee') p.timer = Math.max(p.timer, rand(3, 6));
     }
@@ -1001,28 +1011,32 @@ export class Agents {
 
     for (const p of this.peds) {
       this.updatePed(p, dt);
-      if (p.state === 'gone' || p.state === 'incar') { for (const m of this.pMeshes) m.setMatrixAt(p.i, ZERO); continue; }
-      const moving = p.state === 'walk' || p.state === 'flee' || p.state === 'wander' || p.state === 'return' || p.state === 'toCar' || (p.state === 'riot' && p.target && Math.hypot(p.target.x - p.pos.x, p.target.z - p.pos.z) > 0.15);
+      if (p.state === 'gone' || p.state === 'incar' || (p.hidden && p.state === 'job')) { for (const m of this.pMeshes) m.setMatrixAt(p.i, ZERO); if (p.slot != null) G.roles.draw(p, null, null); continue; }
+      const moving = p.state === 'walk' || p.state === 'flee' || p.state === 'wander' || p.state === 'return' || p.state === 'toCar' || (p.state === 'job' && p.jmove) || (p.state === 'riot' && p.target && Math.hypot(p.target.x - p.pos.x, p.target.z - p.pos.z) > 0.15);
       const run = p.state === 'flee';
       const cyc = G.time * (run ? 13 : 7.5) + p.phase;
       const bob = moving ? Math.abs(Math.sin(cyc)) * (run ? 0.035 : 0.018) : 0;
       if (p.state === 'air') _q.copy(p.q);
       else if (p.state === 'down' || p.state === 'carried') _q.setFromAxisAngle(UP, p.heading).multiply(new THREE.Quaternion().setFromAxisAngle(XAX, Math.PI / 2));
       else { _q.setFromAxisAngle(UP, p.heading); if (run) _q.multiply(new THREE.Quaternion().setFromAxisAngle(XAX, 0.2)); }
-      _p.set(p.pos.x, p.pos.y + bob + (p.state === 'down' ? 0.06 : 0), p.pos.z);
-      _m.compose(_p, _q, _s.set(p.s, p.s, p.s));
-      const i = p.i;
-      this.pTorso.setMatrixAt(i, _m); this.pHead.setMatrixAt(i, _m); this.pHair.setMatrixAt(i, _m);
       let leg = 0, arm = 0, armOut = 0.1;
       if (moving) { leg = Math.sin(cyc) * (run ? 0.8 : 0.45); arm = -leg * (run ? 1.1 : 0.8); }
       else if (p.state === 'air') { leg = Math.sin(G.time * 18 + p.phase) * 0.7; arm = -leg; armOut = 1.1; }
       else if (p.state === 'alert') { armOut = 0.35; }
       else if (p.state === 'idle' && p.group) arm = Math.max(0, Math.sin(G.time * 1.3 + p.phase * 3)) * 0.7; // talking with hands
       else if (p.state === 'riot' || p.state === 'entering') { arm = p.state === 'riot' ? -2.6 + Math.sin(G.time * 7 + p.phase) * 0.5 : -0.8; }
-      this.limb(this.pLegL, i, 0.034, 0.31, leg);
-      this.limb(this.pLegR, i, -0.034, 0.31, -leg);
-      this.limb(this.pArmL, i, 0.084, 0.535, arm, armOut);
-      this.limb(this.pArmR, i, -0.084, 0.535, p.state === 'idle' ? 0 : -arm, -armOut);
+      // working poses (hammering, sweeping, carrying, radio...) from roles.js
+      const o = POSE; o.aL = arm; o.aR = p.state === 'idle' ? 0 : -arm; o.oL = armOut; o.oR = armOut; o.lL = leg; o.lR = -leg; o.dy = 0;
+      if (p.role && G.roles) G.roles.pose(p, o, moving);
+      _p.set(p.pos.x, p.pos.y + bob + o.dy + (p.state === 'down' ? 0.06 : 0), p.pos.z);
+      _m.compose(_p, _q, _s.set(p.s, p.s, p.s));
+      const i = p.i;
+      this.pTorso.setMatrixAt(i, _m); this.pHead.setMatrixAt(i, _m); this.pHair.setMatrixAt(i, _m);
+      this.limb(this.pLegL, i, 0.034, 0.31, o.lL);
+      this.limb(this.pLegR, i, -0.034, 0.31, o.lR);
+      this.limb(this.pArmL, i, 0.084, 0.535, o.aL, o.oL);
+      this.limb(this.pArmR, i, -0.084, 0.535, o.aR, -o.oR);
+      if (p.slot != null) G.roles.draw(p, _m, _m3);
       if (p.lost) {
         if (p.lost.armL) this.pArmL.setMatrixAt(i, ZERO);
         if (p.lost.armR) this.pArmR.setMatrixAt(i, ZERO);
@@ -1032,5 +1046,6 @@ export class Agents {
       }
     }
     for (const m of this.pMeshes) m.instanceMatrix.needsUpdate = true;
+    G.roles && G.roles.flush();
   }
 }

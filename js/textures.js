@@ -219,6 +219,17 @@ export function makeFacades() {
     for (let x = 20; x < 236; x += 18) c.lineTo(x, S * 2 - 110 + (Math.random() - 0.5) * 40);
     c.stroke();
   });
+  // construction: bare concrete frame, empty dark openings (no glass, so nothing lights at night), rebar stubs
+  F.site = mk((c) => {
+    c.fillStyle = '#9d9a94'; c.fillRect(0, 0, S, S * 2);
+    for (let y = 0; y < S * 2; y += S) {
+      c.fillStyle = '#b9b5ad'; c.fillRect(0, y, S, 26);                       // slab edge
+      c.fillStyle = '#2a2826'; c.fillRect(18, y + 40, S - 36, S - 70);         // open bay
+      c.fillStyle = '#8f8b84'; c.fillRect(S / 2 - 9, y + 40, 18, S - 70);      // column
+      c.fillStyle = 'rgba(120,70,40,.7)'; for (let x = 10; x < S; x += 22) c.fillRect(x, y + 18, 3, 10);  // rebar
+    }
+    for (let i = 0; i < 12; i++) { c.fillStyle = `rgba(60,55,50,${0.1 + Math.random() * 0.15})`; c.fillRect(Math.random() * S, Math.random() * S * 2, 4 + Math.random() * 14, 30 + Math.random() * 90); }
+  });
   F.garage = mk((c) => {
     commonBrick(c);
     // roll-up garage door with horizontal panels, rust and a tag
