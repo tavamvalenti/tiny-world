@@ -83,6 +83,7 @@ function init() {
     noiseBuffers();
     buildVoices();
     loadRecorded();
+    loadSamples();
     return true;
   } catch (e) { console.warn('audio unavailable', e); return false; }
 }
@@ -266,6 +267,32 @@ function recorded(kind, x, z, vol = 1) {
   s.onended = () => { REC.playing[kind] = Math.max(0, REC.playing[kind] - 1); };
   return true;
 }
+
+// ---------- recorded sound effects (assets/sfx-*.mp4): bat, crowd, fire, cars, sirens ----------
+// Decoded at 22 kHz mono and levelled to the same peak; each one is played as a slice (with short fades) through
+// the same positional chain as everything else, so distance muffling still applies.
+const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fire: 'assets/sfx-fire.mp4', cars: 'assets/sfx-cars.mp4', fireSiren: 'assets/sfx-firetruck.mp4', policeSiren: 'assets/sfx-police.mp4' };
+const SMP = {};
+function loadSamples() {
+  const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
+  for (const [k, url] of Object.entries(SFX_FILES)) fetch(url).then((r) => r.arrayBuffer()).then((ab) => dec.decodeAudioData(ab)).then((b) => {
+    const d = b.getChannelData(0); let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
+    if (pk > 0) for (let i = 0; i < d.length; i++) d[i] *= 0.9 / pk;
+    SMP[k] = b;
+  }).catch((e) => console.warn('sound effect unavailable', url, e));
+}
+function sample(name, x, z, { vol = 1, offset = 0, dur = null, fade = 0.05, rate = 1, bus = sfxBus, echo = 0 } = {}) {
+  const buf = SMP[name];
+  if (!buf || A.muted) return null;
+  const ch = chain(x, z, { vol, bus, echoAmt: echo }), s = ctx.createBufferSource(), g = amp(0), t = now();
+  const D = Math.min(dur ?? buf.duration - offset, (buf.duration - offset) / rate);
+  s.buffer = buf; s.playbackRate.value = rate; s.connect(g); g.connect(ch.input);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + fade);
+  g.gain.setValueAtTime(1, t + Math.max(fade, D - fade)); g.gain.linearRampToValueAtTime(0, t + D);
+  s.start(t, offset, D + 0.05);
+  return { ch, s, g, D };
+}
+let carsPlaying = 0, fireLoop = null;
 
 function voice(kind, x, z, vol = 1, rate = 1) {
   // screams use the recordings once they're loaded; if too many are already going, this one stays silent
@@ -692,6 +719,27 @@ export const sfx = {
   },
   siren(type) {
     if (!init()) return null;
+    const rec = SMP[type === 'fire' ? 'fireSiren' : 'policeSiren'];
+    if (rec) {
+      // a recorded siren looping (the fire truck's horn blasts included); ambulances run the wail a touch faster
+      const ch = chain(0, 0, { vol: 0.34, echoAmt: 0.3 }), s = ctx.createBufferSource(), g = amp(0.0001);
+      s.buffer = rec; s.loop = true;
+      if (type === 'fire') { s.loopStart = 0.6; s.loopEnd = 10.2; } else { s.loopStart = 0.5; s.loopEnd = rec.duration - 0.5; }
+      s.playbackRate.value = type === 'ambulance' ? 1.12 : 1;
+      s.connect(g); g.connect(ch.input); s.start(now(), type === 'fire' ? 0.6 : Math.random() * 20);
+      const h = {
+        ch, g, on: false,
+        set(x, z, on) { this.ch.move(x, z, 0.2); if (on !== this.on) { this.on = on; g.gain.setTargetAtTime(on ? 0.55 : 0.0001, now(), 0.6); } },
+        stop(slow = false) {
+          const t = now(), tc = slow ? 2.8 : 0.3, end = slow ? 16 : 1.5;
+          g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.setTargetAtTime(0.0001, t, tc);
+          if (slow) s.playbackRate.setTargetAtTime(s.playbackRate.value * 0.85, t, 4);
+          s.stop(t + end); sirens.delete(h);
+        },
+      };
+      sirens.add(h);
+      return h;
+    }
     const ch = chain(0, 0, { vol: 0.34, echoAmt: 0.3 });
     const o = osc(type === 'fire' ? 'sawtooth' : 'square', 700), lp = filt('lowpass', 2200), g = amp(0.0001);
     const lfo = osc(type === 'ambulance' ? 'square' : 'sine', type === 'police' ? 0.28 : type === 'ambulance' ? 1.6 : 0.18);
@@ -716,6 +764,37 @@ export const sfx = {
     };
     sirens.add(h);
     return h;
+  },
+  // the crack of an aluminium bat (one of eight takes)
+  bat(x, z, v = 1) { return init() ? sample('bat', x, z, { vol: 1.3 * v, offset: Math.floor(Math.random() * 8) * 1.0, dur: 0.8, fade: 0.004 }) : null; },
+  // a stadium crowd erupting: a slice of the roar, longer and louder for bigger moments
+  cheer(x, z, level = 0.6) {
+    if (!init()) return null;
+    const d = 2.2 + level * 4;
+    return sample('cheer', x, z, { vol: 0.35 + level * 0.9, offset: 1.5 + Math.random() * Math.max(0.1, 13.5 - d), dur: d, fade: Math.min(0.9, d * 0.25), bus: ambBus, echo: 0.3 });
+  },
+  // two cars going by (one pass of the recording), following the car it belongs to
+  carBy(c) {
+    if (!init() || carsPlaying >= 1 || !SMP.cars || now() - (sfx.lastCars || -99) < 7) return false;
+    sfx.lastCars = now();
+    const h = sample('cars', c.pos.x, c.pos.z, { vol: 0.55, offset: Math.random() < 0.5 ? 3.3 : 7.2, dur: 4.4, fade: 0.9, bus: ambBus });
+    if (!h) return false;
+    carsPlaying++;
+    const iv = setInterval(() => h.ch.move(c.pos.x, c.pos.z, 0.2), 200);
+    setTimeout(() => { clearInterval(iv); carsPlaying--; }, h.D * 1000 + 100);
+    return true;
+  },
+  // one crackling-fire loop that sits on the nearest blaze to the camera, louder the more is burning
+  fire(x, z, level) {
+    if (!init() || !SMP.fire) return;
+    if (!fireLoop) {
+      const ch = chain(x, z, { vol: 1, bus: ambBus }), s = ctx.createBufferSource(), g = amp(0);
+      s.buffer = SMP.fire; s.loop = true; s.loopStart = 0.5; s.loopEnd = SMP.fire.duration - 0.5;
+      s.connect(g); g.connect(ch.input); s.start(now(), Math.random() * 20);
+      fireLoop = { ch, g };
+    }
+    fireLoop.ch.move(x, z, 0.4);
+    fireLoop.g.gain.setTargetAtTime(A.muted ? 0 : level, now(), 0.6);
   },
   _internals: () => ({ ctx, chain, burst, tone, noise, filt, amp, osc, voice, ambBus, sfxBus, voiceBus, white, pink, brown, voicePool, spatial, say }),
 };
@@ -775,6 +854,7 @@ export const music = {
   },
   next() {
     this.swell(0.45, GAP);                                // the crowd cheers between songs
+    sfx.cheer && sfx.cheer(this.x, this.z - 12, 0.75);
     const p = this.upcoming || Promise.resolve(null);
     p.then((r) => {
       if (r) this.play(r.b, r.n, now() + GAP);

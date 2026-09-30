@@ -542,7 +542,7 @@ export class Baseball {
   reset() { this.halted = 0; this.warm = false; for (const p of this.all) { p.fly = null; p.leaving = false; p.g.visible = false; p.g.rotation.set(0, 0, 0); } }
 
   // ---------- sounds ----------
-  crack(v = 1) { const I = sfx._internals(); if (!I.ctx) return; const w = this.W(0, 0), ch = I.chain(w.x, w.z, { vol: 1.2 * v }), t = I.ctx.currentTime; I.burst(ch.input, t, { type: 'highpass', f: 2200, a: 0.001, peak: 0.9, d: 0.05 }); I.tone(ch.input, t, { type: 'triangle', f: 1500, a: 0.001, peak: 0.25, d: 0.07 }); }
+  crack(v = 1) { const w0 = this.W(0, 0); if (sfx.bat && sfx.bat(w0.x, w0.z, v)) return; const I = sfx._internals(); if (!I.ctx) return; const w = this.W(0, 0), ch = I.chain(w.x, w.z, { vol: 1.2 * v }), t = I.ctx.currentTime; I.burst(ch.input, t, { type: 'highpass', f: 2200, a: 0.001, peak: 0.9, d: 0.05 }); I.tone(ch.input, t, { type: 'triangle', f: 1500, a: 0.001, peak: 0.25, d: 0.07 }); }
   pop(v = 0.8) { const I = sfx._internals(); if (!I.ctx) return; const w = this.W(-0.4, -0.4), ch = I.chain(w.x, w.z, { vol: v }), t = I.ctx.currentTime; I.burst(ch.input, t, { type: 'lowpass', f: 700, a: 0.001, peak: 0.7, d: 0.05 }); }
 
   // ---------- the video board ----------
@@ -626,6 +626,7 @@ class Crowd {
     this.fill = -1; this.setFill(1);
     scene.add(this.mesh);
     this.hype = 0.05; this.hypeT = 0; this.arms = 0; this.wave = -1;
+    this.center = park.center;
   }
   place(i, show) {
     const [x, y, z, yaw] = this.pts[i];
@@ -641,7 +642,8 @@ class Crowd {
   }
   cheer(level, dur) {
     this.hype = Math.max(this.hype, level); this.hypeT = dur; this.arms = level > 0.6 ? 1 : 0.4;
-    if (G.ambience && G.ambience.stadium) { G.ambience.stadium(); if (level > 0.6) setTimeout(() => G.ambience.stadium(), 700); }
+    const c = this.center;
+    if (!(sfx.cheer && sfx.cheer(c.x, c.z, level)) && G.ambience && G.ambience.stadium) { G.ambience.stadium(); if (level > 0.6) setTimeout(() => G.ambience.stadium(), 700); }
   }
   groan() { this.hype = 0.02; this.hypeT = 2; this.arms = 0; }
   onBlast(x, y, z, r, power) {

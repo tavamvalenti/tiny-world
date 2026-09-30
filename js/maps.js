@@ -383,7 +383,7 @@ export function tropical(B) {
   for (const x of [-58, -10, 16, 42]) city.playa.food.push({ x: x + 3, z: 68.2, kind: pick(['taco', 'fruit']) });
   buildHills(ctx);
   outskirts(ctx, 'tropical');
-  return { ...ctx, agents: { cars: 52, peds: 340, wanderFrac: 0.35 }, fog: 0xcfdde3, start: { x: 0, z: 4 }, water: { shore }, zMin: -40, zMax: 112, yaw: Math.PI + 0.28, maxD: 200 };
+  return { ...ctx, agents: { cars: 52, peds: 340, wanderFrac: 0.35 }, fog: 0xcfdde3, start: { x: 0, z: 4 }, water: { shore }, zMin: -40, zMax: 112, yaw: Math.PI + 0.28 };
 }
 
 // ================= CHICAGO =================

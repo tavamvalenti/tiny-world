@@ -66,6 +66,17 @@ export class Ambience {
   update(dt) {
     if (!sfx.ready) return;
     if (!this.started) this.start();
+    // fire: the crackle sits on the nearest blaze to the view, louder the more is burning around it
+    if ((this.fireT = (this.fireT || 0) - dt) <= 0) {
+      this.fireT = 0.5;
+      const T0 = G.camTarget; let best = null, bd = 70, n = 0;
+      const see = (x, z) => { const d = Math.hypot(x - T0.x, z - T0.z); if (d < 70) n++; if (d < bd) { bd = d; best = { x, z }; } };
+      for (const c of G.buildings.burning) if (c.alive && c.fire > 0) see(c.x, c.z);
+      for (const c of G.agents.cars) if (c.fire > 0 && c.state !== 'hidden') see(c.pos.x, c.pos.z);
+      for (const f of G.fx.groundFires || []) if (f.t > 0) see(f.x, f.z);
+      if (best) sfx.fire(best.x, best.z, Math.min(1.1, 0.35 + n * 0.06)); else if (this.fireOn) sfx.fire(T0.x, T0.z, 0);
+      this.fireOn = !!best;
+    }
     const L = this.levels, T = G.camTarget;
     // zoomed right in on someone: they (or whoever's next to them) say something every few seconds
     if (T.dist < 48 && (this.closeT = (this.closeT ?? 1) - dt) <= 0) {
@@ -137,6 +148,7 @@ export class Ambience {
       case 'car': {
         const c = this.near(G.agents.cars, 55, (c) => c.state === 'drive' && c.speed > 1);
         if (!c) return;
+        if (Math.random() < 0.15 && sfx.carBy && sfx.carBy(c)) return;             // the recorded drive-by, now and then
         const ch = I.chain(c.pos.x, c.pos.z, { bus: I.ambBus, vol: R(0.3, 0.6) });
         const d = R(1.5, 3);
         I.burst(ch.input, t, { buf: I.pink, type: 'bandpass', f: 500, sweep: 250, q: 0.8, a: d * 0.45, peak: 0.25, d: d * 0.55 });
@@ -229,6 +241,7 @@ export class Ambience {
     const I = this.I, t = I.ctx.currentTime;
     const s = I.spatial(P.center.x, P.center.z);
     if (s.D > 110) return;
+    if (sfx.cheer && sfx.cheer(P.center.x, P.center.z, Math.random() < 0.3 ? 0.7 : 0.35)) return;
     const ch = I.chain(P.center.x, P.center.z, { bus: I.ambBus, vol: 1.1, wetBoost: 0.25 });
     const big = Math.random() < 0.3, d = big ? R(3, 5) : R(1.5, 3);
     I.burst(ch.input, t, { buf: I.pink, type: 'bandpass', f: big ? 900 : 700, q: 0.6, a: big ? 0.25 : 0.5, peak: big ? 0.55 : 0.25, d });

@@ -137,10 +137,10 @@
   #mapname small { display:block; font-weight:400; letter-spacing:.1em; color:rgba(255,255,255,.45); margin-top:4px; }
   #topright { position:absolute; right:16px; top:calc(4.2vh + 12px); display:flex; gap:8px; align-items:center; pointer-events:auto; }
   #tod { display:flex; gap:2px; }
-  #tod .t, #mute, #gear { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none;
+  #tod .t, #mute, #gear, #resetView { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none;
     transition:color .15s, background .15s, border-color .15s, transform .15s, box-shadow .15s; }
-  #tod .t:hover, #mute:hover, #gear:hover { color:#fff; background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.45); transform:translateY(-1px); box-shadow:0 4px 14px -6px rgba(255,255,255,.45); }
-  #tod .t:active, #mute:active, #gear:active { transform:translateY(0) scale(.97); }
+  #tod .t:hover, #mute:hover, #gear:hover, #resetView:hover { color:#fff; background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.45); transform:translateY(-1px); box-shadow:0 4px 14px -6px rgba(255,255,255,.45); }
+  #tod .t:active, #mute:active, #gear:active, #resetView:active { transform:translateY(0) scale(.97); }
   #tod .t.on { color:#fff; border-color:rgba(255,255,255,.55); }
   /* WORLD: the one glowing button in the bottom bar, an aurora gradient that breathes; brighter on hover, steady while open */
   #weapons .sep { width:1px; margin:2px 10px; background:linear-gradient(transparent, rgba(255,255,255,.3), transparent); }
@@ -176,6 +176,15 @@
   #placeHint { position:absolute; left:50%; bottom:calc(4.2vh + 60px); transform:translateX(-50%); font:600 10px Inter; letter-spacing:.2em; color:#fff; background:var(--glass); border:1px solid rgba(255,255,255,.3); padding:6px 12px; display:none; white-space:nowrap; backdrop-filter:blur(8px); }
   #placeHint.show { display:block; }
   @media (max-width:760px) { #worldMenu { flex-wrap:wrap; left:16px; right:16px; transform:none; } #worldMenu.open { animation:none; } #weapons .sep { display:none; } #worldBtn { padding:6px 12px 6px 7px; letter-spacing:.08em; font-size:11px; } #worldBtn .globe { width:18px; height:18px; } }
+  /* vertical view slider: up = toward the horizon, down = straight down; the tick marks the normal locked angle */
+  #tiltCtl { position:absolute; right:18px; top:50%; transform:translateY(-50%); width:22px; height:170px; pointer-events:auto; cursor:ns-resize; touch-action:none; opacity:.55; transition:opacity .2s; }
+  #tiltCtl:hover, #tiltCtl.drag { opacity:1; }
+  #tiltCtl .track { position:absolute; left:50%; top:0; bottom:0; width:2px; transform:translateX(-50%); background:linear-gradient(rgba(255,255,255,.08), rgba(255,255,255,.45), rgba(255,255,255,.08)); border-radius:2px; }
+  #tiltCtl .tick { position:absolute; left:50%; width:10px; height:1px; transform:translateX(-50%); background:rgba(255,255,255,.55); }
+  #tiltCtl .thumb { position:absolute; left:50%; width:12px; height:12px; border-radius:50%; transform:translate(-50%,-50%); background:#f4efe6; box-shadow:0 0 0 3px rgba(0,0,0,.25), 0 2px 8px rgba(0,0,0,.4); transition:width .15s, height .15s; }
+  #tiltCtl:hover .thumb, #tiltCtl.drag .thumb { width:14px; height:14px; }
+  #tiltCtl span { position:absolute; left:50%; bottom:-20px; transform:translateX(-50%); font:600 8px Inter; letter-spacing:.24em; color:rgba(255,255,255,.55); }
+  @media (max-width:760px) { #tiltCtl { right:10px; height:130px; } }
   #stats { position:absolute; right:16px; top:calc(4.2vh + 44px); font:400 10px Inter; letter-spacing:.1em; color:rgba(255,255,255,.4); text-align:right; }
   @media (max-width:760px) { #help { display:none; } #weapons .w { padding:8px 8px; letter-spacing:.06em; } }
 </style>
@@ -208,9 +217,11 @@
   <div id="stats"></div>
   <div id="topright">
     <div id="tod"><span class="t" data-t="day">DAY</span><span class="t" data-t="sunset">SUNSET</span><span class="t" data-t="night">NIGHT</span></div>
+    <span id="resetView" title="Back to the normal view (V)">RESET VIEW</span>
     <span id="mute">SOUND ON</span>
     <span class="open-settings" id="gear">SETTINGS</span>
   </div>
+  <div id="tiltCtl" title="Tilt the view (R / F) · double-click to reset"><i class="tick"></i><i class="track"></i><b class="thumb"></b><span>TILT</span></div>
   <div id="worldMenu"></div>
   <div id="placeHint"></div>
   <div id="weapons">
@@ -223,7 +234,7 @@
     <span id="worldBtn" title="Spawn people, vehicles, events and weather"><svg class="globe" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><ellipse class="spin" cx="12" cy="12" rx="4.2" ry="9.2"/><path d="M3 12h18M4.6 7.4h14.8M4.6 16.6h14.8"/></svg>WORLD</span>
   </div>
   <div id="help">
-    <span>WASD</span>Move<br><span>Mouse</span>Aim<br><span>Click</span>Fire (hold laser / wind)<br><span>Scroll</span>Zoom<br><span>Q / E</span>Rotate<br><span>1–5</span>Weapons<br><span>T</span>Day / sunset / night<br><span>M</span>Mute
+    <span>WASD</span>Move<br><span>Mouse</span>Aim<br><span>Click</span>Fire (hold laser / wind)<br><span>Scroll</span>Zoom<br><span>Q / E</span>Rotate<br><span>R / F</span>Tilt view (or middle-drag)<br><span>V</span>Reset view<br><span>1–5</span>Weapons<br><span>T</span>Day / sunset / night<br><span>M</span>Mute
   </div>
 </div>
 

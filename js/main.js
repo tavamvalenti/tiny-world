@@ -46,12 +46,12 @@ const post = new Post(renderer);
 G.post = post; // exposed for tuning and tests
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(24, 1, 1, 1600);
+const camera = new THREE.PerspectiveCamera(24, 1, 0.5, 1600);
 Object.assign(G, { scene, camera, renderer });
 window.G = G;
 
 // ---------- camera rig: an invisible mothership hovering over the miniature ----------
-const cam = { x: 0, z: 0, vx: 0, vz: 0, dist: 92, distT: 92, yaw: 0.32, yawT: 0.32, minD: 30, maxD: 150, half: 66, zMin: -66 };
+const cam = { x: 0, z: 0, vx: 0, vz: 0, dist: 92, distT: 92, yaw: 0.32, yawT: 0.32, minD: 12, maxD: 200, half: 66, zMin: -66, tilt: 0, tiltT: 0, yaw0: 0.32 };
 G.camTarget = cam;
 const keys = {};
 const input = { down: false, pressed: false, mx: 0, my: 0 };
@@ -185,7 +185,7 @@ function load(name) {
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
   cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half; cam.zMax = map.zMax ?? map.city.half;
-  cam.yaw = cam.yawT = map.yaw ?? 0.32; cam.maxD = map.maxD ?? 150;
+  cam.yaw = cam.yawT = cam.yaw0 = map.yaw ?? 0.32; cam.maxD = map.maxD ?? 200; cam.tilt = cam.tiltT = 0;
   if (camera.fov !== 24) { camera.fov = 24; camera.updateProjectionMatrix(); }
   $('#mapTitle').textContent = MAP_NAMES[name];
   // reuse the region label (flag/logo + place) from the menu button
@@ -224,15 +224,21 @@ function updateCamera(dt) {
   cam.x = clamp(cam.x + cam.vx * dt, cam.xMin ?? -cam.half, cam.half);
   cam.z = clamp(cam.z + cam.vz * dt, cam.zMin, cam.zMax ?? cam.half);
   const rs = 0.9 * settings.rotateSpeed / 100;
+  // vertical view: R looks up toward the horizon, F back down (V or the RESET VIEW button returns to the locked view)
+  if (keys.KeyR) cam.tiltT = clamp(cam.tiltT - dt * 0.7, -1.1, 0.5);
+  if (keys.KeyF) cam.tiltT = clamp(cam.tiltT + dt * 0.7, -1.1, 0.5);
+  cam.tilt = lerp(cam.tilt, cam.tiltT, 1 - Math.exp(-dt * 6));
+  syncTilt();
   if (keys.KeyQ) cam.yawT += dt * rs;
   if (keys.KeyE) cam.yawT -= dt * rs;
   cam.yaw = lerp(cam.yaw, cam.yawT, 1 - Math.exp(-dt * 5));
   cam.dist = lerp(cam.dist, cam.distT, 1 - Math.exp(-dt * 6));
-  const zt = clamp((cam.dist - cam.minD) / (150 - cam.minD), 0, 1);
+  const zt = clamp((cam.dist - 30) / 120, 0, 1);
   // La Playa zooms out past the usual limit into a panorama: the lens widens and the camera lowers until the
   // whole city lines up in one frame: beach, resorts, streets, the hills and the Cristo on top
   const pano = cam.maxD > 150 ? clamp((cam.dist - 150) / (cam.maxD - 150), 0, 1) : 0;
-  const pitch = lerp(lerp(0.8, 0.98, zt), 0.44, pano); // ~46° close up to ~56° far out: always the same aerial 3/4 look
+  // the locked view: ~46° close up to ~56° far out (a touch lower when you're right in close), plus any manual tilt
+  const pitch = clamp(lerp(lerp(0.8, 0.98, zt), 0.44, pano) - (cam.dist < 30 ? (30 - cam.dist) * 0.008 : 0) + cam.tilt, 0.08, 1.5);
   const fov = lerp(24, 44, pano);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   // gentle hover drift, like a massive craft holding position
@@ -242,13 +248,13 @@ function updateCamera(dt) {
   cam.ty = lerp(cam.ty || 0, G.terrainH ? G.terrainH(cam.x, cam.z) : 0, 1 - Math.exp(-dt * 3));
   camera.position.set(
     cam.x + Math.sin(cam.yaw) * Math.cos(pitch) * cam.dist + hx + (Math.random() - 0.5) * sh * 0.45,
-    Math.sin(pitch) * cam.dist + cam.ty + hy + (Math.random() - 0.5) * sh * 0.45,
+    Math.max(cam.ty + 1.2, Math.sin(pitch) * cam.dist + cam.ty + hy + (Math.random() - 0.5) * sh * 0.45),
     cam.z + Math.cos(cam.yaw) * Math.cos(pitch) * cam.dist + (Math.random() - 0.5) * sh * 0.45,
   );
   camera.lookAt(cam.x, pano * 16 + cam.ty, cam.z);
   G.shake = Math.max(0, G.shake - dt * 1.6);
   // atmospheric perspective: haze starts just behind the focus point whatever the zoom
-  if (scene.fog) { scene.fog.near = cam.dist * 1.05; scene.fog.far = cam.dist * 3.4 + 60; }
+  if (scene.fog) { scene.fog.near = Math.max(40, cam.dist * 1.05); scene.fog.far = Math.max(200, cam.dist * 3.4 + 60) + (1 - Math.min(1, pitch / 0.8)) * 250; }
   // tilt-shift band narrows as you zoom in, strengthening the miniature illusion
   post.focusY = 0.5;
   post.band = lerp(0.16, 0.3, zt);
@@ -401,6 +407,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code >= 'Digit1' && e.code <= 'Digit5') selectWeapon(+e.code.slice(5) - 1);
   if (e.code === 'Escape') { if (G.world && G.world.armed) { disarm(); return; } if (worldMenu.classList.contains('open')) { worldMenu.classList.remove('open'); $('#worldBtn').classList.remove('on'); return; } location.reload(); }
   if (e.code === 'KeyT') { tod.cycle(makeEnv); setTodButtons(); }
+  if (e.code === 'KeyV') resetView();
   if (e.code === 'KeyM') { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; }
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -417,6 +424,29 @@ canvasEl.addEventListener('mousedown', (e) => {
   input.down = true; input.pressed = true;
 });
 window.addEventListener('mouseup', (e) => { if (e.button === 0) { input.down = false; placeHold = false; } });
+// middle-mouse drag: tilt the view up/down and turn it left/right
+let midDrag = null;
+canvasEl.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); midDrag = { x: e.clientX, y: e.clientY }; } });
+window.addEventListener('mousemove', (e) => {
+  if (!midDrag) return;
+  cam.tiltT = clamp(cam.tiltT + (e.clientY - midDrag.y) * 0.004, -1.1, 0.5);
+  cam.yawT += (e.clientX - midDrag.x) * 0.004;
+  midDrag = { x: e.clientX, y: e.clientY };
+});
+window.addEventListener('mouseup', (e) => { if (e.button === 1) midDrag = null; });
+// back to the normal view: locked angle, map heading, usual zoom
+function resetView() { cam.tiltT = 0; cam.yawT = cam.yaw0; cam.distT = 92; }
+$('#resetView').addEventListener('click', resetView);
+// the tilt slider on the right edge (drag it; it follows R / F and middle-drag too)
+const TILT_MIN = -1.1, TILT_MAX = 0.5, tiltEl = $('#tiltCtl'), tiltThumb = tiltEl.querySelector('.thumb');
+tiltEl.querySelector('.tick').style.top = `${(0 - TILT_MIN) / (TILT_MAX - TILT_MIN) * 100}%`;
+let tiltDrag = false;
+const tiltFrom = (e) => { const r = tiltEl.getBoundingClientRect(); cam.tiltT = clamp(TILT_MIN + (e.clientY - r.top) / r.height * (TILT_MAX - TILT_MIN), TILT_MIN, TILT_MAX); };
+tiltEl.addEventListener('pointerdown', (e) => { e.stopPropagation(); tiltDrag = true; tiltEl.classList.add('drag'); tiltEl.setPointerCapture(e.pointerId); tiltFrom(e); });
+tiltEl.addEventListener('pointermove', (e) => { if (tiltDrag) tiltFrom(e); });
+tiltEl.addEventListener('pointerup', () => { tiltDrag = false; tiltEl.classList.remove('drag'); });
+tiltEl.addEventListener('dblclick', () => { cam.tiltT = 0; });
+function syncTilt() { tiltThumb.style.top = `${(cam.tiltT - TILT_MIN) / (TILT_MAX - TILT_MIN) * 100}%`; }
 canvasEl.addEventListener('contextmenu', (e) => { e.preventDefault(); if (G.world && G.world.armed) disarm(); });
 canvasEl.addEventListener('wheel', (e) => {
   e.preventDefault();
