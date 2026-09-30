@@ -355,12 +355,25 @@ export class Agents {
     target *= Math.abs(diff) > 0.5 ? 0.5 : 1;
     // car following / pedestrian braking / obstacle avoidance
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
+    // lights and siren: traffic ahead (both directions) and at the next junction pulls to the right and stops
+    const clearing = c.emerg && c.incident && c.sirenOn;
+    if (clearing && (c.clearT = (c.clearT || 0) - dt) <= 0) {
+      c.clearT = 0.2;
+      for (const o of this.cars) {
+        if (o === c || o.emerg || o.state !== 'drive' || o.moto && o.thrown) continue;
+        const ox = o.pos.x - c.pos.x, oz = o.pos.z - c.pos.z, along = ox * fx + oz * fz, lat = Math.abs(ox * fz - oz * fx);
+        if (along > -1 && along < 16 && lat < 3.2) o.yieldT = Math.max(o.yieldT || 0, 2.2);          // on this street, either lane
+        else if (along > 0 && along < 12 && lat < 9 && Math.hypot(ox, oz) < 12) o.yieldT = Math.max(o.yieldT || 0, 1.6);   // waiting at the junction ahead
+      }
+    }
     for (const o of this.cars) {
       if (o === c || o.state === 'hidden') continue;
       const ox = o.pos.x - c.pos.x, oz = o.pos.z - c.pos.z;
       const along = ox * fx + oz * fz;
       if (along <= 0 || along > 4) continue;
       const lat = Math.abs(ox * fz - oz * fx);
+      // a car that has pulled over is passed, not queued behind
+      if (clearing && o.yieldT > 0 && (o.yieldOff || 0) > 0.35 && along > 0.9) continue;
       if (lat < 0.55 + (o.state === 'wreck' || o.state === 'parked' ? 0.15 : 0)) {
         target = Math.min(target, Math.max(0, (along - c.len - o.len - 0.3) * 2.2));
         if (c.emerg && c.incident && !o.emerg && o.state === 'drive' && along < 4) o.yieldT = 3;

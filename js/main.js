@@ -27,6 +27,7 @@ import { Roles } from './roles.js';
 import { News } from './news.js';
 import { Sky } from './sky.js';
 import { Director } from './director.js';
+import { initMenu } from './menu.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -432,6 +433,8 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     running = true;
   }, 60);
 }));
+
+initMenu();                                                    // the title screen's miniature worlds
 
 // allow ?map=downtown for quick testing
 const qp = new URLSearchParams(location.search).get('map');

@@ -14,17 +14,41 @@
   .bar { position:fixed; left:0; right:0; height:4.2vh; background:#000; z-index:5; pointer-events:none; }
   .bar.top { top:0; } .bar.bot { bottom:0; }
 
-  #menu { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
-    background: radial-gradient(ellipse at 50% 40%, rgba(40,46,52,.55), rgba(8,9,11,.92) 70%); backdrop-filter: blur(6px); }
-  #menu h1 { font-family:'Playfair Display',serif; font-weight:500; font-size:clamp(44px,8vw,96px); letter-spacing:.08em; margin:0; }
-  #menu p.sub { margin:0 0 26px; color:var(--dim); font-style:italic; font-family:'Playfair Display',serif; font-size:clamp(15px,2vw,20px); text-align:center; padding:0 16px; }
-  #menu .maps { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; padding:0 16px; }
-  #menu button { font:600 13px Inter,sans-serif; letter-spacing:.22em; color:var(--ink); background:rgba(255,255,255,.06); border:1px solid var(--line);
-    padding:18px 30px; min-width:200px; border-radius:2px; cursor:pointer; transition:all .18s; }
-  #menu button:hover { background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.4); transform:translateY(-1px); }
-  #menu button small { display:block; font-weight:400; letter-spacing:.04em; color:var(--dim); margin-top:6px; font-size:11px; }
+  /* title screen: a dark display case; the worlds are drawn by js/menu.js on #menuStage, the buttons become captions */
+  #menu { position:fixed; inset:0; z-index:20; overflow:hidden;
+    background: radial-gradient(ellipse 70% 55% at 50% 58%, #1c2029 0%, #111318 45%, #07080a 100%); }
+  #menu::after { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%); }
+  #menuStage { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #menu h1 { position:absolute; left:0; right:0; top:calc(4.2vh + 3vh); text-align:center; margin:0; pointer-events:none; z-index:2;
+    font-family:'Playfair Display',serif; font-weight:500; font-size:clamp(38px,6.4vw,84px); letter-spacing:.14em; color:#f4efe6;
+    text-shadow:0 2px 30px rgba(0,0,0,.6); transition:opacity .6s ease, transform .9s cubic-bezier(.2,.8,.2,1); }
+  #menu p.sub { position:absolute; left:0; right:0; top:calc(4.2vh + 3vh + clamp(46px,7.6vw,100px)); margin:0; text-align:center; z-index:2; pointer-events:none;
+    color:rgba(244,239,230,.5); font-style:italic; font-family:'Playfair Display',serif; font-size:clamp(14px,1.6vw,18px); letter-spacing:.04em; transition:opacity .5s ease; padding:0 16px; }
+  #menu .maps { position:absolute; inset:0; pointer-events:none; z-index:3; }
+  #menu .maps button { position:absolute; transform:translate(-50%, 0); pointer-events:auto; background:none; border:0; padding:14px 22px 10px; min-width:0; cursor:pointer;
+    font:600 11px Inter,sans-serif; letter-spacing:.34em; color:rgba(244,239,230,.72); text-align:center; white-space:nowrap;
+    transition:color .35s ease, letter-spacing .5s cubic-bezier(.2,.8,.2,1), opacity .4s ease; outline:none; }
+  #menu .maps button::before { content:''; position:absolute; left:50%; top:4px; width:18px; height:1px; background:rgba(244,239,230,.5); transform:translateX(-50%);
+    transition:width .5s cubic-bezier(.2,.8,.2,1), background .35s; }
+  #menu .maps button .region { justify-content:center; margin-top:7px; font-size:10px; letter-spacing:.28em; color:rgba(244,239,230,.45); transition:color .35s; }
+  #menu .maps button small { display:block; max-height:0; overflow:hidden; opacity:0; transform:translateY(-4px); margin-top:0;
+    font:italic 400 14px 'Playfair Display',serif; letter-spacing:.02em; color:rgba(244,239,230,.7);
+    transition:max-height .5s ease, opacity .45s ease .05s, transform .5s cubic-bezier(.2,.8,.2,1), margin .5s ease; }
+  #menu .maps button.active, #menu .maps button:focus-visible { color:#fff; letter-spacing:.46em; }
+  #menu .maps button.active::before, #menu .maps button:focus-visible::before { width:64px; background:var(--accent); }
+  #menu .maps button.active .region { color:rgba(244,239,230,.85); }
+  #menu .maps button.active small, #menu .maps button:focus-visible small { max-height:40px; opacity:1; transform:none; margin-top:8px; }
+  #menu .maps button.dimmed { opacity:.32; }
+  #menu button.menu-settings { position:absolute; left:50%; bottom:calc(4.2vh + 22px); transform:translateX(-50%); z-index:3; background:none; border:0; border-bottom:1px solid transparent;
+    font:600 10px Inter; letter-spacing:.3em; color:rgba(244,239,230,.45); padding:6px 2px; cursor:pointer; transition:color .25s, border-color .25s, opacity .4s; }
+  #menu button.menu-settings:hover { color:#fff; border-bottom-color:rgba(255,255,255,.5); }
+  #menuFade { position:absolute; inset:0; z-index:4; background:#0d0f12; opacity:0; pointer-events:none; }
+  #menu.diving h1 { opacity:0; transform:translateY(-14px); }
+  #menu.diving p.sub, #menu.diving .menu-settings { opacity:0; }
+  #menu.diving .maps button { opacity:0; transition:opacity .35s ease; }
+  #menu.diving .maps button.chosen { opacity:1; transition:opacity .5s ease .45s; opacity:0; }
+  @media (prefers-reduced-motion: reduce) { #menu .maps button, #menu .maps button small, #menu h1 { transition:none; } }
   .region .ico.sdimg { background:#2f241d; box-shadow:none; object-fit:contain; border-radius:3px; }
-  #menu button.menu-settings { min-width:0; padding:10px 22px; margin-top:18px; font-size:11px; color:var(--dim); background:transparent; }
   #settings { position:fixed; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(6,7,9,.62); backdrop-filter:blur(6px); padding:16px; }
   .sp { width:min(520px,100%); max-height:88vh; display:flex; flex-direction:column; background:rgba(20,22,26,.96); border:1px solid var(--line); border-radius:4px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
   .sp h2 { margin:0; padding:20px 24px 12px; font:500 26px 'Playfair Display',serif; letter-spacing:.12em; }
