@@ -50,10 +50,8 @@ export class World {
     if (NO_RESPONDERS.has(type)) { ev = { type, x, z, sev: opts.severity || 1, active: true, t: 0, life: opts.life || 20, news: opts.news, tag: opts.tag }; this.misc.push(ev); }
     else ev = G.agents.report(x, z, opts.severity ?? 1, type, opts);
     // the local news picks it up (once per event; merged reports don't make a second story)
-    if (ev && !ev.reported && opts.quiet !== true) {
-      ev.reported = true; G.news && G.news.event(ev);
-      if (G.sky && ['FIRE', 'SHOOTING', 'RIOT', 'GANG_CONFLICT', 'EVACUATION'].includes(type)) G.sky.toScene(ev);   // a helicopter over the scene, sometimes
-    }
+    // (emergencies are reported to the news by agents.report; these are the ones nobody responds to)
+    if (ev && !ev.reported && opts.quiet !== true) { ev.reported = true; G.news && G.news.event(ev); }
     return ev;
   }
   resolve(ev) {

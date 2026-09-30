@@ -54,7 +54,7 @@ export class Director {
     if ((this.tick -= dt) > 0) return;
     const step = 0.5 - this.tick; this.tick = 0.5;
     // everyday stories for the ticker's quiet spells
-    if ((this.storyT = (this.storyT ?? rand(80, 140)) - step) <= 0) { this.storyT = rand(150, 260); this.story(); }
+    if ((this.storyT = (this.storyT ?? rand(30, 60)) - step) <= 0) { this.storyT = rand(60, 120); this.story(); }
     // weather drifts on its own clock
     if ((this.weatherT -= step) <= 0) { this.weatherT = rand(150, 320); this.weather(); }
     const mean = MEAN[settings.incidents] || 0;

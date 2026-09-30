@@ -545,6 +545,10 @@ export class Agents {
     }
     const inc = { x, z, sev, type, active: true, t: 0, threat: opts.threat || null, needs: opts.needs || null, delay: opts.delay ?? (type === 'FIRE' ? rand(0.6, 1.4) : rand(3, 7)), sent: false };
     this.incidents.push(inc);
+    // every emergency makes the news, whoever or whatever caused it (player, NPCs, the director, the menu)
+    inc.reported = true;
+    if (opts.quiet !== true) G.news && G.news.event(inc);
+    if (G.sky && ['FIRE', 'SHOOTING', 'RIOT', 'GANG_CONFLICT', 'EVACUATION', 'INCIDENT'].includes(type)) G.sky.toScene(inc);   // a helicopter over the scene, sometimes
     return inc;
   }
   dispatch(inc) {

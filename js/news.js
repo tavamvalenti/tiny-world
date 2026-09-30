@@ -4,8 +4,8 @@
 // La Playa's channel is in Spanish (only the banner: menus and settings stay English).
 import { G, pick } from './core.js';
 
-const SHOW = 7.5;                                   // seconds a headline stays up
-const GAP = { 2: 12, 1: 55 };                       // minimum quiet before a breaking / an everyday item
+const SHOW = 6;                                     // seconds a headline stays up
+const GAP = { 2: 2.5, 1: 18 };                      // minimum quiet before a breaking / an everyday item
 
 // channel look per tag: [tag colour, tag text colour]
 const TAGS = {
@@ -25,6 +25,7 @@ const T_EN = {
   RIOT: ['Unrest {w}; officers moving in'],
   DISTURBANCE: ['Police called to a disturbance {w}', 'Officers responding to a street fight {w}'],
   EVACUATION: ['Area {w} being evacuated', 'Evacuation under way {w}; avoid the area'],
+  INCIDENT: ['Emergency crews responding {w}', 'Police and fire units rushing to a scene {w}'],
 };
 const T_ES = {
   FIRE: ['Bomberos atienden un incendio {w}', 'Reportan humo {w}; unidades en camino'],
@@ -35,6 +36,26 @@ const T_ES = {
   RIOT: ['Disturbios {w}; policía interviene'],
   DISTURBANCE: ['Policía atiende una riña {w}', 'Reportan pelea callejera {w}'],
   EVACUATION: ['Evacúan la zona {w}', 'Evacuación en curso {w}; eviten el área'],
+  INCIDENT: ['Servicios de emergencia atienden un reporte {w}', 'Policía y bomberos se dirigen {w}'],
+};
+// the player's destruction: explosions by weapon, collapses, the damage adding up
+const B_EN = {
+  explosion: ['Explosion {w}', 'Massive blast reported {w}', 'Witnesses report a huge explosion {w}'],
+  meteor: ['Meteor strike {w}!', 'Object falls from the sky {w}; heavy damage', 'Impact crater reported {w}'],
+  wind: ['Violent winds reported {w}', 'Freak windstorm {w}'],
+  energy: ['Mysterious energy blast {w}', 'Unexplained energy surge {w}'],
+  laser: ['Beam of light sets buildings ablaze {w}', 'Mysterious beam causes fires {w}'],
+  collapse: ['Building collapses {w}', 'Part of a building comes down {w}', 'Structure collapse reported {w}'],
+  damage: ['Damage mounting {w}: {n} building sections destroyed', 'Officials survey the destruction {w}: {n} sections down'],
+};
+const B_ES = {
+  explosion: ['Fuerte explosión {w}', 'Reportan una gran explosión {w}'],
+  meteor: ['¡Cae un meteorito {w}!', 'Objeto cae del cielo {w}; graves daños'],
+  wind: ['Vientos violentos {w}', 'Ventarrón inesperado {w}'],
+  energy: ['Misteriosa descarga de energía {w}', 'Extraño estallido de energía {w}'],
+  laser: ['Rayo de luz incendia edificios {w}', 'Misterioso rayo causa incendios {w}'],
+  collapse: ['Se derrumba un edificio {w}', 'Derrumbe reportado {w}'],
+  damage: ['Aumentan los daños {w}: {n} secciones destruidas', 'Autoridades evalúan la destrucción {w}: {n} secciones'],
 };
 const R_EN = {
   FIRE: 'Fire {w} is out; crews clearing the scene', TRAFFIC_ACCIDENT: 'Road reopened {w} after earlier crash', SHOOTING: 'Police have secured the area {w}',
@@ -75,7 +96,7 @@ const CSS = `
 export class News {
   constructor(mapName, city) {
     this.map = mapName; this.city = city; this.es = mapName === 'tropical';
-    this.queue = []; this.showT = 0; this.quiet = 30; this.last = {};
+    this.queue = []; this.showT = 0; this.quiet = 10; this.last = {}; this.lastDestroyed = 0; this.dmgT = 0;
     if (!document.getElementById('newsCss')) { const st = document.createElement('style'); st.id = 'newsCss'; st.textContent = CSS; document.head.appendChild(st); }
     document.getElementById('newsTicker')?.remove();
     const el = document.createElement('div');
@@ -104,10 +125,11 @@ export class News {
   }
   post(tag, text, prio = 1, key = null) {
     // the same kind of story isn't repeated back to back
-    if (key && G.time - (this.last[key] ?? -1e9) < (prio > 1 ? 40 : 240)) return;
+    if (key && G.time - (this.last[key] ?? -1e9) < (prio > 1 ? 12 : 120)) return;
     if (key) this.last[key] = G.time;
-    if (prio > 1) { this.queue = this.queue.filter((q) => q.prio > 1); this.queue.push({ tag, text, prio }); }
-    else if (this.queue.length < 2) this.queue.push({ tag, text, prio });
+    // breaking news goes ahead of everyday items; the queue stays short so what's shown is current
+    if (prio > 1) { const k = this.queue.findIndex((q) => q.prio <= 1); this.queue.splice(k < 0 ? this.queue.length : k, 0, { tag, text, prio }); this.queue = this.queue.slice(0, 5); }
+    else if (this.queue.length < 3) this.queue.push({ tag, text, prio });
   }
   // a world event was raised
   event(ev) {
@@ -124,14 +146,30 @@ export class News {
     if (!text) return;
     this.post(tag, text, ['WEATHER_EVENT', 'FESTIVAL_EVENT', 'DISTURBANCE', 'TRAFFIC_JAM'].includes(T) ? 1.5 : 2, T);
   }
-  // ...and wrapped up (only now and then: not every scene needs a follow-up)
+  // the player's weapons (only the big ones make the news; one story per kind every few seconds)
+  onBlast(x, y, z, r, power, kind) {
+    if (!B_EN[kind] || kind === 'collapse' || (kind !== 'laser' && power < 5)) return;
+    const t = pick((this.es ? B_ES : B_EN)[kind]).replace('{w}', this.where(x, z));
+    this.post('BREAKING', t, 2, 'blast-' + kind);
+  }
+  destruction(x, z, many) {
+    if (many < 4) return;
+    this.post('BREAKING', pick((this.es ? B_ES : B_EN).collapse).replace('{w}', this.where(x, z)), 2, 'collapse');
+  }
+  // ...and wrapped up (usually: most scenes get a follow-up)
   resolved(ev) {
-    if (Math.random() > 0.45) return;
+    if (Math.random() > 0.75) return;
     const t = (this.es ? R_ES : R_EN)[ev.type];
     if (t) this.post('UPDATE', t.replace('{w}', this.where(ev.x, ev.z)), 1.2, 'up-' + ev.type);
   }
   update(dt) {
     this.quiet += dt;
+    // the damage adds up: a running tally every so often while things are being destroyed
+    if ((this.dmgT -= dt) <= 0) {
+      this.dmgT = 20;
+      const n = G.buildings ? G.buildings.destroyed : 0;
+      if (n - this.lastDestroyed >= 15) { this.lastDestroyed = n; this.post('UPDATE', pick((this.es ? B_ES : B_EN).damage).replace('{w}', this.es ? 'en La Playa' : 'in ' + CITY[this.map]).replace('{n}', n), 1.5, 'damage'); }
+    }
     if (this.showT > 0) {
       if ((this.showT -= dt) <= 0) { this.el.classList.remove('on'); this.quiet = 0; }
       return;

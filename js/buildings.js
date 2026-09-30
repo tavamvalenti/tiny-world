@@ -563,6 +563,7 @@ export class Buildings {
     G.shake = Math.max(G.shake, Math.min(1, many * 0.015));
     blast(cx, lowY, cz, 10 + many * 0.3, 1.5 + many * 0.04, 'collapse');
     if (many > 6) sfx.collapse(cx, cz, many); else sfx.crumble(cx, cz, 1);
+    G.news && G.news.destruction(cx, cz, many);
     if (many > 20 && G.emergency) G.emergency.report(cx, cz, many / 20);
   }
 
