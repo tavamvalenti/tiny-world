@@ -572,11 +572,19 @@ function fanGeo() {
   put(new THREE.CylinderGeometry(0.066, 0.056, 0.24, 5).scale(1, 1, 0.62).translate(0, 0.43, 0), 0);
   put(new THREE.IcosahedronGeometry(0.052, 0).translate(0, 0.62, 0), 1);
   for (const s of [-1, 1]) {
-    put(new THREE.CylinderGeometry(0.018, 0.015, 0.25, 3, 1, true).translate(0, 0.125, 0).rotateZ(-s * 0.38).translate(s * 0.07, 0.52, 0), 1);
+    put(new THREE.CylinderGeometry(0.018, 0.015, 0.25, 3, 1, true).translate(0, -0.125, 0).rotateZ(s * 0.12).translate(s * 0.07, 0.52, 0), 3);   // arms hang at the sides; the shader lifts them
     put(new THREE.CylinderGeometry(0.028, 0.021, 0.31, 4, 1, true).translate(s * 0.034, 0.155, 0), 2);
   }
   return mergeGeometries(parts);
 }
+// swing an arm vertex (aPart 3) up about its shoulder by lift (0 = hanging at the side, 1 = up and a little out)
+const ARM_LIFT = `
+  if (aPart > 2.5) {
+    float sd = position.x > 0.0 ? 1.0 : -1.0;
+    vec2 pv = vec2(sd * 0.07, 0.52), r = transformed.xy - pv;
+    float a = sd * clamp(armLift, 0.0, 1.0) * 2.75, ca = cos(a), sa = sin(a);
+    transformed.xy = pv + vec2(ca * r.x - sa * r.y, sa * r.x + ca * r.y);
+  }`;
 class Crowd {
   constructor(scene, park) {
     const pts = [], path = park.path, rows = park.seatRows;
@@ -607,14 +615,14 @@ class Crowd {
           attribute float aPart; attribute vec3 aC0; attribute vec3 aC1; attribute vec3 aC2; attribute vec4 aSeed; varying vec3 vFan;
           uniform float uT; uniform float uHype; uniform float uWave; uniform float uArms;`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
-          vFan = aPart < 0.5 ? aC0 : aPart < 1.5 ? aC1 : aC2;
+          vFan = aPart < 0.5 ? aC0 : aPart < 1.5 ? aC1 : aPart < 2.5 ? aC2 : aC1;
           float f = fract(uT * 1.9 + aSeed.x);
           float hop = pow(sin(3.14159 * f), 0.8);
           float wave = uWave < 0.0 ? 0.0 : exp(-pow((aSeed.w - uWave) * 16.0, 2.0));
+          // arms: up only while cheering a big moment (they come down as the cheer fades) and in the wave
+          float armLift = max(wave, uArms * aSeed.z) * (0.85 + 0.15 * hop);` + ARM_LIFT + `
           transformed.y += uHype * aSeed.y * mix(0.25, 1.0, aSeed.z) * hop + wave * 0.13;
-          transformed.x += sin(uT * 1.2 + aSeed.x * 6.28) * 0.008;
-          // arms: pumped when cheering, straight up in the wave
-          if (position.y > 0.5 && abs(position.x) > 0.06) transformed.y += uHype * 0.06 * hop + (wave + uArms * aSeed.z) * 0.12;`);
+          transformed.x += sin(uT * 1.2 + aSeed.x * 6.28) * 0.008;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vFan;')
         .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vFan;');

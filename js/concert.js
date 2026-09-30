@@ -99,25 +99,37 @@ function fanGeo() {
   put(new THREE.CylinderGeometry(0.066, 0.056, 0.24, 5).scale(1, 1, 0.62).translate(0, 0.43, 0), 0);
   put(new THREE.IcosahedronGeometry(0.052, 0).translate(0, 0.62, 0), 1);
   for (const s of [-1, 1]) {
-    put(new THREE.CylinderGeometry(0.018, 0.015, 0.25, 3, 1, true).translate(0, 0.125, 0).rotateZ(-s * 0.38).translate(s * 0.07, 0.52, 0), 1);
+    put(new THREE.CylinderGeometry(0.018, 0.015, 0.25, 3, 1, true).translate(0, -0.125, 0).rotateZ(s * 0.12).translate(s * 0.07, 0.52, 0), 3);   // arms hang at the sides; the shader lifts them
     put(new THREE.CylinderGeometry(0.028, 0.021, 0.31, 4, 1, true).translate(s * 0.034, 0.155, 0), 2);
   }
   return mergeGeometries(parts);
 }
-// jumping in the vertex shader: per-instance phase/amplitude, shared beat uniform; optional 3-colour fans
+// swing an arm vertex (aPart 3) up about its shoulder by lift (0 = hanging at the side, 1 = up and a little out)
+const ARM_LIFT = `
+  if (aPart > 2.5) {
+    float sd = position.x > 0.0 ? 1.0 : -1.0;
+    vec2 pv = vec2(sd * 0.07, 0.52), r = transformed.xy - pv;
+    float a = sd * clamp(armLift, 0.0, 1.0) * 2.75, ca = cos(a), sa = sin(a);
+    transformed.xy = pv + vec2(ca * r.x - sa * r.y, sa * r.x + ca * r.y);
+  }`;
+// jumping in the vertex shader: per-instance phase/amplitude, shared beat uniform; optional 3-colour fans.
+// Arms go up only while the show is on (uHype): each fan now and then for part of a four-bar cycle, pumping on the
+// beat, everyone together on a drop (uLift), and phone-holders keep that hand up. Halt or end the show and they drop.
 function jumpify(mat, U, fan = false) {
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uBeat = U.beat; sh.uniforms.uHype = U.hype;
+    sh.uniforms.uBeat = U.beat; sh.uniforms.uHype = U.hype; sh.uniforms.uLift = U.lift;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', `#include <common>\nattribute vec3 aJump; uniform float uBeat; uniform float uHype;
-        ${fan ? 'attribute float aPart; attribute vec3 aC0; attribute vec3 aC1; attribute vec3 aC2; varying vec3 vFan;' : ''}`)
+      .replace('#include <common>', `#include <common>\nattribute vec3 aJump; uniform float uBeat; uniform float uHype; uniform float uLift;
+        ${fan ? 'attribute float aPart; attribute float aPhone; attribute vec3 aC0; attribute vec3 aC1; attribute vec3 aC2; varying vec3 vFan;' : ''}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        ${fan ? 'vFan = aPart < 0.5 ? aC0 : aPart < 1.5 ? aC1 : aC2;' : ''}
         float f = fract(uBeat + aJump.x);
         float hop = pow(sin(3.14159 * f), 0.8);
-        transformed.y += uHype * aJump.y * mix(0.22, 1.0, aJump.z) * hop;
-        // hands pump on the beat
-        if (position.y > 0.5 && abs(position.x) > 0.06) transformed.y += uHype * 0.04 * hop;`);
+        ${fan ? `vFan = aPart < 0.5 ? aC0 : aPart < 1.5 ? aC1 : aPart < 2.5 ? aC2 : aC1;
+        float ph = fract(sin(float(gl_InstanceID) * 12.9898) * 43758.5453);
+        float up = smoothstep(0.45, 0.85, sin((uBeat / 16.0 + ph) * 6.2832));          // up for about a third of each 4-bar cycle
+        float armLift = uHype * max(max(up, uLift) * (0.8 + 0.2 * hop), position.x > 0.0 ? aPhone : 0.0);` + ARM_LIFT : `
+        transformed.y -= (1.0 - uHype) * 0.5;                                              // phones come down with the hands`}
+        transformed.y += uHype * aJump.y * mix(0.22, 1.0, aJump.z) * hop;`);
     if (fan) sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFan;')
       .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vFan;');
@@ -132,7 +144,7 @@ export class Concert {
     this.cx = cx; this.z0 = site.z0;
     this.stage = { x0: cx - 13, x1: cx + 13, z0: site.z0 + 1.5, z1: site.z0 + 12, y: 1.8 };
     this.center = { x: cx, z: (site.z0 + site.z1) / 2 };
-    this.U = { beat: { value: 0 }, hype: { value: 1 } };
+    this.U = { beat: { value: 0 }, hype: { value: 1 }, lift: { value: 0 } };
     this.halt = 0; this.lastBar = -1; this.pyro = []; this.flyers = []; this.movers = [];
     this.mats = [];
     // the festival day: setup -> active (the show) -> ending (everyone heads out) -> cleanup -> setup ...
@@ -432,6 +444,7 @@ export class Concert {
     this.origJump = aJump.slice();
     // phone lights held up here and there (glow at night)
     const phones = pts.map((p, i) => i).filter(() => Math.random() < 0.06);
+    { const ap = new Float32Array(n); for (const i of phones) ap[i] = 1; g.setAttribute('aPhone', new THREE.InstancedBufferAttribute(ap, 1)); }
     const pg = new THREE.BoxGeometry(0.035, 0.06, 0.01).translate(0.1, 0.8, 0);
     const pa = new Float32Array(phones.length * 3);
     phones.forEach((i, k) => { pa[k * 3] = aJump[i * 3]; pa[k * 3 + 1] = aJump[i * 3 + 1]; pa[k * 3 + 2] = aJump[i * 3 + 2]; });
@@ -602,6 +615,7 @@ export class Concert {
     this.jets = [-12, -8, -4, 4, 8, 12].map((dx) => ({ x: this.cx + dx, z: st.z1 - 0.3 }));
   }
   firePyro(big) {
+    if (big) this.U.lift.value = 1;                                                   // the drop: every hand goes up
     const jets = big ? this.jets : [this.jets[0], this.jets[5]];
     for (const j of jets) this.pyro.push({ x: j.x, z: j.z, t: big ? 0.9 : 0.55, big });
     sfx.pyro(this.cx, this.stage.z1, big);
@@ -724,6 +738,7 @@ export class Concert {
     const beat = music.beat(), n = G.night || 0;
     this.U.beat.value = beat;
     this.U.hype.value += ((this.halt > 0 ? 0 : 1) - this.U.hype.value) * Math.min(1, dt * 4);
+    this.U.lift.value = Math.max(0, this.U.lift.value - dt * 0.35);                  // hands come down after a drop
     // bars: pyro every 4 bars, a big burst on every drop (start of each 16-bar phrase)
     const bar = Math.floor(beat / 4);
     if (bar !== this.lastBar) {
