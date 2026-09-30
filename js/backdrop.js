@@ -84,7 +84,9 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
   for (let ix = -20; ix <= 20; ix++) for (let iz = -20; iz <= 20; iz++) {
     const cx = city.xs[0] + (ix + 0.5) * pitch, cz = city.zs[0] + (iz + 0.5) * pitchZ;
     const far = Math.max(Math.abs(cx), Math.abs(cz));
-    if (far < E + 2 || far > MAXR) continue;
+    // Chicago: the walk-ups carry on north all the way to the downtown skyline (js/skyline.js starts ~470 out)
+    const northFill = mapName === 'suburbs' && cz < 0 && cz > -485 && Math.abs(cx + 100) < 620;
+    if (far < E + 2 || (far > MAXR && !northFill)) continue;
     if (water && (water.axis === 'x' ? cx < water.shore + 6 : cz < water.shore + 6)) continue;
     if (city.bridgeClear && city.bridgeClear.some((c) => Math.hypot(cx - c.x, cz - c.z) < c.r + 8)) continue;
     const lot = pitch - city.roadW - 3.4, lotZ = pitchZ - city.roadW - 3.4;
