@@ -437,6 +437,36 @@ function miniEarth(host) {
   host.addEventListener('click', (e) => e.stopPropagation());
 }
 
+// ---------- a little International Space Station that drifts across the sky now and then ----------
+// Truss along x, four pairs of solar wings (copper-gold cells on dark frames), white radiators hanging below the
+// truss, and the cluster of pressurised modules in the middle. About 2.4 units across.
+function makeISS() {
+  const g = new THREE.Group(), mats = [];
+  const M = (o) => { const m = new THREE.MeshStandardMaterial({ transparent: true, ...o }); mats.push(m); return m; };
+  const metal = M({ color: 0xb9bec6, metalness: 0.7, roughness: 0.35 }), white = M({ color: 0xe9ebee, roughness: 0.6 });
+  const cells = M({ color: 0xb07a2a, metalness: 0.55, roughness: 0.35, emissive: 0x2a1a06, side: THREE.DoubleSide });
+  const frame = M({ color: 0x2a2f38, metalness: 0.6, roughness: 0.5 });
+  const add = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+  add(new THREE.BoxGeometry(2.4, 0.06, 0.06), metal);                                   // the main truss
+  for (const x of [-1.1, -0.72, 0.72, 1.1]) {
+    add(new THREE.CylinderGeometry(0.035, 0.035, 0.1, 8), metal, x, 0, 0);               // rotary joints
+    for (const zs of [-1, 1]) {                                                           // a wing pair either side of the truss
+      const w = add(new THREE.BoxGeometry(0.2, 0.004, 0.72), cells, x, 0, zs * 0.44);
+      add(new THREE.BoxGeometry(0.012, 0.012, 0.74), frame, x, 0.004, zs * 0.44);       // the mast down the middle of the wing
+      w.rotation.x = 0.12 * zs;
+    }
+  }
+  for (const x of [-0.38, 0.38]) add(new THREE.BoxGeometry(0.14, 0.004, 0.42), white, x, -0.06, -0.24).rotation.x = Math.PI / 2;   // radiators
+  const mod = (len, r, x, y, z, rx = 0, rz = 0) => { const o = add(new THREE.CylinderGeometry(r, r, len, 12), white, x, y, z); o.rotation.set(rx, 0, rz); return o; };
+  mod(0.9, 0.055, 0, -0.08, 0, Math.PI / 2);                                           // the long module stack, fore and aft
+  mod(0.34, 0.05, 0, -0.08, 0, 0, Math.PI / 2);                                         // a node crossing it
+  mod(0.22, 0.045, 0.12, -0.08, 0.3, 0, Math.PI / 2); mod(0.22, 0.045, -0.12, -0.08, 0.3, 0, Math.PI / 2);   // labs off the front node
+  for (const zs of [-1, 1]) add(new THREE.BoxGeometry(0.1, 0.003, 0.2), cells, 0, -0.08, zs * 0.62);        // the service module's small wings
+  const blink = add(new THREE.SphereGeometry(0.018, 8, 6), M({ color: 0xff5a4a, emissive: 0xff2a1a, emissiveIntensity: 2 }), 1.2, 0, 0);
+  g.traverse((o) => { o.castShadow = false; o.receiveShadow = false; });
+  return { g, mats, blink };
+}
+
 // ---------- stars behind the neutral room ----------
 // Mostly faint pinpricks with a few brighter ones (soft halo, faint cool or warm tint), thicker along a faint diagonal
 // band like the Milky Way; a handful twinkle slowly. Every few seconds a shooting star streaks across. Drawn at
@@ -581,6 +611,33 @@ export function initMenu() {
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffe6c4, size: 0.05, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
   scene.add(dust);
 
+  // the ISS: passes behind everything, far from the camera, crossing the upper part of the view every minute or so
+  const iss = makeISS(); iss.g.visible = false; scene.add(iss.g);
+  const issRun = { next: 9 + Math.random() * 8, pass: null, fade: 1 };
+  function issTick(t, dt) {
+    issRun.fade += ((shownHover ? 0 : 1) - issRun.fade) * Math.min(1, dt * 1.5);   // fades out with the stars while a world is hovered
+    if (!issRun.pass) {
+      issRun.next -= dt;
+      if (issRun.next > 0) return;
+      const dir = Math.random() < 0.5 ? 1 : -1, v0 = (portrait ? 0.62 : 0.45) + Math.random() * 0.22;
+      issRun.pass = { t0: t, dur: 30 + Math.random() * 14, dir, v0, slope: (Math.random() - 0.5) * 0.3, roll: Math.random() * 6.3, yaw: (Math.random() - 0.5) * 0.9, dist: 58 + Math.random() * 16 };
+    }
+    const p = issRun.pass, k = (t - p.t0) / p.dur;
+    if (k >= 1) { issRun.pass = null; iss.g.visible = false; issRun.next = 40 + Math.random() * 40; return; }
+    // a point on a line across the screen (a little past each edge), pushed out along the view ray to its distance
+    const u = (-1.25 + 2.5 * k) * p.dir, v = p.v0 + p.slope * (k - 0.5) * 2;
+    camera.updateMatrixWorld();
+    const ray = _iss.set(u, v, 0.5).unproject(camera).sub(camera.position).normalize();
+    iss.g.position.copy(camera.position).addScaledVector(ray, p.dist);
+    iss.g.quaternion.copy(camera.quaternion);                                        // turned toward the viewer, then tipped over so the wings show
+    iss.g.rotateX(0.95); iss.g.rotateY(p.yaw); iss.g.rotateX(Math.sin(t * 0.05 + p.roll) * 0.25); iss.g.rotateZ(p.dir * 0.08);
+    iss.g.visible = true;
+    const edge = Math.min(1, k * 8, (1 - k) * 8);
+    for (const m of iss.mats) m.opacity = issRun.fade * edge;
+    iss.blink.visible = Math.sin(t * 2.4) > 0.75;
+  }
+  const _iss = new THREE.Vector3();
+
   const tex = facadeTextures();
   const worlds = MAPS.map((m) => { const d = new Diorama(m, tex); scene.add(d.g); return d; });
   const hits = worlds.map((d) => d.hit);
@@ -704,6 +761,7 @@ export function initMenu() {
       camera.position.set(baseCam.x + ptrS.x * 1.6, baseCam.y + ptrS.y * 0.8, baseCam.z);
     }
     camera.lookAt(look);
+    if (!going && !reduced) issTick(t, dt); else iss.g.visible = false;
     const dp = dustGeo.attributes.position.array;
     if (!reduced) for (let i = 0; i < dustN; i++) { dp[i * 3 + 1] += dt * 0.12; dp[i * 3] += Math.sin(t * 0.3 + i) * dt * 0.05; if (dp[i * 3 + 1] > 8) dp[i * 3 + 1] = -3; }
     dustGeo.attributes.position.needsUpdate = true;
