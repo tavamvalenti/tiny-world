@@ -670,7 +670,8 @@ export function pickLine(arr) { return arr[(Math.random() * arr.length) | 0]; }
 
 
 // ---------- concert music: the Summer Smash set (OMERTA + three Chuckyy tracks), from one spot in the world ----------
-// The set plays in order and loops back round, with a short break between songs while the crowd cheers. It goes
+// The set is shuffled: every song plays once, in a random order, before any plays again (and a new round never
+// opens with the song that just ended). There's a short break between songs while the crowd cheers. It goes
 // through a lowpass/gain/pan that tracks the camera, so it is faint and muffled from across the map and fuller up
 // close, plus a crowd bed. Each song's tempo and first downbeat were measured offline from the file (beat-grid fit
 // over the whole track), and that beat clock drives the crowd's jumping and the pyro.
@@ -682,7 +683,7 @@ const SET = [
 ];
 const GAP = 2.5;                                          // seconds between songs
 export const music = {
-  bus: null, t0: 0, x: 0, z: 0, on: false, crowd: null, buf: null, tempo: SET[0], k: 0, beatBase: 0,
+  bus: null, t0: 0, x: 0, z: 0, on: false, crowd: null, buf: null, tempo: SET[0], k: 0, beatBase: 0, bag: [],
   get bpm() { return this.tempo.bpm; },
   // beats since the set started, aligned to what is currently heard (holds still in the breaks between songs)
   beat() {
@@ -690,6 +691,16 @@ export const music = {
     if (!ctx || !this.on || !this.buf) return G.time * bpm / 60;
     const el = now() - (ctx.outputLatency || 0.02) - this.t0;
     return this.beatBase + Math.max(0, el - this.tempo.offset) / (60 / bpm);
+  },
+  // shuffle-bag: draw songs from a shuffled list, refilling it only once every song has had its turn
+  pickNext() {
+    if (!this.bag.length) {
+      const b = SET.map((_, i) => i);
+      for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
+      if (this.buf && b.length > 1 && b[0] === this.k) b.push(b.shift());     // no back-to-back repeat across rounds
+      this.bag = b;
+    }
+    return this.bag.shift();
   },
   // decoded audio is big, so only the playing song and the next one are ever held
   load(k) { return fetch(SET[k].url).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)); },
@@ -702,7 +713,7 @@ export const music = {
     this.buf = buf; this.tempo = SET[k]; this.k = k; this.t0 = at; this.src = src; this.on = true;
     src.start(at);
     src.onended = () => { if (this.src === src) this.next(); };
-    const n = (k + 1) % SET.length;
+    const n = this.pickNext();
     this.upcoming = this.load(n).then((b) => ({ b, n })).catch((e) => { console.warn('concert track unavailable', SET[n].url, e); return null; });
   },
   next() {
@@ -710,7 +721,7 @@ export const music = {
     const p = this.upcoming || Promise.resolve(null);
     p.then((r) => {
       if (r) this.play(r.b, r.n, now() + GAP);
-      else { const n = (this.k + 1) % SET.length; this.k = n; this.load(n).then((b) => this.play(b, n, now() + 0.5)).catch(() => {}); }
+      else { const n = this.pickNext(); this.k = n; this.load(n).then((b) => this.play(b, n, now() + 0.5)).catch(() => {}); }
     });
   },
   start(x, z) {
@@ -725,7 +736,8 @@ export const music = {
     // crowd bed: a broad roar that swells with the drops
     const cr = noise(pink), cf = filt('bandpass', 900, 0.5); this.crowdG = amp(0.12);
     cr.connect(cf); cf.connect(this.crowdG); this.crowdG.connect(this.lp); cr.start();
-    this.load(0).then((buf) => this.play(buf, 0, now() + 0.1)).catch((e) => console.warn('concert track unavailable', e));
+    const first = this.pickNext();
+    this.load(first).then((buf) => this.play(buf, first, now() + 0.1)).catch((e) => console.warn('concert track unavailable', e));
   },
   stop() { if (this.on && this.out) this.out.gain.setTargetAtTime(0, now(), 0.3); },
   // call every frame: moves the mix with the camera (the track keeps rolling underneath while the show is halted)
