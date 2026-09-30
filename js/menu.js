@@ -308,6 +308,30 @@ class Diorama {
 }
 
 // ---------- the stage ----------
+// the title: one span per letter; each letter's nearness to the cursor (--p) drives its lift and glow
+// ?font=1..10 tries another face for the title (see _title-fonts.html); Cinzel is the default
+const TITLE_FONTS = [['Playfair Display', 500], ['Cinzel', 500], ['Italiana', 400], ['Bodoni Moda', 500], ['Fraunces', 300], ['Syne', 700], ['Unbounded', 400], ['Cormorant Garamond', 500], ['Tenor Sans', 400], ['DM Serif Display', 400]];
+function titleGlow(h1) {
+  if (!h1) return;
+  const pick = TITLE_FONTS[+new URLSearchParams(location.search).get('font') - 1];
+  if (pick) {
+    const [fam, w] = pick, l = document.createElement('link'); l.rel = 'stylesheet';
+    l.href = `https://fonts.googleapis.com/css2?family=${fam.replace(/ /g, '+')}:wght@${w}&display=swap`; document.head.appendChild(l);
+    h1.style.setProperty('--titleFont', `'${fam}'`); h1.style.setProperty('--titleWeight', w);
+  }
+  const word = document.createElement('span'); word.className = 'tw';
+  const chars = [...h1.textContent].map((c) => { const s = document.createElement('span'); s.className = 'ch'; s.textContent = c; word.appendChild(s); return s; });
+  h1.textContent = ''; h1.appendChild(word);
+  word.addEventListener('pointermove', (e) => {
+    const fs = parseFloat(getComputedStyle(h1).fontSize);
+    for (const s of chars) {
+      const r = s.getBoundingClientRect(), d = Math.abs(e.clientX - (r.left + r.width / 2)) / (fs * 1.6);
+      s.style.setProperty('--p', Math.max(0, 1 - d * d).toFixed(3));
+    }
+  });
+  word.addEventListener('pointerleave', () => { for (const s of chars) s.style.setProperty('--p', 0); });
+}
+
 export function initMenu() {
   const menu = document.getElementById('menu');
   if (!menu) return;
@@ -315,6 +339,7 @@ export function initMenu() {
   const qp = new URLSearchParams(location.search).get('map');
   if (qp) { buttons.forEach((b) => b && (b.dataset.go = '1')); return; }   // quick-test links skip the show
 
+  titleGlow(menu.querySelector('h1'));
   const canvas = document.createElement('canvas'); canvas.id = 'menuStage'; menu.prepend(canvas);
   // atmosphere layers behind the stage (crossfaded in CSS by data-hover) and a faint grain over it
   for (const k of ['suburbs', 'tropical', 'downtown', 'neutral']) { const a = document.createElement('div'); a.className = 'atmo ' + k; menu.prepend(a); }

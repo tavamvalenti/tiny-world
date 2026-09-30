@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tiny World</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;1,500&family=Outfit:wght@200;300;400&family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,400;1,9..144,500&family=Big+Shoulders+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;1,500&family=Outfit:wght@200;300;400&family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,400;1,9..144,500&family=Big+Shoulders+Display:wght@500;600;700&family=Cinzel:wght@500&display=swap" rel="stylesheet">
 <style>
   :root { --ink:#f4efe6; --dim:rgba(244,239,230,.62); --glass:rgba(18,20,24,.46); --line:rgba(255,255,255,.14); --accent:#ffb347; }
   * { box-sizing:border-box; }
@@ -19,8 +19,19 @@
   #menu::after { content:''; position:absolute; inset:0; z-index:2; pointer-events:none; background:radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%); }
   #menuStage { position:absolute; inset:0; width:100%; height:100%; display:block; }
   #menu h1 { position:absolute; left:0; right:0; top:calc(4.2vh + 3vh); text-align:center; margin:0; pointer-events:none; z-index:2;
-    font-family:'Playfair Display',serif; font-weight:500; font-size:clamp(38px,6.4vw,84px); letter-spacing:.14em; color:#f4efe6;
-    text-shadow:0 2px 30px rgba(0,0,0,.6); transition:opacity .6s ease, transform .9s cubic-bezier(.2,.8,.2,1); }
+    font-family:var(--titleFont, 'Cinzel'), serif; font-weight:var(--titleWeight, 500); font-size:clamp(38px,6.4vw,84px); letter-spacing:.14em; color:#f4efe6;
+    text-shadow:0 2px 30px rgba(0,0,0,.6); transition:opacity .6s ease, transform .9s cubic-bezier(.2,.8,.2,1); animation:twBreath 6s ease-in-out infinite; }
+  /* the title breathes a faint warm glow; under the cursor each letter lifts and brightens (--p = nearness, set in menu.js) */
+  @property --gl { syntax:'<number>'; inherits:true; initial-value:0; }
+  @keyframes twBreath { 0%, 100% { --gl:0; } 50% { --gl:1; } }
+  #menu h1 .tw { display:inline-block; pointer-events:auto; cursor:default; padding:0 .3em; }
+  #menu h1 .ch { display:inline-block; white-space:pre; --p:0;
+    transform:translateY(calc(var(--p) * -0.09em)) scale(calc(1 + var(--p) * .05));
+    color:color-mix(in srgb, #fff calc(var(--p) * 100%), #f4efe6);
+    text-shadow:0 0 calc(10px + var(--gl) * 8px + var(--p) * 22px) rgba(255, 228, 186, calc(.16 + var(--gl) * .1 + var(--p) * .5)),
+      0 0 calc(var(--p) * 60px) color-mix(in srgb, var(--accent, #ffd9a0) calc(var(--p) * 45%), transparent), 0 2px 30px rgba(0,0,0,.6);
+    transition:transform .5s cubic-bezier(.2,.8,.2,1), color .5s ease, text-shadow .5s ease; }
+  @media (prefers-reduced-motion: reduce) { #menu h1 { animation:none; } #menu h1 .ch { transform:none; } }
   #menu p.sub { position:absolute; left:0; right:0; top:calc(4.2vh + 3vh + clamp(46px,7.6vw,100px)); margin:0; text-align:center; z-index:2; pointer-events:none;
     color:rgba(244,239,230,.5); font-style:italic; font-family:'Playfair Display',serif; font-size:clamp(14px,1.6vw,18px); letter-spacing:.04em; transition:opacity .5s ease; padding:0 16px; }
   #menu .maps { position:absolute; inset:0; pointer-events:none; z-index:3; }
