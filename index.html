@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tiny World</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;1,500&family=Outfit:wght@200;300;400&family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,400;1,9..144,500&family=Big+Shoulders+Display:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root { --ink:#f4efe6; --dim:rgba(244,239,230,.62); --glass:rgba(18,20,24,.46); --line:rgba(255,255,255,.14); --accent:#ffb347; }
   * { box-sizing:border-box; }
@@ -15,9 +15,8 @@
   .bar.top { top:0; } .bar.bot { bottom:0; }
 
   /* title screen: a dark display case; the worlds are drawn by js/menu.js on #menuStage, the buttons become captions */
-  #menu { position:fixed; inset:0; z-index:20; overflow:hidden;
-    background: radial-gradient(ellipse 70% 55% at 50% 58%, #1c2029 0%, #111318 45%, #07080a 100%); }
-  #menu::after { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%); }
+  #menu { position:fixed; inset:0; z-index:20; overflow:hidden; background:#07080a; }
+  #menu::after { content:''; position:absolute; inset:0; z-index:2; pointer-events:none; background:radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%); }
   #menuStage { position:absolute; inset:0; width:100%; height:100%; display:block; }
   #menu h1 { position:absolute; left:0; right:0; top:calc(4.2vh + 3vh); text-align:center; margin:0; pointer-events:none; z-index:2;
     font-family:'Playfair Display',serif; font-weight:500; font-size:clamp(38px,6.4vw,84px); letter-spacing:.14em; color:#f4efe6;
@@ -48,6 +47,42 @@
   #menu.diving .maps button { opacity:0; transition:opacity .35s ease; }
   #menu.diving .maps button.chosen { opacity:1; transition:opacity .5s ease .45s; opacity:0; }
   @media (prefers-reduced-motion: reduce) { #menu .maps button, #menu .maps button small, #menu h1 { transition:none; } }
+  /* each city speaks in its own type, on the same rhythm: name / accent rule / place / one line of description */
+  #menu .maps button[data-map="downtown"] { font:300 13px 'Outfit',sans-serif; letter-spacing:.44em; --rule:#f3b673; }
+  #menu .maps button[data-map="downtown"].active, #menu .maps button[data-map="downtown"]:focus-visible { letter-spacing:.58em; }
+  #menu .maps button[data-map="downtown"] small { font:300 13px 'Outfit',sans-serif; letter-spacing:.06em; font-style:normal; color:rgba(236,240,248,.66); }
+  #menu .maps button[data-map="tropical"] { font:italic 400 23px 'Fraunces',serif; font-variation-settings:'opsz' 96, 'SOFT' 100; letter-spacing:.05em; --rule:#6fd6c8; padding-top:10px; }
+  #menu .maps button[data-map="tropical"].active, #menu .maps button[data-map="tropical"]:focus-visible { letter-spacing:.1em; }
+  #menu .maps button[data-map="tropical"] small { font:italic 300 15px 'Fraunces',serif; color:rgba(255,236,214,.72); letter-spacing:.01em; }
+  #menu .maps button[data-map="suburbs"] { font:700 22px 'Big Shoulders Display',sans-serif; letter-spacing:.2em; --rule:#8ecbf0; padding-top:10px; }
+  #menu .maps button[data-map="suburbs"].active, #menu .maps button[data-map="suburbs"]:focus-visible { letter-spacing:.3em; }
+  #menu .maps button[data-map="suburbs"] small { font:500 15px 'Big Shoulders Display',sans-serif; letter-spacing:.08em; font-style:normal; color:rgba(226,232,240,.66); }
+  #menu .maps button[data-map] .region { font:600 10px Inter,sans-serif; letter-spacing:.28em; font-style:normal; }
+  #menu .maps button.active::before, #menu .maps button:focus-visible::before { background:var(--rule, var(--accent)); }
+  /* atmosphere: four layers behind the dioramas that crossfade slowly with the hovered world, each breathing a little */
+  #menu .atmo { position:absolute; inset:-6%; z-index:0; pointer-events:none; opacity:0; transition:opacity 2.6s cubic-bezier(.4,0,.2,1); animation:atmoDrift 26s ease-in-out infinite alternate; }
+  #menu .atmo.neutral { opacity:1; background:radial-gradient(ellipse 70% 55% at 50% 58%, #1c2029 0%, #111318 45%, #07080a 100%); animation:none; }
+  #menu .atmo.downtown { background:
+      radial-gradient(ellipse 60% 30% at 50% 100%, rgba(255,168,92,.20), transparent 70%),
+      radial-gradient(ellipse 38% 26% at 18% 88%, rgba(255,196,120,.10), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 78% 8%, rgba(92,128,210,.16), transparent 70%),
+      radial-gradient(ellipse 80% 70% at 50% 55%, #16213a 0%, #0c1426 50%, #05080f 100%); }
+  #menu .atmo.tropical { background:
+      radial-gradient(ellipse 70% 26% at 70% 16%, rgba(255,138,86,.17), transparent 70%),
+      radial-gradient(ellipse 40% 18% at 28% 20%, rgba(255,196,140,.08), transparent 70%),
+      radial-gradient(ellipse 65% 40% at 38% 92%, rgba(38,196,190,.18), transparent 70%),
+      radial-gradient(ellipse 80% 70% at 50% 58%, #0d3140 0%, #08212c 48%, #03090d 100%); }
+  #menu .atmo.suburbs { background:
+      radial-gradient(ellipse 30% 20% at 72% 80%, rgba(255,184,104,.14), transparent 70%),
+      radial-gradient(ellipse 26% 16% at 24% 74%, rgba(255,204,140,.06), transparent 70%),
+      radial-gradient(ellipse 70% 40% at 50% 0%, rgba(132,156,190,.2), transparent 70%),
+      radial-gradient(ellipse 80% 70% at 50% 58%, #1a2330 0%, #111823 50%, #05080c 100%); }
+  #menu[data-hover="downtown"] .atmo.downtown, #menu[data-hover="tropical"] .atmo.tropical, #menu[data-hover="suburbs"] .atmo.suburbs { opacity:1; }
+  @keyframes atmoDrift { from { transform:translate3d(-1.2%, -0.8%, 0) scale(1.02); } to { transform:translate3d(1.2%, 0.8%, 0) scale(1.05); } }
+  /* film grain over everything, very faint */
+  #menu .grain { position:absolute; inset:0; z-index:2; pointer-events:none; opacity:.07; mix-blend-mode:overlay; background-size:160px; }
+  #menuStage { z-index:1; }
+  @media (prefers-reduced-motion: reduce) { #menu .atmo { animation:none; transition-duration:.6s; } }
   .region .ico.sdimg { background:#2f241d; box-shadow:none; object-fit:contain; border-radius:3px; }
   #settings { position:fixed; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(6,7,9,.62); backdrop-filter:blur(6px); padding:16px; }
   .sp { width:min(520px,100%); max-height:88vh; display:flex; flex-direction:column; background:rgba(20,22,26,.96); border:1px solid var(--line); border-radius:4px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
@@ -160,7 +195,7 @@
   <p class="sub">An interactive miniature destruction sandbox</p>
   <div class="maps">
     <button data-map="downtown">GASLAMP DISTRICT<span class="region"><img class="ico sdimg" src="assets/sd-logo.png" alt="SD" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><svg class="ico sd" style="display:none" viewBox="0 0 30 20" aria-label="SD"><text x="8.2" y="16.2" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="17" fill="#2f241d" stroke="#ffc425" stroke-width=".9" paint-order="stroke">S</text><text x="13.4" y="17" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="16" fill="#2f241d" stroke="#ffc425" stroke-width=".9" paint-order="stroke">D</text></svg>DAYGO</span><small>Downtown · brick, glass &amp; crowds</small></button>
-    <button data-map="tropical">LA PLAYA<span class="region"><img class="ico" src="assets/flag-mexico.png" alt="Mexico flag">MEXICO</span><small>Tropical town · beach, hotels &amp; palms</small></button>
+    <button data-map="tropical">La Playa<span class="region"><img class="ico" src="assets/flag-mexico.png" alt="Mexico flag">MEXICO</span><small>Tropical town · beach, hotels &amp; palms</small></button>
     <button data-map="suburbs">CHICAGO<span class="region"><img class="ico" src="assets/flag-illinois.png" alt="Illinois flag">ILLINOIS</span><small>City · walk-ups, alleys &amp; corner stores</small></button>
   </div>
   <button class="open-settings menu-settings">SETTINGS</button>

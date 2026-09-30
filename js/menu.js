@@ -316,6 +316,13 @@ export function initMenu() {
   if (qp) { buttons.forEach((b) => b && (b.dataset.go = '1')); return; }   // quick-test links skip the show
 
   const canvas = document.createElement('canvas'); canvas.id = 'menuStage'; menu.prepend(canvas);
+  // atmosphere layers behind the stage (crossfaded in CSS by data-hover) and a faint grain over it
+  for (const k of ['suburbs', 'tropical', 'downtown', 'neutral']) { const a = document.createElement('div'); a.className = 'atmo ' + k; menu.prepend(a); }
+  const grain = document.createElement('div'); grain.className = 'grain'; menu.appendChild(grain);
+  { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), im = x.createImageData(128, 128);
+    for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
+    x.putImageData(im, 0, 0); grain.style.backgroundImage = `url(${c.toDataURL()})`; }
+  let shownHover = null;
   const fade = document.createElement('div'); fade.id = 'menuFade'; menu.appendChild(fade);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
@@ -423,6 +430,9 @@ export function initMenu() {
     const k = 1 - Math.exp(-dt * 5);
     ptrS.lerp(ptr, reduced ? 1 : k * 0.6);
     if (!going) { const h = labelHover >= 0 ? labelHover : pickAt(); hovered = h; canvas.style.cursor = h >= 0 ? 'pointer' : 'default'; }
+    // the room takes on the hovered city's atmosphere (a slow crossfade in CSS)
+    const mood = hovered >= 0 ? MAPS[hovered] : '';
+    if (mood !== shownHover) { shownHover = mood; if (mood) menu.dataset.hover = mood; else delete menu.dataset.hover; }
     worlds.forEach((d, i) => {
       const on = hovered === i, any = hovered >= 0;
       d.hover += ((on ? 1 : 0) - d.hover) * k;
