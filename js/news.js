@@ -3,6 +3,7 @@
 // schedules, weather, sightings). Breaking stories jump the queue; everyday items only fill long quiet spells.
 // La Playa's channel is in Spanish (only the banner: menus and settings stay English).
 import { G, pick } from './core.js';
+import { settings } from './settings.js';
 
 const SHOW = 6;                                     // seconds a headline stays up
 const GAP = { 2: 2.5, 1: 18 };                      // minimum quiet before a breaking / an everyday item
@@ -92,7 +93,7 @@ const CSS = `
 
 export class News {
   constructor(mapName, city) {
-    this.map = mapName; this.city = city; this.es = mapName === 'tropical';
+    this.map = mapName; this.city = city;
     this.queue = []; this.showT = 0; this.quiet = 10; this.last = {}; this.lastDestroyed = 0; this.dmgT = 0;
     if (!document.getElementById('newsCss')) { const st = document.createElement('style'); st.id = 'newsCss'; st.textContent = CSS; document.head.appendChild(st); }
     document.getElementById('newsTicker')?.remove();
@@ -104,6 +105,7 @@ export class News {
     G.news = this;
   }
 
+  get es() { return this.map === 'tropical' && settings.spanish !== false; }
   // "near Petco Park", "on the waterfront", "en la playa"... or just the part of town
   where(x, z) {
     const C = this.city, near = (S, m = 12) => S && x > S.x0 - m && x < S.x1 + m && z > S.z0 - m && z < S.z1 + m;
@@ -117,6 +119,7 @@ export class News {
     if (C.policeHQ && Math.hypot(x - C.policeHQ.x, z - C.policeHQ.z) < 25) return 'outside police headquarters';
     if (C.shoreX != null && x < C.shoreX + 12) return 'on the waterfront';
     if (G.gangs && G.gangs.zones) { const Z = G.gangs.zones; if (near(Z.blue, 4)) return 'in Blue Line'; if (near(Z.red, 4)) return 'in Red Row'; }
+    if (this.map === 'tropical') return z < -14 ? pick(['on the beachfront', 'on the malecón']) : pick(['in La Playa', 'in the old town']);
     if (this.map === 'downtown') return pick(['downtown', 'in the Gaslamp Quarter']);
     return pick(['on the South Side', 'in Chicago']);
   }
@@ -161,6 +164,8 @@ export class News {
   }
   update(dt) {
     this.quiet += dt;
+    // banners switched off in Settings: nothing shows (and nothing piles up for later)
+    if (settings.news === false) { if (this.showT > 0 || this.queue.length) { this.showT = 0; this.queue.length = 0; this.el.classList.remove('on'); } return; }
     // the damage adds up: a running tally every so often while things are being destroyed
     if ((this.dmgT -= dt) <= 0) {
       this.dmgT = 20;
@@ -174,7 +179,7 @@ export class News {
     const q = this.queue[0];
     if (!q || this.quiet < GAP[q.prio > 1 ? 2 : 1]) return;
     this.queue.shift();
-    const [bg, fg] = TAGS[q.tag] || TAGS.LOCAL, ch = CHANNEL[this.map] || CHANNEL.downtown;
+    const [bg, fg] = TAGS[q.tag] || TAGS.LOCAL, ch = this.map === 'tropical' && !this.es ? ['LA PLAYA', 'LIVE', 'CHANNEL 7 NEWS'] : CHANNEL[this.map] || CHANNEL.downtown;
     const tag = this.el.querySelector('.tag');
     tag.textContent = this.es ? ES_TAG[q.tag] || q.tag : q.tag;
     tag.style.setProperty('--tagbg', bg); tag.style.setProperty('--tagfg', fg);

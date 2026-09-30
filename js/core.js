@@ -38,6 +38,7 @@ export function blast(x, y, z, radius, power, kind = 'explosion') {
   G.gangs && G.gangs.onBlast(x, y, z, radius, power, kind);
   G.responders && G.responders.onBlast(x, y, z, radius, power, kind);
   G.sky && G.sky.onBlast(x, y, z, radius, power, kind);
+  G.construction && G.construction.onBlast(x, y, z, radius, power, kind);
   G.director && G.director.onBlast(x, y, z, radius, power, kind);
   G.news && G.news.onBlast(x, y, z, radius, power, kind);
 }

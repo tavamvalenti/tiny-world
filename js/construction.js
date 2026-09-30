@@ -5,7 +5,8 @@
 // are a handful of meshes.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { G, rand, pick, clamp } from './core.js';
+import { G, rand, pick, clamp, blast } from './core.js';
+import { sfx } from './audio.js';
 
 const LIMIT = { downtown: 6, suburbs: 4, tropical: 2 };
 const CRANES = { downtown: 2, suburbs: 2, tropical: 1 };
@@ -66,35 +67,47 @@ export function pickSites(B, city, mapName) {
 export class Construction {
   constructor(scene, sites, city, mapName) {
     this.sites = sites; this.city = city; this.cranes = []; this.gondolas = [];
-    const B = G.buildings, P = [], nets = [], hoard = [];
+    const B = G.buildings;
+    // shared materials; every site gets its own few meshes so each can be wrecked on its own
+    const lambert = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const netMat = new THREE.MeshLambertMaterial({ color: 0x3f7a4a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+    const htex = canvasTex(256, 64, (x, w, h) => {
+      x.fillStyle = '#1f4e8a'; x.fillRect(0, 0, w, h); x.fillStyle = '#f2f2ee'; x.fillRect(0, h * 0.72, w, h * 0.28);
+      x.fillStyle = '#f7c21a'; for (let i = -1; i < 12; i++) { x.beginPath(); x.moveTo(i * 24, h); x.lineTo(i * 24 + 12, h * 0.72); x.lineTo(i * 24 + 24, h * 0.72); x.lineTo(i * 24 + 12, h); x.fill(); }
+      x.fillStyle = '#fff'; x.font = '800 16px Inter, Arial, sans-serif'; x.textAlign = 'center'; x.fillText(pick(['HARD HAT AREA', 'CONSTRUCTION SITE', 'KEEP OUT · SITE ENTRANCE']), w / 2, h * 0.45);
+    });
+    htex.wrapS = THREE.RepeatWrapping;
+    const hoardMat = new THREE.MeshLambertMaterial({ map: htex, side: THREE.DoubleSide });
+    this.falling = [];
     const free = (x, z) => !B.inside(new THREE.Vector3(x, 0.3, z));
     const roadDist = (x, z) => Math.min(...city.xs.map((v) => Math.abs(x - v)), ...city.zs.map((v) => Math.abs(z - v)));
     const onRoad = (x, z) => roadDist(x, z) < city.roadW / 2 + 0.3;
     for (const s of sites) {
       const { x, z, w, d, top, fh, levels } = s, hw = w / 2, hd = d / 2;
+      const U = [], Y = [], N = [], Hd = [];                 // upper works (frame + scaffold), yard, netting, hoarding
       // steel frame going up above the finished floors: columns, perimeter beams, a partial deck
       const colsX = Math.max(2, Math.round(w / 2.2)), colsZ = Math.max(2, Math.round(d / 2.2));
       for (let i = 0; i <= colsX; i++) for (let k = 0; k <= colsZ; k++) {
         if (i > 0 && i < colsX && k > 0 && k < colsZ) continue;
         const cx = x - hw + (w * i) / colsX, cz = z - hd + (d * k) / colsZ, lv = i % 2 && Math.random() < 0.5 ? levels - 1 : levels;
-        P.push(box(0.12, fh * lv, 0.12, cx, top + (fh * lv) / 2, cz, 0x7a4a2a));
+        U.push(box(0.12, fh * lv, 0.12, cx, top + (fh * lv) / 2, cz, 0x7a4a2a));
       }
       for (let l = 1; l <= levels; l++) {
         const y = top + fh * l;
-        P.push(box(w, 0.1, 0.1, x, y, z - hd, 0x6b6f76), box(w, 0.1, 0.1, x, y, z + hd, 0x6b6f76), box(0.1, 0.1, d, x - hw, y, z, 0x6b6f76), box(0.1, 0.1, d, x + hw, y, z, 0x6b6f76));
-        if (l === 1) P.push(box(w * rand(0.4, 0.7), 0.08, d, x - hw * 0.2, y - 0.04, z, 0x9d9a94));
+        U.push(box(w, 0.1, 0.1, x, y, z - hd, 0x6b6f76), box(w, 0.1, 0.1, x, y, z + hd, 0x6b6f76), box(0.1, 0.1, d, x - hw, y, z, 0x6b6f76), box(0.1, 0.1, d, x + hw, y, z, 0x6b6f76));
+        if (l === 1) U.push(box(w * rand(0.4, 0.7), 0.08, d, x - hw * 0.2, y - 0.04, z, 0x9d9a94));
       }
       // scaffolding + netting on the side facing the street
       const sides = [[0, 1], [0, -1], [1, 0], [-1, 0]].map(([nx, nz]) => ({ nx, nz, d: roadDist(x + nx * (hw + 2), z + nz * (hd + 2)) + (free(x + nx * (hw + 1), z + nz * (hd + 1)) ? 0 : 100) })).sort((a, b) => a.d - b.d);
       const f0 = sides[0], len = f0.nz ? w : d, off = (f0.nz ? hd : hw) + 0.45;
       const sx = x + f0.nx * off, sz = z + f0.nz * off, tx = f0.nz ? 1 : 0, tz = f0.nz ? 0 : 1;
-      for (let t = -len / 2; t <= len / 2 + 0.01; t += 1.2) for (const o of [-0.2, 0.2]) P.push(box(0.04, top + fh, 0.04, sx + tx * t + f0.nx * o, (top + fh) / 2, sz + tz * t + f0.nz * o, 0x9aa0a4));
+      for (let t = -len / 2; t <= len / 2 + 0.01; t += 1.2) for (const o of [-0.2, 0.2]) U.push(box(0.04, top + fh, 0.04, sx + tx * t + f0.nx * o, (top + fh) / 2, sz + tz * t + f0.nz * o, 0x9aa0a4));
       for (let y = 1; y < top + fh; y += 1.05) {
-        P.push(box(tx ? len : 0.46, 0.04, tz ? len : 0.46, sx, y, sz, 0x8a6a3a));
-        P.push(box(tx ? len : 0.03, 0.03, tz ? len : 0.03, sx + f0.nx * 0.2, y + 0.45, sz + f0.nz * 0.2, 0x9aa0a4));
+        U.push(box(tx ? len : 0.46, 0.04, tz ? len : 0.46, sx, y, sz, 0x8a6a3a));
+        U.push(box(tx ? len : 0.03, 0.03, tz ? len : 0.03, sx + f0.nx * 0.2, y + 0.45, sz + f0.nz * 0.2, 0x9aa0a4));
       }
       const net = new THREE.PlaneGeometry(len, (top + fh) * 0.55).rotateY(f0.nz ? (f0.nz > 0 ? 0 : Math.PI) : (f0.nx > 0 ? Math.PI / 2 : -Math.PI / 2)).translate(sx + f0.nx * 0.25, (top + fh) * 0.72, sz + f0.nz * 0.25);
-      nets.push(net);
+      N.push(net);
       s.front = { x: x + f0.nx * (off + 1.4), z: z + f0.nz * (off + 1.4), nx: f0.nx, nz: f0.nz, tx, tz };
       // hoarding round the site, skipping bits that would run into a neighbour or the road; a gate on the front
       const m = 1.3;
@@ -106,7 +119,7 @@ export class Construction {
           if (Math.abs((mx - s.front.x) * tx + (mz - s.front.z) * tz) < 1.2 && Math.hypot(mx - s.front.x, mz - s.front.z) < 2.5) continue;   // gate
           const g = new THREE.PlaneGeometry(L / n, 0.95), uv = g.attributes.uv;
           for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * (L / n) / 3.2);
-          hoard.push(g.rotateY(-Math.atan2(bz - az, bx - ax)).translate(mx, 0.48, mz));
+          Hd.push(g.rotateY(-Math.atan2(bz - az, bx - ax)).translate(mx, 0.48, mz));
         }
       }
       // yard: materials, dumpster, trailer, toilet, cones, a mixer truck and a pickup where there's room
@@ -114,11 +127,11 @@ export class Construction {
       const corner = [[hw + 0.7, hd + 0.7], [-hw - 0.7, hd + 0.7], [hw + 0.7, -hd - 0.7], [-hw - 0.7, -hd - 0.7]].map(([a, b]) => spot(a, b)).filter(Boolean);
       const pile = corner[0] || { x: s.front.x, z: s.front.z };
       s.pile = pile; s.corners = corner;
-      for (let i = 0; i < 3; i++) P.push(box(0.5, 0.18, 0.5, pile.x + (i % 2) * 0.55, 0.09 + Math.floor(i / 2) * 0.18, pile.z, 0x8a6a3a), box(0.46, 0.16, 0.46, pile.x + (i % 2) * 0.55, 0.26 + Math.floor(i / 2) * 0.18, pile.z, 0xb8b2a6));
-      for (let i = 0; i < 5; i++) P.push(tint(new THREE.CylinderGeometry(0.025, 0.025, 1.4, 5).rotateZ(Math.PI / 2).translate(pile.x + 0.2, 0.05 + i * 0.05, pile.z + 0.6 + (i % 3) * 0.05), 0x7a4a2a));
-      if (corner[1]) P.push(box(0.9, 0.5, 0.55, corner[1].x, 0.25, corner[1].z, 0xd96a1a), box(0.95, 0.04, 0.6, corner[1].x, 0.52, corner[1].z, 0x6b6f76));
-      if (corner[2]) P.push(box(1.6, 0.8, 0.8, corner[2].x, 0.45, corner[2].z, 0xeeeeea), box(1.62, 0.06, 0.82, corner[2].x, 0.88, corner[2].z, 0x9aa0a4), box(0.3, 0.7, 0.3, corner[2].x + 1.1, 0.35, corner[2].z, 0x2a6fb5));
-      if (corner[3]) P.push(tint(new THREE.ConeGeometry(0.6, 0.5, 10).translate(corner[3].x, 0.25, corner[3].z), 0xc9b88a));
+      for (let i = 0; i < 3; i++) Y.push(box(0.5, 0.18, 0.5, pile.x + (i % 2) * 0.55, 0.09 + Math.floor(i / 2) * 0.18, pile.z, 0x8a6a3a), box(0.46, 0.16, 0.46, pile.x + (i % 2) * 0.55, 0.26 + Math.floor(i / 2) * 0.18, pile.z, 0xb8b2a6));
+      for (let i = 0; i < 5; i++) Y.push(tint(new THREE.CylinderGeometry(0.025, 0.025, 1.4, 5).rotateZ(Math.PI / 2).translate(pile.x + 0.2, 0.05 + i * 0.05, pile.z + 0.6 + (i % 3) * 0.05), 0x7a4a2a));
+      if (corner[1]) Y.push(box(0.9, 0.5, 0.55, corner[1].x, 0.25, corner[1].z, 0xd96a1a), box(0.95, 0.04, 0.6, corner[1].x, 0.52, corner[1].z, 0x6b6f76));
+      if (corner[2]) Y.push(box(1.6, 0.8, 0.8, corner[2].x, 0.45, corner[2].z, 0xeeeeea), box(1.62, 0.06, 0.82, corner[2].x, 0.88, corner[2].z, 0x9aa0a4), box(0.3, 0.7, 0.3, corner[2].x + 1.1, 0.35, corner[2].z, 0x2a6fb5));
+      if (corner[3]) Y.push(tint(new THREE.ConeGeometry(0.6, 0.5, 10).translate(corner[3].x, 0.25, corner[3].z), 0xc9b88a));
       const fr = s.front;
       // mixer truck pulled in at the curb in front of the gate (the parking edge of the nearest street), coned off
       const near = (arr, v) => arr.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
@@ -127,28 +140,19 @@ export class Construction {
       if (fr.nz) { const rz = near(city.zs, fr.z); if (Math.abs(rz - fr.z) < 6) tkz = rz - Math.sign(rz - z) * curb; }
       else { const rx = near(city.xs, fr.x); if (Math.abs(rx - fr.x) < 6) tkx = rx - Math.sign(rx - x) * curb; }
       const ry = Math.atan2(tx, tz);
-      for (const k of [-1.9, -1.5, 1.5, 1.9]) { const cx = tkx + tx * k, cz = tkz + tz * k; P.push(tint(new THREE.ConeGeometry(0.07, 0.2, 6).translate(cx, 0.1, cz), 0xf26a1a), box(0.13, 0.02, 0.13, cx, 0.01, cz, 0x1c1c1c)); }
-      P.push(box(0.7, 0.5, 0.6, tkx + tx * 0.8, 0.45, tkz + tz * 0.8, 0xe8e8e0, ry), box(0.7, 0.1, 1.9, tkx, 0.2, tkz, 0x2b2e33, ry));
-      P.push(tint(new THREE.CylinderGeometry(0.28, 0.34, 1.1, 10).rotateX(Math.PI / 2 - 0.3).rotateY(ry).translate(tkx - tx * 0.3, 0.72, tkz - tz * 0.3), 0xd96a1a));
-      for (const t of [-0.7, 0.6]) for (const q of [-0.32, 0.32]) P.push(tint(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 8).rotateZ(Math.PI / 2).rotateY(ry).translate(tkx + tx * t + tz * q, 0.13, tkz + tz * t - tx * q), 0x111111));
+      for (const k of [-1.9, -1.5, 1.5, 1.9]) { const cx = tkx + tx * k, cz = tkz + tz * k; Y.push(tint(new THREE.ConeGeometry(0.07, 0.2, 6).translate(cx, 0.1, cz), 0xf26a1a), box(0.13, 0.02, 0.13, cx, 0.01, cz, 0x1c1c1c)); }
+      Y.push(box(0.7, 0.5, 0.6, tkx + tx * 0.8, 0.45, tkz + tz * 0.8, 0xe8e8e0, ry), box(0.7, 0.1, 1.9, tkx, 0.2, tkz, 0x2b2e33, ry));
+      Y.push(tint(new THREE.CylinderGeometry(0.28, 0.34, 1.1, 10).rotateX(Math.PI / 2 - 0.3).rotateY(ry).translate(tkx - tx * 0.3, 0.72, tkz - tz * 0.3), 0xd96a1a));
+      for (const t of [-0.7, 0.6]) for (const q of [-0.32, 0.32]) Y.push(tint(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 8).rotateZ(Math.PI / 2).rotateY(ry).translate(tkx + tx * t + tz * q, 0.13, tkz + tz * t - tx * q), 0x111111));
       s.truck = { x: tkx, z: tkz };
+      const mk = (geos, mat, shadow = true) => { if (!geos.length) return null; const m = new THREE.Mesh(mergeGeometries(geos), mat); m.castShadow = shadow; m.receiveShadow = shadow; scene.add(m); return m; };
+      s.parts = { upper: mk(U, lambert), net: mk(N, netMat, false), fence: mk(Hd, hoardMat), yard: mk(Y, lambert) };
+      s.floorsTop = s.b.floors - 1; s.aliveTop = s.b.cells.filter((c) => c.f === s.floorsTop).length;
     }
     // cranes: on the chosen sites, or on another site if a chosen one has nowhere to stand one
     const want = sites.filter((s) => s.crane).length, first = sites.filter((s) => s.crane), rest = sites.filter((s) => !s.crane);
     for (const s of sites) s.crane = false;                 // set again by addCrane where one actually stands
     for (const s of [...first, ...rest]) { if (this.cranes.length >= want) break; this.addCrane(scene, s, free); }
-    if (P.length) { const m = new THREE.Mesh(mergeGeometries(P), new THREE.MeshLambertMaterial({ vertexColors: true })); m.castShadow = m.receiveShadow = true; scene.add(m); }
-    if (nets.length) scene.add(new THREE.Mesh(mergeGeometries(nets), new THREE.MeshLambertMaterial({ color: 0x3f7a4a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false })));
-    if (hoard.length) {
-      const tex = canvasTex(256, 64, (x, w, h) => {
-        x.fillStyle = '#1f4e8a'; x.fillRect(0, 0, w, h); x.fillStyle = '#f2f2ee'; x.fillRect(0, h * 0.72, w, h * 0.28);
-        x.fillStyle = '#f7c21a'; for (let i = -1; i < 12; i++) { x.beginPath(); x.moveTo(i * 24, h); x.lineTo(i * 24 + 12, h * 0.72); x.lineTo(i * 24 + 24, h * 0.72); x.lineTo(i * 24 + 12, h); x.fill(); }
-        x.fillStyle = '#fff'; x.font = '800 16px Inter, Arial, sans-serif'; x.textAlign = 'center'; x.fillText(pick(['HARD HAT AREA', 'CONSTRUCTION SITE', 'KEEP OUT · SITE ENTRANCE']), w / 2, h * 0.45);
-      });
-      tex.wrapS = THREE.RepeatWrapping;
-      const hm = new THREE.Mesh(mergeGeometries(hoard), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
-      hm.castShadow = true; scene.add(hm);
-    }
     if (mapName === 'downtown') this.addGondolas(scene, city);
   }
 
@@ -182,7 +186,7 @@ export class Construction {
     const toLocal = (px, pz) => ({ yaw: Math.atan2(-(pz - base.z), px - base.x), r: clamp(Math.hypot(px - base.x, pz - base.z), 1.5, L - 0.6) });
     const pickP = toLocal(s.pile.x, s.pile.z), dropP = toLocal(x + rand(-w / 4, w / 4), z + rand(-d / 4, d / 4));
     s.crane = true;
-    this.cranes.push({ s, base, H, slew, trolley, hook, cable, load, pickP, dropP, pickY: 0.6, dropY: top + fh * levels + 0.6, yaw: rand(0, 6.28), r: 6, y: H - 2, step: 0, t: rand(1, 4) });
+    this.cranes.push({ s, base, H, mast, slew, trolley, hook, cable, load, pickP, dropP, pickY: 0.6, dropY: top + fh * levels + 0.6, yaw: rand(0, 6.28), r: 6, y: H - 2, step: 0, t: rand(1, 4) });
   }
   // ---------- window washers: a gondola works down one face of a tall tower, pausing floor by floor ----------
   addGondolas(scene, city) {
@@ -205,9 +209,86 @@ export class Construction {
     }
   }
 
+  // ---------- destruction: scaffolding, frames, fences, yards and cranes all come down ----------
+  wreck(m, x, z, big = true) {
+    if (!m || !m.visible || m.userData.falling) return;
+    m.userData.falling = true;
+    this.falling.push({ m, vy: 0, tilt: rand(-0.4, 0.4), spin: rand(-0.25, 0.25), x, z, t: 0, big });
+    G.fx.dust(x, 1, z, big ? 2.2 : 1);
+  }
+  collapseSite(s, x = s.x, z = s.z) {
+    if (s.down) return;
+    s.down = true;
+    this.wreck(s.parts.upper, s.x, s.z); this.wreck(s.parts.net, s.x, s.z, false);
+    sfx.collapse && sfx.collapse(s.x, s.z, 30);
+  }
+  onBlast(x, y, z, r, power, kind) {
+    if (kind === 'lightning' && power < 3) return;
+    for (const s of this.sites) {
+      if (!s.parts) continue;
+      const reach = Math.max(s.w, s.d) / 2 + 1.5, d = Math.hypot(s.x - x, s.z - z) - reach;
+      if (d < r * (kind === 'wind' ? 0.7 : 0.45) && power >= 2.5) this.collapseSite(s, x, z);
+      if (d < r * 0.6 && power >= 2) { this.wreck(s.parts.fence, s.x, s.z, false); }
+      if (d < r * 0.35 && power >= 5) { this.wreck(s.parts.yard, s.x, s.z, false); }
+    }
+    for (const c of this.cranes) {
+      if (c.fallen) continue;
+      const d = Math.hypot(c.base.x - x, c.base.z - z);
+      if ((d < r * 0.5 + 2 && power >= 3) || (kind === 'wind' && d < r && power >= 4)) this.topple(c, x, z);
+    }
+    for (const g of this.gondolas) if (!g.fall && Math.hypot(g.x - x, g.g.position.z - z) < r * 0.5 + 2 && Math.abs(g.y - y) < r) g.fall = { vy: 0 };
+  }
+  // the crane goes over, away from the blast, pivoting at its base
+  topple(c, x, z) {
+    c.fallen = { a: 0, w: 0 };
+    const pivot = new THREE.Group(); pivot.position.set(c.base.x, 0, c.base.z); G.scene ? G.scene.add(pivot) : c.mast.parent.add(pivot);
+    c.mast.parent.remove(c.mast); c.slew.parent.remove(c.slew);
+    c.mast.position.set(0, 0, 0); c.slew.position.set(0, c.H, 0);
+    pivot.add(c.mast, c.slew);
+    const dx = c.base.x - x, dz = c.base.z - z, l = Math.hypot(dx, dz) || 1;
+    c.fallen.axis = new THREE.Vector3(dz / l, 0, -dx / l);          // tip away from the blast
+    c.fallen.pivot = pivot;
+    sfx.collapse && sfx.collapse(c.base.x, c.base.z, 25);
+  }
+  updateDamage(dt) {
+    // anything knocked loose falls, tumbles a little and sinks out of sight in a cloud of dust
+    for (const f of [...this.falling]) {
+      f.t += dt; f.vy += 9 * dt;
+      f.m.position.y -= f.vy * dt; f.m.rotation.z += f.tilt * dt; f.m.rotation.x += f.spin * dt;
+      if (f.big && Math.random() < dt * 8) G.fx.dust(f.x + rand(-2, 2), 0.5, f.z + rand(-2, 2), 1.4);
+      if (f.t > 2.2) { f.m.visible = false; this.falling.splice(this.falling.indexOf(f), 1); }
+    }
+    for (const c of this.cranes) {
+      const F = c.fallen; if (!F || F.done) continue;
+      F.w += dt * 0.9; F.a = Math.min(Math.PI / 2 - 0.05, F.a + F.w * dt);
+      F.pivot.quaternion.setFromAxisAngle(F.axis, F.a);
+      if (F.a >= Math.PI / 2 - 0.05) {
+        F.done = true; G.shake = Math.max(G.shake || 0, 0.5);
+        const tip = new THREE.Vector3(0, c.H, 0).applyQuaternion(F.pivot.quaternion).add(F.pivot.position);
+        for (let k = 0; k < 6; k++) G.fx.dust(F.pivot.position.x + (tip.x - F.pivot.position.x) * k / 5, 0.5, F.pivot.position.z + (tip.z - F.pivot.position.z) * k / 5, 1.6);
+        blast(tip.x, 0.5, tip.z, 8, 4, 'collapse');                                           // it lands on whatever's there
+      }
+    }
+    // a site whose top floor has been blown away takes its frame and scaffolding down with it (checked twice a second)
+    if ((this.checkT = (this.checkT || 0) - dt) <= 0) {
+      this.checkT = 0.5;
+      for (const s of this.sites) {
+        if (s.down || !s.parts) continue;
+        const alive = s.b.cells.filter((c) => c.f === s.floorsTop && c.alive && !c.falling).length;
+        if (alive < s.aliveTop * 0.5) this.collapseSite(s);
+      }
+      for (const g of this.gondolas) {
+        if (g.fall) continue;
+        if (!g.t.cells.some((c) => c.alive && !c.falling && Math.abs(c.x - g.x) < 2.5 && Math.abs(c.y - g.y) < 2)) g.fall = { vy: 0 };
+      }
+    }
+  }
+
   update(dt) {
+    this.updateDamage(dt);
     const T = G.camTarget, near = (x, z, r) => Math.hypot(x - T.x, z - T.z) < r;
     for (const c of this.cranes) {
+      if (c.fallen) continue;
       if (!near(c.base.x, c.base.z, 130)) continue;
       // a simple cycle: to the pile, lower, hook on, raise, swing to the building, lower, unhook, raise, rest
       const P = c.step < 4 ? c.pickP : c.dropP;
@@ -227,6 +308,13 @@ export class Construction {
       c.hook.position.y = -drop; c.cable.scale.y = Math.max(0.01, drop);
     }
     for (const g of this.gondolas) {
+      if (g.fall) {                                        // cut loose: it drops, cables and all
+        if (!g.g.visible) continue;
+        g.fall.vy += 9 * dt; g.y -= g.fall.vy * dt; g.g.position.y = g.y - 0.35; g.g.rotation.z += dt * 0.6;
+        g.cables.forEach((cb) => { cb.visible = false; });
+        if (g.y < 0.4) { g.g.visible = false; G.fx.dust(g.x, 0.4, g.g.position.z, 1); }
+        continue;
+      }
       if (!near(g.t.x, g.t.z, 150)) continue;
       // down a floor, clean for a while, down again; at the bottom, shift along and ride back up
       if (g.pause > 0) g.pause -= dt;

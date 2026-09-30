@@ -23,6 +23,8 @@ export const SCHEMA = [
   { id: 'incidents', label: 'Random incidents', type: 'select', def: 'normal', options: [['off', 'Off'], ['low', 'Low'], ['normal', 'Normal'], ['high', 'High']], hint: 'Car crashes and shootings the police and ambulances respond to' },
   { id: 'gore', label: 'Blood & gore', type: 'select', def: 'on', options: [['on', 'On'], ['off', 'Off']], hint: 'Blood, and limbs lost in explosions' },
   { id: 'crowds', label: 'Crowd density', type: 'select', def: 'normal', options: [['low', 'Low'], ['normal', 'Normal'], ['high', 'High']], hint: 'Applies when a map loads' },
+  { id: 'news', label: 'Breaking news banners', type: 'toggle', def: true, hint: 'Headlines about what happens in the city' },
+  { id: 'spanish', label: 'La Playa news in Spanish', type: 'toggle', def: true, hint: 'Off: La Playa headlines in English' },
 ];
 
 const defaults = () => Object.fromEntries(SCHEMA.filter((f) => f.id).map((f) => [f.id, f.def]));

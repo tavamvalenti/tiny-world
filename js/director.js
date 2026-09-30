@@ -94,7 +94,8 @@ export class Director {
     const S = {
       downtown: [['LOCAL', 'Crane work continues on downtown construction sites'], ['LOCAL', 'Trolley running on schedule through the Gaslamp Quarter'], ...(clear ? [['LOCAL', 'Sunny afternoon brings crowds to the waterfront']] : [])],
       suburbs: [['SPORTS', 'Streetball game under way by the courts'], ['LOCAL', 'Construction crews busy on the South Side'], ...(G.concert && G.concert.phase === 'active' ? [['FESTIVAL', 'Summer Smash crowd packed in front of the main stage']] : [])],
-      tropical: [['LOCAL', clear ? 'Día soleado: la playa llena de turistas' : 'Pocos bañistas por el mal tiempo'], ['LOCAL', 'Salvavidas vigilan la playa'], ['LOCAL', 'Hoteles de la costa reportan alta ocupación']],
+      tropical: N.es ? [['LOCAL', clear ? 'Día soleado: la playa llena de turistas' : 'Pocos bañistas por el mal tiempo'], ['LOCAL', 'Salvavidas vigilan la playa'], ['LOCAL', 'Hoteles de la costa reportan alta ocupación']]
+        : [['LOCAL', clear ? 'Sunny day brings crowds to the beach' : 'Beach quiet as weather turns'], ['LOCAL', 'Lifeguards on watch along the beach'], ['LOCAL', 'Beachfront hotels report a busy week']],
     }[this.map];
     if (S) { const [tag, text] = pick(S); N.post(tag, text, 1, 'story-' + text); }
   }
