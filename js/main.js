@@ -19,6 +19,8 @@ import { Concert } from './concert.js';
 import { Court } from './court.js';
 import { Gangs } from './gangs.js';
 import { Gore } from './gore.js';
+import { World, MENU } from './world.js';
+import { Responders } from './responders.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -159,6 +161,8 @@ function load(name) {
   G.gore = new Gore(scene);
   G.agents = new Agents(scene, map.city, map.agents);
   G.chaos = new Chaos(G.agents);
+  G.responders = new Responders(scene);
+  G.world = new World(scene);
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
   cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half;
@@ -284,6 +288,8 @@ function step(dt) {
   updateBoats(dt);
   G.agents.update(dt);
   G.chaos.update(dt);
+  G.responders.update(dt);
+  G.world.update(dt);
   G.weapons.update(dt, input);
   input.pressed = false;
   G.buildings.update(dt);
@@ -307,13 +313,41 @@ G.snap = (w = 560, q = 0.55) => {
 };
 requestAnimationFrame(frame);
 
+// ---------- WORLD menu: pick something, then click the map to place it ----------
+const worldMenu = $('#worldMenu'), placeHint = $('#placeHint');
+worldMenu.innerHTML = MENU.map((c) => `<div class="col"><h4>${c.cat}</h4>${c.items.map(([id, label, now]) => `<button data-id="${id}" data-label="${label}"${now ? ' data-now="1"' : ''}>${label}</button>`).join('')}</div>`).join('');
+$('#worldBtn').addEventListener('click', () => { const open = worldMenu.classList.toggle('open'); $('#worldBtn').classList.toggle('on', open || !!(G.world && G.world.armed)); });
+worldMenu.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b || !G.world) return;
+  sfx.unlock();
+  if (b.dataset.now) { G.world.place(b.dataset.id, { x: cam.x, y: 0, z: cam.z }); flashHint(b.dataset.label.toUpperCase()); worldMenu.classList.remove('open'); $('#worldBtn').classList.remove('on'); return; }
+  G.world.armed = { id: b.dataset.id, label: b.dataset.label };
+  worldMenu.querySelectorAll('button').forEach((x) => x.classList.toggle('armed', x === b));
+  worldMenu.classList.remove('open'); $('#worldBtn').classList.add('on');
+  placeHint.textContent = `PLACE ${b.dataset.label.toUpperCase()} — CLICK THE MAP · RIGHT-CLICK / ESC TO CANCEL`; placeHint.classList.add('show');
+});
+function disarm() {
+  if (G.world) G.world.armed = null;
+  placeHint.classList.remove('show'); $('#worldBtn').classList.remove('on');
+  worldMenu.querySelectorAll('button').forEach((x) => x.classList.remove('armed'));
+}
+function placeArmed() {
+  const it = G.world.armed, a = G.weapons.aim;
+  if (!a) return;
+  const ok = G.world.place(it.id, a.point);
+  disarm();
+  flashHint(ok ? it.label.toUpperCase() : `COULDN'T PLACE ${it.label.toUpperCase()} THERE`);
+}
+let hintT = 0;
+function flashHint(text) { placeHint.textContent = text; placeHint.classList.add('show'); clearTimeout(hintT); hintT = setTimeout(() => { if (!G.world || !G.world.armed) placeHint.classList.remove('show'); }, 1400); }
+
 // ---------- input ----------
 window.addEventListener('keydown', (e) => {
   if (settingsOpen) { if (e.code === 'Escape') closeSettings(); return; }
   keys[e.code] = true;
   if (!running) return;
   if (e.code >= 'Digit1' && e.code <= 'Digit5') selectWeapon(+e.code.slice(5) - 1);
-  if (e.code === 'Escape') location.reload();
+  if (e.code === 'Escape') { if (G.world && G.world.armed) { disarm(); return; } if (worldMenu.classList.contains('open')) { worldMenu.classList.remove('open'); $('#worldBtn').classList.remove('on'); return; } location.reload(); }
   if (e.code === 'KeyT') { tod.cycle(makeEnv); setTodButtons(); }
   if (e.code === 'KeyM') { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; }
 });
@@ -324,9 +358,14 @@ canvasEl.addEventListener('mousemove', (e) => {
   if (input.down && e.pointerType !== 'touch' && !(e.buttons & 1) && !touch) input.down = false; // released outside the window
 });
 document.addEventListener('mouseleave', () => { if (!touch) input.down = false; });
-canvasEl.addEventListener('mousedown', (e) => { if (e.button === 0) { input.down = true; input.pressed = true; sfx.unlock(); } });
+canvasEl.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  sfx.unlock();
+  if (G.world && G.world.armed) { placeArmed(); return; }      // placing from the WORLD menu, not firing
+  input.down = true; input.pressed = true;
+});
 window.addEventListener('mouseup', (e) => { if (e.button === 0) input.down = false; });
-canvasEl.addEventListener('contextmenu', (e) => e.preventDefault());
+canvasEl.addEventListener('contextmenu', (e) => { e.preventDefault(); if (G.world && G.world.armed) disarm(); });
 canvasEl.addEventListener('wheel', (e) => {
   e.preventDefault();
   const k = 0.0012 * settings.zoomSpeed / 100 * (settings.invertZoom ? -1 : 1);
@@ -400,7 +439,7 @@ canvasEl.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
     input.mx = t.clientX; input.my = t.clientY;
     touch = { x: t.clientX, y: t.clientY, moved: false, firing: false };
-    touch.hold = setTimeout(() => { if (touch && !touch.moved && !touch.pinch) { touch.firing = true; input.down = true; input.pressed = true; } }, 220);
+    touch.hold = setTimeout(() => { if (touch && !touch.moved && !touch.pinch && !(G.world && G.world.armed)) { touch.firing = true; input.down = true; input.pressed = true; } }, 220);
   } else if (e.touches.length === 2) {
     if (touch) clearTimeout(touch.hold);
     input.down = false;
@@ -431,6 +470,6 @@ canvasEl.addEventListener('touchend', (e) => {
   if (!touch || e.touches.length) return;
   clearTimeout(touch.hold);
   if (touch.firing) input.down = false;
-  else if (!touch.moved && !touch.pinch) { input.down = true; input.pressed = true; setTimeout(() => { input.down = false; }, 80); }
+  else if (!touch.moved && !touch.pinch) { if (G.world && G.world.armed) placeArmed(); else { input.down = true; input.pressed = true; setTimeout(() => { input.down = false; }, 80); } }
   touch = null;
 }, { passive: false });

@@ -10,6 +10,7 @@ let ctx = null, master, sfxBus, ambBus, ambVol, voiceBus, reverb, revSend, echo,
 const VOL = { master: 0.8, sfx: 0.5, ambience: 0.35, voices: 0.15, music: 0.6 };
 let white, pink, brown;
 let shotBuf = null, shotLoading = false;   // recorded gunshot sample
+let rainNode = null;
 function loadShot() {
   if (shotBuf || shotLoading || !ctx) return;
   shotLoading = true;
@@ -582,6 +583,24 @@ export const sfx = {
     burst(ch.input, t, { buf: brown, type: 'lowpass', f: 900, sweep: 200, a: 0.03, peak: 0.9, d: big ? 0.9 : 0.5 });
     burst(ch.input, t, { buf: pink, type: 'bandpass', f: 1800, q: 0.8, a: 0.02, peak: 0.35, d: 0.4 });
     for (let i = 0; i < (big ? 18 : 6); i++) burst(ch.input, t + R(0.05, 0.9), { f: R(2000, 6000), q: 3, a: 0.001, peak: R(0.04, 0.12), d: 0.03 });
+  },
+  // weather: a steady hiss of rain on the city, and thunder (a crack close up, a long rumble far away)
+  rain(level) {
+    if (!ctx) return;
+    if (!rainNode && level > 0.01) {
+      const n = noise(pink), hp = filt('highpass', 700), lp = filt('lowpass', 7000); rainNode = amp(0);
+      n.connect(hp); hp.connect(lp); lp.connect(rainNode); rainNode.connect(ambBus); n.start();
+    }
+    if (rainNode) rainNode.gain.setTargetAtTime(level * 0.5, now(), 0.4);
+  },
+  thunder(x, z, v = 1) {
+    if (!init()) return;
+    const t = now(), s = spatial(x, z), ch = chain(x, z, { vol: 0.9 * v, echoAmt: 0.8, wetBoost: 0.3 });
+    const close = s.D < 40;
+    if (close) burst(ch.input, t, { type: 'highpass', f: 1200, a: 0.002, peak: 0.8, d: 0.25 });
+    burst(ch.input, t + (close ? 0.05 : 0), { buf: brown, type: 'lowpass', f: 420, sweep: 90, a: close ? 0.04 : 0.4, peak: 1.0, d: 4.5 });
+    for (let i = 0; i < 5; i++) burst(ch.input, t + R(0.3, 3), { buf: brown, type: 'lowpass', f: 250, a: 0.2, peak: R(0.3, 0.6), d: R(0.8, 1.6) });
+    sfx.duck(0.5, 2);
   },
   // streetball: ball on asphalt, rim clank, net swish
   bounce(x, z, v = 1) {

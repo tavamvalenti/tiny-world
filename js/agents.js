@@ -11,6 +11,16 @@ const SHIRTS = [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a, 0xd8
 const PANTS = [0x2a3448, 0x1f1f22, 0x5a5044, 0x7b8794, 0x3c4a3a, 0xb8ad96, 0x33415e];
 const SKIN = [0xe8c4a8, 0xc99b78, 0x9a6b4c, 0x6b4630, 0xf0d6c0, 0xb07e5a];
 const HAIR = [0x1a1410, 0x2e2118, 0x5a3b22, 0x8a6a3a, 0xc9a86a, 0x6b6b6b, 0x0e0e0e];
+// which vehicles each kind of world event calls for (untyped legacy incidents keep the old mix)
+const NEEDS = {
+  FIRE: (s) => ['fire', 'police', ...(s > 1.5 ? ['fire'] : []), ...(s > 2.2 ? ['ambulance'] : [])],
+  TRAFFIC_ACCIDENT: (s) => ['police', 'ambulance', ...(s > 1.5 ? ['fire'] : [])],
+  SHOOTING: () => ['police', 'police', 'ambulance'],
+  GANG_CONFLICT: () => ['police', 'police', 'ambulance'],
+  RIOT: () => ['police', 'police', 'police'],
+  EVACUATION: () => ['police', 'fire'],
+  POLICE_RESPONSE: () => ['police'], FIRE_RESPONSE: () => ['fire'], MEDICAL_RESPONSE: () => ['ambulance'],
+};
 const EMERG_TYPES = ['police', 'police', 'police', 'police', 'police', 'fire', 'fire', 'fire', 'fire', 'ambulance', 'ambulance', 'ambulance', 'ambulance', 'police'];
 
 export function carGeos() {
@@ -58,6 +68,11 @@ export class Agents {
     this.headPool = new THREE.InstancedMesh(poolGeo, new THREE.MeshBasicMaterial({ map: beamTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, color: 0x000000 }), nCars);
     for (const m of [this.headL, this.tailL, this.headPool]) { m.frustumCulled = false; scene.add(m); }
     this.headPool.renderOrder = 1;
+    // car doors, shown only while someone is getting in or out (hinged at the front edge, swing outward)
+    const doorGeo = new THREE.BoxGeometry(0.03, 0.22, 0.38).translate(0, 0.32, -0.19);
+    this.doors = new THREE.InstancedMesh(doorGeo, new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.4 }), nCars * 2);
+    for (let k = 0; k < nCars * 2; k++) this.doors.setMatrixAt(k, ZERO);
+    this.doors.frustumCulled = false; scene.add(this.doors);
     // emergency light bars
     this.beacons = new THREE.InstancedMesh(new THREE.BoxGeometry(0.15, 0.07, 0.12), new THREE.MeshBasicMaterial({ color: 0xffffff }), E * 2);
     this.beacons.frustumCulled = false; scene.add(this.beacons);
@@ -116,6 +131,7 @@ export class Agents {
       w: new THREE.Vector3(), scale, maxSpeed: rand(3.2, 4.4) * (type === 'bus' ? 0.75 : 1), color: type === 'bus' ? new THREE.Color(0xe8e4d8) : this.carColor(),
       len: 0.8 * scale[2], timer: 0, stuck: 0, flee: 0, fire: 0 };
     this.carBody.setColorAt(i, c.color);
+    if (this.doors) { this.doors.setColorAt(i * 2, c.color); this.doors.setColorAt(i * 2 + 1, c.color); }
     return c;
   }
   spawnCar(i, replace = null) {
@@ -143,6 +159,7 @@ export class Agents {
       c.speed = c.maxSpeed * 0.6;
       break;
     }
+    if (replace && replace.driver) this.respawnPed(replace.driver);
     if (replace) this.cars[this.cars.indexOf(replace)] = c; else this.cars.push(c);
   }
   spawnParked(i, p) {
@@ -249,6 +266,11 @@ export class Agents {
       if (Math.random() < dt * 18) G.fx.fire.emit(c.pos.x + rand(-0.3, 0.3), c.pos.y + 0.45, c.pos.z + rand(-0.3, 0.3), rand(-0.15, 0.15), rand(1.5, 2.6), rand(-0.15, 0.15), rand(0.35, 0.7), rand(0.35, 0.7));
       if (Math.random() < dt * 5) G.fx.smokePuff(c.pos.x, c.pos.y + 0.8, c.pos.z, 0.9, 0.06);
     }
+    if (c.doorT > 0) c.doorT -= dt;
+    if (c.doorT2 > 0) c.doorT2 -= dt;
+    if (c.state === 'parked' && c.pullOut != null) { c.speed = 0; if ((c.pullOut -= dt) <= 0) { c.pullOut = null; this.joinTraffic(c); } return; }
+    if (c.state === 'onscene' && c.awaitCrew && (!G.responders || G.responders.aboard(c))) { this.leave(c); return; }
+    if (c.patrolUntil && G.time > c.patrolUntil && c.state === 'drive') { c.patrolUntil = null; c.leaving = true; }
     if (c.state === 'wreck' || c.state === 'parked' || c.state === 'onscene') { c.speed = 0; return; }
     if (c.timer > 0) { c.timer -= dt; c.speed = Math.max(0, c.speed - 14 * dt); this.moveCar(c, dt); return; }
     if (c.flee > 0) c.flee -= dt;
@@ -258,6 +280,7 @@ export class Agents {
     // responders pull up and park once they're close to the incident
     if (c.incident && Math.hypot(c.pos.x - c.incident.x, c.pos.z - c.incident.z) < 10 + c.ei % 3 * 2) { this.arrive(c); return; }
     if (!c.queue.length) {
+      if (c.parking) { this.parkHere(c); return; }
       if (c.dest != null && c.to === c.dest) { this.arrive(c); return; }
       const n = this.chooseNext(c);
       if (n === null) { c.speed = 0; return; }
@@ -345,6 +368,7 @@ export class Agents {
     a.flipped = up.y < 0;
     if (isCar) {
       a.state = 'wreck';
+      if (a.driver) { const d = a.driver; a.driver = null; d.car = null; d.pos.set(a.pos.x + 0.6, 0, a.pos.z); d.state = 'down'; d.timer = rand(4, 8); }
       a.incident = null; a.dest = null;
       if (a.siren) { a.siren.stop(); a.siren = null; }
       if (a.obs) { const k = this.city.obstacles.indexOf(a.obs); if (k >= 0) this.city.obstacles.splice(k, 1); }
@@ -367,25 +391,117 @@ export class Agents {
     if (a.pos.y < 0.02) a.pos.y = 0.02;
   }
 
+  // ---------- getting in and out of cars ----------
+  // world position of a car-local point (lx to the car's left, lz forward)
+  carPoint(c, lx, lz) {
+    const h = c.heading, sx = c.scale[0], sz = c.scale[2];
+    return { x: c.pos.x + lx * sx * Math.cos(h) + lz * sz * Math.sin(h), z: c.pos.z - lx * sx * Math.sin(h) + lz * sz * Math.cos(h) };
+  }
+  // a stopped car finds the nearest lane and pulls into traffic
+  joinTraffic(c) {
+    const C = this.city, off = C.roadW / 4;
+    let best = null, bd = 1e9;
+    for (const e of C.edges.values()) {
+      if (e.blocked) continue;
+      for (const [a, b] of [[e.a, e.b], [e.b, e.a]]) {
+        const A = C.nodes[a], B = C.nodes[b], L = Math.hypot(B.x - A.x, B.z - A.z) || 1, dx = (B.x - A.x) / L, dz = (B.z - A.z) / L;
+        const ax = A.x - dz * off, az = A.z + dx * off;
+        const t = clamp(((c.pos.x - ax) * dx + (c.pos.z - az) * dz) / L, 0.2, 0.75);
+        const px = ax + dx * L * t, pz = az + dz * L * t, d = Math.hypot(px - c.pos.x, pz - c.pos.z);
+        if (d < bd) { bd = d; best = { a, b, px: px + dx * 1.2, pz: pz + dz * 1.2 }; }
+      }
+    }
+    if (!best) return;
+    const A = C.nodes[best.a], B = C.nodes[best.b];
+    c.from = best.a; c.to = best.b; c.queue = [{ x: best.px, z: best.pz }, this.stopPoint(A, B)];
+    c.state = 'drive'; c.speed = 0.3; c.stuck = 0; c.timer = 0;
+    if (c.obs) { const k = C.obstacles.indexOf(c.obs); if (k >= 0) C.obstacles.splice(k, 1); c.obs = null; }
+  }
+  // pull over to the curb on the right, stop, and let the driver out
+  parkHere(c) {
+    c.parking = null; c.state = 'parked'; c.speed = 0; c.queue = [];
+    const drv = c.driver || this.borrowPed();
+    c.driver = null;
+    if (!drv) return;
+    setTimeout(() => {
+      c.doorT = 1.3;
+      setTimeout(() => {
+        const d = this.carPoint(c, 0.55, 0.1);
+        drv.pos.set(d.x, 0, d.z); drv.heading = c.heading + Math.PI / 2; drv.car = null; drv.lost = null; drv.dead = false;
+        this.resumePed(drv);
+      }, 450);
+    }, 500);
+  }
+  // someone off-screen we can quietly re-use for a spawn or a driver
+  borrowPed(awayFrom = G.camTarget, minD = 55) {
+    const ok = this.peds.filter((p) => p.state === 'walk' && !p.officer && !p.zone && !p.hostile && Math.hypot(p.pos.x - awayFrom.x, p.pos.z - awayFrom.z) > minD);
+    return ok.length ? pick(ok) : null;
+  }
+  borrowCar(awayFrom = G.camTarget, minD = 55) {
+    const ok = this.cars.filter((c) => c.state === 'drive' && !c.emerg && !c.incident && !c.leaving && Math.hypot(c.pos.x - awayFrom.x, c.pos.z - awayFrom.z) > minD);
+    return ok.length ? pick(ok) : null;
+  }
+  // near the camera now and then: someone walks to a parked car and drives off, or a car pulls over and its
+  // driver gets out (the world's cars are driven by people, not remote controlled)
+  updateDrivers(dt) {
+    if ((this.drvT = (this.drvT ?? rand(4, 8)) - dt) > 0) return;
+    this.drvT = rand(5, 11);
+    const T = G.camTarget, near = (o, r) => Math.hypot(o.pos.x - T.x, o.pos.z - T.z) < r;
+    if (Math.random() < 0.55) {
+      const parked = this.cars.filter((c) => c.state === 'parked' && !c.emerg && c.pullOut == null && !c.reserved && near(c, 40));
+      for (const c of parked.sort(() => Math.random() - 0.5).slice(0, 6)) {
+        const walker = this.peds.find((p) => p.state === 'walk' && !p.officer && !p.hostile && Math.hypot(p.pos.x - c.pos.x, p.pos.z - c.pos.z) < 14);
+        if (!walker) continue;
+        c.reserved = true; walker.state = 'toCar'; walker.car = c; walker.target = this.carPoint(c, 0.62, 0.1);
+        return;
+      }
+    } else {
+      const C = this.city;
+      const moving = this.cars.filter((c) => c.state === 'drive' && !c.emerg && !c.incident && !c.leaving && c.scale[2] < 2 && c.speed > 1.5 && c.flee <= 0 && near(c, 40) && c.queue.length === 1);
+      const c = pick(moving);
+      if (!c) return;
+      const wp = c.queue[0];
+      if (Math.hypot(wp.x - c.pos.x, wp.z - c.pos.z) < 8) return;          // not right before a junction
+      const fx = Math.sin(c.heading), fz = Math.cos(c.heading), off = C.roadW / 4 + 0.32;
+      const px = c.pos.x + fx * 3 - fz * off, pz = c.pos.z + fz * 3 + fx * off;
+      if (C.pedBlocked && C.pedBlocked(px, pz)) return;
+      c.parking = true; c.queue = [{ x: px, z: pz }];
+    }
+  }
+
   // ---------- first responders ----------
-  report(x, z, sev = 1) {
-    for (const inc of this.incidents) if (Math.hypot(inc.x - x, inc.z - z) < 28) { inc.sev = Math.max(inc.sev, sev); return; }
-    this.incidents.push({ x, z, sev, delay: rand(3, 7), sent: false });
+  // A world event that needs responders. Nearby events of the same kind merge. Returns the event.
+  // (type/opts are optional so older callers that just say "something happened here" keep working)
+  report(x, z, sev = 1, type = 'INCIDENT', opts = {}) {
+    for (const inc of this.incidents) {
+      if (inc.active && inc.type === type && Math.hypot(inc.x - x, inc.z - z) < 28) { inc.sev = Math.max(inc.sev, sev); if (opts.threat) inc.threat = opts.threat; return inc; }
+    }
+    const inc = { x, z, sev, type, active: true, t: 0, threat: opts.threat || null, needs: opts.needs || null, delay: opts.delay ?? rand(3, 7), sent: false };
+    this.incidents.push(inc);
+    return inc;
   }
   dispatch(inc) {
     inc.sent = true;
-    const want = ['police', 'fire', 'ambulance'];
-    if (inc.sev > 1.5) want.push('police', 'fire');
-    if (inc.sev > 2.5) want.push('ambulance', 'fire');
+    let want = inc.needs || (NEEDS[inc.type] && NEEDS[inc.type](inc.sev));
+    if (!want) {
+      want = ['police', 'fire', 'ambulance'];
+      if (inc.sev > 1.5) want.push('police', 'fire');
+      if (inc.sev > 2.5) want.push('ambulance', 'fire');
+    }
     const hs = this.city.hotspot;
-    if (hs && Math.hypot(inc.x - hs.x, inc.z - hs.z) < hs.r + 15) want.push('police', 'police');
+    if (hs && (inc.type === 'SHOOTING' || inc.type === 'INCIDENT') && Math.hypot(inc.x - hs.x, inc.z - hs.z) < hs.r + 15) want.push('police', 'police');
     const C = this.city;
     const target = C.nodes.filter((n) => !n.dead && n.edges.length).sort((a, b) => Math.hypot(a.x - inc.x, a.z - inc.z) - Math.hypot(b.x - inc.x, b.z - inc.z))[0];
-    const starts = C.nodes.filter((n) => !n.dead && n.edges.length && Math.hypot(n.x - inc.x, n.z - inc.z) > 45);
+    // responders come in from a few blocks away (out of view), not from the far side of the map
+    const starts = C.nodes.filter((n) => !n.dead && n.edges.length && Math.hypot(n.x - inc.x, n.z - inc.z) > 30)
+      .sort((a, b) => Math.hypot(a.x - inc.x, a.z - inc.z) - Math.hypot(b.x - inc.x, b.z - inc.z)).slice(0, 6);
     want.forEach((type, k) => {
-      const c = this.cars.find((o) => o.emerg === type && o.state === 'hidden' && !o.posted);
+      // reserve the vehicle now: two requests for the same type must not grab the same idle car
+      const c = this.cars.find((o) => o.emerg === type && o.state === 'hidden' && !o.posted && !o.reserved);
       if (!c || !starts.length) return;
+      c.reserved = true;
       setTimeout(() => {
+        c.reserved = false;
         const A = pick(starts);
         const nb = A.edges.filter((m) => !C.edge(A.id, m).blocked);
         if (!nb.length) return;
@@ -399,19 +515,28 @@ export class Agents {
     });
   }
   // scene cleared: responders drive off and return to the pool once out of sight
+  // the event is resolved: crews that are out walk back and climb in first, then the vehicle leaves
   release(inc) {
+    if (!inc) return;
+    inc.active = false;
     for (const c of this.cars) {
       if (c.incident !== inc) continue;
-      c.incident = null; c.dest = null; c.leaving = true; c.sirenOn = false; c.sirenOffAt = G.time;
-      if (c.state === 'onscene') { c.state = 'drive'; c.speed = 0.5; c.queue = []; }
+      c.sirenOn = false; c.sirenOffAt = G.time;
+      if (c.state === 'onscene' && G.responders && G.responders.recall(c)) c.awaitCrew = true;
+      else this.leave(c);
     }
     const k = this.incidents.indexOf(inc); if (k >= 0) this.incidents.splice(k, 1);
+  }
+  leave(c) {
+    c.incident = null; c.dest = null; c.leaving = true; c.awaitCrew = false; c.sirenOn = false; c.sirenOffAt = G.time;
+    if (c.state === 'onscene') { c.state = 'drive'; c.speed = 0.5; c.queue = []; }
   }
   arrive(c) {
     c.state = 'onscene'; c.speed = 0; c.queue = [];
     c.sirenOffAt = Math.min(c.sirenOffAt ?? 1e9, G.time + rand(3, 6));
     // angle the vehicle a little, the way responders park
     c.heading += rand(-0.35, 0.35);
+    G.responders && G.responders.arrive(c);
   }
   updateEmergency(dt) {
     for (const inc of this.incidents) {
@@ -424,7 +549,7 @@ export class Agents {
     if (this.fireCheckT <= 0) {
       this.fireCheckT = 4;
       const b = G.buildings.burnArr;
-      if (b.length > 6) { const c = pick(b); if (c && c.alive) this.report(c.x, c.z, Math.min(3, b.length / 30)); }
+      if (b.length > 2) { const c = pick(b); if (c && c.alive) this.report(c.x, c.z, Math.min(3, 0.8 + b.length / 30), 'FIRE'); }
     }
     // one siren voice at a time: the nearest active responder, kept until another is clearly closer, with a
     // short breather after a siren winds down before the next one starts
@@ -522,6 +647,38 @@ export class Agents {
         p.timer -= dt;
         if (p.timer <= 0) { p.state = 'flee'; p.timer = rand(4, 8); p.q.identity(); }
         return;
+      case 'gone':                            // taken away (e.g. by paramedics); a new person turns up later
+        if ((p.respawn -= dt) <= 0) this.respawnPed(p);
+        return;
+      case 'incar': return;                   // riding in a car: hidden until they get out
+      case 'carried': return;                 // on a stretcher, moved by the paramedics
+      case 'toCar': {
+        const c = p.car, d = c ? this.carPoint(c, 0.62, 0.1) : null;
+        if (!c || c.state !== 'parked') { p.car = null; if (c) c.reserved = false; this.resumePed(p); return; }
+        const dx = d.x - p.pos.x, dz = d.z - p.pos.z, l = Math.hypot(dx, dz);
+        if (l < 0.12) {
+          p.heading = c.heading; c.doorT = 1.3; p.state = 'entering'; p.timer = 0.55;
+          return;
+        }
+        p.heading = Math.atan2(dx, dz); p.pos.x += dx / l * Math.min(l, p.speed * dt); p.pos.z += dz / l * Math.min(l, p.speed * dt);
+        return;
+      }
+      case 'entering':
+        if ((p.timer -= dt) <= 0) { p.state = 'incar'; const c = p.car; c.driver = p; c.reserved = false; c.pullOut = rand(0.8, 1.4); }
+        return;
+      case 'riot': {
+        // rioters mill around the flashpoint, pump fists, now and then hurl something at a car
+        const r = p.riot;
+        if (!r || G.time > r.until) { p.riot = null; p.state = 'flee'; p.timer = rand(3, 6); p.threat = r ? { x: r.x, z: r.z } : p.pos; return; }
+        const dx = p.target.x - p.pos.x, dz = p.target.z - p.pos.z, l = Math.hypot(dx, dz);
+        if (l > 0.15) { p.heading = Math.atan2(dx, dz); p.pos.x += dx / l * p.speed * 1.2 * dt; p.pos.z += dz / l * p.speed * 1.2 * dt; }
+        else {
+          p.heading = Math.atan2(r.x - p.pos.x, r.z - p.pos.z);
+          if (Math.random() < dt * 0.15) p.target = { x: r.x + rand(-2.5, 2.5), z: r.z + rand(-2.5, 2.5) };
+          if (Math.random() < dt * 0.06) G.world && G.world.riotThrow(p);
+        }
+        return;
+      }
       case 'alert':
         p.timer -= dt;
         if (p.threat) p.heading = Math.atan2(p.threat.x - p.pos.x, p.threat.z - p.pos.z);
@@ -597,6 +754,16 @@ export class Agents {
         p.pos.x += Math.sin(p.heading) * p.speed * dt; p.pos.z += Math.cos(p.heading) * p.speed * dt;
       }
     }
+  }
+  // a fresh person appears somewhere out of view (used after someone is taken away)
+  respawnPed(p) {
+    const C = this.city, T = G.camTarget;
+    const nodes = C.pedNodes.filter((n) => n.edges.length && !C.pedBlocked(n.x, n.z) && Math.hypot(n.x - T.x, n.z - T.z) > 50);
+    const n = pick(nodes.length ? nodes : C.pedNodes.filter((m) => m.edges.length)), e = n.edges[0];
+    Object.assign(p, { dead: false, lost: null, treated: false, claimed: false, bleed: false, hostile: false, riot: null, car: null, zone: null, group: null });
+    p.pos.set(n.x, 0, n.z); p.q.identity(); p.from = n.id; p.to = e.to; p.state = 'walk';
+    this.pedColors(p.i);
+    for (const m of this.pMeshes) if (m.instanceColor) m.instanceColor.needsUpdate = true;
   }
   resumePed(p) {
     const C = this.city;
@@ -680,6 +847,7 @@ export class Agents {
     }
     for (const c of this.cars) this.updateCar(c, dt);
     this.updateEmergency(dt);
+    this.updateDrivers(dt);
 
     const night = G.night || 0;
     const hk = 0.25 + night * 3.2;
@@ -693,7 +861,7 @@ export class Agents {
     const lightCands = [];
     for (const c of this.cars) {
       const hidden = c.state === 'hidden';
-      if (hidden) { for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); }
+      if (hidden) { for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); this.doors.setMatrixAt(c.i * 2, ZERO); this.doors.setMatrixAt(c.i * 2 + 1, ZERO); }
       else {
         if (c.state === 'air' || c.state === 'wreck' && c.airborneBefore) {
           if (c.state === 'wreck') {
@@ -714,6 +882,13 @@ export class Agents {
         else this.headPool.setMatrixAt(c.i, ZERO);
         const b = c.braking || c.speed < 0.2 ? 2.2 : 1;
         this.tailL.setColorAt(c.i, _v.set(b, b, b));
+        // doors swing open while someone gets in or out (driver side, and the far side for crews)
+        for (const [k, t, side] of [[0, c.doorT, 1], [1, c.doorT2, -1]]) {
+          if (!(t > 0)) { this.doors.setMatrixAt(c.i * 2 + k, ZERO); continue; }
+          const open = Math.min(1, t / 0.3, (1.3 - t) / 0.3 + 0.001);
+          _m2.makeRotationY(-side * 1.1 * Math.max(0, open)); _m2.setPosition(side * 0.335, 0, 0.29);
+          this.doors.setMatrixAt(c.i * 2 + k, _m3.multiplyMatrices(_m, _m2));
+        }
       }
       if (c.emerg) {
         const on = c.state === 'drive' || c.state === 'onscene';
@@ -731,7 +906,7 @@ export class Agents {
         if (on) lightCands.push(c);
       }
     }
-    for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool, this.beacons]) m.instanceMatrix.needsUpdate = true;
+    for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool, this.beacons, this.doors]) m.instanceMatrix.needsUpdate = true;
     if (this.tailL.instanceColor) this.tailL.instanceColor.needsUpdate = true;
     if (this.beacons.instanceColor) this.beacons.instanceColor.needsUpdate = true;
     // two real flashing lights for the responders nearest the view (they light up facades at night)
@@ -747,12 +922,13 @@ export class Agents {
 
     for (const p of this.peds) {
       this.updatePed(p, dt);
-      const moving = p.state === 'walk' || p.state === 'flee' || p.state === 'wander' || p.state === 'return';
+      if (p.state === 'gone' || p.state === 'incar') { for (const m of this.pMeshes) m.setMatrixAt(p.i, ZERO); continue; }
+      const moving = p.state === 'walk' || p.state === 'flee' || p.state === 'wander' || p.state === 'return' || p.state === 'toCar' || (p.state === 'riot' && p.target && Math.hypot(p.target.x - p.pos.x, p.target.z - p.pos.z) > 0.15);
       const run = p.state === 'flee';
       const cyc = G.time * (run ? 13 : 7.5) + p.phase;
       const bob = moving ? Math.abs(Math.sin(cyc)) * (run ? 0.035 : 0.018) : 0;
       if (p.state === 'air') _q.copy(p.q);
-      else if (p.state === 'down') _q.setFromAxisAngle(UP, p.heading).multiply(new THREE.Quaternion().setFromAxisAngle(XAX, Math.PI / 2));
+      else if (p.state === 'down' || p.state === 'carried') _q.setFromAxisAngle(UP, p.heading).multiply(new THREE.Quaternion().setFromAxisAngle(XAX, Math.PI / 2));
       else { _q.setFromAxisAngle(UP, p.heading); if (run) _q.multiply(new THREE.Quaternion().setFromAxisAngle(XAX, 0.2)); }
       _p.set(p.pos.x, p.pos.y + bob + (p.state === 'down' ? 0.06 : 0), p.pos.z);
       _m.compose(_p, _q, _s.set(p.s, p.s, p.s));
@@ -763,6 +939,7 @@ export class Agents {
       else if (p.state === 'air') { leg = Math.sin(G.time * 18 + p.phase) * 0.7; arm = -leg; armOut = 1.1; }
       else if (p.state === 'alert') { armOut = 0.35; }
       else if (p.state === 'idle' && p.group) arm = Math.max(0, Math.sin(G.time * 1.3 + p.phase * 3)) * 0.7; // talking with hands
+      else if (p.state === 'riot' || p.state === 'entering') { arm = p.state === 'riot' ? -2.6 + Math.sin(G.time * 7 + p.phase) * 0.5 : -0.8; }
       this.limb(this.pLegL, i, 0.034, 0.31, leg);
       this.limb(this.pLegR, i, -0.034, 0.31, -leg);
       this.limb(this.pArmL, i, 0.084, 0.535, arm, armOut);

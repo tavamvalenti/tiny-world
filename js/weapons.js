@@ -78,7 +78,7 @@ export class Weapons {
     this.cd -= dt;
     this.updateReticle(W);
     this.updateProjectiles(dt);
-    const firing = input.down && this.aim;
+    const firing = input.down && this.aim && !(G.world && G.world.armed);
     if (this.cur === 0) this.laser(dt, firing);
     else this.laser(dt, false);
     // wind is one continuous, evolving sound while held, never a restarting loop
@@ -103,13 +103,14 @@ export class Weapons {
     const a = this.aim;
     this.reticle.visible = this.reticleDot.visible = !!a;
     if (!a) return;
-    this.reticle.material.color.set(W.color);
+    const placing = G.world && G.world.armed;
+    this.reticle.material.color.set(placing ? 0xffffff : W.color);
     for (const m of [this.reticle, this.reticleDot]) {
       m.position.copy(a.point).addScaledVector(a.normal, 0.06);
       m.lookAt(m.position.clone().add(a.normal));
     }
     const pulse = 1 + Math.sin(G.time * 6) * 0.04;
-    this.reticle.scale.setScalar(W.radius * pulse);
+    this.reticle.scale.setScalar((placing ? 1.2 : W.radius) * pulse);
   }
 
   // ---------- 1. mega laser ----------
@@ -147,7 +148,7 @@ export class Weapons {
       if (Math.random() < dt * 1.5) fx.groundFire(p.x, 0, p.z, rand(4, 10), 0.6);
     }
     this.laserBlastT = (this.laserBlastT || 0) - dt;
-    if (this.laserBlastT <= 0) { this.laserBlastT = 0.35; blast(p.x, p.y, p.z, 14, 0.3, 'laser'); if (this.laserT > 2.5 && G.emergency) G.emergency.report(p.x, p.z, 1); }
+    if (this.laserBlastT <= 0) { this.laserBlastT = 0.35; blast(p.x, p.y, p.z, 14, 0.3, 'laser'); if (this.laserT > 2.5 && G.emergency) G.emergency.report(p.x, p.z, 1, 'FIRE'); }
     // vehicles cooked by the beam eventually blow
     for (const c of G.agents.cars) {
       if (c.state === 'air') continue;

@@ -500,7 +500,7 @@ export class Gangs {
     for (const g of this.groups) if (g.side === t.side && Math.abs(g.post.x - t.x) < 18) this.engage(g);
     if (this.fight) {
       this.fight.t = Math.max(this.fight.t, 8);
-      if (!this.fight.reported && G.emergency) { this.fight.reported = true; G.emergency.report(t.x, this.border.z, 1.4); this.inc = G.emergency.incidents[G.emergency.incidents.length - 1]; }
+      if (!this.fight.reported && G.emergency) { this.fight.reported = true; this.inc = G.emergency.report(t.x, this.border.z, 1.4, 'GANG_CONFLICT'); }
     }
   }
 

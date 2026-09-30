@@ -72,8 +72,20 @@
   #mapname small { display:block; font-weight:400; letter-spacing:.1em; color:rgba(255,255,255,.45); margin-top:4px; }
   #topright { position:absolute; right:16px; top:calc(4.2vh + 12px); display:flex; gap:8px; align-items:center; pointer-events:auto; }
   #tod { display:flex; gap:2px; }
-  #tod .t, #mute, #gear { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none; }
+  #tod .t, #mute, #gear, #worldBtn { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none; }
   #tod .t.on { color:#fff; border-color:rgba(255,255,255,.55); }
+  #worldBtn.on { color:#fff; border-color:rgba(255,255,255,.55); }
+  /* WORLD menu: compact, four short columns; items are data-driven (js/world.js MENU) so more can be added */
+  #worldMenu { position:absolute; right:16px; top:calc(4.2vh + 44px); display:none; gap:14px; padding:12px 14px; background:rgba(16,18,22,.9); border:1px solid var(--line); border-radius:3px; backdrop-filter:blur(10px); pointer-events:auto; z-index:12; }
+  #worldMenu.open { display:flex; }
+  #worldMenu .col { display:flex; flex-direction:column; gap:4px; min-width:92px; }
+  #worldMenu h4 { margin:0 0 3px; font:600 9px Inter; letter-spacing:.26em; color:var(--accent); }
+  #worldMenu button { font:500 11px Inter; color:var(--ink); background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); padding:5px 8px; text-align:left; cursor:pointer; border-radius:2px; }
+  #worldMenu button:hover { background:rgba(255,255,255,.14); }
+  #worldMenu button.armed { border-color:var(--accent); color:#fff; }
+  #placeHint { position:absolute; left:50%; bottom:calc(4.2vh + 58px); transform:translateX(-50%); font:600 10px Inter; letter-spacing:.2em; color:#fff; background:var(--glass); border:1px solid rgba(255,255,255,.3); padding:6px 12px; display:none; white-space:nowrap; backdrop-filter:blur(8px); }
+  #placeHint.show { display:block; }
+  @media (max-width:760px) { #worldMenu { flex-wrap:wrap; left:16px; } }
   #stats { position:absolute; right:16px; top:calc(4.2vh + 44px); font:400 10px Inter; letter-spacing:.1em; color:rgba(255,255,255,.4); text-align:right; }
   @media (max-width:760px) { #help { display:none; } #weapons .w { padding:8px 8px; letter-spacing:.06em; } }
 </style>
@@ -107,8 +119,11 @@
   <div id="topright">
     <div id="tod"><span class="t" data-t="day">DAY</span><span class="t" data-t="sunset">SUNSET</span><span class="t" data-t="night">NIGHT</span></div>
     <span id="mute">SOUND ON</span>
+    <span id="worldBtn" title="Spawn people, vehicles, events and weather">WORLD</span>
     <span class="open-settings" id="gear">SETTINGS</span>
   </div>
+  <div id="worldMenu"></div>
+  <div id="placeHint"></div>
   <div id="weapons">
     <div class="w" data-w="0" style="--wc:#ff5a3c"><b>1</b>LASER</div>
     <div class="w" data-w="1" style="--wc:#ffb347"><b>2</b>BOMB</div>

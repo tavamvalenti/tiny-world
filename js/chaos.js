@@ -1,4 +1,4 @@
-// Random civilian incidents, independent of the player's weapons: car crashes and street shootings
+// Random civilian incidents, independent of the player's weapons: car crashes, street shootings and fires
 // (kept non-graphic: gunshots, muzzle flashes, people dropping or scattering). Each one is reported so
 // police, fire and ambulances respond; after a while the scene clears, responders leave and wrecks are towed.
 import * as THREE from 'three';
@@ -22,7 +22,8 @@ export class Chaos {
     this.t -= dt;
     if (this.t > 0) return;
     this.t = mean * rand(0.6, 1.4);
-    if (!(Math.random() < 0.55 ? this.crash() : this.shooting())) this.t = 4; // nothing suitable nearby: retry soon
+    const r = Math.random();
+    if (!(r < 0.45 ? this.crash() : r < 0.8 ? this.shooting() : this.fire())) this.t = 4; // nothing suitable nearby: retry soon
   }
 
   // the festival is a no-incident zone: the game never starts a crash or shooting within a wide ring of it
@@ -53,10 +54,11 @@ export class Chaos {
   }
 
   // ---------- car crash ----------
-  crash() {
+  // a: a specific car (from the WORLD menu); otherwise one near the camera
+  crash(a = null) {
     const A = this.A;
     const driving = A.cars.filter((c) => c.state === 'drive' && !c.emerg && !c.leaving && c.speed > 1 && this.safe(c));
-    const a = this.near(driving);
+    a = a || this.near(driving);
     if (!a) return false;
     const b = driving.filter((o) => o !== a).sort((p, q) => p.pos.distanceTo(a.pos) - q.pos.distanceTo(a.pos))[0];
     const hitCar = b && b.pos.distanceTo(a.pos) < 9 ? b : null;
@@ -86,17 +88,21 @@ export class Chaos {
         if (c.state !== 'drive' || c.emerg || wrecks.includes(c)) continue;
         if (c.pos.distanceTo(_v.set(x, 0, z)) < 16) { c.timer = rand(0.5, 1.5); if (Math.random() < 0.4) setTimeout(() => sfx.horn(c.pos.x, c.pos.z, 0.4), rand(400, 1800)); }
       }
-      this.open(x, z, 1.2, wrecks, []);
+      this.open(x, z, 1.2, wrecks, [], 'TRAFFIC_ACCIDENT');
     }, 550);
     return true;
   }
 
   // ---------- street shooting ----------
-  shooting() {
+  // at: a spot chosen from the WORLD menu (the shooter is someone nearby, or someone who walks up)
+  shooting(at = null, type = 'SHOOTING') {
     const A = this.A;
-    const calm = A.peds.filter((p) => !p.officer && ['walk', 'wander', 'idle', 'wait'].includes(p.state) && this.safe(p));
-    const shooter = this.crowded(calm);
+    const calm = A.peds.filter((p) => !p.officer && ['walk', 'wander', 'idle', 'wait'].includes(p.state) && (at || this.safe(p)));
+    let shooter = at ? calm.filter((p) => Math.hypot(p.pos.x - at.x, p.pos.z - at.z) < 12).sort(() => Math.random() - 0.5)[0] : this.crowded(calm);
+    if (!shooter && at) { shooter = A.borrowPed(at, 25); if (shooter) shooter.pos.set(at.x + rand(-1, 1), 0, at.z + rand(-1, 1)); }
     if (!shooter) return false;
+    // armed and dangerous until the police deal with them (or they get away)
+    shooter.hostile = true; setTimeout(() => { shooter.hostile = false; }, 90000);
     const { x, z } = shooter.pos;
     const around = calm.filter((p) => p !== shooter && Math.hypot(p.pos.x - x, p.pos.z - z) < 7);
     const victims = around.sort(() => Math.random() - 0.5).slice(0, Math.min(around.length, Math.round(rand(1, 3))));
@@ -135,15 +141,29 @@ export class Chaos {
         if (c.state !== 'drive' || c.emerg) continue;
         if (c.pos.distanceTo(_v.set(x, 0, z)) < 18) { c.flee = rand(6, 10); c.threat = { x, z }; }
       }
-      this.open(x, z, victims.length ? 1.6 : 1.1, [], victims);
+      this.open(x, z, victims.length ? 1.6 : 1.1, [], victims, type, shooter);
     }, dur);
     return true;
   }
 
+  // ---------- building fire ----------
+  // a random fire in a building near the camera: the same FIRE event, and the same fire response, as any other
+  fire() {
+    const T = G.camTarget, B = G.buildings;
+    const near = B.list.filter((b) => !b.gable && Math.hypot(b.x - T.x, b.z - T.z) < 45 && this.safe({ pos: { x: b.x, z: b.z } }));
+    const b = pick(near);
+    if (!b) return false;
+    const cells = b.cells.filter((c) => c.alive && !c.burnedOut && c.f <= 1);
+    const c = pick(cells);
+    if (!c) return false;
+    c.heat = 1; B.ignite(c);
+    G.world ? G.world.raise('FIRE', c.x, c.z, { severity: 1, delay: rand(4, 8) }) : this.A.report(c.x, c.z, 1, 'FIRE');
+    return true;
+  }
+
   // ---------- scene lifecycle ----------
-  open(x, z, sev, wrecks, hurt) {
-    this.A.report(x, z, sev);
-    const inc = this.A.incidents.find((i) => Math.hypot(i.x - x, i.z - z) < 28);
+  open(x, z, sev, wrecks, hurt, type = 'INCIDENT', threat = null) {
+    const inc = G.world ? G.world.raise(type, x, z, { severity: sev, threat }) : this.A.report(x, z, sev, type, { threat });
     this.scenes.push({ x, z, inc, wrecks, hurt, t: 0, arrived: null, hold: rand(35, 50), cleared: false });
   }
   tickScene(s, dt) {

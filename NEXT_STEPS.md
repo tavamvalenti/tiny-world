@@ -14,6 +14,10 @@
   live 3-on-3 games (dribble, pass, shots, dunks, rebounds); players scatter from weapons and the games restart.
 - **Rival crews** (`js/gangs.js`): fictional Blue Line (block 3,0) vs Red Row (block 3,1), border = street at z=-33.
   Strict territory zones, civilians kept out (city.noPeds), 3 armed groups a side, border firefights every ~40 s.
+- **Living world foundation** (2026-09-29): typed world events (`G.world.raise`, stored as the emergency incidents in
+  agents.js), responders on foot (`js/responders.js`: police / firefighters / paramedics exit, work the scene, return,
+  leave), car doors + drivers entering/exiting parked and curb-parked cars, WORLD menu (spawn people, vehicles,
+  events, weather) in `js/world.js`, minimal rain/storm/lightning. Not yet: full weather, birds, planes, missions.
 - Artifact republished: https://claude.ai/artifact/71DVzhiQHyfQR28ge9C7TV
 
 ## Publishing
