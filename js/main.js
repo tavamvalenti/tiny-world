@@ -163,7 +163,7 @@ function load(name) {
   G.agents = new Agents(scene, map.city, map.agents);
   G.chaos = new Chaos(G.agents);
   G.responders = new Responders(scene, map.city);
-  G.station = map.city.policeHQ ? new Station(scene, map.city.policeHQ) : null;
+  G.station = map.city.policeHQ ? new Station(scene, map.city.policeHQ, name) : null;
   G.world = new World(scene);
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;

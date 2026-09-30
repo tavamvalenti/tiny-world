@@ -24,18 +24,31 @@ function star(x, cx, cy, r, n = 5, inner = 0.45) {
   x.closePath(); x.fill();
 }
 
+// each city's station, in its own language, flying its own flag
+const LOCALE = {
+  downtown: { name: 'SAN DIEGO POLICE', sub: 'STATION', flag: 'us' },
+  suburbs: { name: 'CHICAGO POLICE', sub: 'STATION', flag: 'us' },
+  tropical: { name: 'POLICÍA · LA PLAYA', sub: 'ESTACIÓN DE POLICÍA', flag: 'mx' },
+};
+
 export class Station {
-  constructor(scene, hq) {
+  constructor(scene, hq, mapName = 'downtown') {
     this.hq = hq;
+    const L = LOCALE[mapName] || LOCALE.downtown;
     const P = [], { bx, bz, bd, bw, front, lot, block: b } = hq;
     // sign band + badge over the doors
     const sign = canvasTex(512, 96, (x, w, h) => {
       x.fillStyle = '#16244a'; x.fillRect(0, 0, w, h);
       x.fillStyle = '#d9b44a'; x.fillRect(0, h - 8, w, 8);
       x.fillStyle = '#d9b44a'; star(x, h * 0.55, h * 0.48, h * 0.34, 7, 0.55);
-      x.fillStyle = '#fff'; x.font = `800 ${h * 0.46}px Inter, Arial, sans-serif`; x.textBaseline = 'middle'; x.textAlign = 'left';
-      x.fillText('POLICE', h * 1.1, h * 0.46);
-      x.font = `600 ${h * 0.18}px Inter, Arial, sans-serif`; x.fillStyle = '#c9d4ea'; x.fillText('HEADQUARTERS', h * 1.12 + x.measureText('').width, h * 0.8);
+      // city name, shrunk to fit the band
+      const room = w - h * 1.25 - 12;
+      let size = h * 0.46;
+      x.font = `800 ${size}px Inter, Arial, sans-serif`;
+      while (x.measureText(L.name).width > room && size > 12) { size -= 1; x.font = `800 ${size}px Inter, Arial, sans-serif`; }
+      x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.textAlign = 'left';
+      x.fillText(L.name, h * 1.1, h * 0.44);
+      x.font = `600 ${h * 0.18}px Inter, Arial, sans-serif`; x.fillStyle = '#c9d4ea'; x.fillText(L.sub, h * 1.12, h * 0.8);
     });
     const sm = new THREE.MeshStandardMaterial({ map: sign, emissiveMap: sign, emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 0.6 });
     const s = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(7, bw * 0.55), 1.3), sm); s.position.set(bx, 2.35, front + 0.02); scene.add(s);
@@ -44,14 +57,14 @@ export class Station {
     P.push(box(4.4, 0.12, 1.4, bx, 1.55, front + 0.7, 0xd8dbe0), box(0.12, 1.55, 0.12, bx - 2.1, 0.78, front + 1.35, 0x2f3338), box(0.12, 1.55, 0.12, bx + 2.1, 0.78, front + 1.35, 0x2f3338));
     P.push(box(3.2, 0.08, 0.5, bx, 0.04, front + 0.25, 0xbab6ae), box(3.2, 0.04, 0.4, bx, 0.1, front + 0.2, 0xc6c2ba));
     // flags: stars & stripes and a blue police flag
-    const us = canvasTex(96, 54, (x, w, h) => {
+    const national = L.flag === 'mx' ? this.mexico() : canvasTex(96, 54, (x, w, h) => {
       for (let i = 0; i < 13; i++) { x.fillStyle = i % 2 ? '#fff' : '#b22234'; x.fillRect(0, i * h / 13, w, h / 13 + 1); }
       x.fillStyle = '#3c3b6e'; x.fillRect(0, 0, w * 0.4, h * 0.54); x.fillStyle = '#fff';
       for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) x.fillRect(3 + c * 7, 3 + r * 7, 2, 2);
     });
     const pd = canvasTex(96, 54, (x, w, h) => { x.fillStyle = '#16244a'; x.fillRect(0, 0, w, h); x.fillStyle = '#d9b44a'; star(x, w / 2, h / 2, h * 0.34, 7, 0.55); x.fillStyle = '#fff'; x.fillRect(0, h * 0.44, w * 0.3, h * 0.12); x.fillRect(w * 0.7, h * 0.44, w * 0.3, h * 0.12); });
     this.flags = [];
-    [[bx - 3.4, us], [bx + 3.4, pd]].forEach(([fx, tex]) => {
+    [[bx - 3.4, national], [bx + 3.4, pd]].forEach(([fx, tex]) => {
       P.push(tint(new THREE.CylinderGeometry(0.03, 0.04, 4.2, 6).translate(fx, 2.1, front + 1.9), 0xc0c4c8));
       const geo = new THREE.PlaneGeometry(1.1, 0.62, 8, 1).translate(0.55, 0, 0);
       const f = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
@@ -71,6 +84,14 @@ export class Station {
     m.castShadow = m.receiveShadow = true; scene.add(m);
     this.lampFace = new THREE.Mesh(mergeGeometries(this.lamps.map(([x, y, z]) => new THREE.PlaneGeometry(0.6, 0.18).rotateX(-0.6).translate(x, y, z))), new THREE.MeshBasicMaterial({ color: 0xffffff }));
     scene.add(this.lampFace);
+  }
+  // the Mexican flag from assets (drawn in as soon as it loads; plain tricolour until then)
+  mexico() {
+    const t = canvasTex(96, 54, (x, w, h) => { for (const [i, c] of [[0, '#006847'], [1, '#ffffff'], [2, '#ce1126']]) { x.fillStyle = c; x.fillRect(i * w / 3, 0, w / 3 + 1, h); } });
+    const img = new Image();
+    img.onload = () => { const c = t.image, x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height); t.needsUpdate = true; };
+    img.src = 'assets/flag-mexico.png';
+    return t;
   }
   update() {
     const n = G.night || 0;
