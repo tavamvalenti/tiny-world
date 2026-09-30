@@ -309,8 +309,136 @@ class Diorama {
 
 // ---------- the stage ----------
 // the title: one span per letter; each letter's nearness to the cursor (--p) drives its lift and glow
-// ?font=1..10 tries another face for the title (see _title-fonts.html); Cinzel is the default
-const TITLE_FONTS = [['Playfair Display', 500], ['Cinzel', 500], ['Italiana', 400], ['Bodoni Moda', 500], ['Fraunces', 300], ['Syne', 700], ['Unbounded', 400], ['Cormorant Garamond', 500], ['Tenor Sans', 400], ['DM Serif Display', 400]];
+// ---------- the little Earth that stands in for the O of WORLD ----------
+// Coarse coastlines (lon, lat) rasterised once into a land mask; each frame is an orthographic render of the mask
+// with a drifting cloud layer, day/night shading, ocean glint and an atmosphere rim. It spins on its own; hover turns
+// it toward the cursor, dragging spins it, a click flings it.
+const LAND = [
+  [[-168, 66], [-162, 70], [-140, 70], [-120, 71], [-95, 72], [-80, 73], [-62, 66], [-55, 52], [-66, 45], [-70, 42], [-76, 35], [-81, 31], [-80, 26], [-82, 29], [-90, 30], [-97, 27], [-97, 21], [-92, 18], [-87, 21], [-84, 15], [-83, 10], [-78, 8], [-80, 7], [-86, 11], [-92, 14], [-105, 20], [-110, 24], [-112, 30], [-117, 32], [-124, 40], [-124, 48], [-130, 55], [-140, 60], [-152, 59], [-165, 55], [-160, 60], [-166, 62]],
+  [[-55, 60], [-44, 60], [-20, 70], [-18, 80], [-35, 83], [-60, 82], [-72, 77], [-58, 70]],
+  [[-78, 8], [-72, 12], [-62, 10], [-50, 0], [-35, -6], [-39, -15], [-48, -26], [-58, -35], [-65, -42], [-68, -52], [-72, -54], [-75, -45], [-72, -30], [-71, -18], [-76, -14], [-81, -5], [-80, 0]],
+  [[-10, 36], [-9, 43], [-2, 44], [-5, 48], [2, 51], [8, 54], [10, 57], [5, 58], [8, 63], [15, 68], [25, 71], [40, 68], [60, 70], [70, 73], [80, 72], [100, 77], [112, 74], [130, 72], [150, 71], [170, 70], [180, 66], [178, 64], [163, 60], [155, 58], [142, 52], [140, 46], [132, 43], [128, 38], [126, 35], [121, 40], [122, 31], [120, 23], [110, 20], [106, 11], [103, 1], [100, 6], [98, 16], [94, 17], [90, 22], [80, 15], [77, 8], [73, 20], [66, 25], [57, 26], [56, 24], [59, 22], [52, 17], [44, 12], [42, 16], [35, 28], [33, 31], [36, 36], [27, 37], [26, 40], [23, 36], [20, 40], [13, 45], [16, 41], [12, 38], [8, 44], [3, 43], [0, 39], [-6, 36]],
+  [[-17, 21], [-16, 12], [-8, 4], [5, 5], [9, 4], [9, -1], [13, -10], [12, -17], [15, -27], [18, -34], [26, -34], [33, -26], [35, -18], [40, -10], [39, -4], [43, 0], [51, 11], [43, 12], [37, 19], [33, 28], [32, 31], [20, 32], [10, 37], [0, 36], [-6, 35], [-10, 30], [-14, 26]],
+  [[114, -22], [122, -18], [130, -12], [137, -12], [142, -11], [146, -19], [153, -27], [150, -37], [141, -38], [135, -35], [129, -32], [115, -34]],
+  [[-180, -70], [180, -70], [180, -90], [-180, -90]],
+  [[-5, 50], [1, 51], [0, 54], [-3, 58], [-6, 57], [-5, 54]], [[-24, 64], [-14, 64], [-15, 66], [-22, 66]],
+  [[130, 31], [135, 34], [141, 36], [142, 43], [140, 41], [136, 36], [131, 34]],
+  [[109, 1], [117, 7], [119, 1], [116, -4], [110, -3]], [[95, 5], [106, -6], [102, -4]], [[131, -1], [141, -3], [150, -10], [141, -9]],
+  [[44, -25], [47, -25], [50, -15], [49, -12], [44, -17]], [[172, -34], [178, -38], [174, -42], [167, -46], [172, -41]],
+];
+const MW = 180, MH = 90;
+let titleHover = false;
+let EARTH = null;
+function earthMaps() {
+  if (EARTH) return EARTH;
+  const inside = (x, y, p) => { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const [xi, yi] = p[i], [xj, yj] = p[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+  const raw = new Float32Array(MW * MH), land = new Float32Array(MW * MH), cloud = new Float32Array(MW * MH);
+  for (let j = 0; j < MH; j++) for (let i = 0; i < MW; i++) { const lon = -180 + (i + 0.5) * 2, lat = 90 - (j + 0.5) * 2; raw[j * MW + i] = LAND.some((p) => inside(lon, lat, p)) ? 1 : 0; }
+  for (let j = 0; j < MH; j++) for (let i = 0; i < MW; i++) {   // soften the coast a little
+    let s = 0; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) s += raw[Math.min(MH - 1, Math.max(0, j + dj)) * MW + (i + di + MW) % MW];
+    land[j * MW + i] = s / 9;
+  }
+  // clouds: a few octaves of smoothed random lattice noise that wraps around in longitude, banded by latitude
+  const oct = (n) => { const g = new Float32Array(n * (n >> 1 || 1)); for (let k = 0; k < g.length; k++) g[k] = Math.random(); return g; };
+  const layers = [8, 16, 32].map((n) => ({ n, m: n >> 1, g: oct(n) }));
+  for (let j = 0; j < MH; j++) for (let i = 0; i < MW; i++) {
+    let v = 0, a = 0.55;
+    for (const { n, m, g } of layers) {
+      const x = i / MW * n, y = j / MH * m, x0 = Math.floor(x), y0 = Math.min(m - 1, Math.floor(y)), fx = x - x0, fy = y - y0;
+      const s = (xx, yy) => g[Math.min(m - 1, yy) * n + (xx % n)];
+      const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+      v += a * ((s(x0, y0) * (1 - sx) + s(x0 + 1, y0) * sx) * (1 - sy) + (s(x0, y0 + 1) * (1 - sx) + s(x0 + 1, y0 + 1) * sx) * sy); a *= 0.5;
+    }
+    const lat = Math.abs(90 - (j + 0.5) * 2), band = 0.75 + 0.25 * Math.cos(lat / 90 * Math.PI * 3);
+    cloud[j * MW + i] = Math.max(0, Math.min(1, (v * band - 0.5) * 3.2));
+  }
+  return (EARTH = { land, cloud });
+}
+function miniEarth(host) {
+  const cv = document.createElement('canvas'); host.appendChild(cv);
+  const cx = cv.getContext('2d');
+  const st = { rot: -1.9, vel: 0.22, tilt: 0.36, tiltT: 0.36, hover: 0, hoverT: 0, drag: null, mx: 0, my: 0, clouds: 0 };
+  let img = null, S = 0;
+  const size = () => {
+    const s = Math.max(24, Math.min(160, Math.round(host.getBoundingClientRect().width * Math.min(2, window.devicePixelRatio || 1))));
+    if (s !== S) { S = cv.width = cv.height = s; img = cx.createImageData(S, S); }
+  };
+  const L = (() => { const v = [-0.55, 0.45, 0.7], n = Math.hypot(...v); return v.map((a) => a / n); })();
+  function draw() {
+    const { land, cloud } = earthMaps(), d = img.data, ct = Math.cos(st.tilt), sn = Math.sin(st.tilt), R = S / 2, h = st.hover;
+    for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
+      const o = (py * S + px) * 4, nx = (px + 0.5 - R) / R, ny = (R - py - 0.5) / R, r2 = nx * nx + ny * ny;
+      if (r2 > 1) { d[o + 3] = 0; continue; }
+      const nz = Math.sqrt(1 - r2);
+      // view-space normal -> globe space: tilt the axis toward the viewer, then spin
+      const y = ny * ct + nz * sn, z = nz * ct - ny * sn;
+      const lat = Math.asin(Math.max(-1, Math.min(1, y))), lon = Math.atan2(nx, z) + st.rot;
+      let u = (lon / (Math.PI * 2) + 0.5) % 1; if (u < 0) u += 1;
+      const i = Math.min(MW - 1, Math.floor(u * MW)), j = Math.min(MH - 1, Math.floor((0.5 - lat / Math.PI) * MH));
+      const ld = land[j * MW + i], alat = Math.abs(lat) * 57.3;
+      let uc = u + st.clouds; uc -= Math.floor(uc);
+      const cl = cloud[j * MW + Math.min(MW - 1, Math.floor(uc * MW))];
+      // surface colour: ocean, then land (green, drier toward the subtropics, ice at the poles)
+      const dry = Math.max(0, 1 - Math.abs(alat - 24) / 12), ice = Math.min(1, Math.max(0, (alat - 62) / 8));
+      let r = 18 + 20 * h, g = 62 + 24 * h, b = 128 + 30 * h;
+      const lr = 70 + 110 * dry, lg = 118 + 40 * dry - 20 * (alat / 90), lb = 58 + 40 * dry;
+      r += (lr - r) * ld; g += (lg - g) * ld; b += (lb - b) * ld;
+      r += (238 - r) * ice; g += (244 - g) * ice; b += (250 - b) * ice;
+      r += (245 - r) * cl * 0.85; g += (247 - g) * cl * 0.85; b += (250 - b) * cl * 0.85;
+      // light: day side lit from the upper left, a soft terminator, glint on open water, blue rim
+      const dl = nx * L[0] + ny * L[1] + nz * L[2], lit = 0.16 + 0.95 * Math.max(0, Math.min(1, dl * 1.4 + 0.25));
+      const hx = L[0], hy = L[1], hz = L[2] + 1, hn = Math.hypot(hx, hy, hz), spec = Math.pow(Math.max(0, (nx * hx + ny * hy + nz * hz) / hn), 40) * (1 - ld) * (1 - cl) * 120;
+      const rim = Math.pow(1 - nz, 2.4) * (0.75 + 0.5 * h);
+      r = r * lit + spec + (120 - r * lit) * rim; g = g * lit + spec + (190 - g * lit) * rim; b = b * lit + spec + (255 - b * lit) * rim;
+      d[o] = r; d[o + 1] = g; d[o + 2] = b;
+      d[o + 3] = 255 * Math.min(1, (1 - Math.sqrt(r2)) * R * 1.2);   // anti-aliased edge
+    }
+    cx.putImageData(img, 0, 0);
+  }
+  let last = performance.now();
+  (function frame(t) {
+    const dt = Math.min(0.05, (t - last) / 1000); last = t;
+    requestAnimationFrame(frame);
+    if (!host.isConnected || host.offsetParent === null) return;   // the menu is gone or hidden: nothing to draw
+    size();
+    st.hover += (st.hoverT - st.hover) * Math.min(1, dt * 6);
+    if (!st.drag) {
+      // at rest a slow spin; under the cursor the globe turns to face it (the further off-centre, the faster)
+      const want = st.hoverT ? 0.22 + st.mx * 2.4 : 0.22;
+      st.vel += (want - st.vel) * Math.min(1, dt * (Math.abs(st.vel - want) > 2 ? 0.9 : st.hoverT ? 3 : 0.8));   // flings coast down
+      st.rot += st.vel * dt;
+      st.tiltT = st.hoverT ? 0.36 - st.my * 0.55 : 0.36;
+    }
+    st.tilt += (st.tiltT - st.tilt) * Math.min(1, dt * 4);
+    st.clouds += dt * 0.004;
+    draw();
+  })(last);
+  const local = (e) => { const r = host.getBoundingClientRect(); return [((e.clientX - r.left) / r.width - 0.5) * 2, ((e.clientY - r.top) / r.height - 0.5) * 2]; };
+  host.addEventListener('pointerenter', () => { st.hoverT = 1; });
+  host.addEventListener('pointerleave', () => { if (!st.drag) st.hoverT = 0; });
+  host.addEventListener('pointermove', (e) => {
+    [st.mx, st.my] = local(e);
+    if (st.drag) {
+      const dx = e.clientX - st.drag.x, dy = e.clientY - st.drag.y, w = host.getBoundingClientRect().width;
+      st.rot -= dx / w * 2.6; st.tiltT = st.tilt = Math.max(-1.1, Math.min(1.1, st.tilt + dy / w * 2));
+      st.vel = -dx / w * 2.6 / Math.max(0.008, (e.timeStamp - st.drag.t) / 1000);
+      st.drag = { x: e.clientX, y: e.clientY, t: e.timeStamp, moved: st.drag.moved + Math.abs(dx) + Math.abs(dy) };
+    }
+  });
+  host.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); host.setPointerCapture(e.pointerId); host.classList.add('drag'); st.drag = { x: e.clientX, y: e.clientY, t: e.timeStamp, moved: 0 }; });
+  const up = (e) => {
+    if (!st.drag) return;
+    if (st.drag.moved < 3) st.vel += (st.mx < 0 ? -1 : 1) * 7;   // a click flings it
+    st.vel = Math.max(-14, Math.min(14, st.vel));
+    st.drag = null; host.classList.remove('drag');
+    const r = host.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) st.hoverT = 0;
+  };
+  host.addEventListener('pointerup', up); host.addEventListener('pointercancel', up);
+  host.addEventListener('click', (e) => e.stopPropagation());
+}
+
+// ?font=1..11 tries another face for the title; Outfit (a geometric O for the globe to stand in for) is the default
+const TITLE_FONTS = [['Outfit', 300], ['Playfair Display', 500], ['Cinzel', 500], ['Italiana', 400], ['Bodoni Moda', 500], ['Fraunces', 300], ['Syne', 700], ['Unbounded', 400], ['Cormorant Garamond', 500], ['Tenor Sans', 400], ['DM Serif Display', 400]];
 function titleGlow(h1) {
   if (!h1) return;
   const pick = TITLE_FONTS[+new URLSearchParams(location.search).get('font') - 1];
@@ -320,7 +448,13 @@ function titleGlow(h1) {
     h1.style.setProperty('--titleFont', `'${fam}'`); h1.style.setProperty('--titleWeight', w);
   }
   const word = document.createElement('span'); word.className = 'tw';
-  const chars = [...h1.textContent].map((c) => { const s = document.createElement('span'); s.className = 'ch'; s.textContent = c; word.appendChild(s); return s; });
+  const text = h1.textContent, oAt = text.lastIndexOf('O');
+  h1.setAttribute('aria-label', 'Tiny World');
+  const chars = [...text].map((c, i) => {
+    const s = document.createElement('span'); s.className = 'ch'; s.setAttribute('aria-hidden', 'true');
+    if (i === oAt) { s.classList.add('globe'); miniEarth(s); } else s.textContent = c;
+    word.appendChild(s); return s;
+  });
   h1.textContent = ''; h1.appendChild(word);
   word.addEventListener('pointermove', (e) => {
     const fs = parseFloat(getComputedStyle(h1).fontSize);
@@ -330,6 +464,9 @@ function titleGlow(h1) {
     }
   });
   word.addEventListener('pointerleave', () => { for (const s of chars) s.style.setProperty('--p', 0); });
+  // the title sits over the stage: while the cursor is on it, the dioramas underneath don't light up
+  word.addEventListener('pointerenter', () => { titleHover = true; });
+  word.addEventListener('pointerleave', () => { titleHover = false; });
 }
 
 export function initMenu() {
@@ -397,7 +534,7 @@ export function initMenu() {
   const hasHover = matchMedia('(hover: hover)').matches;
   canvas.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); });
   menu.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); });
-  function pickAt() { ray.setFromCamera(ptr, camera); const h = ray.intersectObjects(hits, false)[0]; return h ? hits.indexOf(h.object) : -1; }
+  function pickAt() { if (titleHover) return -1; ray.setFromCamera(ptr, camera); const h = ray.intersectObjects(hits, false)[0]; return h ? hits.indexOf(h.object) : -1; }
   buttons.forEach((b, i) => {
     b.addEventListener('pointerenter', () => { labelHover = i; });
     b.addEventListener('pointerleave', () => { if (labelHover === i) labelHover = -1; });
