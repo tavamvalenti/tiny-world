@@ -321,7 +321,7 @@ function localBlock(ctx, b) {
     for (let x = b.lx0 + 0.3; x < b.lx1 - 1.5;) {
       if (ri === 0 && (oxxo || gas) && x < b.lx0 + 6.5) { x = b.lx0 + 6.8; continue; }       // the corner lot
       const w = rand(2.2, 3.3); if (x + w > b.lx1 - 0.2) break;
-      const r = Math.random(), style = r < 0.35 ? 'brick' : r < 0.65 ? 'concrete' : 'stucco';
+      const r = Math.random(), style = ri === 2 ? (r < 0.55 ? 'brick' : 'concrete') : r < 0.35 ? 'brick' : r < 0.65 ? 'concrete' : 'stucco';
       B.add({ x: x + w / 2, z: zz, w, d: d - rand(0, 0.8), floors: pick([1, 2, 2, 2, 3]), style, tint: style === 'stucco' ? COASTAL() : style === 'brick' ? hsl(rand(0.03, 0.06), rand(0.4, 0.55), rand(0.45, 0.58)) : LOCAL(), cell: 1.4, gh: 1.2, fh: 0.9, storefront: ri === 0 && Math.random() < 0.5 });
       x += w + (Math.random() < 0.15 ? rand(0.6, 1.4) : rand(0.05, 0.2));
     }
@@ -379,6 +379,13 @@ export function tropical(B) {
     else if (b.j === 1) townBlock(ctx, b);
     else localBlock(ctx, b);
   }
+  // below the hill the streets go to dirt: the last street and the ends of the cross streets, fading in from asphalt
+  const dirt = '#6c4c39', dirt2 = '#5b3f2f';                        // the same earth as the foot of the hill
+  for (let k = 0; k < 6000; k++) { const x = rand(-112, 112), z = rand(45, 57); const onRoad = XS.some((v) => Math.abs(x - v) < 3.9) || Math.abs(x) > 66; if (onRoad && Math.random() < ((z - 45) / 12) ** 1.5) g.circle(x + rand(-0.2, 0.2), z, rand(0.08, 0.45), pick(['rgba(108,76,57,.85)', 'rgba(94,66,49,.8)', 'rgba(124,92,70,.7)'])); }
+  for (const v of [...XS, -91, 91]) { g.rect(v - 3.9, 56, v + 3.9, 68.5, dirt); g.grainRect(v - 3.9, 56, v + 3.9, 68.5, 0.5, 40); for (const o of [-1, 1]) g.rect(v + o * 1.1 - 0.25, 56, v + o * 1.1 + 0.25, 68.5, dirt2); }
+  g.rect(-112, 61.5, 112, 68.5, dirt); g.grainRect(-112, 61.5, 112, 68.5, 0.55, 50);
+  for (const o of [-1.1, 1.1]) g.rect(-112, 65 + o - 0.25, 112, 65 + o + 0.25, dirt2);          // tyre ruts
+  for (let k = 0; k < 160; k++) g.circle(rand(-112, 112), rand(61.5, 68.5), rand(0.2, 0.9), Math.random() < 0.5 ? 'rgba(52,36,26,.35)' : 'rgba(150,118,92,.3)');
   // taco and fruit stands at the foot of the stairs, where the hill meets the street
   for (const x of [-58, -10, 16, 42]) city.playa.food.push({ x: x + 3, z: 68.2, kind: pick(['taco', 'fruit']) });
   buildHills(ctx);

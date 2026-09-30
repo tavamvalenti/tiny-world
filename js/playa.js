@@ -12,7 +12,17 @@ import { G, rand, pick, clamp } from './core.js';
 // ---------- the ground ----------
 export const STATUE = { x: 22, z: 113 };
 const HILL0 = 66;                                                  // the last street; the slope starts behind it
+// the summit is levelled into a plateau for the Cristo's plaza
+let SUMMIT = null;
 export function terrainH(x, z) {
+  const h = baseH(x, z);
+  if (SUMMIT === null) SUMMIT = baseH(STATUE.x, STATUE.z);
+  const d = Math.hypot(x - STATUE.x, z - STATUE.z);
+  if (d > 18) return h;
+  const k = d < 11 ? 1 : 1 - (d - 11) / 7, s = k * k * (3 - 2 * k);
+  return h + (SUMMIT - 0.05 - h) * s;
+}
+function baseH(x, z) {
   if (z < HILL0 + 1) return 0;
   const t = Math.min(1, (z - HILL0 - 1) / 56), s = t * t * (3 - 2 * t);
   let h = s * 30 + Math.max(0, z - 123) * 0.32;
@@ -57,7 +67,10 @@ export function buildHills(ctx) {
       if (nearStair(cx, cz, w)) continue;
       if (Math.hypot(cx - STATUE.x, cz - STATUE.z) < 12) continue;
       if (noise(cx, cz) > 0.8 - up * 0.45 || Math.random() < up * up * 0.3) continue;      // patches of forest, more of them higher up
-      const base = Math.min(terrainH(cx - w / 2, cz - d / 2), terrainH(cx + w / 2, cz - d / 2), terrainH(cx - w / 2, cz + d / 2), terrainH(cx + w / 2, cz + d / 2)) - 0.3;
+      const hs = [terrainH(cx - w / 2, cz - d / 2), terrainH(cx + w / 2, cz - d / 2), terrainH(cx - w / 2, cz + d / 2), terrainH(cx + w / 2, cz + d / 2)];
+      const lo = Math.min(...hs), hi = Math.max(...hs);
+      if (hi - lo > 2.6) continue;                                   // too steep to build on
+      const base = hi - 0.15;                                        // sits level with the uphill side; a foundation fills beneath
       const floors = pick(up < 0.4 ? [1, 2, 2, 3, 3, 4] : [1, 1, 2, 2, 3]);
       const r = Math.random();
       const style = r < 0.38 ? 'brick' : r < 0.7 ? 'concrete' : 'stucco';
@@ -65,7 +78,7 @@ export function buildHills(ctx) {
         : style === 'concrete' ? hsl(rand(0.08, 0.12), rand(0.02, 0.1), rand(0.52, 0.74))
           : hsl(pick([0.0, 0.08, 0.13, 0.33, 0.55, 0.6, 0.95]), rand(0.35, 0.6), rand(0.55, 0.72));
       const b = B.add({ x: cx, z: cz, w, d, floors, style, tint, cell: 1.3, gh: 0.9, fh: 0.8, base, storefront: false });
-      b.hill = true; b.noSigns = true; b.top = base + 0.9 + (floors - 1) * 0.8;
+      b.hill = true; b.noSigns = true; b.top = base + 0.9 + (floors - 1) * 0.8; b.found = { lo: lo - 0.4, base };
       P.houses.push(b);
       // front doors on the staircases
       for (const s of P.stairs) {
@@ -98,6 +111,7 @@ export class Playa {
     this.city = city; this.P = city.playa; this.scene = scene;
     const lambert = (this.lambert = new THREE.MeshLambertMaterial({ vertexColors: true }));
     this.terrain(scene);
+    this.foundations(scene);
     this.stairs(scene);
     this.trees(scene);
     this.tanks(scene);
@@ -122,16 +136,37 @@ export class Playa {
       const slope = Math.hypot(terrainH(x + 1, z) - h, terrainH(x, z + 1) - h);
       const n = Math.sin(x * 0.31 + z * 0.17) * 0.5 + Math.sin(x * 0.07 - z * 0.13) * 0.5;
       const built = occ.get(key(x, z)) || 0;
-      if (h > 34 && slope > 0.9) c.setHSL(0.08, 0.06, 0.42 + n * 0.06, THREE.SRGBColorSpace);                    // bare granite
-      else if (built > 0) c.setHSL(0.07, 0.18, 0.46 + n * 0.05, THREE.SRGBColorSpace);                            // packed earth, concrete
-      else c.setHSL(0.26 + n * 0.04, 0.38 + n * 0.08, 0.24 + n * 0.05 + Math.min(0.08, h * 0.002), THREE.SRGBColorSpace);   // green hill
+      const j = (Math.random() - 0.5) * 0.08, toe = clamp((82 - z) / 10, 0, 1);                                    // grit; the foot of the hill is bare earth
+      if (h > 34 && slope > 0.9) c.setHSL(0.08, 0.06, 0.42 + n * 0.06 + j, THREE.SRGBColorSpace);                // bare granite
+      else if (built > 0 || Math.random() < toe * 1.2) c.setHSL(0.07 + j * 0.2, 0.2 + j, 0.42 + n * 0.05 + j, THREE.SRGBColorSpace);   // packed earth, concrete
+      else if (slope > 0.55 && Math.random() < 0.35) c.setHSL(0.08, 0.16, 0.36 + j, THREE.SRGBColorSpace);      // eroded patches on the steep bits
+      else c.setHSL(0.26 + n * 0.04 + j * 0.3, 0.36 + n * 0.08 + j, 0.22 + n * 0.05 + j + Math.min(0.08, h * 0.002), THREE.SRGBColorSpace);   // green hill
       c.toArray(col, i * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
-    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+    // a fine grit texture over the colours: speckle, pebbles, tufts
+    const grit = canvasTex(256, 256, (x, w, hh) => {
+      x.fillStyle = '#c8c8c8'; x.fillRect(0, 0, w, hh);
+      for (let i = 0; i < 9000; i++) { const v = 150 + Math.random() * 105 | 0; x.fillStyle = `rgb(${v},${v},${v})`; x.fillRect(Math.random() * w, Math.random() * hh, 1 + Math.random() * 2, 1 + Math.random() * 2); }
+      for (let i = 0; i < 260; i++) { x.fillStyle = `rgba(${Math.random() < 0.5 ? '40,34,28' : '255,250,240'},${0.1 + Math.random() * 0.2})`; x.beginPath(); x.arc(Math.random() * w, Math.random() * hh, 1.5 + Math.random() * 4, 0, 6.3); x.fill(); }
+    });
+    grit.wrapS = grit.wrapT = THREE.RepeatWrapping; grit.repeat.set(140, 60); grit.colorSpace = THREE.NoColorSpace;
+    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, map: grit, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
     m.receiveShadow = true; scene.add(m);
     this.ground = m;
+  }
+
+  // concrete terraces and brick footings under the downhill side of each house
+  foundations(scene) {
+    const F = [];
+    for (const b of this.P.houses) {
+      const f = b.found; if (!f || f.base - f.lo < 0.25) continue;
+      const h = f.base - f.lo;
+      F.push(box(b.w + 0.1, h, b.d + 0.1, b.x, f.lo + h / 2, b.z, pick([0x8f8a80, 0x9a948a, 0x7f766c, 0xa0543c])));
+    }
+    if (!F.length) return;
+    const m = new THREE.Mesh(mergeGeometries(F), this.lambert); m.castShadow = true; m.receiveShadow = true; scene.add(m);
   }
 
   // the staircases (the signature of the hills), the lanes along the contours, poles and wires
@@ -213,7 +248,8 @@ export class Playa {
   // the Cristo on the summit: a lookout plaza with a balustrade, a tall pedestal, the statue with open arms
   statue(scene) {
     const { x, z } = STATUE, y = this.P.statueY, stone = 0xddd7c8, P = [];
-    P.push(tint(new THREE.CylinderGeometry(7.5, 8.5, 3, 16).translate(x, y - 1.35, z), 0xb9b2a4));                    // plaza
+    P.push(tint(new THREE.CylinderGeometry(7.5, 9.5, 12, 24).translate(x, y - 5.85, z), 0x7d7468));                  // plaza on a deep bedrock base, set into the plateau
+    P.push(tint(new THREE.CylinderGeometry(7.45, 7.45, 0.12, 24).translate(x, y + 0.1, z), 0xc9c2b4));                  // the paved floor
     for (let a = 0; a < 6.28; a += 0.24) P.push(box(0.14, 0.5, 1.6, x + Math.cos(a) * 7.3, y + 0.4, z + Math.sin(a) * 7.3, 0xe8e2d4, -a));
     P.push(box(3.2, 1.1, 3.2, x, y + 0.55, z, 0x8f8a80), box(2.4, 3.6, 2.4, x, y + 2.9, z, 0x9c978c));                    // steps + pedestal
     const robe = new THREE.LatheGeometry([[0.001, 0], [1.05, 0], [0.98, 1.2], [0.82, 3.4], [0.78, 4.6], [0.92, 5.6], [0.62, 6.1], [0.001, 6.2]].map(([r, h]) => new THREE.Vector2(r, h)), 16);
@@ -224,7 +260,7 @@ export class Playa {
       P.push(tint(new THREE.SphereGeometry(0.32, 8, 6).translate(x + s * 4.2, y + 9.95, z), stone));
     }
     // the pedestal and the figure are built at 1:1 and then scaled up round the plaza centre so it reads from the beach
-    const plaza = P.slice(0, 1 + Math.ceil(6.28 / 0.24)), fig = mergeGeometries(P.slice(plaza.length));
+    const plaza = P.slice(0, 2 + Math.ceil(6.28 / 0.24)), fig = mergeGeometries(P.slice(plaza.length));
     fig.translate(-x, -y, -z).scale(1.6, 1.6, 1.6).translate(x, y, z);
     const m = new THREE.Mesh(mergeGeometries([...plaza, fig]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, emissive: 0xfff2dc, emissiveIntensity: 0 }));
     m.castShadow = true; m.receiveShadow = true; scene.add(m);
