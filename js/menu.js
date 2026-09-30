@@ -439,7 +439,8 @@ function miniEarth(host) {
 
 // ---------- stars behind the neutral room ----------
 // Mostly faint pinpricks with a few brighter ones (soft halo, faint cool or warm tint), thicker along a faint diagonal
-// band like the Milky Way; a handful twinkle slowly. Drawn at ~20 fps and only while the menu is up.
+// band like the Milky Way; a handful twinkle slowly. Every few seconds a shooting star streaks across. Drawn at
+// ~20 fps (full rate while a meteor is in flight) and only while the menu is up.
 function starfield(menu, after) {
   const cv = document.createElement('canvas'); cv.className = 'stars'; after.after(cv);
   const cx = cv.getContext('2d');
@@ -466,11 +467,23 @@ function starfield(menu, after) {
     const rg = cx.createRadialGradient(0, 0, 0, 0, 0, W * 0.7); rg.addColorStop(0, 'rgba(190,205,255,1)'); rg.addColorStop(1, 'rgba(190,205,255,0)');
     cx.fillStyle = rg; cx.beginPath(); cx.arc(0, 0, W * 0.7, 0, 6.3); cx.fill(); cx.restore();
   };
+  // shooting stars: a bright head with a tapering tail, mostly falling left-to-right and down (sometimes the other way)
+  const meteors = [];
+  let nextMeteor = 2500 + Math.random() * 3000;
+  const launch = (t) => {
+    const dir = Math.random() < 0.75 ? 1 : -1, ang = (0.35 + Math.random() * 0.35) * (dir > 0 ? 1 : -1);
+    const v = (0.55 + Math.random() * 0.5) * Math.hypot(W, H);            // px / s
+    meteors.push({ x: (dir > 0 ? 0.05 + Math.random() * 0.6 : 0.35 + Math.random() * 0.6) * W, y: Math.random() * 0.45 * H,
+      vx: Math.cos(ang) * v * dir, vy: Math.abs(Math.sin(ang)) * v, t0: t, life: 0.55 + Math.random() * 0.6, len: (0.07 + Math.random() * 0.07) * W, w: (0.9 + Math.random() * 0.8) * dpr });
+  };
   let last = 0;
   (function frame(t) {
     requestAnimationFrame(frame);
-    if (t - last < 50 || !cv.isConnected || getComputedStyle(menu).display === 'none') return;
+    if (t - last < (meteors.length ? 0 : 50) || !cv.isConnected || getComputedStyle(menu).display === 'none') return;
+    const dt = Math.min(0.1, (t - last) / 1000);
     last = t;
+    nextMeteor -= dt * 1000;
+    if (nextMeteor <= 0) { launch(t); if (Math.random() < 0.15) setTimeout(() => launch(performance.now()), 250 + Math.random() * 500); nextMeteor = 4000 + Math.random() * 7000; }
     cx.clearRect(0, 0, W, H); band();
     const s = t / 1000;
     for (const p of stars) {
@@ -481,6 +494,20 @@ function starfield(menu, after) {
         cx.fillStyle = g; cx.beginPath(); cx.arc(p.x, p.y, p.r * 5, 0, 6.3); cx.fill();
       }
       cx.fillStyle = `rgba(${p.c},${a})`; cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, 6.3); cx.fill();
+    }
+    for (let i = meteors.length - 1; i >= 0; i--) {
+      const m = meteors[i], age = (t - m.t0) / 1000, k = age / m.life;
+      if (k >= 1) { meteors.splice(i, 1); continue; }
+      const hx = m.x + m.vx * age, hy = m.y + m.vy * age, sp = Math.hypot(m.vx, m.vy);
+      const tl = m.len * Math.min(1, k * 4), tx = hx - m.vx / sp * tl, ty = hy - m.vy / sp * tl;
+      const fade = Math.sin(Math.PI * Math.min(1, k * 1.15));             // swells in, burns out
+      const g = cx.createLinearGradient(tx, ty, hx, hy);
+      g.addColorStop(0, 'rgba(200,220,255,0)'); g.addColorStop(0.7, `rgba(225,235,255,${0.35 * fade})`); g.addColorStop(1, `rgba(255,255,255,${0.95 * fade})`);
+      cx.strokeStyle = g; cx.lineWidth = m.w; cx.lineCap = 'round';
+      cx.beginPath(); cx.moveTo(tx, ty); cx.lineTo(hx, hy); cx.stroke();
+      const hg = cx.createRadialGradient(hx, hy, 0, hx, hy, m.w * 4);
+      hg.addColorStop(0, `rgba(255,255,255,${0.8 * fade})`); hg.addColorStop(1, 'rgba(255,255,255,0)');
+      cx.fillStyle = hg; cx.beginPath(); cx.arc(hx, hy, m.w * 4, 0, 6.3); cx.fill();
     }
   })(0);
 }
