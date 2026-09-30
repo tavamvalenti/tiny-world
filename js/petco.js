@@ -74,7 +74,7 @@ export class Petco {
     prof.push([4.3, 2.6, 'conc'], [4.8, 2.6, 'face'], [4.8, 3.5, 'seat']);
     for (let i = 1; i <= 8; i++) prof.push([4.8 + i * 0.36, 3.5 + i * 0.33, 'seat']);
     prof.push([7.9, 6.4, 'rim'], [7.9, 0, 'ext']);
-    const pos = [], col = [];
+    const pos = [], col = [], fans = [];
     const tint = { wall: NAVY, conc: new THREE.Color(0xb9b4aa), face: new THREE.Color(0xe9e7e1), rim: new THREE.Color(0xe9e7e1), ext: new THREE.Color(0xc8a882) };
     const P = (p, o, y) => [p.x + p.nx * o, y, p.z + p.nz * o];
     for (let i = 0; i + 1 < path.length; i++) {
@@ -85,7 +85,9 @@ export class Petco {
         let c;
         if (kind === 'seat') {
           // mostly navy seats, heavily speckled with fans in their colours; aisles every ~12 steps
-          c = i % 12 === 0 ? tint.conc : Math.random() < 0.4 ? pick(FANS) : (k % 2 ? NAVY : NAVY2);
+          const fan = i % 12 !== 0 && Math.random() < 0.4;
+          c = i % 12 === 0 ? tint.conc : fan ? pick(FANS) : (k % 2 ? NAVY : NAVY2);
+          if (fan) fans.push({ o: col.length, c, e: k % 2 ? NAVY : NAVY2, r: Math.random() });   // a fan: this seat empties after the game
         } else c = tint[kind];
         pos.push(...v[0], ...v[1], ...v[2], ...v[0], ...v[2], ...v[3]);
         for (let q = 0; q < 6; q++) col.push(c.r, c.g, c.b);
@@ -99,6 +101,9 @@ export class Petco {
     const bowlMesh = new THREE.Mesh(bowl, bowlMat);
     bowlMesh.castShadow = bowlMesh.receiveShadow = true;
     scene.add(bowlMesh);
+    this.bowl = bowl; this.fans = fans; this.fill = 1;
+    // game day: game -> ending (the stands empty, fans pour out, traffic builds) -> empty (staff clean) -> pregame
+    this.phase = 'game'; this.phaseT = rand(220, 340); this.fillT = 0;
     // end caps where the bowl stops at the foul poles
     const shape = new THREE.Shape(prof.map(([o, y]) => new THREE.Vector2(o, y)));
     for (const [p, dir] of [[path[0], 1], [path[path.length - 1], -1]]) {
@@ -212,7 +217,52 @@ export class Petco {
     }
   }
 
-  update() {
+  // how full the stands look: fan-coloured seats go back to navy as people leave
+  setFill(f) {
+    this.fill = f;
+    const a = this.bowl.attributes.color;
+    for (const s of this.fans) { const c = s.r < f ? s.c : s.e; for (let q = 0; q < 6; q++) { a.array[s.o + q * 3] = c.r; a.array[s.o + q * 3 + 1] = c.g; a.array[s.o + q * 3 + 2] = c.b; } }
+    a.needsUpdate = true;
+  }
+  news(text) { G.world && G.world.raise('FESTIVAL_EVENT', this.center.x, this.center.z, { news: text, life: 10, tag: 'SPORTS' }); }
+  gates() {
+    const S = this.site;
+    return [{ x: S.x0 - 1, z: S.z1 - 4 }, { x: S.x0 + 6, z: S.z1 + 1 }, { x: (S.x0 + S.x1) / 2, z: S.z1 + 1 }];
+  }
+  updateDay(dt) {
+    this.phaseT -= dt;
+    const A = G.agents, R = G.roles;
+    if (this.phase === 'game' && this.phaseT <= 0) {
+      this.phase = 'ending'; this.phaseT = 70;
+      this.news(pick(['Final out at Petco Park; fans heading home.', 'Ballgame over downtown; expect heavy traffic near Petco Park.']));
+      // traffic builds on the streets round the park
+      if (A && G.world) for (let k = 0; k < 8; k++) { const c = A.borrowCar(this.center, 60); if (c && !c.moto) { const g = pick(this.gates()); G.world.onRoad(c, g.x + rand(-8, 8), g.z + rand(2, 6)); } }
+    } else if (this.phase === 'ending') {
+      this.setFillSoon(Math.max(0, this.phaseT / 70));
+      // fans stream out of the gates and walk off
+      if (A && (this.outT = (this.outT || 0) - dt) <= 0) {
+        this.outT = 1.2;
+        const p = A.borrowPed(this.center, 50), g = pick(this.gates());
+        if (p) { p.pos.set(g.x + rand(-1.5, 1.5), 0, g.z + rand(-1, 1)); p.q.identity(); A.resumePed(p); }
+      }
+      if (this.phaseT <= 0) { this.phase = 'empty'; this.phaseT = rand(60, 90); this.setFill(0); }
+    } else if (this.phase === 'empty' && this.phaseT <= 0) {
+      this.phase = 'pregame'; this.phaseT = 80;
+      this.news('Gates open at Petco Park; fans arriving for tonight\'s game.');
+    } else if (this.phase === 'pregame') {
+      this.setFillSoon(1 - Math.max(0, this.phaseT / 80));
+      // people nearby head in through the gates
+      if (A && R && (this.inT = (this.inT || 0) - dt) <= 0) {
+        this.inT = 2.5;
+        const p = A.peds.find((q) => q.state === 'walk' && !q.role && !q.officer && Math.hypot(q.pos.x - this.center.x, q.pos.z - this.center.z) < 45);
+        if (p) R.visit(p, pick(this.gates()), rand(40, 90));
+      }
+      if (this.phaseT <= 0) { this.phase = 'game'; this.phaseT = rand(220, 340); this.setFill(1); this.news('Home game under way at Petco Park.'); }
+    }
+  }
+  setFillSoon(f) { if (Math.abs(f - this.fill) > 0.04) this.setFill(f); }
+  update(dt = 0) {
+    this.updateDay(dt);
     const n = G.night || 0;
     this.glow.material.color.setScalar(0.8 + n * 7);
     this.fieldLight.intensity = n * 60;

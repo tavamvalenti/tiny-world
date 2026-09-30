@@ -30,6 +30,20 @@
   hoarding, materials, a mixer truck), tower cranes that lift loads, and window-washer gondolas on the Gaslamp towers.
   Distance LOD: far jobs tick at 4 Hz, accessories are hidden when far, and both distances pull in when the FPS drops.
   Not yet: La Playa rebuild, birds, planes, news, big event library.
+- **Phase 3, a world that runs on its own** (2026-09-30):
+  - `js/director.js` starts autonomous events (accident, small fire, disturbance, traffic jam, gas-leak evacuation,
+    Chicago gang flare-ups, weather) through the same functions the WORLD menu uses. Events are rare (about one
+    every 80 s on Normal). At most 2 majors are started from here at once, and the director backs off after player
+    chaos. `chaos.js` no longer schedules anything itself.
+  - `js/news.js` runs the TV lower-third ticker from real events plus everyday stories; La Playa's channel is in Spanish.
+  - `js/sky.js` adds airliners, small planes, helicopters (sometimes circling emergency scenes) and bird flocks
+    that scatter from explosions.
+  - Weather covers clear, rain (wet roads, umbrellas, people hurry), storm and snow. Snow is Chicago only: it
+    settles on ground and roofs and melts slowly.
+  - Summer Smash has a day: setup, show, walk-out, cleanup, then fans arriving again. Petco has game days
+    (stands empty, fans leave, traffic builds, staff clean). Cruise ships board, depart and return.
+  - Streetball spectators drift in and out.
+  - Far pedestrians update every third frame.
 - Artifact republished: https://claude.ai/artifact/71DVzhiQHyfQR28ge9C7TV
 
 ## Publishing

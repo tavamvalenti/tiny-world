@@ -573,6 +573,12 @@ export const sfx = {
     if (REC.buf.screams) n = Math.min(n, Math.random() < 0.25 ? 1 : 2);
     for (let i = 0; i < n; i++) setTimeout(() => voice('scream', x + R(-6, 6), z + R(-6, 6), R(0.25, 0.5)), R(80, 900));
   },
+  // a cruise ship's horn: two long low notes across the water
+  shipHorn(x, z) {
+    if (!init()) return;
+    const ch = chain(x, z, { vol: 1.6, echoAmt: 0.6, wetBoost: 0.3 }), t = now();
+    for (const f of [82, 123]) tone(ch.input, t, { type: 'sawtooth', f, a: 0.35, peak: 0.12, d: 3.8 });
+  },
   // someone knocked flying lets out a short cry (now and then)
   yelp(x, z) { if (init() && Math.random() < 0.55) recorded('yelp', x, z, 0.55); },
   // a line of real conversation from someone nearby; false if another is already playing

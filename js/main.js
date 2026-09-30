@@ -24,6 +24,9 @@ import { Responders } from './responders.js';
 import { Station } from './station.js';
 import { pickSites, Construction } from './construction.js';
 import { Roles } from './roles.js';
+import { News } from './news.js';
+import { Sky } from './sky.js';
+import { Director } from './director.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -145,6 +148,7 @@ function load(name) {
   scene.fog = new THREE.Fog(map.fog, 100, 300);
 
   const gmat = new THREE.MeshStandardMaterial({ map: map.g.tex, roughness: 0.93, metalness: 0 });
+  G.groundMat = gmat; G.mapName = name;
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.g.E * 2, map.g.E * 2).rotateX(-Math.PI / 2), gmat);
   ground.receiveShadow = true;
   scene.add(ground);
@@ -170,6 +174,10 @@ function load(name) {
   G.responders = new Responders(scene, map.city);
   G.station = map.city.policeHQ ? new Station(scene, map.city.policeHQ, name) : null;
   G.world = new World(scene);
+  new News(name, map.city);                                 // sets G.news
+  new Sky(scene, name, map.city);                           // sets G.sky
+  new Director(name);                                       // sets G.director
+  worldMenu.querySelector('[data-id="w-snow"]')?.style.setProperty('display', name === 'suburbs' ? '' : 'none');   // snow is a Chicago thing
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
   cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half;
@@ -301,6 +309,9 @@ function step(dt) {
   G.station && G.station.update();
   G.construction && G.construction.update(dt);
   G.world.update(dt);
+  G.director && G.director.update(dt);
+  G.sky && G.sky.update(dt);
+  G.news && G.news.update(dt);
   updatePlacing(dt);
   G.weapons.update(dt, input);
   input.pressed = false;

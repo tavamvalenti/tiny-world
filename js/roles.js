@@ -394,6 +394,15 @@ export class Roles {
       for (let i = 0; i < 3 && street.length; i++) this.vendor(P, street.splice(Math.floor(rand(0, street.length)), 1)[0], 'food');
       if (street.length) for (let i = 0; i < 2; i++) this.hire(R.SECURITY, pick(street), this.planSecurity(pick(street), street), { crew: 'street' });
     }
+    // streetball: a handful of people come and watch from outside the fence, drift off, come back
+    const K = C.court;
+    if (K) {
+      const court = { x: (K.x0 + K.x1) / 2, z: (K.z0 + K.z1) / 2 };
+      for (let i = 0; i < 6; i++) {
+        const side = i % 3, spot = side === 0 ? { x: rand(K.x0 + 2, K.x1 - 2), z: K.z1 + 1.4 } : { x: side === 1 ? K.x0 - 1.2 : K.x1 + 1.2, z: rand(K.z0 + 2, K.z1 - 2) };
+        const q = this.clear(spot.x, spot.z, 2); if (q) this.hire(R.CIVILIAN, q, this.planSpectator(q, court), { crew: 'court' });
+      }
+    }
     this.restaurants(3);
   }
   staffPlaya(P) {
@@ -464,6 +473,27 @@ export class Roles {
     P.push(box(0.95, 0.06, 0.95, 0, 0.92, 0, 0xe8e4dc), box(0.7, 0.45, 0.5, 0, 1.2, 0.2, 0xd8262a), box(0.8, 0.05, 0.62, 0, 1.45, 0.2, 0xf2f2ee));
     for (let k = 0; k < 4; k++) P.push(box(0.35, 0.03, 0.05, 0, 0.12 + k * 0.2, 0.62 + k * 0.08, 0xc9b88a));
     P.push(box(0.14, 0.04, 0.01, 0, 1.25, -0.06, 0xf2f2ee), box(0.04, 0.14, 0.01, 0, 1.25, -0.06, 0xf2f2ee));
+  }
+
+  // someone heads in through a door (a stadium gate, the cruise terminal), is inside for a while, then carries on
+  visit(p, door, stay, respawn = false) {
+    p.zone = null; p.group = null;
+    p.job = { home: { x: door.x, z: door.z }, plan: null, steps: [], k: 0, acc: 0 };
+    let once = true;
+    p.job.plan = () => {
+      if (!once) return [call(() => { if (respawn) { this.release(p); this.A.respawnPed(p); } else { this.release(p); this.A.resumePed(p); } })];
+      once = false;
+      return [go(door.x, door.z), hide(stay, stay + 1)];
+    };
+    p.state = 'job'; if (!this.staff.includes(p)) this.staff.push(p);
+  }
+  // people watching a streetball game: lean on the fence a while, cheer, wander off, come back later
+  planSpectator(spot, court) {
+    return (p) => {
+      if (Math.random() < 0.3) return [...this.stroll(p, spot, Math.round(rand(2, 4)), 30), act('look', 3, 8)];     // off for a walk
+      const s = this.clear(spot.x + rand(-2, 2), spot.z + rand(-0.4, 0.4), 1) || spot;
+      return [go(s.x, s.z), act('look', 12, 30, court), act(Math.random() < 0.5 ? 'wave' : 'talk', 1.5, 3, court), act('look', 10, 25, court), ...(Math.random() < 0.4 ? [talk(3, 6)] : [])];
+    };
   }
 
   // ---------- vehicle life ----------

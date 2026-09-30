@@ -6,7 +6,6 @@ import { G, rand, pick } from './core.js';
 import { sfx } from './audio.js';
 import { settings } from './settings.js';
 
-const EVERY = { low: 80, normal: 42, high: 18 }; // mean seconds between incidents
 
 export class Chaos {
   constructor(agents) {
@@ -15,15 +14,9 @@ export class Chaos {
     this.scenes = [];
   }
 
+  // when and what happens on its own is the director's call (director.js); this just runs the scenes
   update(dt) {
     for (const s of [...this.scenes]) this.tickScene(s, dt);
-    const mean = EVERY[settings.incidents];
-    if (!mean) return;
-    this.t -= dt;
-    if (this.t > 0) return;
-    this.t = mean * rand(0.6, 1.4);
-    const r = Math.random();
-    if (!(r < 0.45 ? this.crash() : r < 0.8 ? this.shooting() : this.fire())) this.t = 4; // nothing suitable nearby: retry soon
   }
 
   // the festival is a no-incident zone: the game never starts a crash or shooting within a wide ring of it

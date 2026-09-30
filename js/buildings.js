@@ -150,6 +150,7 @@ export class Buildings {
       sh.uniforms.roofColor = { value: ROOF[style] };
       sh.uniforms.uTime = timeU;
       sh.uniforms.uNight = (G.nightU ||= { value: 0 });
+      sh.uniforms.uSnow = (G.snowU ||= { value: 0 });
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
           attribute float faceId; attribute float aMask; attribute vec4 aState;
@@ -160,7 +161,7 @@ export class Buildings {
           vWPos = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
-          uniform sampler2D maskMap; uniform vec3 roofColor; uniform float uTime; uniform float uNight;
+          uniform sampler2D maskMap; uniform vec3 roofColor; uniform float uTime; uniform float uNight; uniform float uSnow;
           varying float vFace; varying float vExt; varying vec4 vState; varying vec3 vWPos; varying vec2 vUv0;
           float hsh(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
           float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
@@ -182,6 +183,7 @@ export class Buildings {
             isWin = 0.0; winO = 0.0;
             float n = vn(vWPos.xz * 5.0) * 0.6 + vn(vWPos.xz * 21.0) * 0.4;
             diffuseColor.rgb = roofColor * (0.75 + 0.45 * n);
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.95) * (0.92 + 0.1 * n), smoothstep(0.0, 0.6, uSnow - n * 0.35));   // settled snow
           } else if (vFace > 2.5 && vFace < 3.5) { diffuseColor.rgb = vec3(0.08); isWin = 0.0; }
           float dmg = vState.x, burn = vState.y, heat = vState.z;
           float sn = vn(vWPos.xy * 2.3 + vWPos.zy * 2.3 + vWPos.xz * 1.7);

@@ -130,7 +130,7 @@ export class Gangs {
     this.city = city; const GS = city.gangs;
     this.zones = GS.zones; this.border = GS.border;
     this.members = []; this.groups = []; this.cover = { blue: [], red: [] }; this.flags = [];
-    this.calm = rand(10, 20); this.fight = null; this.shotBudget = 0;
+    this.calm = rand(25, 45); this.fight = null; this.shotBudget = 0;
     this.dress(scene, GS);
     this.spawn(scene, GS);
   }
@@ -348,7 +348,7 @@ export class Gangs {
     }
   }
   endFight() {
-    this.fight = null; this.calm = rand(14, 30);
+    this.fight = null; this.calm = rand(50, 100);           // quieter spells between flare-ups
     for (const c of [...this.cover.blue, ...this.cover.red]) c.used = null;
     for (const g of this.groups) {
       g.mode = 'hang'; g.t = rand(20, 50);
@@ -373,7 +373,7 @@ export class Gangs {
     this.shotBudget = Math.min(2, this.shotBudget + dt * 2.5);
     this.shotGap = Math.max(0, (this.shotGap || 0) - dt);
     if (this.fight) { if ((this.fight.t -= dt) <= 0) this.endFight(); }
-    else if ((this.calm -= dt) <= 0) this.startFight();
+    else if ((this.calm -= dt) <= 0) { if (!G.director || G.director.allow('GANG_CONFLICT')) this.startFight(); else this.calm = rand(30, 60); }   // flare-ups wait if the city's busy
     // groups on patrol walk their own sidewalks, then come back
     for (const g of this.groups) {
       if (g.mode !== 'hang' || this.fight) continue;

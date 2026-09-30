@@ -135,9 +135,12 @@ export class Concert {
     this.U = { beat: { value: 0 }, hype: { value: 1 } };
     this.halt = 0; this.lastBar = -1; this.pyro = []; this.flyers = []; this.movers = [];
     this.mats = [];
+    // the festival day: setup -> active (the show) -> ending (everyone heads out) -> cleanup -> setup ...
+    this.phase = 'active'; this.phaseT = rand(300, 420);
     this.buildStage(scene);
     this.buildStands(scene);
     this.buildPlaza(scene, city);
+    this.buildGear(scene);
     this.buildCrowd(scene);
     this.buildPerformers(scene);
     this.buildLights(scene);
@@ -312,6 +315,81 @@ export class Concert {
     const m = new THREE.Mesh(mergeGeometries(P), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));
     m.castShadow = m.receiveShadow = true; scene.add(m);
     this.mats.push(arch.material, arch2.material);
+  }
+
+  // road cases and a box truck: out while the stage is being built or struck, gone during the show
+  buildGear(scene) {
+    const S = this.site, st = this.stage, P = [];
+    for (let k = 0; k < 14; k++) {
+      const x = st.x0 + 2 + (k % 7) * 3.4 + rand(-0.4, 0.4), z = st.z1 + 1.6 + Math.floor(k / 7) * 1.6 + rand(-0.3, 0.3), h = rand(0.5, 0.8);
+      P.push(box(0.9, h, 0.7, x, h / 2, z, pick([0x1c1d20, 0x2b2e33, 0x3a3f46])), box(0.92, 0.04, 0.72, x, h, z, 0x8f949a));
+      if (Math.random() < 0.4) P.push(box(0.8, 0.45, 0.6, x + 0.05, h + 0.23, z, 0x1c1d20));
+    }
+    for (let k = 0; k < 3; k++) P.push(box(0.12, 3.2, 0.12, st.x0 + 6 + k * 7, 1.6, st.z1 + 5, 0x8f949a), box(1.4, 0.12, 0.12, st.x0 + 6 + k * 7, 3.2, st.z1 + 5, 0x8f949a));   // lighting truss going up
+    this.gear = new THREE.Mesh(mergeGeometries(P), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }));
+    this.gear.castShadow = true; this.gear.visible = false; scene.add(this.gear);
+    const T = [box(1.1, 1.3, 2.6, 0, 0.85, -0.4, 0xf2f2ee), box(1.05, 0.9, 1, 0, 0.65, 1.3, 0x1b43c0), box(1.07, 0.35, 0.5, 0, 0.9, 1.55, 0x1c1d20)];
+    for (const [x, z] of [[-0.5, 1.2], [0.5, 1.2], [-0.5, -1.2], [0.5, -1.2]]) T.push(tint(new THREE.CylinderGeometry(0.2, 0.2, 0.16, 10).rotateZ(Math.PI / 2).translate(x, 0.2, z), 0x111111));
+    this.truck = new THREE.Mesh(mergeGeometries(T), this.gear.material);
+    this.truck.castShadow = true; this.truck.visible = false; scene.add(this.truck);
+    this.truckAt = { x: this.cx + 9, z: S.z1 + 2.6 };               // at the curb outside the gate
+  }
+  // ---------- the festival day ----------
+  festNews(text) { G.world && G.world.raise('FESTIVAL_EVENT', this.cx, this.site.z1, { news: text, life: 10 }); }
+  endShow() {
+    this.phase = 'ending';
+    this.festNews(pick(['Summer Smash wraps up; heavy foot traffic on nearby streets.', 'Show over at Summer Smash as crowds head for the exits.']));
+    this.evacuate(this.cx, this.site.z0 - 30, true);
+    // the streets round the venue fill with pickups and rideshares
+    const A = G.agents;
+    if (A && G.world) for (let k = 0; k < 6; k++) { const c = A.borrowCar({ x: this.cx, z: this.site.z1 }, 60); if (c && !c.moto) G.world.onRoad(c, this.cx + rand(-25, 25), this.site.z1 + 3.4); }
+  }
+  beginCleanup() {
+    this.phase = 'cleanup'; this.phaseT = rand(40, 55); this.evac = null; this.resetT = null;
+    this.festNews('Cleanup crews at work on the Summer Smash grounds.');
+  }
+  beginSetup() {
+    this.phase = 'setup'; this.phaseT = 75;
+    this.flyers.length = 0; this.movers.length = 0;
+    this.home = this.orig.map((p) => p.slice());
+    for (const h of this.home) h.out = true;
+    for (let i = 0; i < this.N; i++) this.hide(i);
+    this.jump.fill(0); for (const a of this.aJump) a.needsUpdate = true;
+    for (const m of this.parts) m.instanceMatrix.needsUpdate = true;
+    this.arrival = Array.from({ length: this.N }, (_, i) => i).sort(() => Math.random() - 0.5); this.arrived = 0;
+    this.festNews(pick(['Crews setting up at Summer Smash; gates open soon.', 'Summer Smash gates opening; fans lining up outside.']));
+  }
+  // fans arrive through the setup: each appears a few steps back and walks to their spot
+  arrive(count) {
+    const cx = this.cx, cz = this.stage.z1;
+    for (; this.arrived < Math.min(count, this.N); this.arrived++) {
+      const i = this.arrival[this.arrived], h = this.home[i];
+      h.out = false;
+      if (h[1] > 0) { this.place(i, h[0], h[1], h[2], Math.atan2(cx - h[0], cz - h[2])); continue; }
+      this.movers.push({ i, x0: h[0] + rand(-1, 1), z0: h[2] + rand(2, 4), x1: h[0], z1: h[2], t: 0 });
+      h.moving = true;
+    }
+  }
+  goLive() {
+    this.arrive(this.N);
+    this.phase = 'active'; this.phaseT = rand(300, 420); this.halt = 0;
+    this.jump.set(this.origJump); for (const a of this.aJump) a.needsUpdate = true;
+    this.festNews(pick(['Summer Smash is live: Chuckyy takes the stage.', 'Summer Smash under way; big crowd on the South Side.']));
+  }
+  updateDay(dt) {
+    this.phaseT -= dt;
+    if (this.phase !== 'active') this.halt = Math.max(this.halt, 1);          // lights and music stay down off-show
+    if (this.phase === 'active' && this.phaseT <= 0 && !this.evac) this.endShow();
+    else if (this.phase === 'cleanup' && this.phaseT <= 0) this.beginSetup();
+    else if (this.phase === 'setup') {
+      if (this.phaseT < 60) this.arrive(Math.floor(this.N * Math.min(1, (60 - this.phaseT) / 55)));
+      if (this.phaseT <= 0) this.goLive();
+    }
+    this.gear.visible = this.phase !== 'active';
+    // the truck: parked outside during setup/cleanup, pulls away as the show ends, gone while it's on
+    const tr = this.truck, A = this.truckAt;
+    tr.visible = this.phase === 'setup' || this.phase === 'cleanup' || (this.phase === 'ending' && (this.evac?.t || 0) < 25);
+    if (tr.visible) { const k = this.phase === 'ending' ? Math.max(0, (this.evac?.t || 0) - 8) : 0; tr.position.set(A.x + k * k * 0.25, 0, A.z); tr.rotation.y = Math.PI / 2; }
   }
 
   // ---------- the crowd ----------
@@ -558,10 +636,12 @@ export class Concert {
     this.evacuate(x, z);
   }
 
-  evacuate(x, z) {
+  // calm: the end of the show (people walk out); otherwise a panic
+  evacuate(x, z, calm = false) {
     this.halt = 1e9; this.resetT = null;
-    if (this.evac) return;
-    this.evac = { x, z, t: 0 };
+    if (this.evac) { if (!calm) this.evac.calm = false; return; }
+    this.phase = 'ending';
+    this.evac = { x, z, t: 0, calm };
     const S = this.site, eastFront = this.grand.x0 - 1.5, westFront = this.westRows[0].x + 1.7;
     const street = { gate: S.z1 + 3.4, east: S.x1 + 3.4, west: S.x0 - 3.4 };    // road centre lines around the site
     for (let i = 0; i < this.N; i++) {
@@ -584,10 +664,11 @@ export class Concert {
         return { path, cost: len + (Math.hypot(e.x - x, e.z - z) < 16 ? 45 : 0) + rand(0, 6) };
       }).sort((a, b) => a.cost - b.cost);
       wps.push(...routes[0].path);
-      h.run = { wps, delay: rand(0.1, 2.5), sp: rand(1.6, 2.8), y0: h[1] };
+      h.run = calm ? { wps, delay: rand(0.5, 30), sp: rand(0.8, 1.3), y0: h[1] } : { wps, delay: rand(0.1, 2.5), sp: rand(1.6, 2.8), y0: h[1] };
       this.setJump(i, 0);
     }
     this.U.hype.value = 0;
+    if (calm) return;
     for (const k of [0, 0.6, 1.4, 2.5]) setTimeout(() => sfx.screams(this.cx + rand(-15, 15), this.center.z + rand(-10, 10), 6), k * 1000);
     // everyone on the surrounding streets runs too, and the police get called in
     const A = G.agents, hs = { x: this.center.x, z: this.center.z };
@@ -615,9 +696,8 @@ export class Concert {
       this.place(i, h[0], h[1] + Math.abs(Math.sin(G.time * 14 + i)) * 0.03, h[2], Math.atan2(dx, dz));
     }
     for (const m of this.parts) m.instanceMatrix.needsUpdate = true;
-    // once the grounds are empty, wait a while, then the show starts over with a fresh crowd
-    if (!running && this.resetT == null) this.resetT = 45;
-    if (this.resetT != null && (this.resetT -= dt) <= 0) this.restart();
+    // once the grounds are empty the crews move in, then the next show is set up
+    if (!running) this.beginCleanup();
   }
   // height of the stand treads under a point (0 on the field)
   surfaceY(x, z) {
@@ -637,6 +717,7 @@ export class Concert {
 
   update(dt) {
     if (!music.on && sfx.ready) music.start(this.cx, this.stage.z1 + 6);
+    this.updateDay(dt);
     if (this.evac) this.updateEvac(dt);
     this.halt = Math.max(0, this.halt - dt);
     music.update(this.halt > 0);
@@ -672,7 +753,7 @@ export class Concert {
     this.crowdLight.material.opacity = on * n * 0.22 * (0.5 + 0.5 * (1 - f));
     for (const m of this.mats) m.emissiveIntensity = 0.25 + n * 0.9;
     for (const l of this.towerLamps) l.material.color.setScalar(0.8 + n * 3);
-    this.phones.visible = !this.evac;
+    this.phones.visible = !this.evac && this.phase === 'active';
     this.phones.material.color.setScalar(0.4 + n * 2.5);
     this.updatePerformers(dt, beat);
     // people blown into the air land and stay down; shoved people stumble back to a new spot

@@ -7,6 +7,7 @@ const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _m3 = new THREE.Matri
 const UP = new THREE.Vector3(0, 1, 0), XAX = new THREE.Vector3(1, 0, 0), ZAX = new THREE.Vector3(0, 0, 1);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const POSE = { aL: 0, aR: 0, oL: 0, oR: 0, lL: 0, lR: 0, dy: 0 };
+const LOD_STATES = new Set(['walk', 'wander', 'idle', 'wait', 'job', 'return']);
 const CAR_COLORS = [0xf2f2f0, 0x1c1d20, 0x8a9096, 0xb4bac0, 0x9e1b1b, 0x1e3f73, 0x2f5d3a, 0xd9c7a0, 0x5a1f2b, 0x3a3f46, 0xcfd6dc, 0x7a5230];
 const SHIRTS = [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a, 0xd87a3a, 0x9a5fb0, 0xf0f0f0, 0x6fb3c9, 0xc94f7c, 0x1f2a44, 0x8a8f96];
 const PANTS = [0x2a3448, 0x1f1f22, 0x5a5044, 0x7b8794, 0x3c4a3a, 0xb8ad96, 0x33415e];
@@ -19,6 +20,7 @@ const NEEDS = {
   SHOOTING: () => ['police', 'police', 'ambulance'],
   GANG_CONFLICT: () => ['police', 'police', 'ambulance'],
   RIOT: () => ['police', 'police', 'police'],
+  DISTURBANCE: () => ['police', 'police'],
   EVACUATION: () => ['police', 'fire'],
   POLICE_RESPONSE: () => ['police'], FIRE_RESPONSE: () => ['fire'], MEDICAL_RESPONSE: () => ['ambulance'],
 };
@@ -127,6 +129,12 @@ export class Agents {
     this.pArmR = new THREE.InstancedMesh(arm, this.pArmL.material, nP);
     this.pMeshes = [this.pTorso, this.pHead, this.pHair, this.pLegL, this.pLegR, this.pArmL, this.pArmR];
     for (const m of this.pMeshes) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
+    // umbrellas: up over about a third of the people out walking when it rains
+    const umb = mergeGeometries([new THREE.ConeGeometry(0.2, 0.1, 8, 1, true).translate(0, 0.86, 0.02), new THREE.CylinderGeometry(0.006, 0.006, 0.36, 4).translate(0, 0.68, 0.02)]);
+    this.umb = new THREE.InstancedMesh(umb, new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), nP);
+    for (let k = 0; k < nP; k++) { this.umb.setMatrixAt(k, ZERO); this.umb.setColorAt(k, new THREE.Color(pick([0x111111, 0x1c1d20, 0x1f3f7a, 0xc8102e, 0x2f5d3a, 0xe0b640, 0x6b2a6b]))); }
+    this.umb.frustumCulled = false; this.umb.castShadow = true; scene.add(this.umb);
+    this.pace = 1; this.frame = 0;
 
     for (let i = 0; i < opts.cars; i++) this.spawnCar(i);
     city.parked.forEach((p, i) => this.spawnParked(opts.cars + i, p));
@@ -820,7 +828,7 @@ export class Agents {
         let want = Math.atan2(dx, dz), diff = Math.atan2(Math.sin(want - p.heading), Math.cos(want - p.heading));
         p.heading += clamp(diff, -6 * dt, 6 * dt);
         if (C.obstacleNear(p.pos.x + dx / d * 0.5, p.pos.z + dz / d * 0.5, 0.2)) { [p.from, p.to] = [p.to, p.from]; return; }
-        p.pos.x += Math.sin(p.heading) * p.speed * dt; p.pos.z += Math.cos(p.heading) * p.speed * dt;
+        p.pos.x += Math.sin(p.heading) * p.speed * this.pace * dt; p.pos.z += Math.cos(p.heading) * p.speed * this.pace * dt;
       }
     }
   }
@@ -1010,8 +1018,18 @@ export class Agents {
       l.intensity = (6 + night * 30);
     });
 
+    // weather: people hurry in the rain, step carefully in snow; umbrellas go up
+    const W = G.world, rain = W ? W.rain : 0, snow = W ? W.snow || 0 : 0;
+    this.pace = 1 + rain * 0.3 - snow * 0.15;
+    const umbOn = rain > 0.25;
+    this.frame++;
     for (const p of this.peds) {
-      this.updatePed(p, dt);
+      // distance LOD: people far from the view in routine states update every third frame (and keep their last pose)
+      const far = Math.abs(p.pos.x - T.x) + Math.abs(p.pos.z - T.z) > 150 && LOD_STATES.has(p.state);
+      if (far) { p.lodDt = (p.lodDt || 0) + dt; if ((this.frame + p.i) % 3) continue; this.updatePed(p, p.lodDt); p.lodDt = 0; }
+      else this.updatePed(p, dt);
+      const umbrella = umbOn && p.i % 3 === 0 && !p.officer && (p.state === 'walk' || p.state === 'wait' || p.state === 'wander' || p.state === 'idle' || p.state === 'return' || (p.state === 'job' && !p.hidden && !p.carry));
+      if (!umbrella && p.umbShown) { this.umb.setMatrixAt(p.i, ZERO); p.umbShown = false; }
       if (p.state === 'gone' || p.state === 'incar' || (p.hidden && p.state === 'job')) { for (const m of this.pMeshes) m.setMatrixAt(p.i, ZERO); if (p.slot != null) G.roles.draw(p, null, null); continue; }
       const moving = p.state === 'walk' || p.state === 'flee' || p.state === 'wander' || p.state === 'return' || p.state === 'toCar' || (p.state === 'job' && p.jmove) || (p.state === 'riot' && p.target && Math.hypot(p.target.x - p.pos.x, p.target.z - p.pos.z) > 0.15);
       const run = p.state === 'flee';
@@ -1038,6 +1056,7 @@ export class Agents {
       this.limb(this.pArmL, i, 0.084, 0.535, o.aL, o.oL);
       this.limb(this.pArmR, i, -0.084, 0.535, o.aR, -o.oR);
       if (p.slot != null) G.roles.draw(p, _m, _m3);
+      if (umbrella) { this.umb.setMatrixAt(p.i, _m); p.umbShown = true; }
       if (p.lost) {
         if (p.lost.armL) this.pArmL.setMatrixAt(i, ZERO);
         if (p.lost.armR) this.pArmR.setMatrixAt(i, ZERO);
@@ -1047,6 +1066,7 @@ export class Agents {
       }
     }
     for (const m of this.pMeshes) m.instanceMatrix.needsUpdate = true;
+    this.umb.instanceMatrix.needsUpdate = true;
     G.roles && G.roles.flush();
   }
 }

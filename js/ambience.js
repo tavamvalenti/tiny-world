@@ -166,7 +166,7 @@ export class Ambience {
       case 'line': {
         // a recorded line of conversation from someone nearby who's plausibly talking (a group, a crew chatting,
         // now and then a passer-by); only when zoomed in enough to be among them, and not over a panic
-        if (T.dist > 140 || (this.s && this.s.panicked > 3)) return;
+        if (T.dist > 140 || (this.s && this.s.panicked > 3) || (G.world && G.world.rain > 0.4 && Math.random() < 0.6)) return;   // fewer people chatting in the rain
         const p = this.near(G.agents.peds, 32, (p) => (p.state === 'idle' && p.group) || p.pose === 'talk' || p.pose === 'hands' || p.pose === 'serve' || (p.state === 'walk' && Math.random() < 0.25));
         if (p) sfx.line(p.pos.x, p.pos.z, R(0.4, 0.6));
         return;
@@ -225,7 +225,7 @@ export class Ambience {
   // crowd reaction drifting out of the ballpark: a swelling roar, sometimes applause
   stadium() {
     const P = G.petco;
-    if (!P) return;
+    if (!P || (P.phase && P.phase !== 'game')) return;
     const I = this.I, t = I.ctx.currentTime;
     const s = I.spatial(P.center.x, P.center.z);
     if (s.D > 110) return;

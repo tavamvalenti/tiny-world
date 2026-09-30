@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick } from './core.js';
+import { sfx } from './audio.js';
 import { carGeos } from './agents.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
@@ -189,6 +190,8 @@ export class Harbor {
       g.children.forEach((m) => { m.castShadow = m.receiveShadow = true; });
       g.position.set(sx, 0, sz); g.rotation.y = Math.PI;       // bow out to sea
       scene.add(g);
+      // each ship runs its own day: boarding -> departs -> away -> arrives -> boarding ...
+      (this.ships ||= []).push({ g, sx, sz, pz, door: { x: X0 + 0.7, z: pz - sd * 0.6 }, phase: 'boarding', t: rand(90, 240), x: sx, v: 0 });
       // covered gangways from the terminal up to the ship's side door
       for (const gx of [tx - tl * 0.3, tx + tl * 0.25]) {
         const z0 = tz + sd * tw / 2, z1 = sz - sd * 2.3, y0 = 1.7, y1 = 2.35, L = Math.hypot(z1 - z0, y1 - y0);
@@ -345,7 +348,33 @@ export class Harbor {
     scene.add(this.headL, this.tailL);
   }
 
+  updateShips(dt) {
+    const T = G.camTarget, far = this.X0 - 260;
+    for (const s of this.ships || []) {
+      s.t -= dt;
+      if (s.phase === 'boarding') {
+        // passengers walk down to the terminal (only bother while someone's watching)
+        if (G.roles && Math.hypot(s.door.x - T.x, s.door.z - T.z) < 70 && (s.inT = (s.inT || 0) - dt) <= 0) {
+          s.inT = rand(3, 6);
+          const p = G.agents.peds.find((q) => q.state === 'walk' && !q.role && !q.officer && Math.hypot(q.pos.x - s.door.x, q.pos.z - s.door.z) < 40);
+          if (p) { G.roles.look(p, 'TOURIST'); G.roles.visit(p, { x: s.door.x + rand(-0.8, 0.8), z: s.door.z }, rand(60, 120), true); }
+        }
+        if (s.t < 25 && !s.warned) { s.warned = true; G.news && G.news.post('LOCAL', 'Cruise ship preparing to depart the harbor.', 1, 'cruise-dep'); }
+        if (s.t <= 0) { s.phase = 'departing'; s.v = 0; s.warned = false; sfx.shipHorn && sfx.shipHorn(s.x, s.sz); }
+      } else if (s.phase === 'departing') {
+        s.v = Math.min(3.2, s.v + dt * 0.12); s.x -= s.v * dt;
+        if (s.x < far) { s.phase = 'away'; s.t = rand(120, 260); s.g.visible = false; }
+      } else if (s.phase === 'away') {
+        if (s.t <= 0) { s.phase = 'arriving'; s.x = far; s.g.visible = true; G.news && G.news.post('LOCAL', 'Cruise ship arriving at the downtown terminal.', 1, 'cruise-arr'); }
+      } else if (s.phase === 'arriving') {
+        const d = s.sx - s.x; s.x += Math.max(0.25, Math.min(3.2, d * 0.03)) * dt;
+        if (d < 0.05) { s.x = s.sx; s.phase = 'boarding'; s.t = rand(150, 280); sfx.shipHorn && sfx.shipHorn(s.x, s.sz); }
+      }
+      s.g.position.x = s.x;
+    }
+  }
   update(dt) {
+    this.updateShips(dt);
     const n = G.night || 0;
     // vehicles keep a gap to the one ahead in their lane, and loop at the ends (both ends are far off-screen)
     const byLane = {};

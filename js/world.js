@@ -12,18 +12,19 @@ import { sfx } from './audio.js';
 export const EV = {
   FIRE: 'FIRE', TRAFFIC_ACCIDENT: 'TRAFFIC_ACCIDENT', SHOOTING: 'SHOOTING', POLICE_RESPONSE: 'POLICE_RESPONSE', FIRE_RESPONSE: 'FIRE_RESPONSE',
   MEDICAL_RESPONSE: 'MEDICAL_RESPONSE', EVACUATION: 'EVACUATION', RIOT: 'RIOT', GANG_CONFLICT: 'GANG_CONFLICT', FESTIVAL_EVENT: 'FESTIVAL_EVENT', WEATHER_EVENT: 'WEATHER_EVENT',
+  DISTURBANCE: 'DISTURBANCE', TRAFFIC_JAM: 'TRAFFIC_JAM',
 };
-const NO_RESPONDERS = new Set([EV.FESTIVAL_EVENT, EV.WEATHER_EVENT]);
+const NO_RESPONDERS = new Set([EV.FESTIVAL_EVENT, EV.WEATHER_EVENT, EV.TRAFFIC_JAM]);
 
 // The WORLD menu. `now` items apply immediately; everything else is placed by clicking the map.
 export const MENU = [
   { cat: 'PEOPLE', items: [['civilian', 'Civilian'], ['worker', 'Worker'], ['police', 'Police'], ['firefighter', 'Firefighter'], ['paramedic', 'Paramedic'], ['security', 'Security'], ['gang', 'Gang Member']] },
   { cat: 'VEHICLES', items: [['v-police', 'Police'], ['v-fire', 'Fire Truck'], ['v-ambulance', 'Ambulance'], ['v-car', 'Civilian Car'], ['v-bus', 'Bus'], ['v-taxi', 'Taxi'], ['v-moto', 'Motorcycle']] },
-  { cat: 'EVENTS', items: [['e-accident', 'Traffic Accident'], ['e-fire', 'Fire'], ['e-riot', 'Riot'], ['e-evac', 'Evacuation'], ['e-gang', 'Gang Conflict']] },
-  { cat: 'WORLD', items: [['w-clear', 'Clear', 'now'], ['w-rain', 'Rain', 'now'], ['w-storm', 'Storm', 'now'], ['w-lightning', 'Lightning']] },
+  { cat: 'EVENTS', items: [['e-accident', 'Traffic Accident'], ['e-jam', 'Traffic Jam'], ['e-fire', 'Fire'], ['e-disturb', 'Disturbance'], ['e-riot', 'Riot'], ['e-evac', 'Evacuation'], ['e-gang', 'Gang Conflict']] },
+  { cat: 'WORLD', items: [['w-clear', 'Clear', 'now'], ['w-rain', 'Rain', 'now'], ['w-storm', 'Storm', 'now'], ['w-snow', 'Snow', 'now'], ['w-lightning', 'Lightning']] },
 ];
 
-const RAIN_N = 1600, RAIN_BOX = 46, RAIN_TOP = 42;
+const RAIN_N = 1600, RAIN_BOX = 46, RAIN_TOP = 42, SNOW_N = 1400;
 
 export class World {
   constructor(scene) {
@@ -45,13 +46,21 @@ export class World {
   // ---------- events ----------
   get events() { return [...G.agents.incidents, ...this.misc]; }
   raise(type, x, z, opts = {}) {
-    if (NO_RESPONDERS.has(type)) { const ev = { type, x, z, sev: opts.severity || 1, active: true, t: 0, life: opts.life || 20 }; this.misc.push(ev); return ev; }
-    return G.agents.report(x, z, opts.severity ?? 1, type, opts);
+    let ev;
+    if (NO_RESPONDERS.has(type)) { ev = { type, x, z, sev: opts.severity || 1, active: true, t: 0, life: opts.life || 20, news: opts.news, tag: opts.tag }; this.misc.push(ev); }
+    else ev = G.agents.report(x, z, opts.severity ?? 1, type, opts);
+    // the local news picks it up (once per event; merged reports don't make a second story)
+    if (ev && !ev.reported && opts.quiet !== true) {
+      ev.reported = true; G.news && G.news.event(ev);
+      if (G.sky && ['FIRE', 'SHOOTING', 'RIOT', 'GANG_CONFLICT', 'EVACUATION'].includes(type)) G.sky.toScene(ev);   // a helicopter over the scene, sometimes
+    }
+    return ev;
   }
   resolve(ev) {
     if (!ev || !ev.active) return;
     const k = this.misc.indexOf(ev);
     if (k >= 0) { ev.active = false; this.misc.splice(k, 1); } else G.agents.release(ev);
+    G.news && G.news.resolved(ev);
   }
   update(dt) {
     const A = G.agents;
@@ -78,7 +87,7 @@ export class World {
       case EV.FIRE: return (held > 6 && !this.fireNear(ev, 16)) || held > 160;
       case EV.SHOOTING: return (held > 15 && threatDealt() && treated()) || held > 110;
       case EV.GANG_CONFLICT: return (held > 15 && threatDealt() && !(G.gangs && G.gangs.fight) && treated()) || held > 110;
-      case EV.RIOT: return (held > 10 && !(ev.rioters || []).some((p) => p.state === 'riot')) || held > 130;
+      case EV.RIOT: case EV.DISTURBANCE: return (held > 10 && !(ev.rioters || []).some((p) => p.state === 'riot')) || held > 130;
       case EV.TRAFFIC_ACCIDENT: return (held > 18 && treated() && !this.fireNear(ev, 10)) || held > 100;
       case EV.EVACUATION: return held > 25;
       default: return (held > 30 && !this.fireNear(ev, 12) && treated()) || held > 130;
@@ -168,6 +177,8 @@ export class World {
         return car && G.chaos.crash(car);
       }
       case 'e-riot': return this.riot(x, z);
+      case 'e-disturb': return this.riot(x, z, { n: 5, type: EV.DISTURBANCE });
+      case 'e-jam': return this.jam(x, z);
       case 'e-evac': return this.evacuate(x, z);
       case 'e-gang': {
         const Gs = G.gangs;
@@ -175,9 +186,10 @@ export class World {
         return G.chaos.shooting({ x, z }, EV.GANG_CONFLICT);
       }
       case 'w-lightning': return this.strike(point.x, point.y ?? 0, point.z);
-      case 'w-clear': this.rainTarget = 0; this.storm = false; return this.raise(EV.WEATHER_EVENT, 0, 0, { life: 5 });
-      case 'w-rain': this.rainTarget = 0.6; this.storm = false; return this.raise(EV.WEATHER_EVENT, 0, 0, { life: 5 });
-      case 'w-storm': this.rainTarget = 1; this.storm = true; this.boltT = rand(3, 6); return this.raise(EV.WEATHER_EVENT, 0, 0, { life: 5 });
+      case 'w-clear': return this.setWeather('clear');
+      case 'w-rain': return this.setWeather('rain');
+      case 'w-storm': return this.setWeather('storm');
+      case 'w-snow': return this.setWeather('snow');
     }
     return null;
   }
@@ -212,30 +224,34 @@ export class World {
     sfx.pyro(x, z, false);
     return this.raise(EV.FIRE, x, z, { severity: lit.length ? 1.2 : 1, delay: rand(0.6, 1.2) });
   }
-  evacuate(x, z) {
+  evacuate(x, z, R = 35) {
     const A = G.agents;
     for (const p of A.peds) {
-      if (['down', 'air', 'gone', 'incar', 'carried'].includes(p.state) || Math.hypot(p.pos.x - x, p.pos.z - z) > 35) continue;
+      if (['down', 'air', 'gone', 'incar', 'carried'].includes(p.state) || Math.hypot(p.pos.x - x, p.pos.z - z) > R) continue;
       p.threat = { x, z }; p.state = 'flee'; p.timer = rand(10, 16); p.riot = null;
     }
-    for (const c of A.cars) if (c.state === 'drive' && !c.emerg && Math.hypot(c.pos.x - x, c.pos.z - z) < 35) { c.flee = rand(8, 12); c.threat = { x, z }; }
+    for (const c of A.cars) if (c.state === 'drive' && !c.emerg && Math.hypot(c.pos.x - x, c.pos.z - z) < R) { c.flee = rand(8, 12); c.threat = { x, z }; }
     if (G.concert && G.concert.inVenue(x, z, 10)) G.concert.evacuate(x, z);
     sfx.screams(x, z, 3);
     return this.raise(EV.EVACUATION, x, z, { severity: 1, delay: rand(2, 4) });
   }
-  riot(x, z) {
-    const A = G.agents, until = G.time + rand(80, 110);
-    let crowd = A.peds.filter((p) => ['walk', 'wander', 'idle', 'wait', 'return'].includes(p.state) && !p.officer && Math.hypot(p.pos.x - x, p.pos.z - z) < 22).slice(0, 16);
+  // a riot, or (smaller, shorter) a street disturbance: same crowd behaviour, same police response
+  riot(x, z, { n = 12, type = EV.RIOT } = {}) {
+    const A = G.agents, small = type === EV.DISTURBANCE, until = G.time + (small ? rand(45, 70) : rand(80, 110));
+    let crowd = A.peds.filter((p) => ['walk', 'wander', 'idle', 'wait', 'return'].includes(p.state) && !p.officer && !p.role && Math.hypot(p.pos.x - x, p.pos.z - z) < 22).slice(0, Math.round(n * 1.3));
     // not enough people here: others turn up from out of view
-    for (let k = crowd.length; k < 12; k++) { const p = A.borrowPed({ x, z }, 30); if (!p) break; const a = rand(0, 6.28); p.pos.set(x + Math.cos(a) * rand(6, 10), 0, z + Math.sin(a) * rand(6, 10)); crowd.push(p); }
+    for (let k = crowd.length; k < n; k++) { const p = A.borrowPed({ x, z }, 30); if (!p) break; const a = rand(0, 6.28); p.pos.set(x + Math.cos(a) * rand(6, 10), 0, z + Math.sin(a) * rand(6, 10)); crowd.push(p); }
     crowd = [...new Set(crowd)];
-    for (const p of crowd) { p.state = 'riot'; p.riot = { x, z, until }; p.target = { x: x + rand(-2.5, 2.5), z: z + rand(-2.5, 2.5) }; p.zone = null; p.group = null; }
-    const ev = this.raise(EV.RIOT, x, z, { severity: 1.5, delay: rand(3, 5) });
+    for (const p of crowd) { p.state = 'riot'; p.riot = { x, z, until, calm: small }; p.target = { x: x + rand(-2.5, 2.5), z: z + rand(-2.5, 2.5) }; p.zone = null; p.group = null; }
+    // bystanders back off from it
+    for (const p of A.peds) if (!crowd.includes(p) && ['walk', 'wander', 'idle', 'wait'].includes(p.state) && Math.hypot(p.pos.x - x, p.pos.z - z) < 14) { p.state = 'flee'; p.timer = rand(4, 8); p.threat = { x, z }; }
+    const ev = this.raise(type, x, z, { severity: small ? 1 : 1.5, delay: rand(3, 5) });
     ev.rioters = crowd; ev.noiseT = 0;
     return ev;
   }
   // a rioter hurls something at the nearest car; now and then a car goes up
   riotThrow(p) {
+    if (p.riot && p.riot.calm && Math.random() < 0.7) return;      // a disturbance is mostly shouting and shoving
     const car = G.agents.cars.filter((c) => c.state !== 'hidden' && !c.emerg && Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < 9)[0];
     const tx = car ? car.pos.x : p.riot.x + rand(-3, 3), tz = car ? car.pos.z : p.riot.z + rand(-3, 3), T = 0.7;
     G.fx.bits.emit(p.pos.x, 0.7, p.pos.z, (tx - p.pos.x) / T, 0.5 * 12 * T, (tz - p.pos.z) / T, 0.08, T, 0.3, 0.28, 0.25, 1);
@@ -243,11 +259,74 @@ export class World {
   }
   updateRiots(dt) {
     for (const ev of G.agents.incidents) {
-      if (ev.type !== EV.RIOT || !ev.active) continue;
+      if ((ev.type !== EV.RIOT && ev.type !== EV.DISTURBANCE) || !ev.active) continue;
       if ((ev.noiseT -= dt) <= 0) { ev.noiseT = rand(2.5, 5); if (ev.rioters.some((p) => p.state === 'riot')) { sfx.screams(ev.x, ev.z, 2); sfx.chatter(ev.x, ev.z, 0.5); } }
     }
   }
 
+  // ---------- traffic jam: a car breaks down in its lane, traffic stacks up behind it, horns, then it clears ----------
+  jam(x = null, z = null) {
+    const A = G.agents, T = G.camTarget, at = x == null ? T : { x, z };
+    const cars = A.cars.filter((c) => c.state === 'drive' && !c.emerg && !c.moto && !c.incident && !c.leaving && c.scale[2] < 2 && Math.hypot(c.pos.x - at.x, c.pos.z - at.z) < (x == null ? 45 : 18) && (!G.chaos || G.chaos.safe(c)));
+    const c = cars.sort((a, b) => Math.hypot(a.pos.x - at.x, a.pos.z - at.z) - Math.hypot(b.pos.x - at.x, b.pos.z - at.z))[0];
+    if (!c) return null;
+    const hold = rand(35, 55);
+    c.timer = hold; c.hazard = G.time + hold;
+    // more cars turn onto that street (borrowed from out of view), so the queue builds
+    const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
+    for (let k = 1; k <= 5; k++) {
+      const o = A.borrowCar(c.pos, 55); if (!o || o.moto) continue;
+      this.onRoad(o, c.pos.x - fx * (2.2 * k + 1), c.pos.z - fz * (2.2 * k + 1));
+    }
+    for (let k = 0; k < 4; k++) setTimeout(() => { const o = pick(A.cars.filter((q) => q.state === 'drive' && q.speed < 0.5 && Math.hypot(q.pos.x - c.pos.x, q.pos.z - c.pos.z) < 16)); if (o) sfx.horn(o.pos.x, o.pos.z, rand(0.25, 0.45)); }, rand(3000, hold * 900));
+    return this.raise(EV.TRAFFIC_JAM, c.pos.x, c.pos.z, { life: hold });
+  }
+
+  // ---------- weather: clear / rain / storm / snow (snow only in Chicago), cheap particles + light changes ----------
+  setWeather(kind, quiet = false) {
+    if (kind === 'snow' && G.mapName !== 'suburbs') kind = 'rain';            // no snow on the coast
+    this.kind = kind;
+    this.rainTarget = kind === 'rain' ? 0.6 : kind === 'storm' ? 1 : 0;
+    this.snowTarget = kind === 'snow' ? 1 : 0;
+    this.storm = kind === 'storm';
+    if (this.storm) this.boltT = rand(3, 6);
+    return this.raise(EV.WEATHER_EVENT, G.camTarget.x, G.camTarget.z, { life: 5, news: kind, quiet });
+  }
+  initSnow() {
+    const g = new THREE.BufferGeometry(), pos = new Float32Array(SNOW_N * 3);
+    this.flakes = new Float32Array(SNOW_N * 4);
+    for (let i = 0; i < SNOW_N; i++) { const k = i * 4; this.flakes[k] = rand(-RAIN_BOX, RAIN_BOX); this.flakes[k + 1] = rand(0, RAIN_TOP); this.flakes[k + 2] = rand(-RAIN_BOX, RAIN_BOX); this.flakes[k + 3] = rand(0, 6.28); }
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    this.snowPts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.28, transparent: true, opacity: 0.9, depthWrite: false }));
+    this.snowPts.frustumCulled = false; this.snowPts.visible = false; this.scene.add(this.snowPts);
+    // snow cover that builds up: a white layer over the ground (thinner on the roads, where it turns to slush),
+    // and roofs that go white
+    const E = G.ground.E, c = document.createElement('canvas'); c.width = c.height = 512;
+    const x = c.getContext('2d'), px = (v) => ((v + E) / (2 * E)) * 512, C = G.city;
+    const img = x.createImageData(512, 512);
+    for (let i = 0; i < img.data.length; i += 4) { const n = 225 + Math.random() * 30; img.data[i] = img.data[i + 1] = n; img.data[i + 2] = Math.min(255, n + 8); img.data[i + 3] = 200 + Math.random() * 55; }
+    x.putImageData(img, 0, 0);
+    x.globalCompositeOperation = 'destination-out';
+    const hw = C.roadW / 2;
+    x.fillStyle = 'rgba(0,0,0,0.72)';
+    for (const v of C.xs) x.fillRect(px(v - hw), 0, px(v + hw) - px(v - hw), 512);
+    for (const v of C.zs) x.fillRect(0, px(v - hw), 512, px(v + hw) - px(v - hw));
+    x.fillStyle = 'rgba(0,0,0,0.5)';                                         // tyre tracks
+    for (const v of C.xs) for (const o of [-hw / 2, hw / 2]) x.fillRect(px(v + o - 0.35), 0, px(v + o + 0.35) - px(v + o - 0.35), 512);
+    for (const v of C.zs) for (const o of [-hw / 2, hw / 2]) x.fillRect(0, px(v + o - 0.35), 512, px(v + o + 0.35) - px(v + o - 0.35));
+    // closed streets (under the festival grounds) aren't roads any more: snow lies there like anywhere else
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = 'rgba(236,238,244,0.95)';
+    for (const e of C.edges.values()) {
+      if (!e.closed) continue;
+      const A = C.nodes[e.a], B = C.nodes[e.b], x0 = Math.min(A.x, B.x) - hw, x1 = Math.max(A.x, B.x) + hw, z0 = Math.min(A.z, B.z) - hw, z1 = Math.max(A.z, B.z) + hw;
+      x.fillRect(px(x0), px(z0), px(x1) - px(x0), px(z1) - px(z0));
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    this.snowCover = new THREE.Mesh(new THREE.PlaneGeometry(2 * E, 2 * E).rotateX(-Math.PI / 2).translate(0, 0.012, 0),
+      new THREE.MeshLambertMaterial({ map: t, transparent: true, opacity: 0, depthWrite: false }));
+    this.snowCover.receiveShadow = true; this.snowCover.visible = false; this.scene.add(this.snowCover);
+    this.cover = 0;
+  }
   // ---------- weather (the simplest useful version: rain, storms, lightning) ----------
   strike(x, y, z) {
     // a jagged bolt from the sky, a flash, thunder, and whatever it hits may catch fire
@@ -266,7 +345,10 @@ export class World {
   }
   updateWeather(dt) {
     this.rain += (this.rainTarget - this.rain) * Math.min(1, dt * 0.5);
+    this.updateSnow(dt);
     const r = this.rain, on = r > 0.02;
+    G.wet = Math.max(0, Math.min(1, (G.wet || 0) + (r > 0.2 ? dt / 20 : -dt / 60)));   // roads stay wet a while after
+    if (G.groundMat) { G.groundMat.roughness = 0.93 - G.wet * 0.45; G.groundMat.color.setScalar(1 - G.wet * 0.18); }
     this.rainLines.visible = on;
     sfx.rain(r);
     if (on) {
@@ -284,10 +366,10 @@ export class World {
       this.rainLines.material.opacity = 0.25 + r * 0.25;
     }
     // overcast: dimmer sun, greyer fog; lightning briefly floods the screen
-    const tod = G.tod;
-    if (tod && r > 0.01) {
-      tod.sun.intensity *= 1 - 0.6 * r; tod.hemi.intensity *= 1 - 0.25 * r;
-      if (tod.scene.fog) tod.scene.fog.color.lerp(new THREE.Color(0x7d8690), 0.5 * r);
+    const tod = G.tod, sn = this.snow || 0, grey = Math.max(r, sn * 0.6);
+    if (tod && grey > 0.01) {
+      tod.sun.intensity *= 1 - 0.6 * grey; tod.hemi.intensity *= 1 - 0.25 * grey;
+      if (tod.scene.fog) tod.scene.fog.color.lerp(new THREE.Color(sn > r ? 0xc4c9d0 : 0x7d8690), 0.5 * grey);
     }
     if (this.flashT > 0) { this.flashT -= dt; if (tod) tod.post.final.uniforms.exposure.value *= 1 + Math.max(0, this.flashT) * 5; }
     // storms throw their own lightning now and then
@@ -300,5 +382,28 @@ export class World {
       else { this.flashT = 0.2; setTimeout(() => sfx.thunder(x, z, 0.6), rand(600, 2200)); }
     }
     for (const b of [...this.bolts]) if ((b.t -= dt) <= 0) { this.scene.remove(b.m); b.m.geometry.dispose(); this.bolts.splice(this.bolts.indexOf(b), 1); }
+  }
+  updateSnow(dt) {
+    this.snow = (this.snow || 0) + (((this.snowTarget || 0) - (this.snow || 0)) * Math.min(1, dt * 0.4));
+    const s = this.snow;
+    if (s < 0.01 && !(this.cover > 0.001)) { if (this.snowPts) this.snowPts.visible = false; return; }
+    if (!this.snowPts) this.initSnow();
+    // snow settles over a couple of minutes and melts slowly once it stops
+    this.cover = Math.max(0, Math.min(1, this.cover + (s > 0.3 ? dt / 90 * s : -dt / 240)));
+    this.snowCover.visible = this.cover > 0.001; this.snowCover.material.opacity = this.cover * 0.92;
+    G.snowCover = this.cover;
+    if (G.snowU) G.snowU.value = this.cover;
+    this.snowPts.visible = s > 0.02;
+    if (!this.snowPts.visible) return;
+    const T = G.camTarget, pos = this.snowPts.geometry.attributes.position.array, F = this.flakes, n = Math.floor(SNOW_N * s);
+    for (let i = 0; i < n; i++) {
+      const k = i * 4;
+      F[k + 1] -= 2.4 * dt; F[k + 3] += dt * 1.3;
+      F[k] += (Math.sin(F[k + 3]) * 0.6 + G.wind.x) * dt; F[k + 2] += (Math.cos(F[k + 3] * 0.8) * 0.5 + G.wind.z) * dt;
+      if (F[k + 1] < 0) { F[k + 1] = RAIN_TOP; F[k] = rand(-RAIN_BOX, RAIN_BOX); F[k + 2] = rand(-RAIN_BOX, RAIN_BOX); }
+      pos[i * 3] = T.x + F[k]; pos[i * 3 + 1] = F[k + 1]; pos[i * 3 + 2] = T.z + F[k + 2];
+    }
+    this.snowPts.geometry.setDrawRange(0, n);
+    this.snowPts.geometry.attributes.position.needsUpdate = true;
   }
 }
