@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick, clamp } from './core.js';
+import { beachRadio } from './audio.js';
 
 // ---------- the ground ----------
 export const STATUE = { x: 22, z: 113 };
@@ -118,6 +119,7 @@ export class Playa {
     this.statue(scene);
     this.streets(scene);
     this.beach(scene);
+    this.speakers(scene);
     this.fishing(scene);
     G.playa = this;
   }
@@ -333,6 +335,57 @@ export class Playa {
     if (all.length) { const m = new THREE.Mesh(mergeGeometries(all), this.lambert); m.castShadow = true; m.receiveShadow = true; scene.add(m); }
   }
 
+  // ---------- speakers on the sand: little groups of people on towels with a speaker playing (music in audio.js) ----------
+  // Each group is a party speaker with a glowing ring, a cooler, towels, two people stretched out and one sitting up
+  // nodding along. A blast nearby knocks the group out and that speaker goes quiet; lose them all and the music stops.
+  speakers(scene) {
+    this.spk = [];
+    const SKIN = [0xf1c9a5, 0xd9a47a, 0xb97a55, 0x8d5a3b, 0x6a4230], SUIT = [0xd6336c, 0x1c7ed6, 0x2b8a3e, 0xf59f00, 0x212529, 0xe8590c, 0x7048e8];
+    for (const [x, z, ry] of [[-44, -30.4, 0.3], [-19, -31, -0.2], [21, -30.6, 0.15], [39, -31.2, -0.35]]) {
+      const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
+      const parts = [];
+      // towels, then the people on them: lying face-up (head toward the land), and one sitting at the front
+      const towels = [[-0.55, 0.1], [0.05, 0.05], [0.65, 0.15]];
+      towels.forEach(([tx, tz], i) => parts.push(box(0.5, 0.012, 1.0, tx, 0.006, tz, pick([0xff6b6b, 0x4dabf7, 0xffd43b, 0x69db7c, 0xf783ac, 0xffffff]), (i - 1) * 0.08)));
+      const lying = (px, pz) => {
+        const sk = pick(SKIN), su = pick(SUIT);
+        parts.push(box(0.2, 0.08, 0.3, px, 0.05, pz + 0.05, su));                     // torso / swimsuit
+        parts.push(tint(new THREE.SphereGeometry(0.07, 8, 6).translate(px, 0.07, pz + 0.28), sk));   // head
+        parts.push(box(0.17, 0.06, 0.36, px, 0.04, pz - 0.28, sk));                    // legs
+        for (const sd of [-1, 1]) parts.push(box(0.05, 0.045, 0.28, px + sd * 0.13, 0.035, pz + 0.04, sk));   // arms at the sides
+      };
+      lying(-0.55, 0.1); lying(0.65, 0.15);
+      // the sitter: legs out toward the sea, the upper body in its own group so it can nod to the music
+      const sk = pick(SKIN), su = pick(SUIT);
+      parts.push(box(0.2, 0.08, 0.16, 0.05, 0.05, 0.25, su), box(0.17, 0.06, 0.34, 0.05, 0.035, 0.0, sk));
+      const upper = new THREE.Group(); upper.position.set(0.05, 0.09, 0.28);
+      const up = new THREE.Mesh(mergeGeometries([box(0.2, 0.26, 0.12, 0, 0.13, 0, su), tint(new THREE.SphereGeometry(0.07, 8, 6).translate(0, 0.33, 0), sk),
+        box(0.05, 0.22, 0.05, -0.13, 0.12, -0.03, sk), box(0.05, 0.22, 0.05, 0.13, 0.12, -0.03, sk)]), this.lambert);
+      upper.add(up); g.add(upper);
+      // the speaker at the back of the towels, facing the sea; a cooler beside it
+      const sx = 0.05, sz = 0.85;
+      parts.push(box(0.34, 0.5, 0.26, sx, 0.25, sz, 0x1b1d21), box(0.36, 0.04, 0.28, sx, 0.52, sz, 0x2b2e33));
+      for (const wy of [0.15, 0.36]) parts.push(tint(new THREE.CylinderGeometry(0.09, 0.09, 0.02, 14).rotateX(Math.PI / 2).translate(sx, wy, sz - 0.135), 0x3a3d42));
+      parts.push(box(0.4, 0.26, 0.26, 0.6, 0.13, 0.85, 0x1971c2), box(0.42, 0.05, 0.28, 0.6, 0.285, 0.85, 0xf8f9fa));
+      const body = new THREE.Mesh(mergeGeometries(parts), this.lambert); body.castShadow = true; body.receiveShadow = true; g.add(body);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xff3fa4 });
+      const ring = new THREE.Mesh(mergeGeometries([0.15, 0.36].map((wy) => new THREE.TorusGeometry(0.1, 0.014, 6, 18).translate(sx, wy, sz - 0.15))), ringMat);
+      g.add(ring);
+      scene.add(g);
+      this.spk.push({ g, upper, ringMat, x, z, alive: true, ph: rand(0, 6), hue: rand(0, 1) });
+    }
+    this.radioSpots = this.spk.map((s) => ({ x: s.x, z: s.z, s }));
+  }
+
+  onBlast(x, y, z, radius) {
+    for (const s of this.spk || []) {
+      if (!s.alive || Math.hypot(s.x - x, s.z - z) > radius * 0.8 + 1) continue;
+      s.alive = false; s.g.visible = false;
+      G.fx && G.fx.sparks(s.x, 0.4, s.z, 10, 3, 2, 1.2, 5);   // the speaker shorts out
+      beachRadio.remove(this.radioSpots.find((r) => r.s === s));
+    }
+  }
+
   // ---------- the fishing fleet: pangas pulled up on the west beach, boats offshore with lines out ----------
   fishing(scene) {
     const shore = this.city.shore ?? -36, P = [];
@@ -366,6 +419,16 @@ export class Playa {
 
   update(dt) {
     const T = G.camTarget, t = G.time, n = G.night || 0;
+    // the beach speakers: start the music once audio is up, ring lights cycle and pulse, the sitters nod along
+    if (!this.radioOn && this.radioSpots && this.radioSpots.length) { beachRadio.start(this.radioSpots); this.radioOn = !!beachRadio.out; }
+    beachRadio.update();
+    const playing = beachRadio.on;
+    for (const s of this.spk || []) {
+      if (!s.alive) continue;
+      const pulse = playing ? 0.55 + 0.45 * Math.abs(Math.sin(t * Math.PI * 1.9 + s.ph)) : 0.15;
+      s.ringMat.color.setHSL((s.hue + t * 0.05) % 1, 0.9, 0.5).multiplyScalar(pulse * (1 + n * 1.5));
+      s.upper.rotation.x = playing ? Math.sin(t * Math.PI * 1.9 + s.ph) * 0.12 - 0.05 : -0.05;
+    }
     this.statueMesh.material.emissiveIntensity = n * 0.35;
     this.floods.material.color.setScalar(0.4 + n * 3);
     for (const m of this.signMats) m.emissiveIntensity = 0.25 + n * 1.1;

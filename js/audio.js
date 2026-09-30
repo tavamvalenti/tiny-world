@@ -424,6 +424,7 @@ export const sfx = {
     ambVol.gain.setTargetAtTime(VOL.ambience, t, 0.05);
     voiceBus.gain.setTargetAtTime(VOL.voices, t, 0.05);
     if (music.bus) music.bus.gain.setTargetAtTime(VOL.music, t, 0.05);
+    if (beachRadio.bus) beachRadio.bus.gain.setTargetAtTime(VOL.music, t, 0.05);
   },
   toggleMute() {
     if (!init()) return false;
@@ -891,5 +892,75 @@ export const music = {
   swell(amount = 0.35, hold = 1.5) {
     if (!this.crowdG) return;
     const t = now(); this.crowdG.gain.setTargetAtTime(amount, t, 0.1); this.crowdG.gain.setTargetAtTime(0.12, t + hold, 1);
+  },
+};
+
+// ---------- beach speakers at La Playa: people's own music on the sand ----------
+// The same shuffle-bag set-list as the concert (every song once, in a random order, no back-to-back repeat), but
+// played from a few little speakers on the beach: the loudest spot is whichever speaker is nearest the camera, it
+// tops out well under the concert, and it fades to nothing within a few dozen units (the concert carries across the
+// whole map). Thin in the bass and a little boxy, like a bluetooth speaker; muffled with distance like everything else.
+const BEACH_SET = ['assets/beach-crazyz.mp4', 'assets/beach-chica-atractiva.mp4', 'assets/beach-locura-y-maldad.mp4', 'assets/beach-si-no-es-contigo.mp4', 'assets/beach-callaita.mp4'];
+export const beachRadio = {
+  spots: [], on: false, out: null, bus: null, buf: null, k: -1, bag: [], level: 0,
+  pickNext() {
+    if (!this.bag.length) {
+      const b = BEACH_SET.map((_, i) => i);
+      for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
+      if (this.k >= 0 && b.length > 1 && b[0] === this.k) b.push(b.shift());
+      this.bag = b;
+    }
+    return this.bag.shift();
+  },
+  load(k) { return fetch(BEACH_SET[k]).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)); },
+  play(buf, k, at) {
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(this.in);
+    this.buf = buf; this.k = k; this.src = src; this.on = true;
+    src.start(at);
+    src.onended = () => { if (this.src === src) this.next(); };
+    const n = this.pickNext();
+    this.upcoming = this.load(n).then((b) => ({ b, n })).catch((e) => { console.warn('beach track unavailable', BEACH_SET[n], e); return null; });
+  },
+  next() {
+    if (!this.spots.length) { this.on = false; return; }
+    const p = this.upcoming || Promise.resolve(null);
+    p.then((r) => {
+      if (r) this.play(r.b, r.n, now() + 2);
+      else { const n = this.pickNext(); this.load(n).then((b) => this.play(b, n, now() + 0.5)).catch(() => {}); }
+    });
+  },
+  start(spots) {
+    this.spots = spots;
+    if (!init() || this.out) return;
+    const out = ctx.createGain(); out.gain.value = 0;
+    const hp = filt('highpass', 140, 0.7), box = filt('peaking', 1400, 0.9); box.gain.value = 3;   // small-speaker tone
+    this.lp = filt('lowpass', 1200, 0.6); this.pan = ctx.createStereoPanner(); this.send = amp(0.15);
+    this.bus = amp(VOL.music); this.in = amp(1);
+    this.in.connect(hp); hp.connect(box); box.connect(this.bus); this.bus.connect(this.lp); this.lp.connect(out); out.connect(this.pan); this.pan.connect(master);
+    out.connect(this.send); this.send.connect(revSend);
+    this.out = out;
+    const first = this.pickNext();
+    this.load(first).then((buf) => this.play(buf, first, now() + 0.1)).catch((e) => console.warn('beach track unavailable', e));
+  },
+  // a speaker was blown up: it goes quiet; when none are left the music stops
+  remove(spot) {
+    this.spots = this.spots.filter((s) => s !== spot);
+    if (!this.spots.length && this.src) { const t = now(); this.out.gain.setTargetAtTime(0, t, 0.08); this.src.onended = null; try { this.src.stop(t + 0.5); } catch (e) { /* already stopped */ } this.on = false; }
+  },
+  update() {
+    if (!ctx || !this.out) return;
+    const T = G.camTarget || { x: 0, z: 0, dist: 90 };
+    let best = null, bd = 1e9;
+    for (const s of this.spots) { const d = Math.hypot(s.x - T.x, s.z - T.z); if (d < bd) { bd = d; best = s; } }
+    const t = now();
+    if (!best || !this.on) { this.out.gain.setTargetAtTime(0, t, 0.2); this.level = 0; return; }
+    // a short reach: loud-ish right by a speaker, gone about 36 units away (the zoom counts a little, not like the concert)
+    const D = Math.hypot(bd, T.dist * 0.15), near = Math.max(0, Math.min(1, 1 - (D - 6) / 30));
+    this.level = Math.pow(near, 1.7);
+    this.out.gain.setTargetAtTime(0.16 * this.level, t, 0.15);
+    this.lp.frequency.setTargetAtTime(600 + 9000 * Math.pow(near, 1.5), t, 0.15);
+    const s = spatial(best.x, best.z);
+    this.pan.pan.setTargetAtTime(s.pan * 0.7, t, 0.15);
+    this.send.gain.setTargetAtTime(Math.min(0.5, s.wet * 0.6), t, 0.2);
   },
 };

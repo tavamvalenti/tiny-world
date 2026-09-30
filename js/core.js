@@ -37,6 +37,7 @@ export function blast(x, y, z, radius, power, kind = 'explosion') {
   G.concert && G.concert.onBlast(x, y, z, radius, power, kind);
   G.court && G.court.onBlast(x, y, z, radius, power, kind);
   G.petco && G.petco.onBlast && G.petco.onBlast(x, y, z, radius, power, kind);
+  G.playa && G.playa.onBlast && G.playa.onBlast(x, y, z, radius, power, kind);
   G.gangs && G.gangs.onBlast(x, y, z, radius, power, kind);
   G.responders && G.responders.onBlast(x, y, z, radius, power, kind);
   G.sky && G.sky.onBlast(x, y, z, radius, power, kind);
