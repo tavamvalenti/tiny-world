@@ -425,6 +425,7 @@ export class Agents {
     }
   }
   launch(a, dir, f, up, isCar, spin = 6) {
+    if (!isCar && !a.dead && a.state !== 'air') sfx.yelp(a.pos.x, a.pos.z);   // a cry from someone knocked flying (limited in audio.js)
     if (isCar && a.moto && !a.thrown) {
       a.thrown = true;
       const p = this.borrowPed(a.pos, 0);

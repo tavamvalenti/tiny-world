@@ -8,9 +8,9 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 
 // events per second, per map
 const RATES = {
-  downtown: { car: 1.3, horn: 0.1, siren: 1 / 45, chatter: 1.6, say: 0, music: 1 / 28, birds: 0.05, dog: 0, mower: 0, construct: 1 / 25, gull: 0.05, boat: 1 / 60, stadium: 1 / 7 },
-  tropical: { car: 0.45, horn: 0.03, siren: 1 / 150, chatter: 1.0, say: 0, music: 1 / 18, birds: 0.08, dog: 1 / 80, mower: 0, construct: 0, gull: 0.18, boat: 1 / 70 },
-  suburbs: { car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 1 / 90, birds: 0.35, dog: 1 / 16, mower: 1 / 45, construct: 1 / 120, gull: 0, boat: 0 },
+  downtown: { line: 1 / 8, car: 1.3, horn: 0.1, siren: 1 / 45, chatter: 1.6, say: 0, music: 1 / 28, birds: 0.05, dog: 0, mower: 0, construct: 1 / 25, gull: 0.05, boat: 1 / 60, stadium: 1 / 7 },
+  tropical: { line: 1 / 9, car: 0.45, horn: 0.03, siren: 1 / 150, chatter: 1.0, say: 0, music: 1 / 18, birds: 0.08, dog: 1 / 80, mower: 0, construct: 0, gull: 0.18, boat: 1 / 70 },
+  suburbs: { line: 1 / 12, car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 1 / 90, birds: 0.35, dog: 1 / 16, mower: 1 / 45, construct: 1 / 120, gull: 0, boat: 0 },
 };
 const BEDS = {
   downtown: { traffic: 0.34, murmur: 0.5, wind: 0.05, hum: 0.05, waves: 0.5 },
@@ -148,8 +148,16 @@ export class Ambience {
       case 'chatter': {
         const p = this.near(G.agents.peds, 38, (p) => p.state !== 'air' && p.state !== 'down');
         if (!p) return;
-        if (p.state === 'flee' || p.state === 'alert') { if (Math.random() < 0.3) I.voice('scream', p.pos.x, p.pos.z, R(0.15, 0.3)); return; }
+        if (p.state === 'flee' || p.state === 'alert') { if (Math.random() < 0.12) I.voice('scream', p.pos.x, p.pos.z, R(0.15, 0.3)); return; }   // the odd scream while people run
         sfx.chatter(p.pos.x, p.pos.z, R(0.12, 0.3));
+        return;
+      }
+      case 'line': {
+        // a recorded line of conversation from someone nearby who's plausibly talking (a group, a crew chatting,
+        // now and then a passer-by); only when zoomed in enough to be among them, and not over a panic
+        if (T.dist > 110 || (this.s && this.s.panicked > 3)) return;
+        const p = this.near(G.agents.peds, 32, (p) => (p.state === 'idle' && p.group) || p.pose === 'talk' || p.pose === 'hands' || p.pose === 'serve' || (p.state === 'walk' && Math.random() < 0.25));
+        if (p) sfx.line(p.pos.x, p.pos.z, R(0.4, 0.6));
         return;
       }
       case 'say': {
