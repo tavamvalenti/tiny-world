@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { G, clamp, lerp } from './core.js';
+import { G, clamp, lerp, viewH } from './core.js';
 import { Post } from './post.js';
 import { makeFacades } from './textures.js';
 import { Buildings } from './buildings.js';
@@ -60,7 +60,7 @@ const input = { down: false, pressed: false, mx: 0, my: 0 };
 G.input = input; G.cam = cam;
 
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const w = window.innerWidth, h = viewH();
   renderer.setSize(w, h, false);
   renderer.setPixelRatio(PR);
   post.setSize(Math.floor(w * PR), Math.floor(h * PR));
@@ -280,7 +280,7 @@ function updateCamera(dt) {
 }
 
 function aim() {
-  const ndc = new THREE.Vector2((input.mx / window.innerWidth) * 2 - 1, -(input.my / window.innerHeight) * 2 + 1);
+  const ndc = new THREE.Vector2((input.mx / window.innerWidth) * 2 - 1, -(input.my / viewH()) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   G.weapons.aim = G.buildings.raycast(camera.position, ray.ray.direction, 1500);
 }

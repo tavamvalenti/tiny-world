@@ -9,6 +9,13 @@ export const G = {
   terrainH: null,           // (x, z) => ground height, for maps with hills (La Playa); flat elsewhere
 };
 
+// the real screen height: an app launched from the iPhone home screen reports innerHeight a status bar short,
+// which left an empty band at the bottom; index.html measures the true height into --appH there
+export function viewH() {
+  const v = document.documentElement.style.getPropertyValue('--appH');
+  return v ? parseFloat(v) : window.innerHeight;
+}
+
 export const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 export const randi = (a, b) => Math.floor(rand(a, b + 1));
 export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];

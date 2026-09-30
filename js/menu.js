@@ -5,6 +5,7 @@
 // to the real map load (the original menu buttons stay the source of truth, so load() is untouched).
 // It has its own small renderer, which is stopped and disposed as soon as the game starts.
 import * as THREE from 'three';
+import { viewH } from './core.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const S = 5.6, H = S / 2;                                   // diorama tile size
@@ -476,8 +477,8 @@ function starfield(menu, after) {
   const cx = cv.getContext('2d');
   let stars = [], W = 0, H = 0, dpr = 1;
   const build = () => {
-    dpr = Math.min(2, window.devicePixelRatio || 1); W = cv.width = Math.round(innerWidth * dpr); H = cv.height = Math.round(innerHeight * dpr);
-    const n = Math.round(Math.min(520, innerWidth * innerHeight / 3200)); stars = [];
+    dpr = Math.min(2, window.devicePixelRatio || 1); W = cv.width = Math.round(innerWidth * dpr); H = cv.height = Math.round(viewH() * dpr);
+    const n = Math.round(Math.min(520, innerWidth * viewH() / 3200)); stars = [];
     for (let i = 0; i < n; i++) {
       let x = Math.random(), y = Math.random();
       if (i % 3 === 0) {   // a third of them gather along the band (lower left to upper right), with a soft falloff
@@ -641,6 +642,13 @@ export function initMenu() {
   const tex = facadeTextures();
   const worlds = MAPS.map((m) => { const d = new Diorama(m, tex); scene.add(d.g); return d; });
   const hits = worlds.map((d) => d.hit);
+  // each world's own bounding box (for fitting it to a phone screen): measured once at rest
+  worlds.forEach((d) => {
+    const p = d.g.position.clone(), r = d.g.rotation.clone(), sc = d.g.scale.clone();
+    d.g.position.set(0, 0, 0); d.g.rotation.set(0, 0, 0); d.g.scale.setScalar(1); d.g.updateMatrixWorld(true);
+    d.bb = new THREE.Box3().setFromObject(d.g);
+    d.g.position.copy(p); d.g.rotation.copy(r); d.g.scale.copy(sc); d.g.updateMatrixWorld(true);
+  });
 
   // layout: an arc across wide screens, a column on tall ones
   let portrait = false, baseCam = new THREE.Vector3(), look = new THREE.Vector3(0, 0.3, 0);
@@ -652,7 +660,7 @@ export function initMenu() {
   const goTo = (i) => { sel = Math.max(0, Math.min(MAPS.length - 1, i)); syncDots(); };
   syncDots();
   function layout() {
-    const w = innerWidth, h = innerHeight, aspect = w / h;
+    const w = innerWidth, h = viewH(), aspect = w / h;
     renderer.setSize(w, h, false); camera.aspect = aspect;
     portrait = aspect < 0.95;
     carousel = TOUCH && portrait;
@@ -676,8 +684,8 @@ export function initMenu() {
   const _still = new THREE.Vector2(0, 0);
   let hovered = -1, labelHover = -1, going = null;
   const hasHover = matchMedia('(hover: hover)').matches;
-  canvas.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); });
-  menu.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); });
+  canvas.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / viewH()) * 2 + 1); });
+  menu.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / viewH()) * 2 + 1); });
   function pickAt() { if (titleHover) return -1; ray.setFromCamera(ptr, camera); const h = ray.intersectObjects(hits, false)[0]; return h ? hits.indexOf(h.object) : -1; }
   buttons.forEach((b, i) => {
     b.addEventListener('pointerenter', () => { labelHover = i; });
@@ -699,7 +707,7 @@ export function initMenu() {
     const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y; swipe = null;
     if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) { goTo(sel + (dx < 0 ? 1 : -1)); return; }
     if (Math.hypot(dx, dy) > 12) return;
-    ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / viewH()) * 2 + 1);
     const i = pickAt();
     if (i === sel) dive(sel); else if (i >= 0) goTo(i);
   });
@@ -708,7 +716,7 @@ export function initMenu() {
   addEventListener('keydown', (e) => { if (!carousel || going) return; if (e.key === 'ArrowRight') goTo(sel + 1); else if (e.key === 'ArrowLeft') goTo(sel - 1); else if (e.key === 'Enter') dive(sel); });
   canvas.addEventListener('click', (e) => {
     if (carousel) return;
-    ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / viewH()) * 2 + 1);
     const i = pickAt();
     if (i < 0 || going) return;
     // on touch, the first tap picks a world, the second dives in
@@ -733,12 +741,42 @@ export function initMenu() {
     const b = buttons[going.i]; b.dataset.go = '1'; b.click();                // hand over to main.js: load the map
   }
   // captions follow their worlds on screen
+  const ui = menu.querySelector('.carousel-ui'), sub = menu.querySelector('p.sub');
+  const capTop = (b) => ui.getBoundingClientRect().top - b.offsetHeight - 30;
+  // carousel fitting: scale (camera zoom) and shift (view offset) so the chosen world fills the band between the
+  // subtitle and its caption on any phone, measured with an unzoomed copy of the camera so it doesn't chase itself
+  const fitCam = new THREE.PerspectiveCamera();
+  let fitZoom = 1, fitShift = 0;
+  function fitCarousel(dt) {
+    const W = innerWidth, Hh = viewH(), k = Math.min(1, dt * 4);
+    let zT = 1, sT = 0;
+    if (carousel && !going) {
+      fitCam.copy(camera); fitCam.zoom = 1; fitCam.clearViewOffset(); fitCam.updateProjectionMatrix(); fitCam.updateMatrixWorld();
+      const d = worlds[sel], bb = d.bb; d.g.updateMatrixWorld();
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (let c = 0; c < 8; c++) {
+        _v.set(c & 1 ? bb.max.x : bb.min.x, c & 2 ? bb.max.y : bb.min.y, c & 4 ? bb.max.z : bb.min.z).applyMatrix4(d.g.matrixWorld).project(fitCam);
+        x0 = Math.min(x0, _v.x); x1 = Math.max(x1, _v.x); y0 = Math.min(y0, _v.y); y1 = Math.max(y1, _v.y);
+      }
+      const top = (1 - y1) / 2 * Hh, bot = (1 - y0) / 2 * Hh, wpx = (x1 - x0) / 2 * W;
+      const bandTop = sub.getBoundingClientRect().bottom + 18, bandBot = capTop(buttons[sel]) - 18;
+      if (bandBot - bandTop > 40 && bot - top > 1) {
+        zT = Math.min((bandBot - bandTop) / (bot - top), W * 0.9 / Math.max(1, wpx), 1.8);
+        sT = (bandTop + bandBot) / 2 - (Hh / 2 + ((top + bot) / 2 - Hh / 2) * zT);
+      }
+    }
+    fitZoom += (zT - fitZoom) * (going ? Math.min(1, dt * 8) : k); fitShift += (sT - fitShift) * (going ? Math.min(1, dt * 8) : k);
+    camera.zoom = fitZoom;
+    if (Math.abs(fitShift) > 0.5) camera.setViewOffset(W, Hh, 0, -fitShift, W, Hh); else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  }
   function placeLabels() {
     worlds.forEach((d, i) => {
       _v.set(0, -1.25, H + 0.2).applyMatrix4(d.g.matrixWorld).project(camera);
       const b = buttons[i]; if (!b) return;
-      // carousel: the caption sits centred under the world, clear of its turned base
-      b.style.left = `${carousel ? innerWidth / 2 : (_v.x * 0.5 + 0.5) * innerWidth}px`; b.style.top = `${(-_v.y * 0.5 + 0.5) * innerHeight + (carousel ? 30 : 0)}px`;
+      // carousel: the caption has a fixed place above the dots and PLAY; the world is fitted into the space above it
+      if (carousel) { b.style.left = `${innerWidth / 2}px`; b.style.top = `${capTop(b)}px`; }
+      else { b.style.left = `${(_v.x * 0.5 + 0.5) * innerWidth}px`; b.style.top = `${(-_v.y * 0.5 + 0.5) * viewH()}px`; }
       b.classList.toggle('active', hovered === i); b.classList.toggle('dimmed', hovered >= 0 && hovered !== i);
     });
   }
@@ -792,6 +830,7 @@ export function initMenu() {
       camera.position.set(baseCam.x + ptrS.x * 1.6, baseCam.y + ptrS.y * 0.8, baseCam.z);
     }
     camera.lookAt(look);
+    fitCarousel(dt);
     if (!going && !reduced) issTick(t, dt); else iss.g.visible = false;
     const dp = dustGeo.attributes.position.array;
     if (!reduced) for (let i = 0; i < dustN; i++) { dp[i * 3 + 1] += dt * 0.12; dp[i * 3] += Math.sin(t * 0.3 + i) * dt * 0.05; if (dp[i * 3 + 1] > 8) dp[i * 3 + 1] = -3; }
