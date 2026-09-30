@@ -8,7 +8,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick, clamp } from './core.js';
 
 const LIMIT = { downtown: 6, suburbs: 4, tropical: 2 };
-const CRANES = { downtown: 2, suburbs: 1, tropical: 1 };
+const CRANES = { downtown: 2, suburbs: 2, tropical: 1 };
 
 function tint(geo, c) {
   const n = geo.index ? geo.toNonIndexed() : geo;
@@ -132,8 +132,11 @@ export class Construction {
       P.push(tint(new THREE.CylinderGeometry(0.28, 0.34, 1.1, 10).rotateX(Math.PI / 2 - 0.3).rotateY(ry).translate(tkx - tx * 0.3, 0.72, tkz - tz * 0.3), 0xd96a1a));
       for (const t of [-0.7, 0.6]) for (const q of [-0.32, 0.32]) P.push(tint(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 8).rotateZ(Math.PI / 2).rotateY(ry).translate(tkx + tx * t + tz * q, 0.13, tkz + tz * t - tx * q), 0x111111));
       s.truck = { x: tkx, z: tkz };
-      if (s.crane) this.addCrane(scene, s, free);
     }
+    // cranes: on the chosen sites, or on another site if a chosen one has nowhere to stand one
+    const want = sites.filter((s) => s.crane).length, first = sites.filter((s) => s.crane), rest = sites.filter((s) => !s.crane);
+    for (const s of sites) s.crane = false;                 // set again by addCrane where one actually stands
+    for (const s of [...first, ...rest]) { if (this.cranes.length >= want) break; this.addCrane(scene, s, free); }
     if (P.length) { const m = new THREE.Mesh(mergeGeometries(P), new THREE.MeshLambertMaterial({ vertexColors: true })); m.castShadow = m.receiveShadow = true; scene.add(m); }
     if (nets.length) scene.add(new THREE.Mesh(mergeGeometries(nets), new THREE.MeshLambertMaterial({ color: 0x3f7a4a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false })));
     if (hoard.length) {
@@ -153,8 +156,10 @@ export class Construction {
   addCrane(scene, s, free) {
     const { x, z, w, d, top, fh, levels } = s;
     let base = null;
-    for (const [a, b] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { const bx = x + a * (w / 2 + 1.1), bz = z + b * (d / 2 + 1.1); if (free(bx, bz) && free(bx + a * 0.4, bz + b * 0.4)) { base = { x: bx, z: bz }; break; } }
-    if (!base) return;
+    const spots = [];
+    for (const m of [1.1, 2]) for (const [a, b] of [[1, 1], [-1, 1], [1, -1], [-1, -1], [0, 1], [0, -1], [1, 0], [-1, 0]]) spots.push([x + a * (w / 2 + m), z + b * (d / 2 + m), a, b]);
+    for (const [bx, bz, a, b] of spots) if (free(bx, bz) && free(bx + a * 0.4, bz + b * 0.4) && !this.cranes.some((c) => Math.hypot(c.base.x - bx, c.base.z - bz) < 16)) { base = { x: bx, z: bz }; break; }
+    if (!base) return false;
     const H = top + fh * levels + 6, L = 14, yellow = new THREE.MeshLambertMaterial({ color: 0xe8b41a }), dark = new THREE.MeshLambertMaterial({ color: 0x2b2e33 });
     const lattice = canvasTex(32, 32, (x) => { x.clearRect(0, 0, 32, 32); x.strokeStyle = '#e8b41a'; x.lineWidth = 3; x.strokeRect(1, 1, 30, 30); x.beginPath(); x.moveTo(0, 0); x.lineTo(32, 32); x.moveTo(32, 0); x.lineTo(0, 32); x.stroke(); });
     lattice.wrapS = lattice.wrapT = THREE.RepeatWrapping; lattice.repeat.set(1, H / 0.5);
@@ -176,6 +181,7 @@ export class Construction {
     for (const m of [mast, jib, load]) m.castShadow = true;
     const toLocal = (px, pz) => ({ yaw: Math.atan2(-(pz - base.z), px - base.x), r: clamp(Math.hypot(px - base.x, pz - base.z), 1.5, L - 0.6) });
     const pickP = toLocal(s.pile.x, s.pile.z), dropP = toLocal(x + rand(-w / 4, w / 4), z + rand(-d / 4, d / 4));
+    s.crane = true;
     this.cranes.push({ s, base, H, slew, trolley, hook, cable, load, pickP, dropP, pickY: 0.6, dropY: top + fh * levels + 0.6, yaw: rand(0, 6.28), r: 6, y: H - 2, step: 0, t: rand(1, 4) });
   }
   // ---------- window washers: a gondola works down one face of a tall tower, pausing floor by floor ----------
