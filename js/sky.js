@@ -8,13 +8,13 @@ import { G, rand, pick } from './core.js';
 import { sfx } from './audio.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler();
-const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0), _w = new THREE.Matrix4(), _w2 = new THREE.Matrix4();
 const MAX_BIRDS = 60;
 // per map: how often things turn up (mean seconds), where birds like to be, what they look like
 const MAP = {
-  downtown: { plane: 70, heli: 150, flock: 45, birdCol: [0x6b6f76, 0xe8e8e4], spots: (C) => [{ x: C.shoreX + 6, z: rand(-40, 40) }, { x: rand(-40, 40), z: rand(-40, 40) }] },
-  suburbs: { plane: 80, heli: 200, flock: 55, birdCol: [0x55585e, 0x3a3a3c], spots: (C) => [{ x: rand(-50, 50), z: rand(-50, 50) }, C.court ? { x: (C.court.x0 + C.court.x1) / 2, z: C.court.z1 + 6 } : { x: 0, z: 0 }] },
-  tropical: { plane: 90, heli: 220, flock: 28, birdCol: [0xf2f2ee, 0xe8e8e4, 0x9aa0a4], spots: (C) => [{ x: rand(-50, 50), z: rand(-34, -20) }, { x: rand(-50, 50), z: rand(-45, -30) }] },
+  downtown: { plane: 70, heli: 150, flock: 45, birdCol: [0xffffff, 0xe6e1d8], spots: (C) => [{ x: C.shoreX + 6, z: rand(-40, 40) }, { x: rand(-40, 40), z: rand(-40, 40) }] },
+  suburbs: { plane: 80, heli: 200, flock: 55, birdCol: [0xd6d3cd, 0xc2beb6], spots: (C) => [{ x: rand(-50, 50), z: rand(-50, 50) }, C.court ? { x: (C.court.x0 + C.court.x1) / 2, z: C.court.z1 + 6 } : { x: 0, z: 0 }] },
+  tropical: { plane: 90, heli: 220, flock: 28, birdCol: [0xffffff, 0xfff6ea], spots: (C) => [{ x: rand(-50, 50), z: rand(-34, -20) }, { x: rand(-50, 50), z: rand(-45, -30) }] },
 };
 
 function tintGeo(geo, c) {
@@ -25,6 +25,45 @@ function tintGeo(geo, c) {
   return n;
 }
 const bx = (w, h, d, x, y, z, c) => tintGeo(new THREE.BoxGeometry(w, h, d).translate(x, y, z), c);
+
+// ---- a seabird (after a booby in flight): cream body, dark head, pale beak, dark wedge tail; forward +z ----
+function birdBody() {
+  const col = (g, c) => tintGeo(g, c);
+  return mergeGeometries([
+    col(new THREE.SphereGeometry(1, 10, 7).scale(0.045, 0.04, 0.15), 0xf1e8d8),                        // body
+    col(new THREE.SphereGeometry(1, 9, 6).scale(0.034, 0.032, 0.05).translate(0, 0.006, 0.15), 0x2a211b),   // dark head and neck
+    col(new THREE.ConeGeometry(0.014, 0.085, 6).rotateX(Math.PI / 2).translate(0, 0.002, 0.23), 0xe8c98e),  // beak
+    col(new THREE.ConeGeometry(0.05, 0.14, 4).scale(1, 0.18, 1).rotateX(-Math.PI / 2).translate(0, 0, -0.2), 0x241c17),   // wedge tail
+  ]);
+}
+// one wing (the right one, spanning +x from the shoulder): long and narrow with a crook at the wrist; dark leading
+// edge, trailing edge and hand, a pale band down the middle of the arm (the look of the underwing in flight)
+function birdWing() {
+  const N = 10, rows = [0, 0.3, 0.62, 1], pos = [], colr = [], idx = [];
+  const dark = new THREE.Color(0x221b16), pale = new THREE.Color(0xf4efe4), c = new THREE.Color();
+  for (let i = 0; i <= N; i++) {
+    const u = i / N, x = 0.03 + u * 0.56;
+    // leading edge sweeps back past the wrist; the chord narrows to a point at the tip
+    const lead = 0.05 + 0.035 * Math.sin(Math.min(1, u / 0.45) * Math.PI / 2) - Math.max(0, u - 0.45) * 0.42;
+    const chord = (0.13 - u * 0.1) * (u > 0.92 ? (1 - u) / 0.08 : 1) + 0.004;
+    const lift = Math.sin(u * Math.PI) * 0.012;                                   // a gentle arch
+    rows.forEach((r) => {
+      pos.push(x, lift, lead - chord * r);
+      const band = u < 0.62 && r > 0.1 && r < 0.9;                                  // the white band on the arm
+      c.copy(band ? pale : dark).lerp(dark, band ? Math.max(0, (u - 0.4) / 0.22) : 0);
+      colr.push(c.r, c.g, c.b);
+    });
+  }
+  for (let i = 0; i < N; i++) for (let r = 0; r < 3; r++) {
+    const a = i * 4 + r, b = a + 1, d = a + 4, e = d + 1;
+    idx.push(a, d, b, b, d, e);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
 
 function airliner() {   // nose +z, ~7 units long
   return mergeGeometries([
@@ -62,13 +101,15 @@ export class Sky {
     scene.add(this.beacon); this.beacon.visible = false;
     this.craft = [];
     this.t = { plane: rand(15, 35), heli: rand(60, 120), flock: rand(4, 12) };
-    // birds: one instanced mesh of little "V"s, flapped by scaling
-    const wing = new THREE.BufferGeometry();
-    wing.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.08, -0.28, 0.05, -0.05, 0, 0, -0.06, 0, 0, 0.08, 0, 0, -0.06, 0.28, 0.05, -0.05], 3));
-    wing.computeVertexNormals();
-    this.birds = new THREE.InstancedMesh(wing, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), MAX_BIRDS);
-    for (let i = 0; i < MAX_BIRDS; i++) { this.birds.setMatrixAt(i, ZERO); this.birds.setColorAt(i, new THREE.Color(0xffffff)); }
-    this.birds.frustumCulled = false; scene.add(this.birds);
+    // birds: body + two hinged wings, three instanced meshes; the wings flap about the shoulder
+    const bmat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    const rw = birdWing(), lw = rw.clone().scale(-1, 1, 1);
+    lw.index.array.reverse?.(); lw.computeVertexNormals();
+    this.birds = new THREE.InstancedMesh(birdBody(), bmat, MAX_BIRDS);
+    this.wingR = new THREE.InstancedMesh(rw, bmat, MAX_BIRDS);
+    this.wingL = new THREE.InstancedMesh(lw, bmat, MAX_BIRDS);
+    this.birdParts = [this.birds, this.wingR, this.wingL];
+    for (const m of this.birdParts) { for (let i = 0; i < MAX_BIRDS; i++) { m.setMatrixAt(i, ZERO); m.setColorAt(i, new THREE.Color(0xffffff)); } m.frustumCulled = false; m.castShadow = true; scene.add(m); }
     this.flocks = []; this.free = Array.from({ length: MAX_BIRDS }, (_, i) => MAX_BIRDS - 1 - i);
     G.sky = this;
   }
@@ -112,10 +153,10 @@ export class Sky {
     const f = { x: spot.x + rand(-30, 30), z: spot.z + rand(-30, 30), y: rand(7, 13), h: rand(0, 6.28), turn: rand(-0.3, 0.3), sp: rand(4, 6), life: rand(40, 80), circle: 0, scatter: 0, birds: [] };
     for (let k = 0; k < n; k++) {
       const i = this.free.pop();
-      this.birds.setColorAt(i, col);
+      for (const m of this.birdParts) m.setColorAt(i, col);
       f.birds.push({ i, ox: rand(-2.2, 2.2), oy: rand(-0.7, 0.7), oz: rand(-2.2, 2.2), ph: rand(0, 6.28), vx: 0, vy: 0, vz: 0 });
     }
-    this.birds.instanceColor.needsUpdate = true;
+    for (const m of this.birdParts) m.instanceColor.needsUpdate = true;
     this.flocks.push(f);
   }
   onBlast(x, y, z, r, power) {
@@ -159,13 +200,21 @@ export class Sky {
       for (const b of f.birds) {
         if (f.scatter > 0) { b.ox += b.vx * dt; b.oy += b.vy * dt; b.oz += b.vz * dt; b.vy *= 0.97; }
         else { b.ox *= 1 - dt * 0.4; b.oz *= 1 - dt * 0.4; b.ox += Math.sin(G.time * 0.8 + b.ph) * dt * 0.8; b.oz += Math.cos(G.time * 0.7 + b.ph) * dt * 0.8; }
-        const flap = 0.35 + Math.abs(Math.sin(G.time * (f.scatter > 0 ? 18 : 10) + b.ph)) * 0.9;
-        _q.setFromEuler(_e.set(0, -f.h + Math.PI / 2, 0));
-        _m.compose(_p.set(f.x + b.ox, f.y + b.oy + Math.sin(G.time * 2 + b.ph) * 0.2, f.z + b.oz), _q, _s.set(2.2, flap * 2.2, 2.2));   // a touch oversized so they read from up here
-        this.birds.setMatrixAt(b.i, far && f.life < 0 ? ZERO : _m);
+        // wingbeats in bursts with long glides between (faster, constant beating when scattering)
+        const glide = f.scatter > 0 ? 1 : Math.max(0, Math.sin(G.time * 0.45 + b.ph * 3));
+        const beat = Math.sin(G.time * (f.scatter > 0 ? 16 : 9) + b.ph);
+        const flap = 0.08 + beat * (f.scatter > 0 ? 0.75 : 0.62) * glide + (1 - glide) * 0.12;
+        const bank = f.circle > 0 ? -0.35 : Math.sin(G.time * 0.6 + b.ph) * 0.12;
+        _q.setFromEuler(_e.set(-beat * 0.05 * glide, -f.h + Math.PI / 2, bank, 'YXZ'));
+        _m.compose(_p.set(f.x + b.ox, f.y + b.oy + Math.sin(G.time * 2 + b.ph) * 0.2 - beat * 0.03 * glide, f.z + b.oz), _q, _s.set(2.6, 2.6, 2.6));   // a touch oversized so they read from up here
+        if (far && f.life < 0) { for (const m of this.birdParts) m.setMatrixAt(b.i, ZERO); continue; }
+        this.birds.setMatrixAt(b.i, _m);
+        // each wing hinges at its shoulder
+        _w.makeRotationZ(flap); _w.setPosition(0.035, 0.01, 0.02); this.wingR.setMatrixAt(b.i, _w2.multiplyMatrices(_m, _w));
+        _w.makeRotationZ(-flap); _w.setPosition(-0.035, 0.01, 0.02); this.wingL.setMatrixAt(b.i, _w2.multiplyMatrices(_m, _w));
       }
-      if (f.life < -20 || (far && f.life < 0)) { for (const b of f.birds) { this.birds.setMatrixAt(b.i, ZERO); this.free.push(b.i); } this.flocks.splice(this.flocks.indexOf(f), 1); }
+      if (f.life < -20 || (far && f.life < 0)) { for (const b of f.birds) { for (const m of this.birdParts) m.setMatrixAt(b.i, ZERO); this.free.push(b.i); } this.flocks.splice(this.flocks.indexOf(f), 1); }
     }
-    this.birds.instanceMatrix.needsUpdate = true;
+    for (const m of this.birdParts) m.instanceMatrix.needsUpdate = true;
   }
 }
