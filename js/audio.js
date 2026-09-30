@@ -225,7 +225,7 @@ function buildVoices() {
   for (let k = 0; k < len; k++) d[k] = mix[k] / pk * 0.8;
 }
 
-// ---------- recorded pedestrian voices (assets/npc-screams.m4a, assets/npc-talk.m4a) ----------
+// ---------- recorded pedestrian voices (assets/npc-screams.mp4, assets/npc-talk.mp4) ----------
 // Each file is a strip of short clips cut from a longer recording (silence-split, levelled, faded); CLIPS holds
 // [start, length] in seconds. They're used sparingly: a few voices at once at most, cooldowns between them, and
 // each kind drawn from a shuffled bag so the same clip doesn't come round again soon.
@@ -236,7 +236,7 @@ const REC_GAP = { scream: 0.55, yelp: 1.2, talk: 7 };         // and at least th
 function loadRecorded() {
   // decoded at 22 kHz mono (the clips' own rate) to keep memory small
   const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
-  for (const [key, url] of [['screams', 'assets/npc-screams.m4a'], ['talk', 'assets/npc-talk.m4a']]) {
+  for (const [key, url] of [['screams', 'assets/npc-screams.mp4'], ['talk', 'assets/npc-talk.mp4']]) {
     fetch(url).then((r) => r.arrayBuffer()).then((ab) => dec.decodeAudioData(ab)).then((b) => { REC.buf[key] = b; }).catch((e) => console.warn('npc voices unavailable', url, e));
   }
 }
