@@ -232,7 +232,7 @@ function buildVoices() {
 const CLIPS = {"scream":[[0.0,2.38],[2.5,1.36],[3.98,1.58],[5.68,1.26],[7.06,1.32],[8.5,1.68],[10.3,1.72],[12.14,1.16],[13.42,1.34],[14.88,3.0],[18.0,1.06],[19.18,1.26],[20.56,1.38],[22.06,2.22],[24.4001,1.94],[26.4601,1.8],[28.3801,1.56],[30.0601,0.98],[31.1601,1.74],[33.0201,2.84],[35.9801,1.36],[37.4601,1.12],[38.7001,1.54],[40.3602,1.58],[42.0602,1.56],[43.7402,1.0],[44.8602,1.38],[46.3602,0.96],[47.4402,1.12]],"yelp":[[48.6802,0.54],[49.3402,0.54],[50.0002,0.56],[50.6802,0.82],[51.6202,0.54],[52.2803,0.52],[52.9203,0.92],[53.9603,0.72],[54.8003,0.5],[55.4203,0.56],[56.1003,0.6],[56.8203,0.5],[57.4403,0.76],[58.3203,0.58]],"talk":[[0.0,1.1],[1.22,1.66],[3.0,1.52],[4.64,1.08],[5.84,4.48],[10.44,1.98],[12.54,1.76],[14.42,1.56],[16.1,1.78],[18.0,2.84],[20.9601,1.12],[22.2001,1.84],[24.1601,1.94],[26.2201,2.34],[28.6801,1.38],[30.1801,2.16],[32.4601,2.24],[34.8201,2.92],[37.8601,1.16],[39.1401,1.5],[40.7601,4.82],[45.7001,1.34],[47.16,1.26],[48.54,1.1],[49.76,1.54],[51.42,1.0],[52.54,1.64],[54.3,2.3],[56.72,1.18],[58.02,1.28],[59.42,1.68],[61.22,1.44],[62.78,1.8],[64.7,2.58],[67.4,1.24],[68.76,1.18],[70.0599,1.66],[71.8399,1.0],[72.9599,2.66],[75.7399,2.72],[78.5799,2.54],[81.2399,2.04],[83.3999,1.0],[84.5199,3.92],[88.5599,2.42],[91.0999,2.18],[93.3998,2.9],[96.4198,4.4],[100.9397,4.1]]};
 const REC = { buf: {}, bag: {}, playing: { scream: 0, yelp: 0, talk: 0 }, last: { scream: -9, yelp: -9, talk: -9 } };
 const REC_MAX = { scream: 2, yelp: 1, talk: 1 };            // at most this many of each sounding at once
-const REC_GAP = { scream: 0.55, yelp: 1.2, talk: 7 };         // and at least this long between starts
+const REC_GAP = { scream: 0.4, yelp: 0.8, talk: 3 };         // and at least this long between starts
 function loadRecorded() {
   // decoded at 22 kHz mono (the clips' own rate) to keep memory small
   const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
@@ -269,7 +269,7 @@ function recorded(kind, x, z, vol = 1) {
 
 function voice(kind, x, z, vol = 1, rate = 1) {
   // screams use the recordings once they're loaded; if too many are already going, this one stays silent
-  if (kind === 'scream' && REC.buf.screams) { recorded('scream', x, z, vol * 1.6); return; }
+  if (kind === 'scream' && REC.buf.screams) { recorded('scream', x, z, vol * 2); return; }
   const pool = voicePool[kind];
   if (!pool || !pool.length) return;
   const ch = chain(x, z, { vol, bus: voiceBus });
@@ -570,11 +570,11 @@ export const sfx = {
   screams(x, z, n = 3) {
     if (!init()) return;
     // a panicked crowd: one or two real screams carry it (the limiter drops the rest), not a wall of them
-    if (REC.buf.screams) n = Math.min(n, Math.random() < 0.5 ? 1 : 2);
+    if (REC.buf.screams) n = Math.min(n, Math.random() < 0.25 ? 1 : 2);
     for (let i = 0; i < n; i++) setTimeout(() => voice('scream', x + R(-6, 6), z + R(-6, 6), R(0.25, 0.5)), R(80, 900));
   },
   // someone knocked flying lets out a short cry (now and then)
-  yelp(x, z) { if (init() && Math.random() < 0.35) recorded('yelp', x, z, 0.55); },
+  yelp(x, z) { if (init() && Math.random() < 0.55) recorded('yelp', x, z, 0.55); },
   // a line of real conversation from someone nearby; false if another is already playing
   line(x, z, vol = 0.5) { return init() ? recorded('talk', x, z, vol) : false; },
   chatter(x, z, vol = 0.25) { if (init()) voice(Math.random() < 0.12 ? 'laugh' : 'talk', x, z, vol); },
