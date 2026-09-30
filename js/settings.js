@@ -27,7 +27,10 @@ export const SCHEMA = [
   { id: 'spanish', label: 'La Playa news in Spanish', type: 'toggle', def: true, hint: 'Off: La Playa headlines in English' },
 ];
 
-const defaults = () => Object.fromEntries(SCHEMA.filter((f) => f.id).map((f) => [f.id, f.def]));
+// phones and tablets start lighter: lower render quality and thinner crowds (both can be raised in Settings)
+const TOUCH = typeof document !== 'undefined' && document.documentElement.classList.contains('touch');
+const TOUCH_DEFAULTS = { quality: 'low', crowds: 'low' };
+const defaults = () => Object.fromEntries(SCHEMA.filter((f) => f.id).map((f) => [f.id, TOUCH && f.id in TOUCH_DEFAULTS ? TOUCH_DEFAULTS[f.id] : f.def]));
 
 function load() {
   const s = defaults();

@@ -89,6 +89,10 @@ const CSS = `
 #newsTicker .live:before{content:'';width:5px;height:5px;border-radius:50%;background:#ff4d4d}
 #newsTicker .bar{position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--accent);transform-origin:left;opacity:.85}
 @media (max-width:760px){#newsTicker{width:calc(100vw - 32px)}#newsTicker .head{font-size:13px}}
+html.touch #newsTicker{top:calc(env(safe-area-inset-top,0px) + 64px);bottom:auto;left:10px;right:10px;width:auto;transform:translateY(-10px);border-radius:14px}
+html.touch #newsTicker.on{transform:none}
+html.touch #newsTicker .top{padding:10px 14px 3px}html.touch #newsTicker .meta{padding:2px 14px 9px}
+html.touch #newsTicker .head{white-space:normal;font-size:13px;line-height:1.3}
 `;
 
 export class News {

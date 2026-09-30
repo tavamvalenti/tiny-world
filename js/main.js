@@ -33,6 +33,7 @@ import { SanDiego } from './sandiego.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
+const TOUCH = document.documentElement.classList.contains('touch');   // phones and tablets (set in index.html)
 export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO' };
 
 const $ = (s) => document.querySelector(s);
@@ -220,7 +221,10 @@ function updateCamera(dt) {
   const l = keys.KeyA || keys.ArrowLeft ? 1 : 0, r = keys.KeyD || keys.ArrowRight ? 1 : 0;
   const sp = cam.dist * 0.75 * (keys.ShiftLeft ? 1.8 : 1) * settings.moveSpeed / 100;
   const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
-  const ax = (f - b) * fx + (r - l) * rx, az = (f - b) * fz + (r - l) * rz;
+  // the touch thumbstick adds to the keys (a small dead zone, then a gentle curve for fine moves)
+  const dz = (v) => (Math.abs(v) < 0.12 ? 0 : Math.sign(v) * Math.pow((Math.abs(v) - 0.12) / 0.88, 1.4));
+  const jf = joy ? -dz(joy.y) : 0, jr = joy ? dz(joy.x) : 0;
+  const ax = (f - b + jf) * fx + (r - l + jr) * rx, az = (f - b + jf) * fz + (r - l + jr) * rz;
   const k = 1 - Math.exp(-dt * 6);
   cam.vx = lerp(cam.vx, ax * sp, k); cam.vz = lerp(cam.vz, az * sp, k);
   cam.x = clamp(cam.x + cam.vx * dt, cam.xMin ?? -cam.half, cam.half);
@@ -241,7 +245,9 @@ function updateCamera(dt) {
   const pano = cam.maxD > 150 ? clamp((cam.dist - 150) / (cam.maxD - 150), 0, 1) : 0;
   // the locked view: ~46° close up to ~56° far out (a touch lower when you're right in close), plus any manual tilt
   const pitch = clamp(lerp(lerp(0.8, 0.98, zt), 0.44, pano) - (cam.dist < 30 ? (30 - cam.dist) * 0.008 : 0) + cam.tilt, 0.08, 1.5);
-  const fov = lerp(24, 44, pano);
+  // a phone held upright sees a narrow slice at the desktop lens: widen it so the city doesn't feel squeezed
+  const fov0 = camera.aspect < 1 ? lerp(24, 38, clamp((1 - camera.aspect) / 0.55, 0, 1)) : 24;
+  const fov = lerp(fov0, 44, pano);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   // gentle hover drift, like a massive craft holding position
   const hx = Math.sin(G.time * 0.31) * 0.25, hy = Math.sin(G.time * 0.23) * 0.3;
@@ -361,10 +367,11 @@ requestAnimationFrame(frame);
 
 // ---------- WORLD menu: pick something, then click the map to place it ----------
 const worldMenu = $('#worldMenu'), placeHint = $('#placeHint');
-worldMenu.innerHTML = MENU.map((c) => `<div class="col"><h4>${c.cat}</h4>${c.items.map(([id, label, now]) => `<button data-id="${id}" data-label="${label}"${now ? ' data-now="1"' : ''}>${label}</button>`).join('')}</div>`).join('');
+worldMenu.innerHTML = '<div class="wm-head"><b>WORLD</b><button class="wm-close" aria-label="Close">✕</button></div>' + MENU.map((c) => `<div class="col"><h4>${c.cat}</h4>${c.items.map(([id, label, now]) => `<button data-id="${id}" data-label="${label}"${now ? ' data-now="1"' : ''}>${label}</button>`).join('')}</div>`).join('');
 $('#worldBtn').addEventListener('click', () => { const open = worldMenu.classList.toggle('open'); $('#worldBtn').classList.toggle('on', open || !!(G.world && G.world.armed)); });
 worldMenu.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || !G.world) return;
+  if (b.classList.contains('wm-close')) { worldMenu.classList.remove('open'); $('#worldBtn').classList.toggle('on', !!G.world.armed); return; }
   sfx.unlock();
   if (b.dataset.now) { G.world.place(b.dataset.id, { x: cam.x, y: 0, z: cam.z }); flashHint(b.dataset.label.toUpperCase()); worldMenu.classList.remove('open'); $('#worldBtn').classList.remove('on'); return; }
   G.world.armed = { id: b.dataset.id, label: b.dataset.label, n: 0 };
@@ -385,7 +392,7 @@ const REPEAT = (id) => (/^(civilian|worker|security|gang|police|firefighter|para
 let placeHold = false, placeT = 0;
 function armedHint(extra = '') {
   const it = G.world.armed;
-  return `PLACING ${it.label.toUpperCase()}${it.n ? ` ×${it.n}` : ''}${extra} — CLICK OR HOLD · 1–5 / ESC / RIGHT-CLICK FOR WEAPONS`;
+  return `PLACING ${it.label.toUpperCase()}${it.n ? ` ×${it.n}` : ''}${extra} — ${TOUCH ? 'TAP OR HOLD THE MAP · PICK A WEAPON TO STOP' : 'CLICK OR HOLD · 1–5 / ESC / RIGHT-CLICK FOR WEAPONS'}`;
 }
 function placeArmed() {
   const it = G.world.armed, a = G.weapons.aim;
@@ -457,9 +464,12 @@ canvasEl.addEventListener('wheel', (e) => {
   cam.distT = clamp(cam.distT * Math.exp(e.deltaY * k), cam.minD, cam.maxD);
 }, { passive: false });
 document.querySelectorAll('#weapons .w').forEach((el) => el.addEventListener('click', () => selectWeapon(+el.dataset.w)));
-function setTodButtons() { document.querySelectorAll('#tod .t').forEach((el) => el.classList.toggle('on', tod && el.dataset.t === tod.mode)); }
+function setTodButtons() { document.querySelectorAll('#tod .t').forEach((el) => el.classList.toggle('on', tod && el.dataset.t === tod.mode)); if (tod) $('#todCycle').dataset.t = tod.mode; }
 document.querySelectorAll('#tod .t').forEach((el) => el.addEventListener('click', () => { tod.set(el.dataset.t, makeEnv); setTodButtons(); }));
-$('#mute').addEventListener('click', () => { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; });
+$('#mute').addEventListener('click', () => { const m = sfx.toggleMute(); $('#mute .tx').textContent = m ? 'SOUND OFF' : 'SOUND ON'; $('#mute').classList.toggle('off', m); });
+// touch: one button steps through day, sunset and night; the back button returns to the city menu (desktop: Esc)
+$('#todCycle').addEventListener('click', () => { const T = ['day', 'sunset', 'night']; tod.set(T[(T.indexOf(tod.mode) + 1) % 3], makeEnv); setTodButtons(); });
+$('#backBtn').addEventListener('click', () => { const q = new URLSearchParams(location.search); q.delete('map'); location.replace(location.pathname + (q.toString() ? '?' + q : '')); });
 
 document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEventListener('click', () => {
   sfx.unlock();
@@ -506,7 +516,8 @@ onSettingsChange((s) => {
   if (s.quality !== lastQuality) {
     lastQuality = s.quality;
     // Retina screens at full density cost ~4x the pixels; the tilt-shift hides the difference, so cap it
-    PR = { low: 0.75, medium: 1, high: Math.min(DPR, 1.25) }[s.quality] || Math.min(DPR, 1.25);
+    PR = TOUCH ? ({ low: 1, medium: Math.min(DPR, 1.35), high: DPR }[s.quality] || 1)       // small screens: full-res is cheap, soft looks worse
+      : ({ low: 0.75, medium: 1, high: Math.min(DPR, 1.25) }[s.quality] || Math.min(DPR, 1.25));
     const ms = { low: 1024, medium: 2048, high: 4096 }[s.quality] || 4096;
     if (sun.shadow.mapSize.x !== ms) {
       sun.shadow.mapSize.set(ms, ms);
@@ -518,29 +529,58 @@ onSettingsChange((s) => {
 
 // ---------- touch: drag to move, pinch to zoom, tap / hold to fire ----------
 let touch = null;
+// ---------- touch thumbstick (bottom left): drag the knob to fly over the city, with the other thumb free to fire ----------
+const joyEl = $('#joy'), joyKnob = joyEl.querySelector('.knob');
+let joy = null;
+function joyMove(e) {
+  const R = joyEl.offsetWidth * 0.38;
+  let dx = e.clientX - joy.cx, dy = e.clientY - joy.cy;
+  const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
+  joy.x = dx / R; joy.y = dy / R;
+  joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+joyEl.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation(); sfx.unlock();
+  try { joyEl.setPointerCapture(e.pointerId); } catch (err) { /* synthetic or already-released pointer */ }
+  const r = joyEl.getBoundingClientRect();
+  joy = { id: e.pointerId, cx: r.left + r.width / 2, cy: r.top + r.height / 2, x: 0, y: 0 };
+  joyEl.classList.add('on'); joyMove(e);
+});
+joyEl.addEventListener('pointermove', (e) => { if (joy && e.pointerId === joy.id) joyMove(e); });
+const joyEnd = (e) => { if (!joy || e.pointerId !== joy.id) return; joy = null; joyKnob.style.transform = ''; joyEl.classList.remove('on'); };
+joyEl.addEventListener('pointerup', joyEnd); joyEl.addEventListener('pointercancel', joyEnd);
+joyEl.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
 const pinchDist = (ts) => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
+const pinchAng = (ts) => Math.atan2(ts[1].clientY - ts[0].clientY, ts[1].clientX - ts[0].clientX);
 canvasEl.addEventListener('touchstart', (e) => {
   e.preventDefault();
   sfx.unlock();
-  if (e.touches.length === 1) {
-    const t = e.touches[0];
+  const ts = e.targetTouches;                                  // only fingers on the map (a thumb on the joystick doesn't count)
+  if (ts.length === 1) {
+    const t = ts[0];
     input.mx = t.clientX; input.my = t.clientY;
     touch = { x: t.clientX, y: t.clientY, moved: false, firing: false };
     touch.hold = setTimeout(() => { if (!touch || touch.moved || touch.pinch) return; if (G.world && G.world.armed) { touch.placing = true; startPlacing(); } else { touch.firing = true; input.down = true; input.pressed = true; } }, 220);
-  } else if (e.touches.length === 2) {
+  } else if (ts.length === 2) {
     if (touch) clearTimeout(touch.hold);
     input.down = false;
-    touch = { pinch: pinchDist(e.touches), d0: cam.distT };
+    // two fingers: pinch to zoom, twist to turn the view, slide up/down together to tilt toward the horizon
+    touch = { pinch: pinchDist(ts), d0: cam.distT, a0: pinchAng(ts), yaw0: cam.yawT, y0: (ts[0].clientY + ts[1].clientY) / 2, tilt0: cam.tiltT };
   }
 }, { passive: false });
 canvasEl.addEventListener('touchmove', (e) => {
   e.preventDefault();
   if (!touch) return;
-  if (touch.pinch && e.touches.length === 2) {
-    cam.distT = clamp(touch.d0 * touch.pinch / pinchDist(e.touches), cam.minD, cam.maxD);
+  const ts = e.targetTouches;
+  if (touch.pinch && ts.length === 2) {
+    cam.distT = clamp(touch.d0 * touch.pinch / pinchDist(ts), cam.minD, cam.maxD);
+    let da = pinchAng(ts) - touch.a0; da = Math.atan2(Math.sin(da), Math.cos(da));
+    cam.yawT = touch.yaw0 + da;
+    cam.tiltT = clamp(touch.tilt0 + ((ts[0].clientY + ts[1].clientY) / 2 - touch.y0) * 0.004, -1.1, 0.5);
     return;
   }
-  const t = e.touches[0];
+  if (touch.pinch || !ts.length) return;                     // lifting one finger of a pinch doesn't turn into a drag
+  const t = ts[0];
   input.mx = t.clientX; input.my = t.clientY;
   if (touch.firing) return;
   const dx = t.clientX - touch.x, dy = t.clientY - touch.y;
@@ -554,7 +594,7 @@ canvasEl.addEventListener('touchmove', (e) => {
 }, { passive: false });
 canvasEl.addEventListener('touchend', (e) => {
   e.preventDefault();
-  if (!touch || e.touches.length) return;
+  if (!touch || e.targetTouches.length) return;
   clearTimeout(touch.hold);
   if (touch.placing) placeHold = false;
   else if (touch.firing) input.down = false;

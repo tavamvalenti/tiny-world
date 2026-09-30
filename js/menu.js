@@ -644,18 +644,28 @@ export function initMenu() {
 
   // layout: an arc across wide screens, a column on tall ones
   let portrait = false, baseCam = new THREE.Vector3(), look = new THREE.Vector3(0, 0.3, 0);
+  // a phone held upright gets a carousel: one world at a time, swipe between them, PLAY (or tap the world) to go in
+  const TOUCH = document.documentElement.classList.contains('touch');
+  let carousel = false, sel = 0, selF = 0;
+  const dots = [...menu.querySelectorAll('.carousel-ui .dots i')];
+  const syncDots = () => dots.forEach((d, k) => d.classList.toggle('on', k === sel));
+  const goTo = (i) => { sel = Math.max(0, Math.min(MAPS.length - 1, i)); syncDots(); };
+  syncDots();
   function layout() {
     const w = innerWidth, h = innerHeight, aspect = w / h;
     renderer.setSize(w, h, false); camera.aspect = aspect;
     portrait = aspect < 0.95;
+    carousel = TOUCH && portrait;
     worlds.forEach((d, i) => {
       const k = i - 1;
-      d.home = portrait ? new THREE.Vector3(0, -k * 4.6, k * 0.8) : new THREE.Vector3(k * 7.4, 0, -Math.abs(k) * 1.4);
-      d.yaw0 = portrait ? 0 : -k * 0.32;
+      d.home = carousel ? new THREE.Vector3((i - selF) * 9, 0, 0) : portrait ? new THREE.Vector3(0, -k * 4.6, k * 0.8) : new THREE.Vector3(k * 7.4, 0, -Math.abs(k) * 1.4);
+      d.yaw0 = carousel ? -0.42 : portrait ? 0 : -k * 0.32;
     });
-    const dist = portrait ? Math.max(24, 16.5 / (2 * Math.tan(THREE.MathUtils.degToRad(14)))) : Math.max(24, 21.5 / (2 * Math.tan(THREE.MathUtils.degToRad(14)) * aspect));
+    const tanH = Math.tan(THREE.MathUtils.degToRad(14)) * aspect;
+    const dist = carousel ? Math.max(24, 4.7 / tanH) : portrait ? Math.max(24, 16.5 / (2 * Math.tan(THREE.MathUtils.degToRad(14)))) : Math.max(24, 21.5 / (2 * tanH));
     baseCam.set(0, dist * 0.4, dist * 0.92);
-    look.set(0, portrait ? 0 : 0.3, 0);
+    look.set(0, carousel ? -0.5 : portrait ? 0 : 0.3, 0);
+    camera.position.copy(baseCam); camera.lookAt(look); camera.updateMatrixWorld();   // placed before the first frame projects anything
     camera.fov = 28; camera.updateProjectionMatrix();
   }
   layout(); addEventListener('resize', layout);
@@ -663,6 +673,7 @@ export function initMenu() {
 
   // pointer: parallax for everything, hover by ray (or by the caption buttons)
   const ptr = new THREE.Vector2(0, 0), ptrS = new THREE.Vector2(0, 0), ray = new THREE.Raycaster();
+  const _still = new THREE.Vector2(0, 0);
   let hovered = -1, labelHover = -1, going = null;
   const hasHover = matchMedia('(hover: hover)').matches;
   canvas.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); });
@@ -680,7 +691,23 @@ export function initMenu() {
       dive(i);
     }, true);
   });
+  // carousel: swipe sideways to change world, tap the world (or PLAY) to dive in
+  let swipe = null;
+  menu.addEventListener('pointerdown', (e) => { if (!carousel || going || e.target.closest('button, .tw')) return; swipe = { x: e.clientX, y: e.clientY }; });
+  menu.addEventListener('pointerup', (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y; swipe = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) { goTo(sel + (dx < 0 ? 1 : -1)); return; }
+    if (Math.hypot(dx, dy) > 12) return;
+    ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    const i = pickAt();
+    if (i === sel) dive(sel); else if (i >= 0) goTo(i);
+  });
+  menu.addEventListener('pointercancel', () => { swipe = null; });
+  menu.querySelector('.menu-play').addEventListener('click', (e) => { e.stopPropagation(); if (!going) dive(sel); });
+  addEventListener('keydown', (e) => { if (!carousel || going) return; if (e.key === 'ArrowRight') goTo(sel + 1); else if (e.key === 'ArrowLeft') goTo(sel - 1); else if (e.key === 'Enter') dive(sel); });
   canvas.addEventListener('click', (e) => {
+    if (carousel) return;
     ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
     const i = pickAt();
     if (i < 0 || going) return;
@@ -710,7 +737,8 @@ export function initMenu() {
     worlds.forEach((d, i) => {
       _v.set(0, -1.25, H + 0.2).applyMatrix4(d.g.matrixWorld).project(camera);
       const b = buttons[i]; if (!b) return;
-      b.style.left = `${(_v.x * 0.5 + 0.5) * innerWidth}px`; b.style.top = `${(-_v.y * 0.5 + 0.5) * innerHeight}px`;
+      // carousel: the caption sits centred under the world, clear of its turned base
+      b.style.left = `${carousel ? innerWidth / 2 : (_v.x * 0.5 + 0.5) * innerWidth}px`; b.style.top = `${(-_v.y * 0.5 + 0.5) * innerHeight + (carousel ? 30 : 0)}px`;
       b.classList.toggle('active', hovered === i); b.classList.toggle('dimmed', hovered >= 0 && hovered !== i);
     });
   }
@@ -723,25 +751,28 @@ export function initMenu() {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     const k = 1 - Math.exp(-dt * 5);
-    ptrS.lerp(ptr, reduced ? 1 : k * 0.6);
-    if (!going) { const h = labelHover >= 0 ? labelHover : pickAt(); hovered = h; canvas.style.cursor = h >= 0 ? 'pointer' : 'default'; }
+    ptrS.lerp(carousel ? _still : ptr, reduced ? 1 : k * 0.6);                  // no parallax on a phone: the last tap would leave it skewed
+    if (carousel) selF += (sel - selF) * Math.min(1, dt * 7);
+    if (!going) { const h = carousel ? sel : labelHover >= 0 ? labelHover : pickAt(); hovered = h; canvas.style.cursor = h >= 0 ? 'pointer' : 'default'; }
     // the room takes on the hovered city's atmosphere (a slow crossfade in CSS)
     const mood = hovered >= 0 ? MAPS[hovered] : '';
     if (mood !== shownHover) { shownHover = mood; if (mood) menu.dataset.hover = mood; else delete menu.dataset.hover; }
     worlds.forEach((d, i) => {
+      if (carousel) { const o = i - selF; d.home.set(o * 9, 0, -Math.abs(o) * 2.5); }
       const on = hovered === i, any = hovered >= 0;
       d.hover += ((on ? 1 : 0) - d.hover) * k;
       d.focus += ((on ? 1 : any ? 0.28 : 0.62) - d.focus) * k;
       // lift out of the case toward the camera, grow a little; the others settle back
       const toCam = _v.copy(camera.position).sub(d.home).normalize();
       const lift = d.hover, back = any && !on ? 1 : 0;
-      d.g.position.copy(d.home).addScaledVector(toCam, lift * 3.2 - back * 0.8);
+      d.g.position.copy(d.home).addScaledVector(toCam, lift * (carousel ? 1.4 : 3.2) - back * 0.8);
       if (!portrait) d.g.position.x -= d.home.x * lift * 0.18;                // side worlds drift in a little so they stay in frame
       d.g.position.y += lift * 0.5 + (reduced ? 0 : Math.sin(t * 0.7 + i * 2) * 0.08);
       const sc = 1 + lift * 0.12 - back * 0.05; d.g.scale.setScalar(sc);
       // idle: a slow turn to show the world; hovered: face the viewer and tilt after the cursor
       _v.copy(d.home).project(camera);
-      const lx = THREE.MathUtils.clamp(ptrS.x - _v.x, -0.6, 0.6), ly = THREE.MathUtils.clamp(ptrS.y - _v.y, -0.6, 0.6);
+      const px = Number.isFinite(_v.x) ? _v.x : 0, py = Number.isFinite(_v.y) ? _v.y : 0;          // a point at the lens would project to NaN
+      const lx = THREE.MathUtils.clamp(ptrS.x - px, -0.6, 0.6), ly = THREE.MathUtils.clamp(ptrS.y - py, -0.6, 0.6);
       const idleYaw = d.yaw0 + (reduced ? 0 : Math.sin(t * 0.22 + i * 1.7) * 0.22);
       d.g.rotation.y += ((on ? d.yaw0 * 0.3 + lx * 0.45 : idleYaw) - d.g.rotation.y) * k;
       d.g.rotation.x += ((on ? -ly * 0.22 + 0.05 : 0) - d.g.rotation.x) * k;
