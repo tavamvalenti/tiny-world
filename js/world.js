@@ -18,7 +18,7 @@ const NO_RESPONDERS = new Set([EV.FESTIVAL_EVENT, EV.WEATHER_EVENT]);
 // The WORLD menu. `now` items apply immediately; everything else is placed by clicking the map.
 export const MENU = [
   { cat: 'PEOPLE', items: [['civilian', 'Civilian'], ['worker', 'Worker'], ['police', 'Police'], ['firefighter', 'Firefighter'], ['paramedic', 'Paramedic'], ['security', 'Security'], ['gang', 'Gang Member']] },
-  { cat: 'VEHICLES', items: [['v-police', 'Police'], ['v-fire', 'Fire Truck'], ['v-ambulance', 'Ambulance'], ['v-car', 'Civilian Car'], ['v-bus', 'Bus'], ['v-taxi', 'Taxi']] },
+  { cat: 'VEHICLES', items: [['v-police', 'Police'], ['v-fire', 'Fire Truck'], ['v-ambulance', 'Ambulance'], ['v-car', 'Civilian Car'], ['v-bus', 'Bus'], ['v-taxi', 'Taxi'], ['v-moto', 'Motorcycle']] },
   { cat: 'EVENTS', items: [['e-accident', 'Traffic Accident'], ['e-fire', 'Fire'], ['e-riot', 'Riot'], ['e-evac', 'Evacuation'], ['e-gang', 'Gang Conflict']] },
   { cat: 'WORLD', items: [['w-clear', 'Clear', 'now'], ['w-rain', 'Rain', 'now'], ['w-storm', 'Storm', 'now'], ['w-lightning', 'Lightning']] },
 ];
@@ -121,8 +121,8 @@ export class World {
     const hangAround = (p, r, group) => { p.zone = { x0: x - r, x1: x + r, z0: z - r, z1: z + r }; p.group = group ? { x, z } : null; p.state = 'idle'; p.timer = rand(4, 12); p.target = { x: p.pos.x, z: p.pos.z }; };
     switch (id) {
       case 'civilian': return person(null, (p) => { p.zone = null; p.group = null; A.resumePed(p); });
-      case 'worker': return person([pick([0xf28c1c, 0xd8e03a]), 0x2a3448, 0xf2c230], (p) => { hangAround(p, 2.5, false); p.state = 'wander'; p.worker = true; });
-      case 'security': return person([0x141414, 0x141414, 0x141414], (p) => hangAround(p, 1.2, false));
+      case 'worker': return person([pick([0xf28c1c, 0xd8e03a]), 0x2a3448, 0xf2c230], (p) => { hangAround(p, 3, false); p.state = 'wander'; p.target = { x: x + rand(-3, 3), z: z + rand(-3, 3) }; p.worker = true; });
+      case 'security': return person([0x141414, 0x141414, 0x141414], (p) => { hangAround(p, 4, false); p.state = 'wander'; p.target = { x: x + rand(-4, 4), z: z + rand(-4, 4) }; });   // walks their post
       case 'gang': {
         // a few colour-wearing members loitering together (blue or red by which side of town they're on)
         const Z = G.gangs && G.gangs.zones, side = Z ? (Math.abs(z - Z.red.z0) < Math.abs(z - Z.blue.z1) ? 'red' : 'blue') : pick(['red', 'blue']);
@@ -140,9 +140,18 @@ export class World {
         this.onRoad(c, x, z); c.patrolUntil = G.time + rand(60, 120); c.sirenOn = false; c.sirenOffAt = G.time - 1; c.incident = null; c.dest = null; c.leaving = false;
         return c;
       }
+      case 'v-moto': {
+        const c = A.borrowCar({ x, z }, 25) || A.borrowCar({ x, z }, 0);
+        if (!c) return null;
+        if (!c.moto) { A.carBody.setMatrixAt(c.i, new THREE.Matrix4().makeScale(0, 0, 0)); A.makeMoto(c); }
+        c.maxSpeed = rand(4, 5.2);
+        this.onRoad(c, x, z);
+        return c;
+      }
       case 'v-car': case 'v-bus': case 'v-taxi': {
         const c = A.borrowCar({ x, z }, 25) || A.borrowCar({ x, z }, 0);
         if (!c) return null;
+        c.moto = false;                                            // (a borrowed bike becomes a car)
         const bus = id === 'v-bus';
         c.scale = bus ? [1.15, 1.7, 3.2] : [1, 1, rand(0.95, 1.05)]; c.len = 0.8 * c.scale[2];
         c.color = new THREE.Color(bus ? 0xe8e4d8 : id === 'v-taxi' ? 0xf2c230 : A.carColor());
@@ -201,7 +210,7 @@ export class World {
     }
     G.fx.flash(x, 1.5, z, 0xff9040, 20, 0.3, 20);
     sfx.pyro(x, z, false);
-    return this.raise(EV.FIRE, x, z, { severity: lit.length ? 1.2 : 1, delay: rand(2, 4) });
+    return this.raise(EV.FIRE, x, z, { severity: lit.length ? 1.2 : 1, delay: rand(0.6, 1.2) });
   }
   evacuate(x, z) {
     const A = G.agents;

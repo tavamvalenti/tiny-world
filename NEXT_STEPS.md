@@ -18,6 +18,10 @@
   agents.js), responders on foot (`js/responders.js`: police / firefighters / paramedics exit, work the scene, return,
   leave), car doors + drivers entering/exiting parked and curb-parked cars, WORLD menu (spawn people, vehicles,
   events, weather) in `js/world.js`, minimal rain/storm/lightning. Not yet: full weather, birds, planes, missions.
+- **2026-09-30**: WORLD placement stays armed (click / hold to keep placing; 1–5, Esc or right-click back to weapons);
+  placed people work (patrol, fight fires, treat the injured); police HQ on every map (`js/station.js` + guard detail in
+  responders.js, threats near it are shot at once; police dispatch from HQ); motorcycles with riders in traffic;
+  faster fire response (trucks roll in ~1 s, traffic pulls over, crews spray as soon as they're in range).
 - Artifact republished: https://claude.ai/artifact/71DVzhiQHyfQR28ge9C7TV
 
 ## Publishing

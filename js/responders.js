@@ -24,9 +24,13 @@ const _m = new THREE.Matrix4(), _b = new THREE.Matrix4(), _l = new THREE.Matrix4
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export class Responders {
-  constructor(scene) {
+  constructor(scene, city = null) {
     this.people = [];
-    const N = POOL.police + POOL.fire + POOL.medic;
+    // police headquarters: its own guard detail (fixed posts round the building plus a few walking the block)
+    this.hq = city && city.policeHQ;
+    const guards = this.hq ? this.hq.posts.length + this.hq.patrols : 0;
+    const roster = { ...POOL, guard: guards };
+    const N = POOL.police + POOL.fire + POOL.medic + guards;
     const geo = {
       torso: new THREE.CylinderGeometry(0.068, 0.058, 0.25, 7).scale(1, 1, 0.64).translate(0, 0.43, 0),
       head: new THREE.SphereGeometry(0.048, 8, 6).translate(0, 0.625, 0),
@@ -41,14 +45,20 @@ export class Responders {
     this.stretch = mk(new THREE.BoxGeometry(0.22, 0.04, 0.62).translate(0, 0.24, 0), 2); this.stretch.material.color.set(0xd8d8d4);
     this.hose = mk(new THREE.BoxGeometry(0.025, 0.025, 1).translate(0, 0.02, 0.5), POOL.fire); this.hose.material.color.set(0xb8321f);
     let i = 0;
-    for (const [role, n] of Object.entries(POOL)) for (let k = 0; k < n; k++, i++) {
-      const L = LOOK[role], p = { i, role, state: 'free', x: 0, z: 0, h: 0, run: 0, crouch: 0, aim: 0, moving: false };
+    for (const [role, n] of Object.entries(roster)) for (let k = 0; k < n; k++, i++) {
+      const L = LOOK[role] || LOOK.police, p = { i, role, state: 'free', x: 0, z: 0, h: 0, run: 0, crouch: 0, aim: 0, moving: false };
       this.I.torso.setColorAt(i, new THREE.Color(L.torso)); this.I.head.setColorAt(i, new THREE.Color(pick(SKIN)));
       this.I.hat.setColorAt(i, new THREE.Color(L.hat)); this.I.gear.setColorAt(i, new THREE.Color(L.gear));
       for (const s of [0, 1]) { this.I.leg.setColorAt(i * 2 + s, new THREE.Color(L.legs)); this.I.arm.setColorAt(i * 2 + s, new THREE.Color(L.torso)); }
       this.people.push(p);
     }
     for (const m of Object.values(this.I)) m.instanceColor.needsUpdate = true;
+    if (this.hq) this.people.filter((p) => p.role === 'guard').forEach((p, k) => {
+      const post = this.hq.posts[k];
+      Object.assign(p, { state: 'guard', hidden: false, patrol: !post, post: post || { x: this.hq.x, z: this.hq.z, h: 0 }, ev: { x: this.hq.x, z: this.hq.z, type: 'HQ', active: true } });
+      p.x = p.post.x + (post ? 0 : Math.random() * 4 - 2); p.z = p.post.z + (post ? 0 : Math.random() * 4 - 2); p.h = p.post.h || 0;
+    });
+    this.threats = []; this.scanT = 0; this.alertT = 0;
     this.stretchers = [null, null]; this.shotGap = 0;
   }
 
@@ -63,7 +73,7 @@ export class Responders {
     if (!free.length) { c.virtual = true; return; }
     c.crew = free; c.virtual = false;
     free.forEach((p, k) => {
-      p.car = c; p.ev = ev; p.state = 'exiting'; p.t = 0.35 + k * 0.45; p.side = k % 2 ? -1 : 1; p.job = null; p.post = null;
+      p.car = c; p.ev = ev; p.state = 'exiting'; p.t = role === 'fire' ? 0.2 + k * 0.2 : 0.35 + k * 0.45; p.side = k % 2 ? -1 : 1; p.job = null; p.post = null;
       const d = G.emergency.carPoint(c, 0.3 * p.side, 0.05 - k * 0.25);
       p.x = d.x; p.z = d.z; p.h = c.heading + p.side * Math.PI / 2; p.hidden = true;
     });
@@ -104,7 +114,10 @@ export class Responders {
     this.shotGap = Math.max(0, this.shotGap - dt);
     this.retarget = (this.retarget || 0) - dt;
     const re = this.retarget <= 0; if (re) this.retarget = 0.5;
+    if (this.hq && (this.scanT -= dt) <= 0) { this.scanT = 0.2; this.threats = this.findThreats(); }
+    this.alertT = Math.max(0, this.alertT - dt);
     for (const p of this.people) {
+      if (p.state === 'guard') { this.guard(p, dt); continue; }
       if (p.state === 'free' || p.state === 'inCar') { p.hidden = true; continue; }
       const c = p.car;
       // the vehicle was destroyed or driven off without them: they finish up and are stood down out of view
@@ -142,6 +155,74 @@ export class Responders {
   }
   scene(p) { return p.ev || { x: p.x, z: p.z }; }
 
+  // ---- headquarters guards: hold their posts; anything threatening near the station gets shot, immediately ----
+  findThreats() {
+    const hq = this.hq, R = hq.r + 4, out = [];
+    for (const q of G.agents.peds) {
+      if (!(q.hostile || q.state === 'riot' || q.gangSide) || ['down', 'gone', 'incar', 'carried', 'air'].includes(q.state)) continue;
+      if (Math.hypot(q.pos.x - hq.x, q.pos.z - hq.z) < R) out.push({ kind: 'ped', o: q, x: q.pos.x, z: q.pos.z });
+    }
+    if (G.gangs) for (const m of G.gangs.members) if (m.state !== 'down' && Math.hypot(m.x - hq.x, m.z - hq.z) < R) out.push({ kind: 'gang', o: m, x: m.x, z: m.z });
+    return out;
+  }
+  onBlast(x, y, z, r, power, kind) {
+    const hq = this.hq;
+    if (!hq || kind === 'collapse' || Math.hypot(x - hq.x, z - hq.z) > hq.r + 10) return;
+    this.alertT = 7; this.alertAt = { x, z };                    // the station is under attack: weapons up, facing it
+  }
+  guard(p, dt) {
+    p.hidden = false;
+    const hq = this.hq, j = p.job;
+    const alive = (t) => (t.kind === 'gang' ? t.o.state !== 'down' : !['down', 'gone', 'carried'].includes(t.o.state) && (t.o.hostile || t.o.state === 'riot' || t.o.gangSide));
+    if (j && j.kind === 'engage' && !alive(j)) p.job = null;
+    if (!p.job || p.job.kind !== 'cuff') {
+      const t = this.threats.filter(alive).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0];
+      if (t && (!p.job || p.job.o !== t.o)) p.job = { kind: 'engage', o: t.o, tk: t.kind, fireT: rand(0.1, 0.35) };
+    }
+    const job = p.job;
+    if (job && job.kind === 'cuff') {
+      const o = job.o;
+      if (o.state !== 'down') { p.job = null; return; }
+      if (!this.step(p, { x: o.pos.x + 0.3, z: o.pos.z }, 2.4, dt)) { p.crouch = 0; p.aim = 0; return; }
+      p.h = Math.atan2(o.pos.x - p.x, o.pos.z - p.z); p.crouch = Math.min(1, p.crouch + dt * 3);
+      if ((job.t -= dt) <= 0) { o.state = 'gone'; o.respawn = rand(60, 90); o.gangSide = null; p.crouch = 0; p.job = null; }
+      return;
+    }
+    if (job && job.kind === 'engage') {
+      const o = job.o, tx = job.tk === 'gang' ? o.x : o.pos.x, tz = job.tk === 'gang' ? o.z : o.pos.z, d = Math.hypot(tx - p.x, tz - p.z);
+      p.h = Math.atan2(tx - p.x, tz - p.z); p.aim = Math.min(1, p.aim + dt * 8); p.moving = false;
+      if (d > 14 && Math.hypot(p.x - hq.x, p.z - hq.z) < hq.r) { this.step(p, { x: tx, z: tz }, 2.6, dt); return; }   // close in, but don't leave the grounds
+      if (p.aim < 0.7 || (job.fireT -= dt) > 0) return;
+      job.fireT = rand(0.25, 0.55);
+      const hx = p.x + Math.sin(p.h) * 0.25, hz = p.z + Math.cos(p.h) * 0.25;
+      if (Math.hypot(hx - G.camTarget.x, hz - G.camTarget.z) < 70) {
+        G.fx.fire.emit(hx, 0.5, hz, Math.sin(p.h) * 2, 0.2, Math.cos(p.h) * 2, 0.22, 0.05);
+        G.fx.spark.emit(hx, 0.5, hz, Math.sin(p.h) * 40, 0, Math.cos(p.h) * 40, 0.08, 0.15, 4, 3, 1.4, 1);
+        if (this.shotGap <= 0) { this.shotGap = rand(0.25, 0.5); sfx.gunshot(hx, hz, 1); }
+      }
+      if (Math.random() < 0.4) {
+        const dx = (tx - p.x) / (d || 1), dz = (tz - p.z) / (d || 1);
+        if (job.tk === 'gang') { G.gangs.hit(o, { dx, dz }); p.job = null; return; }
+        o.state = 'down'; o.timer = rand(40, 60); o.hostile = false; o.riot = null; o.heading = rand(0, 6.28);
+        G.gore && G.gore.shot(o.pos.x, o.pos.z, dx, dz);
+        // the nearest free guard goes to restrain them
+        const cuffer = this.people.filter((q) => q.state === 'guard' && (!q.job || q.job.kind !== 'cuff')).sort((a, b) => Math.hypot(a.x - tx, a.z - tz) - Math.hypot(b.x - tx, b.z - tz))[0];
+        if (cuffer) cuffer.job = { kind: 'cuff', o, t: 3 };
+        if (cuffer !== p) p.job = null;
+      }
+      return;
+    }
+    // nothing to shoot: back to post (or walk the block), weapon lowered unless the station was just attacked
+    if (this.alertT > 0 && this.alertAt) { p.h = Math.atan2(this.alertAt.x - p.x, this.alertAt.z - p.z); p.aim = Math.min(1, p.aim + dt * 6); p.moving = false; return; }
+    p.aim = Math.max(0, p.aim - dt * 2); p.crouch = 0;
+    if (p.patrol) {
+      if (!p.beatSpot) p.beatSpot = this.beat({ post: { x: hq.x, z: hq.z } }, hq.r);
+      if (this.step(p, p.beatSpot, 1.0, dt)) p.beatSpot = null;
+      return;
+    }
+    if (this.step(p, p.post, 1.6, dt)) { p.moving = false; p.h += (p.post.h + Math.sin(G.time * 0.4 + p.i) * 0.5 - p.h) * Math.min(1, dt * 2); }
+  }
+
   // ---- police: neutralise a hostile if there is one, otherwise hold and look around the scene ----
   police(p, dt, re) {
     const ev = this.scene(p);
@@ -149,6 +230,10 @@ export class Responders {
       let target = null;
       const th = ev.threat;
       if (th && th.state !== 'down' && th.state !== 'gone' && th.hostile && Math.hypot(th.pos.x - ev.x, th.pos.z - ev.z) < 40) target = { kind: 'ped', o: th };
+      if (!target && !p.car) {
+        const h = G.agents.peds.find((q) => (q.hostile || q.state === 'riot') && q.state !== 'down' && Math.hypot(q.pos.x - p.x, q.pos.z - p.z) < 20);
+        if (h) target = { kind: h.state === 'riot' ? 'rioter' : 'ped', o: h };
+      }
       if (!target && G.gangs) {
         const m = G.gangs.members.filter((q) => q.state !== 'down' && Math.hypot(q.x - p.x, q.z - p.z) < 13).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0];
         if (m && (ev.type === 'GANG_CONFLICT' || G.gangs.fight)) target = { kind: 'gang', o: m };
@@ -159,7 +244,7 @@ export class Responders {
       }
       // same target as before: keep the job (and its trigger timer) rather than starting over
       if (target) { if (!p.job || p.job.o !== target.o) p.job = { ...target, fireT: rand(0.5, 1.2) }; }
-      else if (!p.job || p.job.kind !== 'look') p.job = { kind: 'look', spot: { x: ev.x + rand(-4, 4), z: ev.z + rand(-4, 4) }, t: rand(3, 7) };
+      else if (!p.job || p.job.kind !== 'look') p.job = { kind: 'look', spot: p.car ? { x: ev.x + rand(-4, 4), z: ev.z + rand(-4, 4) } : this.beat(p, 18), t: p.car ? rand(3, 7) : rand(1, 3) };
     }
     const j = p.job;
     if (j.kind === 'cuff') {
@@ -215,12 +300,19 @@ export class Responders {
       p.job = t ? { kind: 'spray', ...t } : { kind: 'idle' };
     }
     const j = p.job;
-    if (j.kind === 'idle') { const home = p.car ? G.emergency.carPoint(p.car, 1.2 * p.side, -0.6) : p.post || ev; this.step(p, home, 1.0, dt); p.aim = 0; return; }
+    if (j.kind === 'idle') {
+      p.aim = 0;
+      if (p.car) { this.step(p, G.emergency.carPoint(p.car, 1.2 * p.side, -0.6), 1.0, dt); return; }
+      if (!j.spot) j.spot = this.beat(p, 12);
+      if (this.step(p, j.spot, 1.0, dt)) j.spot = null;
+      return;
+    }
     // stand in the open a few metres from the fire, on whichever side is clear (walls get in the way)
     if (!j.stand) j.stand = this.standSpot(p, j);
     const reach = Math.hypot(j.x - p.x, j.z - p.z);
     j.walk = (j.walk || 0) + dt;
-    const arrived = this.step(p, j.stand, 2.0, dt) || (j.walk > 7 && reach < 8);   // stuck but within hose reach: spray from here
+    // rush in; open up the hose as soon as the fire is within reach (or from wherever they got stuck)
+    const arrived = reach < 6 || this.step(p, j.stand, 3.2, dt) || (j.walk > 5 && reach < 8);
     if (!arrived) { p.aim = 0; if (j.walk > 14) j.done = true; return; }
     p.moving = false;
     p.h = Math.atan2(j.x - p.x, j.z - p.z); p.aim = Math.min(1, p.aim + dt * 3);
@@ -239,7 +331,7 @@ export class Responders {
     const B = G.buildings;
     for (const c of B.burning) {
       if (Math.abs(c.x - j.x) > 2.4 || Math.abs(c.z - j.z) > 2.4 || Math.abs(c.y - j.y) > 3) continue;
-      c.fire -= dt * 7;
+      c.fire -= dt * 9;
       if (c.fire <= 0) { c.fire = 0; c.heat = 0; B.burning.delete(c); B.writeState(c); }
     }
     for (const car of G.agents.cars) if (car.fire > 0 && Math.hypot(car.pos.x - j.x, car.pos.z - j.z) < 2) car.fire -= dt * 7;
@@ -259,8 +351,15 @@ export class Responders {
     }
     return best || { x: p.x, z: p.z };
   }
+  // somewhere to walk to on the sidewalks near an officer's post (falls back to a point near it)
+  beat(p, r) {
+    const C = G.city, post = p.post || { x: p.x, z: p.z };
+    const ok = C.pedNodes.filter((n) => n.edges.length && Math.hypot(n.x - post.x, n.z - post.z) < r && !(C.pedBlocked && C.pedBlocked(n.x, n.z)));
+    const n = ok.length ? pick(ok) : null;
+    return n ? { x: n.x + rand(-0.4, 0.4), z: n.z + rand(-0.4, 0.4) } : { x: post.x + rand(-3, 3), z: post.z + rand(-3, 3) };
+  }
   fireTarget(ev, p) {
-    const B = G.buildings, R = 18;
+    const B = G.buildings, R = p.car ? 18 : 45;              // placed firefighters go looking further afield
     let best = null, bd = 1e9;
     const consider = (x, y, z, o) => { const d = Math.hypot(x - p.x, z - p.z) + y * 0.3; if (Math.hypot(x - ev.x, z - ev.z) < R && d < bd) { bd = d; best = { x, y, z, ...o }; } };
     for (const c of B.burning) if (c.alive && c.fire > 0) consider(c.x, c.y, c.z, { cell: c, far: 2.4 + c.b.w * 0.15 });
@@ -277,12 +376,20 @@ export class Responders {
       // the partner's patient first, then anyone down near the scene
       const mate = (p.car ? p.car.crew : []).find((q) => q !== p && q.job && q.job.victim && q.job.victim.state === 'down');
       let v = mate ? mate.job.victim : null;
-      if (!v) v = A.peds.filter((q) => q.state === 'down' && !q.claimedBy && Math.hypot(q.pos.x - ev.x, q.pos.z - ev.z) < 20).sort((a, b) => Math.hypot(a.pos.x - p.x, a.pos.z - p.z) - Math.hypot(b.pos.x - p.x, b.pos.z - p.z))[0];
+      const R = p.car ? 20 : 40;
+      if (!v) v = A.peds.filter((q) => q.state === 'down' && !q.claimedBy && !q.treated && Math.hypot(q.pos.x - ev.x, q.pos.z - ev.z) < R).sort((a, b) => Math.hypot(a.pos.x - p.x, a.pos.z - p.z) - Math.hypot(b.pos.x - p.x, b.pos.z - p.z))[0];
       if (v) { if (!v.claimedBy) v.claimedBy = p; p.job = { kind: 'treat', victim: v, t: rand(5, 7), side: v.claimedBy === p ? 1 : -1 }; }
       else p.job = { kind: 'idle' };
     }
     const j = p.job;
-    if (j.kind === 'idle') { const home = p.car ? G.emergency.carPoint(p.car, 0.9 * p.side, -1.1) : p.post || ev; this.step(p, home, 1.0, dt); p.crouch = Math.max(0, p.crouch - dt * 3); if (re) p.job = null; return; }
+    if (j.kind === 'idle') {
+      p.crouch = Math.max(0, p.crouch - dt * 3);
+      if (p.car) { this.step(p, G.emergency.carPoint(p.car, 0.9 * p.side, -1.1), 1.0, dt); if (re) p.job = null; return; }
+      if (!j.spot) j.spot = this.beat(p, 12);
+      if (this.step(p, j.spot, 1.0, dt)) { j.spot = null; if (Math.random() < 0.5) p.job = null; }
+      else if (re && Math.random() < 0.3) p.job = null;           // keep checking for someone who needs help
+      return;
+    }
     const v = j.victim;
     if (j.kind === 'treat') {
       if (v.state !== 'down') { j.done = true; p.crouch = 0; return; }

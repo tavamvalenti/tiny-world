@@ -47,6 +47,25 @@ function beamTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// motorcycle + rider, forward +z, ground at y = 0 (split by colour: bike paint, black parts, rider's jacket, helmet)
+function motoGeos() {
+  const bx = (w, h, d, x, y, z, rx = 0) => new THREE.BoxGeometry(w, h, d).rotateX(rx).translate(x, y, z);
+  const wheel = new THREE.CylinderGeometry(0.12, 0.12, 0.05, 12).rotateZ(Math.PI / 2);
+  return {
+    body: mergeGeometries([bx(0.11, 0.08, 0.2, 0, 0.37, 0.07), bx(0.13, 0.15, 0.1, 0, 0.43, 0.3), bx(0.08, 0.04, 0.22, 0, 0.35, -0.26)]),
+    dark: mergeGeometries([bx(0.05, 0.08, 0.56, 0, 0.25, 0), bx(0.09, 0.04, 0.2, 0, 0.38, -0.1), wheel.clone().translate(0, 0.12, 0.31), wheel.clone().translate(0, 0.12, -0.31),
+      bx(0.26, 0.02, 0.02, 0, 0.51, 0.24), bx(0.03, 0.3, 0.03, 0, 0.32, 0.3, -0.35)]),
+    rider: mergeGeometries([
+      new THREE.CylinderGeometry(0.06, 0.052, 0.22, 7).scale(1, 1, 0.7).rotateX(0.55).translate(0, 0.55, -0.02),
+      ...[-1, 1].flatMap((s) => [bx(0.035, 0.035, 0.24, s * 0.085, 0.57, 0.12, 0.35), bx(0.045, 0.045, 0.22, s * 0.07, 0.4, 0.0, -0.1), bx(0.04, 0.2, 0.04, s * 0.08, 0.29, 0.1, 0.3)]),
+    ]),
+    helmet: new THREE.SphereGeometry(0.058, 10, 8).translate(0, 0.73, 0.08),
+    lamp: bx(0.05, 0.04, 0.02, 0, 0.44, 0.36),
+  };
+}
+const MOTO_PAINT = [0x111111, 0xc8102e, 0x1e3f73, 0xf2f2f0, 0xe0b000, 0x2f6d3a, 0x7a7f86];
+const JACKETS = [0x1c1d20, 0x3a2a1c, 0x2b3a55, 0x5a1f2b, 0x3c4a3a, 0x6b6f76];
+
 export class Agents {
   constructor(scene, city, opts) {
     this.city = city;
@@ -68,6 +87,13 @@ export class Agents {
     this.headPool = new THREE.InstancedMesh(poolGeo, new THREE.MeshBasicMaterial({ map: beamTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, color: 0x000000 }), nCars);
     for (const m of [this.headL, this.tailL, this.headPool]) { m.frustumCulled = false; scene.add(m); }
     this.headPool.renderOrder = 1;
+    // motorcycles: separate instanced parts, one slot per vehicle, hidden unless that vehicle is a bike
+    const mg = motoGeos(), lambert = () => new THREE.MeshLambertMaterial();
+    this.moto = { body: new THREE.InstancedMesh(mg.body, new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.5 }), nCars), dark: new THREE.InstancedMesh(mg.dark, new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.4, metalness: 0.5 }), nCars),
+      rider: new THREE.InstancedMesh(mg.rider, lambert(), nCars), helmet: new THREE.InstancedMesh(mg.helmet, new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.2 }), nCars),
+      lamp: new THREE.InstancedMesh(mg.lamp, this.headL.material, nCars) };
+    for (const m of Object.values(this.moto)) { m.frustumCulled = false; m.castShadow = true; for (let k = 0; k < nCars; k++) m.setMatrixAt(k, ZERO); scene.add(m); }
+    for (let k = 0; k < nCars; k++) { this.moto.body.setColorAt(k, new THREE.Color(0xffffff)); this.moto.rider.setColorAt(k, new THREE.Color(0xffffff)); this.moto.helmet.setColorAt(k, new THREE.Color(0xffffff)); }
     // car doors, shown only while someone is getting in or out (hinged at the front edge, swing outward)
     const doorGeo = new THREE.BoxGeometry(0.03, 0.22, 0.38).translate(0, 0.32, -0.19);
     this.doors = new THREE.InstancedMesh(doorGeo, new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.4 }), nCars * 2);
@@ -108,7 +134,7 @@ export class Agents {
     stationed.forEach((st, k) => {
       this.spawnEmergency(opts.cars + city.parked.length + E + k, 'police');
       const c = this.cars[this.cars.length - 1];
-      c.state = 'onscene'; c.posted = true; c.sirenOffAt = -1; c.pos.set(st.x, 0, st.z); c.heading = st.rot;
+      c.state = 'onscene'; c.posted = true; c.sirenOffAt = -1; c.pos.set(st.x, 0, st.z); c.heading = st.rot; c.quiet = !!st.quiet;
     });
     let pi = 0;
     for (; pi < opts.peds; pi++) this.spawnPed(pi, opts.wanderFrac || 0);
@@ -126,6 +152,12 @@ export class Agents {
     return new THREE.Color(pick(CAR_COLORS));
   }
   newCar(i, type) {
+    if (type === 'moto') {
+      const c = { i, pos: new THREE.Vector3(), heading: 0, speed: 0, queue: [], state: 'drive', vel: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Vector3(),
+        scale: [1, 1, 1], maxSpeed: rand(4, 5.2), color: new THREE.Color(pick(MOTO_PAINT)), len: 0.45, timer: 0, stuck: 0, flee: 0, fire: 0, lean: 0 };
+      this.makeMoto(c);
+      return c;
+    }
     const scale = type === 'bus' ? [1.15, 1.7, 3.2] : type === 'van' ? [1.05, 1.35, 1.35] : type === 'suv' ? [1.06, 1.12, 1.08] : [1, 1, rand(0.95, 1.05)];
     const c = { i, pos: new THREE.Vector3(), heading: 0, speed: 0, queue: [], state: 'drive', vel: new THREE.Vector3(), q: new THREE.Quaternion(),
       w: new THREE.Vector3(), scale, maxSpeed: rand(3.2, 4.4) * (type === 'bus' ? 0.75 : 1), color: type === 'bus' ? new THREE.Color(0xe8e4d8) : this.carColor(),
@@ -136,7 +168,7 @@ export class Agents {
   }
   spawnCar(i, replace = null) {
     const r = Math.random();
-    const c = this.newCar(i, r < 0.05 ? 'bus' : r < 0.14 ? 'van' : r < 0.3 ? 'suv' : 'car');
+    const c = this.newCar(i, r < 0.05 ? 'bus' : r < 0.14 ? 'van' : r < 0.3 ? 'suv' : r > 0.88 ? 'moto' : 'car');
     const C = this.city;
     let edges = [...C.edges.values()].filter((e) => !e.blocked);
     const hs = C.hotspot;
@@ -160,6 +192,7 @@ export class Agents {
       break;
     }
     if (replace && replace.driver) this.respawnPed(replace.driver);
+    if (replace && replace.motoShown) this.drawMoto({ i: replace.i, moto: false }, 0);
     if (replace) this.cars[this.cars.indexOf(replace)] = c; else this.cars.push(c);
   }
   spawnParked(i, p) {
@@ -272,13 +305,19 @@ export class Agents {
     if (c.state === 'onscene' && c.awaitCrew && (!G.responders || G.responders.aboard(c))) { this.leave(c); return; }
     if (c.patrolUntil && G.time > c.patrolUntil && c.state === 'drive') { c.patrolUntil = null; c.leaving = true; }
     if (c.state === 'wreck' || c.state === 'parked' || c.state === 'onscene') { c.speed = 0; return; }
+    if (c.yieldT > 0) {
+      // pulled over for an emergency vehicle: ease to the right and stop, then carry on
+      c.yieldT -= dt; c.speed = Math.max(0, c.speed - 10 * dt);
+      if ((c.yieldOff || 0) < 0.85) { const k = Math.min(0.85 - (c.yieldOff || 0), dt * 1.6); c.yieldOff = (c.yieldOff || 0) + k; c.pos.x -= Math.cos(c.heading) * k; c.pos.z += Math.sin(c.heading) * k; }
+      this.moveCar(c, dt); if (c.yieldT <= 0) c.yieldOff = 0; return;
+    }
     if (c.timer > 0) { c.timer -= dt; c.speed = Math.max(0, c.speed - 14 * dt); this.moveCar(c, dt); return; }
     if (c.flee > 0) c.flee -= dt;
     if (c.leaving && G.camTarget && Math.hypot(c.pos.x - G.camTarget.x, c.pos.z - G.camTarget.z) > 60) {
       c.leaving = false; c.state = 'hidden'; if (c.siren) { c.siren.stop(true); c.siren = null; } return;
     }
     // responders pull up and park once they're close to the incident
-    if (c.incident && Math.hypot(c.pos.x - c.incident.x, c.pos.z - c.incident.z) < 10 + c.ei % 3 * 2) { this.arrive(c); return; }
+    if (c.incident && Math.hypot(c.pos.x - c.incident.x, c.pos.z - c.incident.z) < (c.emerg === 'fire' ? 6 + c.ei % 3 : 10 + c.ei % 3 * 2)) { this.arrive(c); return; }
     if (!c.queue.length) {
       if (c.parking) { this.parkHere(c); return; }
       if (c.dest != null && c.to === c.dest) { this.arrive(c); return; }
@@ -313,7 +352,10 @@ export class Agents {
       const along = ox * fx + oz * fz;
       if (along <= 0 || along > 4) continue;
       const lat = Math.abs(ox * fz - oz * fx);
-      if (lat < 0.55 + (o.state === 'wreck' || o.state === 'parked' ? 0.15 : 0)) target = Math.min(target, Math.max(0, (along - c.len - o.len - 0.3) * 2.2));
+      if (lat < 0.55 + (o.state === 'wreck' || o.state === 'parked' ? 0.15 : 0)) {
+        target = Math.min(target, Math.max(0, (along - c.len - o.len - 0.3) * 2.2));
+        if (c.emerg && c.incident && !o.emerg && o.state === 'drive' && along < 4) o.yieldT = 3;
+      }
     }
     const hx = c.pos.x + fx * 1.2, hz = c.pos.z + fz * 1.2;
     const cell = this.grid.get(this.gk(hx, hz));
@@ -382,6 +424,11 @@ export class Agents {
     }
   }
   launch(a, dir, f, up, isCar, spin = 6) {
+    if (isCar && a.moto && !a.thrown) {
+      a.thrown = true;
+      const p = this.borrowPed(a.pos, 0);
+      if (p) { p.pos.set(a.pos.x, 0.4, a.pos.z); p.heading = a.heading; this.launch(p, dir, f * 1.1 + 1, up + 1, false, 10); p.bleed = true; }
+    }
     a.state = 'air';
     if (!a.q || a.q.lengthSq() === 0 || !a.airborneBefore) a.q.setFromAxisAngle(UP, a.heading);
     if (a.flipped) a.q.multiply(_q.setFromAxisAngle(ZAX, Math.PI));
@@ -389,6 +436,15 @@ export class Agents {
     a.vel.set(dir.x * f, up, dir.z * f);
     a.w.set(rand(-spin, spin), rand(-spin, spin), rand(-spin, spin));
     if (a.pos.y < 0.02) a.pos.y = 0.02;
+  }
+
+  // turn a vehicle into a motorcycle with a rider (also used by the WORLD menu)
+  makeMoto(c) {
+    c.moto = true; c.thrown = false; c.scale = [1, 1, 1]; c.len = 0.45; c.lean = 0;
+    c.color = new THREE.Color(pick(MOTO_PAINT));
+    this.moto.body.setColorAt(c.i, c.color); this.moto.rider.setColorAt(c.i, new THREE.Color(pick(JACKETS)));
+    this.moto.helmet.setColorAt(c.i, new THREE.Color(Math.random() < 0.5 ? pick(MOTO_PAINT) : 0x111111));
+    for (const k of ['body', 'rider', 'helmet']) this.moto[k].instanceColor.needsUpdate = true;
   }
 
   // ---------- getting in and out of cars ----------
@@ -457,7 +513,7 @@ export class Agents {
       }
     } else {
       const C = this.city;
-      const moving = this.cars.filter((c) => c.state === 'drive' && !c.emerg && !c.incident && !c.leaving && c.scale[2] < 2 && c.speed > 1.5 && c.flee <= 0 && near(c, 40) && c.queue.length === 1);
+      const moving = this.cars.filter((c) => c.state === 'drive' && !c.emerg && !c.moto && !c.incident && !c.leaving && c.scale[2] < 2 && c.speed > 1.5 && c.flee <= 0 && near(c, 40) && c.queue.length === 1);
       const c = pick(moving);
       if (!c) return;
       const wp = c.queue[0];
@@ -476,7 +532,7 @@ export class Agents {
     for (const inc of this.incidents) {
       if (inc.active && inc.type === type && Math.hypot(inc.x - x, inc.z - z) < 28) { inc.sev = Math.max(inc.sev, sev); if (opts.threat) inc.threat = opts.threat; return inc; }
     }
-    const inc = { x, z, sev, type, active: true, t: 0, threat: opts.threat || null, needs: opts.needs || null, delay: opts.delay ?? rand(3, 7), sent: false };
+    const inc = { x, z, sev, type, active: true, t: 0, threat: opts.threat || null, needs: opts.needs || null, delay: opts.delay ?? (type === 'FIRE' ? rand(0.6, 1.4) : rand(3, 7)), sent: false };
     this.incidents.push(inc);
     return inc;
   }
@@ -495,6 +551,7 @@ export class Agents {
     // responders come in from a few blocks away (out of view), not from the far side of the map
     const starts = C.nodes.filter((n) => !n.dead && n.edges.length && Math.hypot(n.x - inc.x, n.z - inc.z) > 30)
       .sort((a, b) => Math.hypot(a.x - inc.x, a.z - inc.z) - Math.hypot(b.x - inc.x, b.z - inc.z)).slice(0, 6);
+    const hq = C.policeHQ, hqNode = hq && C.nodes.filter((n) => !n.dead && n.edges.length).sort((a, b) => Math.hypot(a.x - hq.x, a.z - hq.z) - Math.hypot(b.x - hq.x, b.z - hq.z))[0];
     want.forEach((type, k) => {
       // reserve the vehicle now: two requests for the same type must not grab the same idle car
       const c = this.cars.find((o) => o.emerg === type && o.state === 'hidden' && !o.posted && !o.reserved);
@@ -502,16 +559,16 @@ export class Agents {
       c.reserved = true;
       setTimeout(() => {
         c.reserved = false;
-        const A = pick(starts);
+        const A = type === 'police' && hqNode ? hqNode : pick(starts);          // police roll out of headquarters
         const nb = A.edges.filter((m) => !C.edge(A.id, m).blocked);
         if (!nb.length) return;
         const B = C.nodes[pick(nb)];
         const e = this.entryPoint(A, B);
         c.pos.set(e.x, 0, e.z); c.heading = Math.atan2(B.x - A.x, B.z - A.z);
         c.from = A.id; c.to = B.id; c.queue = [this.stopPoint(A, B)];
-        c.state = 'drive'; c.speed = 2; c.dest = target.id; c.incident = inc; c.flee = 0; c.sirenOn = true;
+        c.state = 'drive'; c.speed = type === 'fire' ? 3.5 : 2; c.maxSpeed = type === 'fire' ? 6.6 : 5.6; c.dest = target.id; c.incident = inc; c.flee = 0; c.sirenOn = true;
         c.sirenOffAt = G.time + rand(18, 28); // even en route, sirens wind down fairly soon
-      }, k * rand(900, 2200));
+      }, type === 'fire' ? k * rand(200, 450) : k * rand(900, 2200));
     });
   }
   // scene cleared: responders drive off and return to the pool once out of sight
@@ -547,7 +604,7 @@ export class Agents {
     // large fires with nobody attending also get reported
     this.fireCheckT -= dt;
     if (this.fireCheckT <= 0) {
-      this.fireCheckT = 4;
+      this.fireCheckT = 1.5;
       const b = G.buildings.burnArr;
       if (b.length > 2) { const c = pick(b); if (c && c.alive) this.report(c.x, c.z, Math.min(3, 0.8 + b.length / 30), 'FIRE'); }
     }
@@ -705,10 +762,15 @@ export class Agents {
       case 'return': {
         const dx = p.target.x - p.pos.x, dz = p.target.z - p.pos.z, d = Math.hypot(dx, dz);
         if (d < 0.2) { p.state = p.zone ? (p.group ? 'idle' : 'wander') : 'walk'; p.timer = rand(5, 20); return; }
-        p.heading = Math.atan2(dx, dz);
-        const nx = p.pos.x + dx / d * p.speed * dt, nz = p.pos.z + dz / d * p.speed * dt;
-        if (G.buildings.inside(_p.set(nx, 0.3, nz))) { p.state = 'flee'; p.timer = 1; p.threat = { x: nx, z: nz }; return; }
-        p.pos.x = nx; p.pos.z = nz;
+        // head back toward the sidewalk, stepping around a wall rather than freezing against it
+        const want = Math.atan2(dx, dz);
+        for (const off of [0, 0.7, -0.7, 1.4, -1.4, 2.2, -2.2]) {
+          const h = want + off, nx = p.pos.x + Math.sin(h) * p.speed * dt, nz = p.pos.z + Math.cos(h) * p.speed * dt;
+          if (G.buildings.inside(_p.set(nx, 0.3, nz))) continue;
+          p.heading = h; p.pos.x = nx; p.pos.z = nz; p.returnT = 0;
+          return;
+        }
+        if ((p.returnT = (p.returnT || 0) + dt) > 3) { p.returnT = 0; this.resumePed(p); }
         return;
       }
       case 'idle':
@@ -832,6 +894,21 @@ export class Agents {
 
   gk(x, z) { return Math.floor(x / 4) * 1000 + Math.floor(z / 4); }
 
+  // a bike leans into turns; its rider rides it until thrown off
+  drawMoto(c, dt) {
+    const M = this.moto, i = c.i;
+    if (!c.moto) { for (const m of Object.values(M)) m.setMatrixAt(i, ZERO); c.motoShown = false; return; }
+    c.motoShown = true;
+    const turn = c.prevH == null ? 0 : Math.atan2(Math.sin(c.heading - c.prevH), Math.cos(c.heading - c.prevH)) / Math.max(dt, 1e-3);
+    c.prevH = c.heading;
+    c.lean += (clamp(-turn * 0.28 * Math.min(1, c.speed / 3), -0.55, 0.55) - c.lean) * Math.min(1, dt * 6);
+    if (c.state !== 'air' && !(c.state === 'wreck' && c.airborneBefore)) _q.setFromEuler(_e.set(0, c.heading, c.state === 'wreck' ? 1.4 : c.lean, 'YXZ'));
+    _m2.compose(c.pos, _q, _s.set(1, 1, 1));
+    M.body.setMatrixAt(i, _m2); M.dark.setMatrixAt(i, _m2);
+    const riding = !c.thrown && c.state !== 'hidden';
+    M.rider.setMatrixAt(i, riding ? _m2 : ZERO); M.helmet.setMatrixAt(i, riding ? _m2 : ZERO);
+    M.lamp.setMatrixAt(i, c.state === 'drive' ? _m2 : ZERO);
+  }
   limb(mesh, i, px, py, ax, az = 0) {
     _m2.makeRotationFromEuler(_e.set(ax, 0, az));
     _m2.setPosition(px, py, 0);
@@ -861,7 +938,7 @@ export class Agents {
     const lightCands = [];
     for (const c of this.cars) {
       const hidden = c.state === 'hidden';
-      if (hidden) { for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); this.doors.setMatrixAt(c.i * 2, ZERO); this.doors.setMatrixAt(c.i * 2 + 1, ZERO); }
+      if (hidden) { for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); if (c.motoShown) this.drawMoto({ ...c, moto: false }, dt), (c.motoShown = false); this.doors.setMatrixAt(c.i * 2, ZERO); this.doors.setMatrixAt(c.i * 2 + 1, ZERO); }
       else {
         if (c.state === 'air' || c.state === 'wreck' && c.airborneBefore) {
           if (c.state === 'wreck') {
@@ -874,6 +951,8 @@ export class Agents {
           _p.copy(c.pos);
         }
         _m.compose(_p, _q, _s.set(c.scale[0], c.scale[1], c.scale[2]));
+        if (c.moto || c.motoShown) this.drawMoto(c, dt);
+        if (c.moto) { for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); continue; }
         this.carBody.setMatrixAt(c.i, _m); this.carDark.setMatrixAt(c.i, _m);
         const lit = c.state === 'drive' || c.state === 'onscene';
         this.headL.setMatrixAt(c.i, lit ? _m : ZERO);
@@ -891,7 +970,7 @@ export class Agents {
         }
       }
       if (c.emerg) {
-        const on = c.state === 'drive' || c.state === 'onscene';
+        const on = (c.state === 'drive' || c.state === 'onscene') && !c.quiet;
         for (let s = 0; s < 2; s++) {
           const idx = c.ei * 2 + s;
           if (!on) { this.beacons.setMatrixAt(idx, ZERO); continue; }
@@ -906,7 +985,7 @@ export class Agents {
         if (on) lightCands.push(c);
       }
     }
-    for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool, this.beacons, this.doors]) m.instanceMatrix.needsUpdate = true;
+    for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool, this.beacons, this.doors, ...Object.values(this.moto)]) m.instanceMatrix.needsUpdate = true;
     if (this.tailL.instanceColor) this.tailL.instanceColor.needsUpdate = true;
     if (this.beacons.instanceColor) this.beacons.instanceColor.needsUpdate = true;
     // two real flashing lights for the responders nearest the view (they light up facades at night)

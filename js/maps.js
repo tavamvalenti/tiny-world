@@ -89,6 +89,45 @@ function makeCtx(o, B) {
   return { city, g, B };
 }
 
+// ================= POLICE HEADQUARTERS (every map) =================
+// Station building set back on the block, a plaza and guard booth in front, a lot full of patrol cars, and guard
+// posts; js/station.js dresses it and js/responders.js staffs it. Front faces +z (toward the default camera).
+function policeHQ(ctx, b) {
+  const { city, B, g } = ctx;
+  const W = b.lx1 - b.lx0, D = b.lz1 - b.lz0, cx = (b.lx0 + b.lx1) / 2;
+  g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#8f8c86'); g.grainRect(b.lx0, b.lz0, b.lx1, b.lz1, 0.25, 40);
+  const bw = Math.min(16, W * 0.7), bd = Math.min(8, D * 0.38), bz = b.lz0 + 0.6 + bd / 2;
+  const hq = B.add({ x: cx, z: bz, w: bw, d: bd, floors: W > 20 ? 4 : 5, style: 'concrete', tint: hsl(0.6, 0.12, 0.74), cell: 1.5, gh: 1.5, fh: 1.05 });
+  hq.noSigns = true;
+  // front plaza and the lot in front of the doors
+  const front = bz + bd / 2;
+  g.rect(cx - 2.5, front, cx + 2.5, front + 2.2, '#b3aea4');
+  const lot = { x0: b.lx0 + 0.6, x1: b.lx1 - 0.6, z0: front + 2.6, z1: b.lz1 - 0.8 };
+  g.rect(lot.x0, lot.z0, lot.x1, lot.z1, '#4c4c4e');
+  // a lot full of patrol cars: a row by the building and, if there's room, a second row facing it
+  const cars = [], rows = lot.z1 - lot.z0 > 6 ? [lot.z0 + 1.1, lot.z1 - 1.1] : [lot.z0 + 1.1];
+  rows.forEach((rz, k) => {
+    for (let x = lot.x0 + 0.3; x < lot.x1 - 1.3; x += 1.45) {
+      if (Math.abs(x + 0.72 - cx) < 2) continue;                // keep the drive clear
+      g.rect(x - 0.03, rz - 1.1, x + 0.03, rz + 1.1, 'rgba(255,255,255,.6)');
+      if (Math.random() < 0.85) cars.push({ x: x + 0.72, z: rz, rot: k ? Math.PI : 0, quiet: true });
+    }
+  });
+  (city.stationed ||= []).push(...cars);
+  const r = Math.max(W, D) / 2 + 6;
+  const posts = [
+    { x: cx - 1.2, z: front + 0.4, h: 0 }, { x: cx + 1.2, z: front + 0.4, h: 0 },          // either side of the doors
+    { x: cx, z: b.lz1 - 0.4, h: 0 },                                                      // at the gate
+    { x: b.lx0 + 0.4, z: b.lz1 - 0.4, h: -0.8 }, { x: b.lx1 - 0.4, z: b.lz1 - 0.4, h: 0.8 }, // lot corners
+    { x: b.lx0 + 0.4, z: bz, h: -Math.PI / 2 }, { x: b.lx1 - 0.4, z: bz, h: Math.PI / 2 },   // the sides
+    { x: cx - bw / 2 + 0.8, z: b.lz0 + 0.3, h: Math.PI }, { x: cx + bw / 2 - 0.8, z: b.lz0 + 0.3, h: Math.PI }, // round the back
+    { x: cx - 3.5, z: b.lz1 - 0.4, h: 0 }, { x: cx + 3.5, z: b.lz1 - 0.4, h: 0 },          // a line along the front
+    { x: cx - 2.4, z: front + 1.6, h: 0 }, { x: cx + 2.4, z: front + 1.6, h: 0 },          // the plaza
+  ];
+  city.policeHQ = { x: cx, z: (b.lz0 + b.lz1) / 2, r, bw, bd, bx: cx, bz, front, lot, gate: { x: cx, z: b.z1 }, block: b, posts, patrols: 6 };
+  city.lampsAlongBlock(b, 6);
+}
+
 // ================= DOWNTOWN =================
 export function downtown(B) {
   const P = [-66, -44, -22, 0, 22, 44, 66];
@@ -125,6 +164,7 @@ export function downtown(B) {
   for (const b of city.blocks) {
     const kind = special[`${b.i},${b.j}`];
     if (kind === 'petco') { b.closed = true; continue; }
+    if (`${b.i},${b.j}` === '1,1') { city.paintSidewalk(g, b); policeHQ(ctx, b); continue; }
     city.paintSidewalk(g, b);
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 7.5);
@@ -239,6 +279,7 @@ export function tropical(B) {
   city.shore = shore;
   for (const b of city.blocks) {
     city.paintSidewalk(g, b, '#c8c0b0');
+    if (b.i === 3 && b.j === 1) { policeHQ(ctx, b); continue; }            // La Playa's police headquarters
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 9);
     city.treesAlongBlock(b, 7, 'palm', 0.75);
@@ -485,6 +526,7 @@ export function suburbs(B) {
   }
   for (const b of city.blocks) {
     if (b.i <= 1 && b.j >= 2) { b.closed = true; continue; }
+    if (b.i === 2 && b.j === 3) { city.paintSidewalk(g, b, '#aaa59b'); policeHQ(ctx, b); continue; }   // Chicago PD, next to the festival
     if (b.i === 0 && b.j === 1) { // streetball courts behind a tall chain-link fence, festival parking below
       city.paintSidewalk(g, b, '#aaa59b');
       g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#4f4f4e');
