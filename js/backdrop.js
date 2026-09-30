@@ -1,6 +1,7 @@
 // Visual world beyond the playable area: an endless-looking street grid, low-detail buildings
 // (a skyline downtown, rooftops in the suburbs, stucco towns by the coast) and trees. Not interactive.
 import * as THREE from 'three';
+import { chicagoSkyline } from './skyline.js';
 import { G, rand, pick, seeded } from './core.js';
 
 function tileTexture(map, pitch, roadW) {
@@ -128,4 +129,5 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
     tmesh.setColorAt(i, col.setHSL(R(0.2, 0.3), 0.4, R(0.18, 0.28), THREE.SRGBColorSpace));
   });
   tmesh.castShadow = true; scene.add(tmesh);
+  if (mapName === 'suburbs') chicagoSkyline(scene);   // downtown Chicago on the northern horizon (js/skyline.js)
 }
