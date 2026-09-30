@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick, clamp } from './core.js';
+import { STATUE, terrainH } from './playa.js';
 
 export const ROLE = {
   CIVILIAN: 'CIVILIAN', TOURIST: 'TOURIST', SHOPPER: 'SHOPPER', WORKER: 'WORKER', CONSTRUCTION_WORKER: 'CONSTRUCTION_WORKER',
@@ -408,7 +409,7 @@ export class Roles {
   staffPlaya(P) {
     const C = this.city, shore = C.shore ?? -36;
     // resort staff at each beachfront hotel (the tall stucco buildings on the front row)
-    const hotels = this.B.list.filter((b) => b.style === 'stucco' && b.floors >= 5 && b.z < 0);
+    const hotels = C.playa ? C.playa.hotels : this.B.list.filter((b) => b.style === 'stucco' && b.floors >= 5 && b.z < 0);
     for (const b of hotels) {
       const d = this.door(b.x, b.z - b.d / 2 - 1.5, 3); if (!d) continue;
       const stand = this.clear(d.x + rand(-2, 2), d.z - 0.9, 1) || d;
@@ -430,6 +431,64 @@ export class Roles {
     const beach = this.A.peds.filter((p) => p.zone && !p.group && p.pos.z < -15 && !p.role);
     for (const p of beach.slice(0, 40)) { this.look(p, R.TOURIST); p.photo = Math.random() < 0.5; }
     this.tourists(14, { x: 0, z: -8 }, 40);
+    if (C.playa) this.staffHills(P, C.playa);
+  }
+  // ---------- La Playa: street food, the OXXOs, and life on the hill ----------
+  staffHills(P, PL) {
+    // a cook behind every taco stand and a stallholder at every fruit stall, with customers coming and going
+    for (const f of PL.food) {
+      const stand = { x: f.x, z: f.z + (f.kind === 'taco' ? 0.35 : 0.55) }, front = { x: f.x, z: f.z - 2 };
+      this.hire(R.VENDOR, stand, this.planVendor(stand, front), { look: { shirt: [0xf2f2ee, 0xd7141c, 0x2a8a8a], vest: [0xf2f2ee] } });
+      if (f.kind === 'taco') {
+        const spot = { x: f.x + rand(-0.5, 0.5), z: f.z - 1.05 };
+        this.hire(R.CIVILIAN, spot, (p) => Math.random() < 0.35 ? [...this.stroll(p, spot, Math.round(rand(2, 4)), 25), act('look', 2, 5)]
+          : [go(spot.x + rand(-0.4, 0.4), spot.z), act('hands', 6, 14, f), act('talk', 2, 4, f), act('wait', 2, 5)], { crew: 'taco' + f.x });
+      }
+    }
+    // OXXO staff in red, out front now and then
+    for (const o of PL.oxxo) {
+      const door = { x: o.x, z: o.z - 0.25 }, stand = { x: o.x + rand(-1.2, 1.2), z: o.z - 0.8 };
+      this.hire(R.RESTAURANT_WORKER, stand, this.planDoorman(stand, door, { x: stand.x, z: stand.z - 5 }), { look: { shirt: [0xd7141c], pants: [0x1f1f22], vest: [0xf2b705] } });
+    }
+    // the hill: people living up the staircases go down for shopping and come back up with it
+    const shops = PL.food.filter((f) => f.z > 60).concat(PL.oxxo.map((o) => ({ x: o.x, z: o.z })));
+    for (const st of PL.stairs) {
+      const n = Math.min(st.doors.length, 6);
+      for (let k = 0; k < n; k++) {
+        const door = st.doors[Math.floor(k * st.doors.length / n)];
+        const p = this.hire(R.CIVILIAN, door, this.planResident(st, door, shops), { crew: 'stair' + st.x0 });
+        if (p) { p.speed = rand(0.55, 0.75); if (Math.random() < 0.25) p.s = 0.72; p.hidden = Math.random() < 0.5; }
+      }
+      // a vendor on a landing part way up
+      if (st.pts.length > 26 && Math.random() < 0.7) {
+        const a = st.pts[24], b = st.pts[25], yaw = Math.atan2(b.x - a.x, b.z - a.z), sx = a.x + Math.cos(yaw) * 0.95, sz = a.z - Math.sin(yaw) * 0.95, y = terrainH(sx, sz);
+        const box = (w, h, d, x, yy, z, c) => tint(new THREE.BoxGeometry(w, h, d).translate(x, yy, z), c);
+        P.push(box(0.6, 0.45, 0.4, sx, y + 0.22, sz, 0x8a5a2b), box(0.03, 1.1, 0.03, sx, y + 0.55, sz, 0x9aa0a4), tint(new THREE.ConeGeometry(0.5, 0.2, 8).translate(sx, y + 1.1, sz), pick([0xd7141c, 0x1f63b8, 0xf2b705])));
+        const stand = { x: a.x + Math.cos(yaw) * 0.45, z: a.z - Math.sin(yaw) * 0.45 };
+        this.hire(R.VENDOR, stand, this.planVendor(stand, { x: sx, z: sz }), { look: { shirt: [0xf2f2ee, 0x2a8a8a], vest: [0xf2f2ee] } });
+      }
+    }
+    // visitors at the Cristo lookout, taking in the view over the city and the bay
+    const ring = []; for (let a = 0; a < 6.28; a += 0.5) ring.push({ x: STATUE.x + Math.cos(a) * rand(4.2, 6.2), z: STATUE.z + Math.sin(a) * rand(4.2, 6.2) });
+    for (let k = 0; k < 9; k++) {
+      const h = pick(ring);
+      this.hire(R.TOURIST, h, () => { const a = pick(ring); return [go(a.x, a.z), act('photo', 2, 4, { x: a.x + (a.x - STATUE.x) * 3, z: a.z - 30 }), act('look', 4, 9, { x: a.x, z: a.z - 30 }), act('photo', 2, 3, STATUE), act('wait', 2, 5)]; });
+    }
+  }
+  // down the stairs to the shops at the bottom, and back up with the shopping
+  planResident(st, door, shops) {
+    return (p) => {
+      const pts = st.pts;
+      let di = 0, bd = 1e9; pts.forEach((q, i) => { const d = Math.hypot(q.x - door.x, q.z - door.z); if (d < bd) { bd = d; di = i; } });
+      const steps = [go(door.x, door.z), hide(6, 30)];
+      for (let i = di; i >= 0; i -= 2) { steps.push(go(pts[i].x + rand(-0.12, 0.12), pts[i].z)); if (i % 12 < 2 && Math.random() < 0.18) steps.push(act(pick(['look', 'wait']), 1.5, 4)); }
+      const shop = shops.slice().sort((a, b) => Math.hypot(a.x - pts[0].x, a.z - pts[0].z) - Math.hypot(b.x - pts[0].x, b.z - pts[0].z))[0];
+      if (shop) steps.push(go(shop.x + rand(-0.6, 0.6), shop.z - 1.3), act('wait', 3, 8, shop));
+      steps.push(carry(true), go(pts[0].x, pts[0].z));
+      for (let i = 0; i <= di; i += 2) { steps.push(go(pts[i].x + rand(-0.12, 0.12), pts[i].z)); if (i % 12 < 2 && Math.random() < 0.15) steps.push(act('wait', 1.5, 3)); }     // catching a breath on the landings
+      steps.push(go(door.x, door.z), carry(false), hide(15, 60));
+      return steps;
+    };
   }
   restaurants(n) {
     const C = this.city, hs = C.hotspot || { x: 0, z: 0 };

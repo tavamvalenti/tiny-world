@@ -157,7 +157,7 @@ export class Agents {
   // ---------- cars ----------
   carColor() {
     const r = Math.random();
-    if (r < 0.07) return new THREE.Color(0xf2c230); // taxi
+    if (r < (G.mapName === 'tropical' ? 0.22 : 0.07)) return new THREE.Color(0xf2c230); // taxi (La Playa is full of them)
     return new THREE.Color(pick(CAR_COLORS));
   }
   newCar(i, type) {
@@ -177,7 +177,9 @@ export class Agents {
   }
   spawnCar(i, replace = null) {
     const r = Math.random();
-    const c = this.newCar(i, r < 0.05 ? 'bus' : r < 0.14 ? 'van' : r < 0.3 ? 'suv' : r > 0.88 ? 'moto' : 'car');
+    const tr = G.mapName === 'tropical';                    // resort town: tour buses and hotel shuttles
+    const c = this.newCar(i, r < (tr ? 0.08 : 0.05) ? 'bus' : r < (tr ? 0.22 : 0.14) ? 'van' : r < 0.3 ? 'suv' : r > 0.88 ? 'moto' : 'car');
+    if (tr && c.scale[1] > 1.3 && c.scale[2] < 2 && Math.random() < 0.6) { c.color = new THREE.Color(0xf6f6f2); this.carBody.setColorAt(i, c.color); }
     const C = this.city;
     let edges = [...C.edges.values()].filter((e) => !e.blocked);
     const hs = C.hotspot;
@@ -1040,6 +1042,7 @@ export class Agents {
     this.pace = 1 + rain * 0.3 - snow * 0.15;
     const umbOn = rain > 0.25;
     this.frame++;
+    const TH = G.terrainH;
     for (const p of this.peds) {
       // distance LOD: people far from the view in routine states update every third frame (and keep their last pose)
       const far = Math.abs(p.pos.x - T.x) + Math.abs(p.pos.z - T.z) > 150 && LOD_STATES.has(p.state);
@@ -1064,7 +1067,7 @@ export class Agents {
       // working poses (hammering, sweeping, carrying, radio...) from roles.js
       const o = POSE; o.aL = arm; o.aR = p.state === 'idle' ? 0 : -arm; o.oL = armOut; o.oR = armOut; o.lL = leg; o.lR = -leg; o.dy = 0;
       if (p.role && G.roles) G.roles.pose(p, o, moving);
-      _p.set(p.pos.x, p.pos.y + bob + o.dy + (p.state === 'down' ? 0.06 : 0), p.pos.z);
+      _p.set(p.pos.x, p.pos.y + bob + o.dy + (p.state === 'down' ? 0.06 : 0) + (TH ? TH(p.pos.x, p.pos.z) : 0), p.pos.z);   // on the hills, stand on the slope
       _m.compose(_p, _q, _s.set(p.s, p.s, p.s));
       const i = p.i;
       this.pTorso.setMatrixAt(i, _m); this.pHead.setMatrixAt(i, _m); this.pHair.setMatrixAt(i, _m);

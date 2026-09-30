@@ -86,6 +86,7 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
       }
       for (let k = 0; k < 4; k++) trees.push([cx + R(-lot / 2, lot / 2), cz + (k % 2 ? 1 : -1) * (lotZ / 2 + 0.6), R(0.9, 1.3)]);
     } else if (mapName === 'tropical') {
+      if (cz > 58) continue;                                   // the hills stand there (js/playa.js)
       const n = 2 + Math.floor(R(0, 3));
       for (let k = 0; k < n; k++) boxes.push([cx + R(-lot / 3, lot / 3), cz + R(-lotZ / 3, lotZ / 3), R(4, 8), R(4, 8), R(1.5, 6) * (Math.abs(cz - (water?.shore ?? 0)) < 60 ? 2 : 1)]);
       for (let k = 0; k < 3; k++) trees.push([cx + R(-lot / 2, lot / 2), cz + R(-lotZ / 2, lotZ / 2), R(1, 1.5)]);

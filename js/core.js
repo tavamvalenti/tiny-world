@@ -6,6 +6,7 @@ export const G = {
   wind: { x: 0.6, z: -0.25 },
   shake: 0,
   camTarget: null,
+  terrainH: null,           // (x, z) => ground height, for maps with hills (La Playa); flat elsewhere
 };
 
 export const rand = (a = 0, b = 1) => a + Math.random() * (b - a);

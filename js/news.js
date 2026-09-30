@@ -111,6 +111,8 @@ export class News {
     const C = this.city, near = (S, m = 12) => S && x > S.x0 - m && x < S.x1 + m && z > S.z0 - m && z < S.z1 + m;
     if (this.es) {
       if (C.policeHQ && Math.hypot(x - C.policeHQ.x, z - C.policeHQ.z) < 25) return 'frente a la comandancia';
+      if (z > 100 && Math.abs(x - 22) < 20) return 'en el mirador del Cristo';
+      if (z > 64) return pick(['en los cerros', 'en el barrio del cerro']);
       return z < -14 ? pick(['en la playa', 'en el malecón']) : pick(['en La Playa', 'en el centro']);
     }
     if (near(C.concert, 25)) return 'near Summer Smash';
@@ -119,7 +121,7 @@ export class News {
     if (C.policeHQ && Math.hypot(x - C.policeHQ.x, z - C.policeHQ.z) < 25) return 'outside police headquarters';
     if (C.shoreX != null && x < C.shoreX + 12) return 'on the waterfront';
     if (G.gangs && G.gangs.zones) { const Z = G.gangs.zones; if (near(Z.blue, 4)) return 'in Blue Line'; if (near(Z.red, 4)) return 'in Red Row'; }
-    if (this.map === 'tropical') return z < -14 ? pick(['on the beachfront', 'on the malecón']) : pick(['in La Playa', 'in the old town']);
+    if (this.map === 'tropical') return z > 100 && Math.abs(x - 22) < 20 ? 'at the Cristo lookout' : z > 64 ? pick(['up in the hills', 'in the hillside barrio']) : z < -14 ? pick(['on the beachfront', 'on the malecón']) : pick(['in La Playa', 'in the old town']);
     if (this.map === 'downtown') return pick(['downtown', 'in the Gaslamp Quarter']);
     return pick(['on the South Side', 'in Chicago']);
   }

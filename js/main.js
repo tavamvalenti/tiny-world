@@ -28,6 +28,7 @@ import { News } from './news.js';
 import { Sky } from './sky.js';
 import { Director } from './director.js';
 import { initMenu } from './menu.js';
+import { Playa, terrainH } from './playa.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -139,6 +140,7 @@ function load(name) {
   scene.environment = makeEnv();
   const facades = makeFacades();
   const B = new Buildings(facades);
+  G.terrainH = name === 'tropical' ? terrainH : null;       // La Playa has hills
   const map = MAPS[name](B);
   const sites = pickSites(B, map.city, name);             // a few buildings are still going up
   const density = { low: 0.5, normal: 1, high: 1.5 }[settings.crowds] || 1;
@@ -159,6 +161,7 @@ function load(name) {
   G.construction = new Construction(scene, sites, map.city, name);
   G.harbor = map.city.shoreX != null ? new Harbor(scene, map.city, map.g) : null;
   map.city.build(scene);
+  G.playa = map.city.playa ? new Playa(scene, map.city) : null;
   buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
@@ -181,7 +184,9 @@ function load(name) {
   worldMenu.querySelector('[data-id="w-snow"]')?.style.setProperty('display', name === 'suburbs' ? '' : 'none');   // snow is a Chicago thing
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
-  cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half;
+  cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half; cam.zMax = map.zMax ?? map.city.half;
+  cam.yaw = cam.yawT = map.yaw ?? 0.32; cam.maxD = map.maxD ?? 150;
+  if (camera.fov !== 24) { camera.fov = 24; camera.updateProjectionMatrix(); }
   $('#mapTitle').textContent = MAP_NAMES[name];
   // reuse the region label (flag/logo + place) from the menu button
   $('#mapRegion').innerHTML = document.querySelector(`#menu button[data-map="${name}"] .region`).innerHTML;
@@ -217,23 +222,30 @@ function updateCamera(dt) {
   const k = 1 - Math.exp(-dt * 6);
   cam.vx = lerp(cam.vx, ax * sp, k); cam.vz = lerp(cam.vz, az * sp, k);
   cam.x = clamp(cam.x + cam.vx * dt, cam.xMin ?? -cam.half, cam.half);
-  cam.z = clamp(cam.z + cam.vz * dt, cam.zMin, cam.half);
+  cam.z = clamp(cam.z + cam.vz * dt, cam.zMin, cam.zMax ?? cam.half);
   const rs = 0.9 * settings.rotateSpeed / 100;
   if (keys.KeyQ) cam.yawT += dt * rs;
   if (keys.KeyE) cam.yawT -= dt * rs;
   cam.yaw = lerp(cam.yaw, cam.yawT, 1 - Math.exp(-dt * 5));
   cam.dist = lerp(cam.dist, cam.distT, 1 - Math.exp(-dt * 6));
-  const zt = (cam.dist - cam.minD) / (cam.maxD - cam.minD);
-  const pitch = lerp(0.8, 0.98, zt); // ~46° close up to ~56° far out: always the same aerial 3/4 look
+  const zt = clamp((cam.dist - cam.minD) / (150 - cam.minD), 0, 1);
+  // La Playa zooms out past the usual limit into a panorama: the lens widens and the camera lowers until the
+  // whole city lines up in one frame: beach, resorts, streets, the hills and the Cristo on top
+  const pano = cam.maxD > 150 ? clamp((cam.dist - 150) / (cam.maxD - 150), 0, 1) : 0;
+  const pitch = lerp(lerp(0.8, 0.98, zt), 0.44, pano); // ~46° close up to ~56° far out: always the same aerial 3/4 look
+  const fov = lerp(24, 44, pano);
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   // gentle hover drift, like a massive craft holding position
   const hx = Math.sin(G.time * 0.31) * 0.25, hy = Math.sin(G.time * 0.23) * 0.3;
   const sh = G.shake * settings.shake / 100;
+  // on the hills the camera rides up with the ground it's looking at (eased so it glides over the slope)
+  cam.ty = lerp(cam.ty || 0, G.terrainH ? G.terrainH(cam.x, cam.z) : 0, 1 - Math.exp(-dt * 3));
   camera.position.set(
     cam.x + Math.sin(cam.yaw) * Math.cos(pitch) * cam.dist + hx + (Math.random() - 0.5) * sh * 0.45,
-    Math.sin(pitch) * cam.dist + hy + (Math.random() - 0.5) * sh * 0.45,
+    Math.sin(pitch) * cam.dist + cam.ty + hy + (Math.random() - 0.5) * sh * 0.45,
     cam.z + Math.cos(cam.yaw) * Math.cos(pitch) * cam.dist + (Math.random() - 0.5) * sh * 0.45,
   );
-  camera.lookAt(cam.x, 0, cam.z);
+  camera.lookAt(cam.x, pano * 16 + cam.ty, cam.z);
   G.shake = Math.max(0, G.shake - dt * 1.6);
   // atmospheric perspective: haze starts just behind the focus point whatever the zoom
   if (scene.fog) { scene.fog.near = cam.dist * 1.05; scene.fog.far = cam.dist * 3.4 + 60; }
@@ -308,6 +320,7 @@ function step(dt) {
   G.chaos.update(dt);
   G.responders.update(dt);
   G.station && G.station.update();
+  G.playa && G.playa.update(dt);
   G.construction && G.construction.update(dt);
   G.world.update(dt);
   G.director && G.director.update(dt);
@@ -503,7 +516,7 @@ canvasEl.addEventListener('touchmove', (e) => {
   const k = cam.dist * 0.0022 * settings.moveSpeed / 100;
   const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw), fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
   cam.x = clamp(cam.x + (-dx * rx + dy * fx) * k, cam.xMin ?? -cam.half, cam.half);
-  cam.z = clamp(cam.z + (-dx * rz + dy * fz) * k, cam.zMin, cam.half);
+  cam.z = clamp(cam.z + (-dx * rz + dy * fz) * k, cam.zMin, cam.zMax ?? cam.half);
   touch.x = t.clientX; touch.y = t.clientY;
 }, { passive: false });
 canvasEl.addEventListener('touchend', (e) => {

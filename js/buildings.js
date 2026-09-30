@@ -75,7 +75,7 @@ export class Buildings {
       let inset = 0;
       if (o.setbacks) for (const s of o.setbacks) if (f >= s.f) inset = s.n;
       inset = Math.min(inset, Math.floor((Math.min(nx, nz) - 1) / 2));
-      const y0 = f === 0 ? 0 : gh + (f - 1) * fh, h = f === 0 ? gh : fh;
+      const y0 = (f === 0 ? 0 : gh + (f - 1) * fh) + (o.base || 0), h = f === 0 ? gh : fh;   // base: built on a slope
       const layer = [];
       for (let i = 0; i < nx; i++) {
         layer.push([]);
@@ -303,7 +303,7 @@ export class Buildings {
 
   // Highest solid surface under (x,z) at or below height y (for debris / agents landing on rooftops).
   surfaceAt(x, z, y = 999) {
-    let top = 0, cell = null;
+    let top = G.terrainH ? G.terrainH(x, z) : 0, cell = null;
     const arr = this.hash.get(this.hashKey(Math.floor(x / HASH), Math.floor(z / HASH)));
     if (arr) for (const c of arr) {
       if (!c.alive || c.falling) continue;
@@ -326,14 +326,15 @@ export class Buildings {
 
   raycast(o, d, maxDist = 900) {
     let t = 0;
-    if (o.y > this.maxH + 1 && d.y < 0) t = (o.y - this.maxH - 1) / -d.y;
+    const topY = Math.max(this.maxH, G.terrainH ? 80 : 0);                  // hills can stand taller than any building
+    if (o.y > topY + 1 && d.y < 0) t = (o.y - topY - 1) / -d.y;
     const p = new THREE.Vector3();
     const step = 0.2;
     for (; t < maxDist; t += step) {
       p.copy(d).multiplyScalar(t).add(o);
-      if (p.y <= 0) {
-        const tg = o.y / -d.y;
-        p.copy(d).multiplyScalar(tg).add(o);
+      const gh = G.terrainH ? G.terrainH(p.x, p.z) : 0;
+      if (p.y <= gh) {
+        if (!gh) { const tg = o.y / -d.y; p.copy(d).multiplyScalar(tg).add(o); }
         return { point: p, cell: null, normal: new THREE.Vector3(0, 1, 0) };
       }
       const c = this.inside(p);

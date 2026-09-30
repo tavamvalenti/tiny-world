@@ -3,6 +3,7 @@ import { rand, pick } from './core.js';
 import { City, Ground } from './city.js';
 import { petcoLayout, paintPetco } from './petco.js';
 import { paintCourts } from './court.js';
+import { buildHills } from './playa.js';
 
 const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace);
 const TINT = {
@@ -245,13 +246,104 @@ export function downtown(B) {
   return { ...ctx, agents: { cars: 60, peds: 400, wanderFrac: 0.1 }, fog: 0xc6cdd3, start: { x: 0, z: 8 }, water: { shore: -74, axis: 'x' }, xMin: -110 };
 }
 
-// ================= TROPICAL =================
+// ================= TROPICAL: LA PLAYA =================
+// Beach → resort city → local streets → the hills (js/playa.js builds the hillside, stairs and the Cristo).
+const RESORT = () => hsl(rand(0.09, 0.12), rand(0.18, 0.3), rand(0.84, 0.9));
+const COASTAL = () => Math.random() < 0.3 ? hsl(0.1, 0.2, rand(0.86, 0.93)) : hsl(pick([0.0, 0.03, 0.08, 0.12, 0.16, 0.33, 0.47, 0.55, 0.58, 0.92]), rand(0.45, 0.7), rand(0.58, 0.76));
+const LOCAL = () => pick([() => hsl(rand(0.08, 0.12), rand(0.03, 0.12), rand(0.6, 0.78)), () => hsl(rand(0.03, 0.06), rand(0.35, 0.5), rand(0.5, 0.62)), COASTAL])();
+
+function resortBlock(ctx, b) {
+  const { city, B, g } = ctx, P = city.playa;
+  const cx = (b.lx0 + b.lx1) / 2, W = b.lx1 - b.lx0, front = b.lz0;
+  g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#e3dccb');
+  const pool = (x0, z0, x1, z1) => { g.rect(x0 - 0.5, z0 - 0.5, x1 + 0.5, z1 + 0.5, '#efe9dc'); g.rect(x0, z0, x1, z1, '#2fa9bf'); g.rect(x0 + 0.25, z0 + 0.25, x1 - 0.25, z1 - 0.25, '#5fd2dc'); };
+  const deckLoungers = (x0, x1, z) => { for (let x = x0; x < x1; x += 0.55) P.loungers.push({ x, z }); };
+  const hotel = (o) => { const h = B.add({ style: 'stucco', tint: RESORT(), cell: 1.7, gh: 1.5, fh: 0.95, ...o }); h.noSigns = true; P.hotels.push(h); return h; };
+  if (b.i === 1 || b.i === 4) {
+    // a terraced resort: floors stepping down toward the sea, a long lagoon pool in front
+    const tint = RESORT(), Wd = W - 3.5, steps = [12, 10, 8, 6, 4], back = b.lz1 - 1.4;
+    steps.forEach((fl, k) => { const h = B.add({ x: cx + (b.i === 1 ? -1 : 1), z: back - 0.9 - k * 1.8, w: Wd, d: 1.8, floors: fl, style: 'stucco', tint, cell: 1.7, gh: 1.5, fh: 0.95 }); h.noSigns = true; if (!k) P.hotels.push(h); });
+    pool(b.lx0 + 1.5, front + 1.2, cx - 1, front + 4.8); pool(cx + 0.5, front + 2, b.lx1 - 1.5, front + 5.2);
+    deckLoungers(b.lx0 + 1.6, b.lx1 - 1.6, front + 0.6);
+    for (let x = b.lx0 + 1; x < b.lx1; x += 3.2) city.addTree(x, front + 6.2, 1.05, 'palm');
+  } else if (b.i === 2) {
+    // twin towers on a podium
+    hotel({ x: cx - 4.5, z: b.lz1 - 5, w: 5.2, d: 5.2, floors: 18 });
+    hotel({ x: cx + 4.5, z: b.lz1 - 4.5, w: 5.2, d: 5.2, floors: 15 });
+    const pod = B.add({ x: cx, z: b.lz1 - 1.6, w: W - 2, d: 2.6, floors: 2, style: 'stucco', tint: RESORT(), cell: 1.7, gh: 1.6, fh: 1 }); pod.noSigns = true;
+    pool(cx - 7, front + 1.2, cx + 7, front + 5.5);
+    deckLoungers(cx - 8, cx + 8, front + 0.6);
+    for (let x = b.lx0 + 1; x < b.lx1; x += 3) city.addTree(x, front + 7, 1.05, 'palm');
+  } else if (b.i === 3) {
+    // the tall one, and a lower wing
+    hotel({ x: cx - 3.5, z: b.lz1 - 4.2, w: 7.5, d: 5, floors: 20 });
+    hotel({ x: cx + 5.5, z: b.lz1 - 3, w: 6, d: 4.5, floors: 9 });
+    pool(b.lx0 + 1.5, front + 1.2, b.lx1 - 1.5, front + 4.5);
+    deckLoungers(b.lx0 + 1.6, b.lx1 - 1.6, front + 0.6);
+  } else {
+    // west end: smaller family hotels and seafood restaurants, closer to the fishing beach
+    for (const [dx, fl, w] of [[-6, 6, 6], [1, 4, 5], [7, 3, 5]]) hotel({ x: cx + dx, z: b.lz1 - 3.5, w, d: 5, floors: fl, cell: 1.6, gh: 1.35, fh: 0.95 });
+    g.rect(b.lx0 + 1, front + 1, b.lx1 - 1, front + 5, '#cdb89a');
+    for (let x = b.lx0 + 2; x < b.lx1 - 1; x += 2.6) P.palapas.push({ x, z: front + 3 });
+  }
+  // beach loungers and palapas across the road, in front of each resort
+  if (b.i >= 1) {
+    for (let x = b.lx0 + 1; x < b.lx1 - 1; x += 0.6) for (const z of [-21.5, -23.3]) if (Math.random() < 0.85) P.loungers.push({ x, z });
+    for (let x = b.lx0 + 2; x < b.lx1 - 1; x += 3.4) P.palapas.push({ x, z: -25.5 });
+  }
+  crowdsAroundBlock(city, b, 0.7, 0.4);
+}
+// dense, colourful coastal streets: storefronts shoulder to shoulder, taco stands on the pavement
+function townBlock(ctx, b) {
+  const { city, B, g } = ctx, P = city.playa;
+  g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#cfc4ae');
+  for (const [zz, face] of [[b.lz0 + 3, -1], [b.lz1 - 3, 1]]) {
+    for (let x = b.lx0 + 0.3; x < b.lx1 - 1.5;) {
+      const w = rand(2.8, 4.2); if (x + w > b.lx1 - 0.2) break;
+      const d = rand(4.5, 6);
+      B.add({ x: x + w / 2, z: zz + face * (3 - d / 2), w, d, floors: pick([2, 2, 3, 3, 4, 5]), style: 'stucco', tint: COASTAL(), cell: 1.5, gh: 1.35, fh: 0.95 });
+      x += w + rand(0.05, 0.3);
+    }
+  }
+  for (let k = 0; k < 2; k++) P.food.push({ x: rand(b.lx0 + 3, b.lx1 - 3), z: b.z0 + 0.75, kind: Math.random() < 0.7 ? 'taco' : 'fruit' });
+  if (Math.random() < 0.6) P.food.push({ x: rand(b.lx0 + 3, b.lx1 - 3), z: b.z1 - 0.75, kind: 'taco' });
+  city.addTree(b.lx0 + 2, (b.lz0 + b.lz1) / 2, 1, 'palm'); city.addTree(b.lx1 - 2, (b.lz0 + b.lz1) / 2 + 1, 1, 'round');
+  crowdsAroundBlock(city, b, 0.65, 0.45);
+  city.wanderZones.push({ x0: b.lx0 + 1, x1: b.lx1 - 1, z0: b.z0 + 0.2, z1: b.z0 + 1.3 });
+}
+// the local streets below the hills: smaller, plainer houses packed in rows, corner shops, an OXXO or two
+function localBlock(ctx, b) {
+  const { city, B, g } = ctx, P = city.playa;
+  g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#b9ae98');
+  const oxxo = b.i === 1 || b.i === 3, gas = b.i === 0;
+  const rows = [[b.lz0 + 2.2, 4.2], [(b.lz0 + b.lz1) / 2, 3.4], [b.lz1 - 2.2, 4.2]];
+  rows.forEach(([zz, d], ri) => {
+    for (let x = b.lx0 + 0.3; x < b.lx1 - 1.5;) {
+      if (ri === 0 && (oxxo || gas) && x < b.lx0 + 6.5) { x = b.lx0 + 6.8; continue; }       // the corner lot
+      const w = rand(2.2, 3.3); if (x + w > b.lx1 - 0.2) break;
+      const r = Math.random(), style = r < 0.35 ? 'brick' : r < 0.65 ? 'concrete' : 'stucco';
+      B.add({ x: x + w / 2, z: zz, w, d: d - rand(0, 0.8), floors: pick([1, 2, 2, 2, 3]), style, tint: style === 'stucco' ? COASTAL() : style === 'brick' ? hsl(rand(0.03, 0.06), rand(0.4, 0.55), rand(0.45, 0.58)) : LOCAL(), cell: 1.4, gh: 1.2, fh: 0.9, storefront: ri === 0 && Math.random() < 0.5 });
+      x += w + (Math.random() < 0.15 ? rand(0.6, 1.4) : rand(0.05, 0.2));
+    }
+  });
+  if (oxxo || gas) {
+    const w = 5.4, d = 3.6, x = b.lx0 + 3.2, z = gas ? b.lz0 + 5.6 : b.lz0 + d / 2 + 0.2;
+    const o = B.add({ x, z, w, d, floors: 1, style: 'stucco', tint: hsl(0.1, 0.08, 0.9), cell: 1.8, gh: 1.8, fh: 1 });
+    o.noSigns = true;
+    P.oxxo.push({ x, z: z - d / 2, w, h: 1.8, gas });
+    if (gas) g.rect(x - 2.6, b.lz0, x + 2.6, z - d / 2, '#7f7c77');
+  }
+  P.food.push({ x: rand(b.lx0 + 8, b.lx1 - 3), z: b.z0 + 0.75, kind: pick(['taco', 'taco', 'fruit']) });
+  crowdsAroundBlock(city, b, 0.5, 0.3);
+}
+
 export function tropical(B) {
   const XS = [-65, -39, -13, 13, 39, 65], ZS = [-13, 13, 39, 65];
-  const ctx = makeCtx({ xs: XS, zs: ZS, roadW: 4.6, sw: 1.6, half: 66, extent: 112, centerLine: 'white', baseColor: '#8a8a6a' }, B);
+  const ctx = makeCtx({ xs: XS, zs: ZS, roadW: 4.6, sw: 1.6, half: 66, extent: 112, centerLine: 'white', baseColor: '#8a8a6a', noSouthExtend: true }, B);
   const { city, g } = ctx;
   const shore = -36;
-  ctx.skipOuter = (x, z) => z < -13;
+  city.playa = { oxxo: [], food: [], loungers: [], palapas: [], piers: [{ x: -2, z0: -34.5, z1: -47 }, { x: 50, z0: -34.5, z1: -45 }], hotels: [] };
+  ctx.skipOuter = (x, z) => z < -13 || z > 60;
   // beach + shallow sea floor (painted over the extended road grid)
   g.rect(-112, -112, 112, -15.3, '#d9c7a0');
   g.grainRect(-112, -112, 112, -15.3, 0.35, 45);
@@ -259,18 +351,20 @@ export function tropical(B) {
   g.rect(-112, -112, 112, shore - 2, '#c9b58a');
   for (let x = -112; x < 112; x += 1.2) g.circle(x, shore + Math.sin(x * 0.2) * 0.8, 1.1, 'rgba(190,172,130,.5)');
   g.line(-112, -15.3, 112, -15.3, 0.4, '#bfb8a8');
-  city.wanderZones.push({ x0: -60, x1: 60, z0: shore + 2, z1: -18 });
-  crowdsIn(city, { x0: -58, x1: 58, z0: shore + 3, z1: -20 }, 14, 3, 7);
-  for (let x = -62; x < 64; x += rand(4, 7)) city.addTree(x, rand(-19, -17), rand(0.9, 1.2), 'palm');
-  for (let i = 0; i < 40; i++) {
-    const x = rand(-58, 58), z = rand(shore + 4, -21);
+  g.rect(-112, -17.2, 112, -15.3, '#e6d6b0');                                     // the malecón
+  city.wanderZones.push({ x0: -60, x1: 60, z0: shore + 2, z1: -18 }, { x0: -60, x1: 60, z0: -17, z1: -15.6 });
+  crowdsIn(city, { x0: -58, x1: 58, z0: shore + 3, z1: -20 }, 16, 3, 7);
+  crowdsIn(city, { x0: -58, x1: 58, z0: -17, z1: -15.8 }, 10, 2, 5);
+  for (let x = -62; x < 64; x += rand(4, 7)) city.addTree(x, rand(-19, -17.6), rand(0.9, 1.2), 'palm');
+  for (let i = 0; i < 26; i++) {
+    const x = rand(-58, 58), z = rand(shore + 4, -27);
     const col = hsl(Math.random(), 0.7, 0.55);
     city.addProp('umbrella', x, z, 0, 1); city.props[city.props.length - 1].color = col;
     city.addProp('towel', x + 0.4, z + 0.6, rand(-0.4, 0.4), 1); city.props[city.props.length - 1].color = hsl(Math.random(), 0.6, 0.6);
   }
   city.boats = [];
   for (let i = 0; i < 7; i++) {
-    city.addProp('boat', rand(-80, 80), rand(-80, -45), rand(0, 6), rand(1, 1.6));
+    city.addProp('boat', rand(-40, 80), rand(-80, -50), rand(0, 6), rand(1, 1.6));
     const b = city.props[city.props.length - 1];
     b.y = 0.05; b.color = pick([hsl(0, 0, 0.95), hsl(0.58, 0.5, 0.45), hsl(0.02, 0.6, 0.5)]);
     b.speed = rand(0.8, 2.2); city.boats.push(b);
@@ -279,40 +373,17 @@ export function tropical(B) {
   for (const b of city.blocks) {
     city.paintSidewalk(g, b, '#c8c0b0');
     if (b.i === 3 && b.j === 1) { policeHQ(ctx, b); continue; }            // La Playa's police headquarters
-    const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 9);
-    city.treesAlongBlock(b, 7, 'palm', 0.75);
-    crowdsAroundBlock(city, b, b.j === 0 ? 0.6 : 0.2, b.j === 0 ? 0.3 : 0.06);
-    if (b.j === 0) {
-      // beachfront: hotels + restaurants
-      g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#bdb6a6');
-      if (b.i === 2) {
-        const spots = city.paintParking(g, b.lx0, b.lz0, b.lx1, b.lz1);
-        for (const s of spots) if (Math.random() < 0.6) city.parked.push(s);
-        continue;
-      }
-      const floors = Math.round(rand(5, 19)), hw = rand(8, 13), hd = rand(4.5, 7);
-      B.add({ x: cx - 3.5, z: b.lz0 + hd / 2 + 0.4, w: hw, d: hd, floors, fh: rand(0.9, 1.1), style: 'stucco', tint: TINT.stucco(), cell: 1.6, gh: 1.5, setbacks: [{ f: floors - 3, n: 1 }] });
-      g.rect(cx + 4.5, b.lz0 + 1, b.lx1 - 0.5, b.lz0 + 7, '#d8d2c4');
-      g.rect(cx + 5.5, b.lz0 + 2, b.lx1 - 1.5, b.lz0 + 5.5, '#3fb6c8'); // pool
-      g.rect(cx + 5.8, b.lz0 + 2.3, b.lx1 - 1.8, b.lz0 + 5.2, '#5fd2dc');
-      for (let x = b.lx0 + 1; x < b.lx1 - 3; x += rand(4.5, 6.5)) {
-        B.add({ x: x + 2, z: b.lz1 - 3, w: 4, d: 4.6, floors: Math.round(rand(1, 3)), style: 'stucco', tint: TINT.stucco(), cell: 1.5, gh: 1.3 });
-      }
-      city.addTree(cx + 4, b.lz0 + 8, 1, 'palm'); city.addTree(b.lx1 - 1, b.lz0 + 8, 1.1, 'palm');
-    } else {
-      city.paintGrass(g, b.lx0, b.lz0, b.lx1, b.lz1, '#6f8a45');
-      for (const zz of [b.lz0 + 3, b.lz1 - 3]) for (let x = b.lx0 + 3; x < b.lx1 - 2; x += rand(5.5, 7)) {
-        const shop = Math.random() < 0.3;
-        B.add({ x, z: zz, w: rand(3.8, 4.8), d: rand(3.6, 4.4), floors: shop ? Math.round(rand(2, 4)) : Math.round(rand(1, 2)), style: 'stucco', tint: TINT.stucco(), cell: 1.5, gh: 1.2, fh: 0.95,
-          gable: !shop && Math.random() < 0.6, roofTint: hsl(rand(0.02, 0.06), 0.55, rand(0.4, 0.5)) });
-        if (Math.random() < 0.5) city.addTree(x + 2.8, zz + (zz < cz ? 2.5 : -2.5), rand(0.8, 1.1), Math.random() < 0.6 ? 'palm' : 'round');
-      }
-      if (Math.random() < 0.5) { g.rect(cx - 2, cz - 1.5, cx + 2, cz + 1.5, '#3fb6c8'); g.rect(cx - 1.7, cz - 1.2, cx + 1.7, cz + 1.2, '#63d3dd'); }
-    }
+    city.treesAlongBlock(b, 7, 'palm', b.j === 0 ? 0.85 : 0.55);
+    if (b.j === 0) resortBlock(ctx, b);
+    else if (b.j === 1) townBlock(ctx, b);
+    else localBlock(ctx, b);
   }
+  // taco and fruit stands at the foot of the stairs, where the hill meets the street
+  for (const x of [-58, -10, 16, 42]) city.playa.food.push({ x: x + 3, z: 68.2, kind: pick(['taco', 'fruit']) });
+  buildHills(ctx);
   outskirts(ctx, 'tropical');
-  return { ...ctx, agents: { cars: 40, peds: 300, wanderFrac: 0.4 }, fog: 0xcfdde3, start: { x: 0, z: 0 }, water: { shore }, zMin: -40 };
+  return { ...ctx, agents: { cars: 52, peds: 340, wanderFrac: 0.35 }, fog: 0xcfdde3, start: { x: 0, z: 4 }, water: { shore }, zMin: -40, zMax: 112, yaw: Math.PI + 0.28, maxD: 200 };
 }
 
 // ================= CHICAGO =================
