@@ -43,16 +43,18 @@ function backdropMaterial(facade) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.maskMap = { value: facade.mask };
     sh.uniforms.uNight = (G.nightU ||= { value: 0 });
+    sh.uniforms.uSnow = (G.snowU ||= { value: 0 });
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vWN;')
       .replace('#include <fog_vertex>', '#include <fog_vertex>\nvWP = (modelMatrix * instanceMatrix * vec4(position,1.)).xyz; vWN = normalize(mat3(modelMatrix * instanceMatrix) * normal);');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vWN; uniform sampler2D maskMap; uniform float uNight;\nfloat bh(vec2 p){ return fract(sin(dot(p, vec2(41.3,289.1))) * 43758.5); }')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vWN; uniform sampler2D maskMap; uniform float uNight; uniform float uSnow;\nfloat bh(vec2 p){ return fract(sin(dot(p, vec2(41.3,289.1))) * 43758.5); }')
       .replace('#include <map_fragment>', `
         vec2 fuv = abs(vWN.x) > 0.5 ? vec2(vWP.z / 1.7, vWP.y) : vec2(vWP.x / 1.7, vWP.y);
         vec2 tuv = vec2(fract(fuv.x), 0.5 + fract(fuv.y) * 0.5);
         vec4 tc = texture2D(map, tuv);
         float win = texture2D(maskMap, tuv).r;
         diffuseColor.rgb *= vWN.y > 0.5 ? vec3(0.42, 0.41, 0.4) : tc.rgb;
-        if (vWN.y > 0.5) win = 0.0;`)
+        if (vWN.y > 0.5) win = 0.0;
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.95), uSnow * (vWN.y > 0.5 ? 0.92 : 0.08));   // snow on the roofs`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         float wid = floor(fuv.x) * 13.0 + floor(fuv.y) * 7.0 + floor(vWP.x * 0.05) * 3.0 + floor(vWP.z * 0.05);
         totalEmissiveRadiance += vec3(1.0, 0.76, 0.45) * win * uNight * step(0.55, bh(vec2(wid, 3.0))) * 1.1;`);
@@ -69,7 +71,16 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
   tex.repeat.set(SIZE / pitch, SIZE / pitchZ);
   const ox = (((city.xs[0] + SIZE / 2) / pitch) % 1 + 1) % 1, oz = (((SIZE / 2 - city.zs[0]) / pitchZ) % 1 + 1) % 1;
   tex.offset.set(-ox, -oz);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
+  const groundMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 1 });
+  // weather reaches past the map: when snow settles (G.snowU, js/world.js) the backdrop whitens too, streets a little greyer
+  groundMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uSnow = (G.snowU ||= { value: 0 });
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uSnow;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.9, 0.94), uSnow * (lum < 0.1 ? 0.55 : 0.9));`);
+  };
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE).rotateX(-Math.PI / 2), groundMat);
   ground.position.y = -0.04;
   ground.receiveShadow = true;
   scene.add(ground);
@@ -125,7 +136,14 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
   mesh.castShadow = true; mesh.receiveShadow = true;
   scene.add(mesh);
   const tgeo = new THREE.IcosahedronGeometry(1, 1).scale(1, 0.85, 1).translate(0, 1.6, 0);
-  const tmesh = new THREE.InstancedMesh(tgeo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: false }), Math.max(1, trees.length));
+  const treeMat = new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: false });
+  treeMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uSnow = (G.snowU ||= { value: 0 });
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vUp;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvUp = normal.y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uSnow; varying float vUp;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.95), uSnow * smoothstep(0.0, 0.6, vUp) * 0.8);');
+  };
+  const tmesh = new THREE.InstancedMesh(tgeo, treeMat, Math.max(1, trees.length));
   trees.forEach(([x, z, s], i) => {
     m.makeScale(s, s, s).setPosition(x, 0, z); tmesh.setMatrixAt(i, m);
     tmesh.setColorAt(i, col.setHSL(R(0.2, 0.3), 0.4, R(0.18, 0.28), THREE.SRGBColorSpace));

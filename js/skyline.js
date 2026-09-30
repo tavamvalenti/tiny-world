@@ -15,17 +15,19 @@ function skylineMaterial(haze) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uNight = (G.nightU ||= { value: 0 });
     sh.uniforms.uHaze = { value: haze };
+    sh.uniforms.uSnow = (G.snowU ||= { value: 0 });
     sh.uniforms.uBlue = { value: new THREE.Color(0.42, 0.55, 0.74) };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vWN;')
       .replace('#include <fog_vertex>', '#include <fog_vertex>\nvWP = (modelMatrix * instanceMatrix * vec4(position,1.)).xyz; vWN = normalize(mat3(modelMatrix * instanceMatrix) * normal);');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vWN; uniform float uNight; uniform vec3 uHaze; uniform vec3 uBlue;\nfloat bh(vec2 p){ return fract(sin(dot(p, vec2(41.3,289.1))) * 43758.5); }')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vWN; uniform float uNight; uniform vec3 uHaze; uniform vec3 uBlue; uniform float uSnow;\nfloat bh(vec2 p){ return fract(sin(dot(p, vec2(41.3,289.1))) * 43758.5); }')
       .replace('#include <map_fragment>', `#include <map_fragment>
         // a grid of window bays: 1.6 wide, one storey (1.45) tall, in world units so every tower shares the rhythm
         vec2 fuv = vec2((abs(vWN.x) > 0.5 ? vWP.z : vWP.x) / 1.6, vWP.y / 1.45);
         vec2 cl = fract(fuv);
         float roof = step(0.5, vWN.y);
         float win = (1.0 - roof) * step(0.16, cl.x) * step(cl.x, 0.84) * step(0.22, cl.y) * step(cl.y, 0.86);
-        diffuseColor.rgb *= mix(1.0, 0.7, win) * mix(1.0, 0.6, roof);`)
+        diffuseColor.rgb *= mix(1.0, 0.7, win) * mix(1.0, 0.6, roof);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.95), uSnow * roof * 0.85);   // snow on the rooftops`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         vec2 wid = floor(fuv) + floor(vWP.xz * 0.07) * 17.0;
         float lit = step(0.74, bh(wid)) * win;
