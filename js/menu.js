@@ -437,6 +437,54 @@ function miniEarth(host) {
   host.addEventListener('click', (e) => e.stopPropagation());
 }
 
+// ---------- stars behind the neutral room ----------
+// Mostly faint pinpricks with a few brighter ones (soft halo, faint cool or warm tint), thicker along a faint diagonal
+// band like the Milky Way; a handful twinkle slowly. Drawn at ~20 fps and only while the menu is up.
+function starfield(menu, after) {
+  const cv = document.createElement('canvas'); cv.className = 'stars'; after.after(cv);
+  const cx = cv.getContext('2d');
+  let stars = [], W = 0, H = 0, dpr = 1;
+  const build = () => {
+    dpr = Math.min(2, window.devicePixelRatio || 1); W = cv.width = Math.round(innerWidth * dpr); H = cv.height = Math.round(innerHeight * dpr);
+    const n = Math.round(Math.min(520, innerWidth * innerHeight / 3200)); stars = [];
+    for (let i = 0; i < n; i++) {
+      let x = Math.random(), y = Math.random();
+      if (i % 3 === 0) {   // a third of them gather along the band (lower left to upper right), with a soft falloff
+        const t = Math.random(), off = (Math.random() + Math.random() + Math.random() - 1.5) * 0.16;
+        x = t; y = 0.95 - t * 0.8 + off;
+        if (y < 0 || y > 1) continue;
+      }
+      const big = Math.random() < 0.06, tint = Math.random();
+      stars.push({ x: x * W, y: y * H, r: (big ? 1.1 + Math.random() * 0.7 : 0.45 + Math.random() * 0.6) * dpr, a: big ? 0.55 + Math.random() * 0.3 : 0.22 + Math.random() * 0.45,
+        c: tint < 0.18 ? '200,220,255' : tint > 0.9 ? '255,236,210' : '255,255,255', big,
+        tw: Math.random() < 0.22 ? 0.6 + Math.random() * 1.6 : 0, ph: Math.random() * 6.3 });
+    }
+  };
+  build(); addEventListener('resize', build);
+  const band = () => {   // the faint haze of the band itself
+    cx.save(); cx.globalAlpha = 0.05; cx.translate(W / 2, H * 0.55); cx.rotate(-Math.atan2(H * 0.8, W)); cx.scale(1, 0.16);
+    const rg = cx.createRadialGradient(0, 0, 0, 0, 0, W * 0.7); rg.addColorStop(0, 'rgba(190,205,255,1)'); rg.addColorStop(1, 'rgba(190,205,255,0)');
+    cx.fillStyle = rg; cx.beginPath(); cx.arc(0, 0, W * 0.7, 0, 6.3); cx.fill(); cx.restore();
+  };
+  let last = 0;
+  (function frame(t) {
+    requestAnimationFrame(frame);
+    if (t - last < 50 || !cv.isConnected || getComputedStyle(menu).display === 'none') return;
+    last = t;
+    cx.clearRect(0, 0, W, H); band();
+    const s = t / 1000;
+    for (const p of stars) {
+      const a = p.tw ? p.a * (0.55 + 0.45 * Math.sin(s * p.tw + p.ph)) : p.a;
+      if (p.big) {
+        const g = cx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 5);
+        g.addColorStop(0, `rgba(${p.c},${a * 0.35})`); g.addColorStop(1, `rgba(${p.c},0)`);
+        cx.fillStyle = g; cx.beginPath(); cx.arc(p.x, p.y, p.r * 5, 0, 6.3); cx.fill();
+      }
+      cx.fillStyle = `rgba(${p.c},${a})`; cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, 6.3); cx.fill();
+    }
+  })(0);
+}
+
 // ?font=1..11 tries another face for the title; Outfit (a geometric O for the globe to stand in for) is the default
 const TITLE_FONTS = [['Outfit', 300], ['Playfair Display', 500], ['Cinzel', 500], ['Italiana', 400], ['Bodoni Moda', 500], ['Fraunces', 300], ['Syne', 700], ['Unbounded', 400], ['Cormorant Garamond', 500], ['Tenor Sans', 400], ['DM Serif Display', 400]];
 function titleGlow(h1) {
@@ -480,6 +528,7 @@ export function initMenu() {
   const canvas = document.createElement('canvas'); canvas.id = 'menuStage'; menu.prepend(canvas);
   // atmosphere layers behind the stage (crossfaded in CSS by data-hover) and a faint grain over it
   for (const k of ['suburbs', 'tropical', 'downtown', 'neutral']) { const a = document.createElement('div'); a.className = 'atmo ' + k; menu.prepend(a); }
+  starfield(menu, menu.querySelector('.atmo.neutral'));
   const grain = document.createElement('div'); grain.className = 'grain'; menu.appendChild(grain);
   { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), im = x.createImageData(128, 128);
     for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
