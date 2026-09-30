@@ -72,25 +72,22 @@ const W_ES = { rain: 'Lluvias llegan a La Playa', storm: 'Tormenta se acerca a L
 const CITY = { downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa' };
 
 const CSS = `
-#newsTicker{position:fixed;left:16px;bottom:96px;width:min(560px,calc(100vw - 32px));z-index:6;pointer-events:none;font-family:Inter,system-ui,sans-serif;
-  opacity:0;transform:translateX(-24px);transition:opacity .45s ease,transform .45s cubic-bezier(.2,.8,.2,1)}
-#newsTicker.on{opacity:1;transform:none}
-#newsTicker .row{display:flex;align-items:stretch;height:34px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.35))}
-#newsTicker .globe{flex:none;width:40px;height:40px;margin:-3px -12px 0 0;border-radius:50%;z-index:2;align-self:center;
-  background:radial-gradient(circle at 35% 30%,#bfe6ff 0,#3d8fe0 32%,#0d3f8f 70%,#071f4d 100%);box-shadow:0 0 0 2px rgba(255,255,255,.85),0 2px 8px rgba(0,0,0,.4);position:relative;overflow:hidden}
-#newsTicker .globe:before{content:'';position:absolute;inset:0;border-radius:50%;
-  background:repeating-linear-gradient(90deg,transparent 0 8px,rgba(255,255,255,.28) 8px 9px),repeating-linear-gradient(0deg,transparent 0 9px,rgba(255,255,255,.22) 9px 10px)}
-#newsTicker .tag{flex:none;display:flex;align-items:center;padding:0 16px 0 20px;background:var(--tagbg);color:var(--tagfg);font-weight:900;font-style:italic;font-size:13px;letter-spacing:.04em;
-  clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%);position:relative;z-index:1;text-transform:uppercase;white-space:nowrap}
-#newsTicker .head{flex:1;min-width:0;display:flex;align-items:center;margin-left:-12px;padding:0 18px 0 22px;color:#fff;font-weight:800;font-size:13px;letter-spacing:.02em;text-transform:uppercase;
-  background:linear-gradient(180deg,#2c55d6 0,#1a3aa8 55%,#132d86 100%);clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#newsTicker .sub{display:flex;align-items:center;height:18px;margin:0 12px 0 28px;background:#0d0f14;color:#c9d0de;font-size:10px;font-weight:600;letter-spacing:.06em;overflow:hidden;
-  clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%)}
-#newsTicker .live{flex:none;position:relative;z-index:1;height:100%;display:flex;align-items:center;padding:0 8px;background:#f4c20d;color:#10183a;font-weight:900;font-style:italic;font-size:10px;letter-spacing:.08em}
-#newsTicker .lane{flex:1;min-width:0;overflow:hidden;height:100%;display:flex;align-items:center}
-#newsTicker .crawl{white-space:nowrap;padding-left:10px;animation:newsCrawl 14s linear infinite}
-@keyframes newsCrawl{from{transform:translateX(30%)}to{transform:translateX(-100%)}}
-@media (max-width:520px){#newsTicker .head{font-size:11px}#newsTicker .tag{font-size:11px;padding:0 12px 0 14px}#newsTicker .globe{display:none}}
+#newsTicker{position:fixed;left:50%;bottom:96px;width:clamp(320px,calc(100vw - 540px),600px);z-index:6;pointer-events:none;font-family:Inter,system-ui,sans-serif;
+  opacity:0;transform:translate(-50%,12px);transition:opacity .4s ease,transform .5s cubic-bezier(.2,.8,.2,1);
+  background:rgba(12,14,19,.72);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.1);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden}
+#newsTicker.on{opacity:1;transform:translate(-50%,0)}
+#newsTicker .top{display:flex;align-items:center;gap:12px;padding:11px 16px 4px}
+#newsTicker .tag{flex:none;display:inline-flex;align-items:center;gap:7px;padding:4px 9px 4px 8px;border-radius:6px;background:var(--tagbg);color:var(--tagfg);
+  font:800 10px/1 Inter,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+#newsTicker .tag:before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;animation:newsPulse 1.2s ease-in-out infinite}
+@keyframes newsPulse{0%,100%{opacity:1}50%{opacity:.25}}
+#newsTicker .head{flex:1;min-width:0;color:#f5f6f8;font:600 14.5px/1.3 Inter,system-ui,sans-serif;letter-spacing:-.005em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#newsTicker .meta{display:flex;align-items:center;gap:8px;padding:2px 16px 10px;color:rgba(235,238,245,.5);font:500 10.5px/1 Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+#newsTicker .live{display:inline-flex;align-items:center;gap:5px;color:#ff4d4d;font-weight:700}
+#newsTicker .live:before{content:'';width:5px;height:5px;border-radius:50%;background:#ff4d4d}
+#newsTicker .bar{position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--accent);transform-origin:left;opacity:.85}
+@media (max-width:760px){#newsTicker{width:calc(100vw - 32px)}#newsTicker .head{font-size:13px}}
 `;
 
 export class News {
@@ -101,7 +98,7 @@ export class News {
     document.getElementById('newsTicker')?.remove();
     const el = document.createElement('div');
     el.id = 'newsTicker';
-    el.innerHTML = '<div class="row"><div class="globe"></div><div class="tag"></div><div class="head"></div></div><div class="sub"><div class="live"></div><div class="lane"><div class="crawl"></div></div></div>';
+    el.innerHTML = '<div class="top"><span class="tag"></span><span class="head"></span></div><div class="meta"><span class="live"></span><span class="where"></span></div><div class="bar"></div>';
     document.body.appendChild(el);
     this.el = el;
     G.news = this;
@@ -179,18 +176,18 @@ export class News {
     this.queue.shift();
     const [bg, fg] = TAGS[q.tag] || TAGS.LOCAL, ch = CHANNEL[this.map] || CHANNEL.downtown;
     const tag = this.el.querySelector('.tag');
-    tag.textContent = this.es ? ES_TAG[q.tag] || q.tag : q.tag === 'BREAKING' ? 'BREAKING NEWS' : q.tag;
-    tag.style.setProperty('--tagbg', `linear-gradient(180deg, ${bg}, ${shade(bg)})`); tag.style.setProperty('--tagfg', fg);
+    tag.textContent = this.es ? ES_TAG[q.tag] || q.tag : q.tag;
+    tag.style.setProperty('--tagbg', bg); tag.style.setProperty('--tagfg', fg);
+    this.el.style.setProperty('--accent', bg);
     this.el.querySelector('.head').textContent = q.text;
     this.el.querySelector('.live').textContent = ch[1];
     const d = new Date(), hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
-    this.el.querySelector('.crawl').textContent = `${ch[2]}  ·  ${ch[0]}  ·  ${hh}:${mm}  ·  ${q.text}`;
+    this.el.querySelector('.where').textContent = `${ch[2]} · ${ch[0]} · ${hh}:${mm}`;
+    // a thin line along the bottom runs down while the story is up
+    const bar = this.el.querySelector('.bar');
+    bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)'; void bar.offsetWidth;
+    bar.style.transition = `transform ${SHOW}s linear`; bar.style.transform = 'scaleX(0)';
     this.el.classList.add('on');
     this.showT = SHOW;
   }
-}
-// a darker stop for the tag's gradient
-function shade(hex) {
-  const n = parseInt(hex.slice(1), 16), k = 0.72;
-  return `rgb(${Math.round((n >> 16) * k)},${Math.round(((n >> 8) & 255) * k)},${Math.round((n & 255) * k)})`;
 }
