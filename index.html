@@ -44,6 +44,9 @@
   .sp-foot { display:flex; justify-content:space-between; gap:10px; padding:14px 24px 20px; border-top:1px solid var(--line); }
   .sp-foot button { font:600 11px Inter; letter-spacing:.2em; color:var(--ink); background:rgba(255,255,255,.06); border:1px solid var(--line); padding:11px 18px; cursor:pointer; border-radius:2px; }
   .sp-foot button.primary { background:var(--accent); color:#1a1206; border-color:var(--accent); }
+  .sp-foot button { transition:background .15s, border-color .15s, transform .15s, filter .15s; }
+  .sp-foot button:hover { background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.45); transform:translateY(-1px); }
+  .sp-foot button.primary:hover { background:var(--accent); filter:brightness(1.12); }
   @media (max-width:520px) { .sp-row { grid-template-columns:1fr 110px 40px; } }
   #loading { position:fixed; inset:0; z-index:25; display:none; align-items:center; justify-content:center; background:#0d0f12;
     font:500 12px Inter; letter-spacing:.3em; color:var(--dim); }
@@ -59,6 +62,9 @@
   @keyframes wpop { 0% { transform:scale(1); } 45% { transform:scale(1.14) translateY(-3px); } 100% { transform:scale(1); } }
   @keyframes wsweep { to { transform:translateX(110%); } }
   @media (prefers-reduced-motion: reduce) { #weapons .w.pop, #weapons .w.pop::after { animation:none; } }
+  #weapons .w:hover { color:#fff; transform:translateY(-3px); border-color:color-mix(in srgb, var(--wc,#fff) 70%, transparent); background:color-mix(in srgb, var(--wc,#fff) 16%, var(--glass)); box-shadow:0 6px 18px -8px var(--wc,#fff); }
+  #weapons .w:hover b { color:var(--wc,#fff); }
+  #weapons .w:active { transform:translateY(-1px) scale(.97); }
   #weapons .w.on { color:#fff; border-color:var(--wc,#fff); box-shadow:0 0 0 1px var(--wc,#fff) inset, 0 0 18px -4px var(--wc,#fff); }
   #weapons .w.on b { color:var(--wc,#fff); }
   #help { position:absolute; left:16px; bottom:calc(4.2vh + 14px); font:400 10.5px/1.7 Inter; color:rgba(255,255,255,.55); letter-spacing:.06em;
@@ -72,20 +78,45 @@
   #mapname small { display:block; font-weight:400; letter-spacing:.1em; color:rgba(255,255,255,.45); margin-top:4px; }
   #topright { position:absolute; right:16px; top:calc(4.2vh + 12px); display:flex; gap:8px; align-items:center; pointer-events:auto; }
   #tod { display:flex; gap:2px; }
-  #tod .t, #mute, #gear, #worldBtn { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none; }
+  #tod .t, #mute, #gear { font:600 10px Inter; letter-spacing:.18em; color:var(--dim); background:var(--glass); border:1px solid var(--line); padding:6px 9px; cursor:pointer; backdrop-filter:blur(8px); user-select:none;
+    transition:color .15s, background .15s, border-color .15s, transform .15s, box-shadow .15s; }
+  #tod .t:hover, #mute:hover, #gear:hover { color:#fff; background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.45); transform:translateY(-1px); box-shadow:0 4px 14px -6px rgba(255,255,255,.45); }
+  #tod .t:active, #mute:active, #gear:active { transform:translateY(0) scale(.97); }
   #tod .t.on { color:#fff; border-color:rgba(255,255,255,.55); }
-  #worldBtn.on { color:#fff; border-color:rgba(255,255,255,.55); }
+  /* WORLD: the one glowing button in the bottom bar, an aurora gradient that breathes; brighter on hover, steady while open */
+  #weapons .sep { width:1px; margin:2px 10px; background:linear-gradient(transparent, rgba(255,255,255,.3), transparent); }
+  #worldBtn { position:relative; overflow:hidden; display:flex; align-items:center; gap:9px; font:800 12px Inter; letter-spacing:.22em; color:#fff; padding:8px 20px 8px 10px; border-radius:999px; margin-top:-3px; margin-bottom:-3px;
+    cursor:pointer; user-select:none; backdrop-filter:blur(8px); border:1px solid rgba(150,180,255,.6);
+    background:linear-gradient(120deg, rgba(40,110,255,.42), rgba(150,70,255,.42) 55%, rgba(255,90,190,.36));
+    box-shadow:0 0 16px -3px rgba(120,140,255,.75), inset 0 0 12px rgba(170,140,255,.25); text-shadow:0 0 8px rgba(190,200,255,.7);
+    animation:worldGlow 2.8s ease-in-out infinite; transition:transform .18s cubic-bezier(.2,1.4,.4,1), filter .18s, border-color .18s; }
+  #worldBtn .globe { width:22px; height:22px; flex:none; fill:rgba(120,170,255,.25); stroke:#dbe6ff; stroke-width:1.5; stroke-linecap:round; filter:drop-shadow(0 0 5px rgba(150,190,255,.9)); }
+  #worldBtn .globe .spin { fill:none; transform-origin:12px 12px; animation:globeTurn 3.2s linear infinite; }
+  #worldBtn .globe path { fill:none; }
+  #worldBtn:hover .globe .spin { animation-duration:1s; }
+  #worldBtn::after { content:''; position:absolute; inset:0; background:linear-gradient(100deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); transform:translateX(-120%); animation:worldSheen 4.5s ease-in-out infinite; pointer-events:none; }
+  #worldBtn:hover { transform:translateY(-3px) scale(1.05); filter:brightness(1.25) saturate(1.15); border-color:rgba(200,215,255,.95); animation-duration:1.2s; }
+  #worldBtn:active { transform:translateY(-1px) scale(.98); }
+  #worldBtn.on { border-color:#fff; filter:brightness(1.2); animation:none; box-shadow:0 0 26px 2px rgba(140,120,255,.9), inset 0 0 14px rgba(200,180,255,.35); }
+  @keyframes worldGlow { 0%,100% { box-shadow:0 0 14px -4px rgba(110,140,255,.7), inset 0 0 10px rgba(170,140,255,.2); } 50% { box-shadow:0 0 26px 1px rgba(160,110,255,.9), inset 0 0 16px rgba(190,160,255,.35); } }
+  @keyframes worldSheen { 0%,60% { transform:translateX(-120%); } 85%,100% { transform:translateX(120%); } }
+  @keyframes globeTurn { 0% { transform:scaleX(1); } 25% { transform:scaleX(.08); } 50% { transform:scaleX(-1); } 75% { transform:scaleX(.08); } 100% { transform:scaleX(1); } }
+  @media (prefers-reduced-motion: reduce) { #worldBtn, #worldBtn::after, #worldBtn .globe .spin { animation:none; } }
   /* WORLD menu: compact, four short columns; items are data-driven (js/world.js MENU) so more can be added */
-  #worldMenu { position:absolute; right:16px; top:calc(4.2vh + 44px); display:none; gap:14px; padding:12px 14px; background:rgba(16,18,22,.9); border:1px solid var(--line); border-radius:3px; backdrop-filter:blur(10px); pointer-events:auto; z-index:12; }
-  #worldMenu.open { display:flex; }
+  #worldMenu { position:absolute; left:50%; bottom:calc(4.2vh + 62px); transform:translateX(-50%); display:none; gap:14px; padding:14px 16px; background:rgba(14,16,22,.92); border:1px solid rgba(150,170,255,.35); border-radius:6px;
+    backdrop-filter:blur(12px); pointer-events:auto; z-index:12; box-shadow:0 12px 40px rgba(0,0,0,.45), 0 0 30px -10px rgba(140,120,255,.6); }
+  #worldMenu.open { display:flex; animation:menuUp .22s cubic-bezier(.2,.9,.3,1); }
+  @keyframes menuUp { from { opacity:0; transform:translate(-50%, 10px); } to { opacity:1; transform:translate(-50%, 0); } }
   #worldMenu .col { display:flex; flex-direction:column; gap:4px; min-width:92px; }
   #worldMenu h4 { margin:0 0 3px; font:600 9px Inter; letter-spacing:.26em; color:var(--accent); }
-  #worldMenu button { font:500 11px Inter; color:var(--ink); background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); padding:5px 8px; text-align:left; cursor:pointer; border-radius:2px; }
-  #worldMenu button:hover { background:rgba(255,255,255,.14); }
+  #worldMenu button { font:500 11px Inter; color:var(--ink); background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); padding:5px 8px; text-align:left; cursor:pointer; border-radius:3px;
+    transition:background .14s, border-color .14s, transform .14s, color .14s, box-shadow .14s; }
+  #worldMenu button:hover { background:rgba(140,130,255,.2); border-color:rgba(170,160,255,.6); color:#fff; transform:translateX(3px); box-shadow:-3px 0 0 0 #9f8cff; }
+  #worldMenu button:active { transform:translateX(3px) scale(.97); }
   #worldMenu button.armed { border-color:var(--accent); color:#fff; }
-  #placeHint { position:absolute; left:50%; bottom:calc(4.2vh + 58px); transform:translateX(-50%); font:600 10px Inter; letter-spacing:.2em; color:#fff; background:var(--glass); border:1px solid rgba(255,255,255,.3); padding:6px 12px; display:none; white-space:nowrap; backdrop-filter:blur(8px); }
+  #placeHint { position:absolute; left:50%; bottom:calc(4.2vh + 60px); transform:translateX(-50%); font:600 10px Inter; letter-spacing:.2em; color:#fff; background:var(--glass); border:1px solid rgba(255,255,255,.3); padding:6px 12px; display:none; white-space:nowrap; backdrop-filter:blur(8px); }
   #placeHint.show { display:block; }
-  @media (max-width:760px) { #worldMenu { flex-wrap:wrap; left:16px; } }
+  @media (max-width:760px) { #worldMenu { flex-wrap:wrap; left:16px; right:16px; transform:none; } #worldMenu.open { animation:none; } #weapons .sep { display:none; } #worldBtn { padding:6px 12px 6px 7px; letter-spacing:.08em; font-size:11px; } #worldBtn .globe { width:18px; height:18px; } }
   #stats { position:absolute; right:16px; top:calc(4.2vh + 44px); font:400 10px Inter; letter-spacing:.1em; color:rgba(255,255,255,.4); text-align:right; }
   @media (max-width:760px) { #help { display:none; } #weapons .w { padding:8px 8px; letter-spacing:.06em; } }
 </style>
@@ -119,7 +150,6 @@
   <div id="topright">
     <div id="tod"><span class="t" data-t="day">DAY</span><span class="t" data-t="sunset">SUNSET</span><span class="t" data-t="night">NIGHT</span></div>
     <span id="mute">SOUND ON</span>
-    <span id="worldBtn" title="Spawn people, vehicles, events and weather">WORLD</span>
     <span class="open-settings" id="gear">SETTINGS</span>
   </div>
   <div id="worldMenu"></div>
@@ -130,6 +160,8 @@
     <div class="w" data-w="2" style="--wc:#bfe9ff"><b>3</b>WIND</div>
     <div class="w" data-w="3" style="--wc:#ff7a1a"><b>4</b>METEOR</div>
     <div class="w" data-w="4" style="--wc:#8a7dff"><b>5</b>ENERGY</div>
+    <span class="sep"></span>
+    <span id="worldBtn" title="Spawn people, vehicles, events and weather"><svg class="globe" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><ellipse class="spin" cx="12" cy="12" rx="4.2" ry="9.2"/><path d="M3 12h18M4.6 7.4h14.8M4.6 16.6h14.8"/></svg>WORLD</span>
   </div>
   <div id="help">
     <span>WASD</span>Move<br><span>Mouse</span>Aim<br><span>Click</span>Fire (hold laser / wind)<br><span>Scroll</span>Zoom<br><span>Q / E</span>Rotate<br><span>1–5</span>Weapons<br><span>T</span>Day / sunset / night<br><span>M</span>Mute
