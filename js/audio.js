@@ -271,7 +271,7 @@ function recorded(kind, x, z, vol = 1) {
 // ---------- recorded sound effects (assets/sfx-*.mp4): bat, crowd, fire, cars, sirens ----------
 // Decoded at 22 kHz mono and levelled to the same peak; each one is played as a slice (with short fades) through
 // the same positional chain as everything else, so distance muffling still applies.
-const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fire: 'assets/sfx-fire.mp4', cars: 'assets/sfx-cars.mp4', fireSiren: 'assets/sfx-firetruck.mp4', policeSiren: 'assets/sfx-police.mp4' };
+const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fire: 'assets/sfx-fire.mp4', cars: 'assets/sfx-cars.mp4', fireSiren: 'assets/sfx-firetruck.mp4', policeSiren: 'assets/sfx-police.mp4', crash: 'assets/sfx-crash.mp4' };
 const SMP = {};
 function loadSamples() {
   const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
@@ -651,7 +651,14 @@ export const sfx = {
     burst(ch.input, t, { f: 2300, q: 9, a: 0.04, peak: 0.5, d, sweep: 1500 });
     tone(ch.input, t, { type: 'sawtooth', f: 1150, f1: 900, a: 0.04, peak: 0.05, d });
   },
-  // Car crash: thud, crumpling metal, glass and a few settling clanks
+  // recorded car crash: brakes screeching, then the impact (at 2.70 s in the file) and the debris settling.
+  // Started `lead` seconds before the cars meet so the hit in the recording lands on the hit in the game.
+  crashRec(x, z, lead = 1, size = 1) {
+    if (!init() || !SMP.crash) return false;
+    const off = Math.max(0, 2.7 - lead);
+    return !!sample('crash', x, z, { vol: 1.1 * size, offset: off, dur: 4.65 - off, fade: 0.03, echo: 0.35 });
+  },
+  // Car crash (synthesized fallback if the recording isn't loaded): thud, crumpling metal, glass and settling clanks
   crash(x, z, size = 1) {
     if (!init()) return;
     const t = now(), ch = chain(x, z, { vol: 0.9 * size, echoAmt: 0.5 });

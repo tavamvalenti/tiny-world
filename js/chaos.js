@@ -55,7 +55,9 @@ export class Chaos {
     if (!a) return false;
     const b = driving.filter((o) => o !== a).sort((p, q) => p.pos.distanceTo(a.pos) - q.pos.distanceTo(a.pos))[0];
     const hitCar = b && b.pos.distanceTo(a.pos) < 9 ? b : null;
-    sfx.skid(a.pos.x, a.pos.z, 0.55);
+    // the recorded brake-and-crash, timed so its impact lands on the collision; the synthesized skid + crash if it isn't loaded
+    const rec = sfx.crashRec && sfx.crashRec(a.pos.x, a.pos.z, 1.0);
+    if (!rec) sfx.skid(a.pos.x, a.pos.z, 0.55);
     setTimeout(() => {
       if (a.state !== 'drive') return;
       const x = hitCar ? (a.pos.x + hitCar.pos.x) / 2 : a.pos.x, z = hitCar ? (a.pos.z + hitCar.pos.z) / 2 : a.pos.z;
@@ -67,7 +69,7 @@ export class Chaos {
         A.launch(c, { x: dx / d, z: dz / d }, rand(1.6, 3), rand(0.6, 1.6), true, rand(2.5, 5));
         if (Math.random() < 0.12) c.fire = rand(12, 25);
       }
-      sfx.crash(x, z, wrecks.length > 1 ? 1.2 : 0.9);
+      if (!rec) sfx.crash(x, z, wrecks.length > 1 ? 1.2 : 0.9);
       G.fx.sparks(x, 0.4, z, 14, 4, 2.2, 0.8, 5);
       G.fx.dust(x, 0.2, z, 0.8);
       G.shake = Math.max(G.shake, 0.3);
@@ -82,7 +84,7 @@ export class Chaos {
         if (c.pos.distanceTo(_v.set(x, 0, z)) < 16) { c.timer = rand(0.5, 1.5); if (Math.random() < 0.4) setTimeout(() => sfx.horn(c.pos.x, c.pos.z, 0.4), rand(400, 1800)); }
       }
       this.open(x, z, 1.2, wrecks, [], 'TRAFFIC_ACCIDENT');
-    }, 550);
+    }, rec ? 1000 : 550);
     return true;
   }
 
