@@ -303,7 +303,7 @@ export class Agents {
 
   updateCar(c, dt) {
     const C = this.city;
-    if (c.state === 'hidden') return;
+    if (c.state === 'hidden' || c.state === 'held') return;                 // held: the Free Hand moves it (js/hand.js)
     if (c.state === 'air') return this.updateAir(c, dt, true);
     if (c.fire > 0) {
       c.fire -= dt;
@@ -432,6 +432,11 @@ export class Agents {
     const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(a.q);
     a.heading = Math.atan2(fwd.x, fwd.z);
     a.flipped = up.y < 0;
+    if (isCar && a.gentle) {
+      // set down gently by the Free Hand: upright, parked, still a working car
+      a.gentle = false; a.flipped = false; a.airborneBefore = false; a.state = 'parked'; a.speed = 0; a.q.setFromAxisAngle(UP, a.heading);
+      return;
+    }
     if (isCar) {
       a.state = 'wreck';
       if (a.driver) { const d = a.driver; a.driver = null; d.car = null; d.pos.set(a.pos.x + 0.6, 0, a.pos.z); d.state = 'down'; d.timer = rand(4, 8); }
@@ -729,6 +734,7 @@ export class Agents {
     const C = this.city;
     switch (p.state) {
       case 'air': return this.updateAir(p, dt, false);
+      case 'held': return;                    // dangling from the Free Hand (js/hand.js)
       case 'down':
         if (p.dead) return;                  // killed: stays where they fell
         p.timer -= dt;
@@ -940,7 +946,7 @@ export class Agents {
     const turn = c.prevH == null ? 0 : Math.atan2(Math.sin(c.heading - c.prevH), Math.cos(c.heading - c.prevH)) / Math.max(dt, 1e-3);
     c.prevH = c.heading;
     c.lean += (clamp(-turn * 0.28 * Math.min(1, c.speed / 3), -0.55, 0.55) - c.lean) * Math.min(1, dt * 6);
-    if (c.state !== 'air' && !(c.state === 'wreck' && c.airborneBefore)) _q.setFromEuler(_e.set(0, c.heading, c.state === 'wreck' ? 1.4 : c.lean, 'YXZ'));
+    if (c.state !== 'air' && c.state !== 'held' && !(c.state === 'wreck' && c.airborneBefore)) _q.setFromEuler(_e.set(0, c.heading, c.state === 'wreck' ? 1.4 : c.lean, 'YXZ'));
     _m2.compose(c.pos, _q, _s.set(1, 1, 1));
     M.body.setMatrixAt(i, _m2); M.dark.setMatrixAt(i, _m2);
     const riding = !c.thrown && c.state !== 'hidden';
@@ -978,7 +984,7 @@ export class Agents {
       const hidden = c.state === 'hidden';
       if (hidden) { for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); if (c.motoShown) this.drawMoto({ ...c, moto: false }, dt), (c.motoShown = false); this.doors.setMatrixAt(c.i * 2, ZERO); this.doors.setMatrixAt(c.i * 2 + 1, ZERO); }
       else {
-        if (c.state === 'air' || c.state === 'wreck' && c.airborneBefore) {
+        if (c.state === 'air' || c.state === 'held' || c.state === 'wreck' && c.airborneBefore) {
           if (c.state === 'wreck') {
             _q.setFromAxisAngle(UP, c.heading);
             if (c.flipped) _q.multiply(new THREE.Quaternion().setFromAxisAngle(ZAX, Math.PI));
@@ -1055,12 +1061,12 @@ export class Agents {
       const run = p.state === 'flee';
       const cyc = G.time * (run ? 13 : 7.5) + p.phase;
       const bob = moving ? Math.abs(Math.sin(cyc)) * (run ? 0.035 : 0.018) : 0;
-      if (p.state === 'air') _q.copy(p.q);
+      if (p.state === 'air' || p.state === 'held') _q.copy(p.q);
       else if (p.state === 'down' || p.state === 'carried') _q.setFromAxisAngle(UP, p.heading).multiply(new THREE.Quaternion().setFromAxisAngle(XAX, Math.PI / 2));
       else { _q.setFromAxisAngle(UP, p.heading); if (run) _q.multiply(new THREE.Quaternion().setFromAxisAngle(XAX, 0.2)); }
       let leg = 0, arm = 0, armOut = 0.1;
       if (moving) { leg = Math.sin(cyc) * (run ? 0.8 : 0.45); arm = -leg * (run ? 1.1 : 0.8); }
-      else if (p.state === 'air') { leg = Math.sin(G.time * 18 + p.phase) * 0.7; arm = -leg; armOut = 1.1; }
+      else if (p.state === 'air' || p.state === 'held') { leg = Math.sin(G.time * (p.state === 'held' ? 11 : 18) + p.phase) * 0.7; arm = -leg; armOut = 1.1; }   // flailing
       else if (p.state === 'alert') { armOut = 0.35; }
       else if (p.state === 'idle' && p.group) arm = Math.max(0, Math.sin(G.time * 1.3 + p.phase * 3)) * 0.7; // talking with hands
       else if (p.state === 'riot' || p.state === 'entering') { arm = p.state === 'riot' ? -2.6 + Math.sin(G.time * 7 + p.phase) * 0.5 : -0.8; }

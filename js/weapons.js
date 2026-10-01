@@ -2,13 +2,15 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, blast } from './core.js';
 import { sfx } from './audio.js';
+import { Hand } from './hand.js';
 
+// the order here is the order of the buttons and the 1-5 keys; FREE HAND comes first and is selected on load
 export const WEAPONS = [
-  { name: 'LASER', color: 0xff5a3c, radius: 1.0, hold: true },
-  { name: 'BOMB', color: 0xffb347, radius: 4.2, cd: 0.3 },
-  { name: 'WIND', color: 0xbfe9ff, radius: 11, hold: true },
-  { name: 'METEOR', color: 0xff7a1a, radius: 8, cd: 1.0 },
-  { name: 'ENERGY', color: 0x8a7dff, radius: 5, cd: 0.7 },
+  { id: 'hand', name: 'FREE HAND', color: 0x9ff5d2, radius: 0.5, hold: true },
+  { id: 'laser', name: 'LASER', color: 0xff5a3c, radius: 1.0, hold: true },
+  { id: 'bomb', name: 'BOMB', color: 0xffb347, radius: 4.2, cd: 0.3 },
+  { id: 'wind', name: 'WIND', color: 0xbfe9ff, radius: 11, hold: true },
+  { id: 'meteor', name: 'METEOR', color: 0xff7a1a, radius: 8, cd: 1.0 },
 ];
 
 const BEAM_VS = `varying vec3 vN; varying vec3 vV; varying vec2 vUv;
@@ -23,15 +25,6 @@ function beamMat(color, opacity = 1) {
   const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   m.uniforms = { time: { value: 0 }, power: { value: 1 } };
   return m;
-}
-
-function bolt(a, b, jag = 1.2, segs = 14) {
-  const pts = [];
-  for (let i = 0; i <= segs; i++) {
-    const t = i / segs, s = Math.sin(t * Math.PI) * jag;
-    pts.push(new THREE.Vector3().lerpVectors(a, b, t).add(new THREE.Vector3(rand(-s, s), rand(-s, s) * 0.5, rand(-s, s))));
-  }
-  return pts;
 }
 
 export class Weapons {
@@ -68,24 +61,30 @@ export class Weapons {
     this.rockGeo = rock;
     this.rockMat = new THREE.MeshStandardMaterial({ color: 0x2a2220, roughness: 1, emissive: 0xff5010, emissiveIntensity: 1.6 });
     this.glowGeo = new THREE.IcosahedronGeometry(1, 3);
-    this.boltMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 3.2, 9), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    this.hand = new Hand(scene);
   }
 
   select(i) { this.cur = i; }
 
+  get id() { return WEAPONS[this.cur].id; }
+
   update(dt, input) {
-    const W = WEAPONS[this.cur];
+    const W = WEAPONS[this.cur], id = W.id;
     this.cd -= dt;
     this.updateReticle(W);
     this.updateProjectiles(dt);
-    const firing = input.down && this.aim && !(G.world && G.world.armed);
-    if (this.cur === 0) this.laser(dt, firing);
+    const placing = !!(G.world && G.world.armed);
+    const firing = input.down && this.aim && !placing;
+    // the Free Hand: pick up, drag and throw (never fires anything)
+    this.hand.pressed = this.hand.pressed || (input.pressed && !placing);
+    this.hand.update(dt, this.aim, firing, id === 'hand' && !placing);
+    if (id === 'laser') this.laser(dt, firing);
     else this.laser(dt, false);
     // wind is one continuous, evolving sound while held, never a restarting loop
-    if (this.cur === 2 && firing) sfx.wind(true, this.aim.point.x, this.aim.point.z, 1);
+    if (id === 'wind' && firing) sfx.wind(true, this.aim.point.x, this.aim.point.z, 1);
     else sfx.wind(false);
-    if (!firing) { this.pulseT = 0; return; }
-    if (this.cur === 2) {
+    if (!firing || id === 'hand') { this.pulseT = 0; return; }
+    if (id === 'wind') {
       this.pulseT -= dt;
       if (this.pulseT <= 0) { this.pulseT = 0.14; this.wind(this.aim.point); }
       return;
@@ -94,9 +93,8 @@ export class Weapons {
     if (this.cd > 0) return;
     this.cd = W.cd;
     const p = this.aim.point.clone();
-    if (this.cur === 1) this.dropBomb(p);
-    if (this.cur === 3) this.callMeteor(p);
-    if (this.cur === 4) this.energy(p);
+    if (id === 'bomb') this.dropBomb(p);
+    if (id === 'meteor') this.callMeteor(p);
   }
 
   updateReticle(W) {
@@ -295,58 +293,4 @@ export class Weapons {
     }
   }
 
-  // ---------- 5. energy blast ----------
-  energy(p) {
-    const fx = G.fx;
-    const orb = new THREE.Mesh(this.glowGeo, beamMat(new THREE.Color(2.5, 2.2, 7), 0.7));
-    orb.frustumCulled = false;
-    this.scene.add(orb);
-    const top = p.clone().add(new THREE.Vector3(0, 30, 0));
-    sfx.charge(p.x, p.z);
-    fx.anims.push({ dur: 0.45, t: 0, fn: (k) => {
-      orb.position.lerpVectors(top, p.clone().add(new THREE.Vector3(0, 2, 0)), k * k);
-      orb.scale.setScalar(0.4 + k * 1.3 + Math.random() * 0.2);
-      if (Math.random() < 0.5) fx.sparks(orb.position.x, orb.position.y, orb.position.z, 3, 1.5, 1.6, 5, 4);
-    }, end: () => { this.scene.remove(orb); this.energyStrike(p); } });
-  }
-
-  energyStrike(p) {
-    const B = G.buildings, fx = G.fx;
-    sfx.zap(p.x, p.z);
-    const sky = p.clone().add(new THREE.Vector3(rand(-3, 3), 60, rand(-3, 3)));
-    const targets = [];
-    B.query(p.x, p.z, 9, (c) => { if (c.alive && !c.falling && Math.random() < 0.08) targets.push(new THREE.Vector3(c.x, c.y, c.z)); });
-    for (const c of G.agents.cars) if (c.pos.distanceTo(p) < 10) targets.push(c.pos.clone().add(new THREE.Vector3(0, 0.4, 0)));
-    for (const l of G.city.lamps) if (Math.hypot(l.x - p.x, l.z - p.z) < 10) targets.push(new THREE.Vector3(l.x, 2.2, l.z));
-    targets.sort(() => Math.random() - 0.5).splice(7);
-    const meshes = [];
-    const regen = () => {
-      for (const m of meshes) { this.scene.remove(m); m.geometry.dispose(); }
-      meshes.length = 0;
-      const add = (a, b, r, jag) => {
-        const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(bolt(a, b, jag)), 24, r, 4);
-        const m = new THREE.Mesh(g, this.boltMat); m.frustumCulled = false;
-        this.scene.add(m); meshes.push(m);
-      };
-      add(sky, p, 0.12, 4); add(sky.clone().add(new THREE.Vector3(rand(-6, 6), 0, rand(-6, 6))), p, 0.06, 3);
-      for (const t of targets) add(p.clone().add(new THREE.Vector3(0, 0.5, 0)), t, 0.04, 0.8);
-    };
-    regen();
-    let flick = 0;
-    fx.anims.push({ dur: 0.5, t: 0, fn: (k) => { flick++; if (flick % 3 === 0) regen(); this.boltMat.opacity = 1 - k * 0.6; },
-      end: () => { for (const m of meshes) { this.scene.remove(m); m.geometry.dispose(); } this.boltMat.opacity = 1; } });
-    fx.flash(p.x, p.y + 4, p.z, 0x9a8cff, 260, 0.6, 70);
-    fx.fireball(p.x, p.y + 0.5, p.z, 4, 0.5, new THREE.Color(0.45, 0.5, 1.4));
-    fx.ring(p.x, p.y + 0.1, p.z, 16, 0.5, 0x8a7dff, 0.9);
-    fx.ring(p.x, p.y + 0.1, p.z, 26, 0.9, 0x5fd0ff, 0.5);
-    fx.sparks(p.x, p.y + 0.5, p.z, 160, 1.8, 2.2, 6, 16);
-    for (const t of targets) { fx.sparks(t.x, t.y, t.z, 25, 2, 2.4, 6, 6); B.damageSphere(t.x, t.y, t.z, 1.2, 90, 0.5, 0.4); }
-    B.damageSphere(p.x, p.y, p.z, 5.2, 250, 0.7, 0.35);
-    if (p.y < 0.6) { G.ground.scorch(p.x, p.z, 4, 0.6); this.groundChunks(p, 8, 7); }
-    // residual crackle
-    fx.anims.push({ dur: 2.2, t: 0, fn: () => { if (Math.random() < 0.4) fx.sparks(p.x + rand(-2, 2), p.y + rand(0, 1.5), p.z + rand(-2, 2), 5, 1.5, 1.8, 5, 3); } });
-    G.shake = Math.max(G.shake, 0.5);
-    blast(p.x, p.y, p.z, 26, 11, 'energy');
-    G.emergency && G.emergency.report(p.x, p.z, 1.2);
-  }
 }
