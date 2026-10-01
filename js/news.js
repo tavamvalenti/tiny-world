@@ -11,9 +11,9 @@ const GAP = { 2: 2.5, 1: 18 };                      // minimum quiet before a br
 // channel look per tag: [tag colour, tag text colour]
 const TAGS = {
   BREAKING: ['#d7141c', '#fff'], 'TRAFFIC ALERT': ['#f28a0f', '#fff'], WEATHER: ['#0f8fb8', '#fff'], UPDATE: ['#f4c20d', '#10183a'],
-  LOCAL: ['#f4c20d', '#10183a'], FESTIVAL: ['#8a2be2', '#fff'], SPORTS: ['#1f9d55', '#fff'],
+  LOCAL: ['#f4c20d', '#10183a'], FESTIVAL: ['#8a2be2', '#fff'], SPORTS: ['#1f9d55', '#fff'], URGENT: ['#c3001a', '#fff'],
 };
-const ES_TAG = { BREAKING: 'ÚLTIMA HORA', 'TRAFFIC ALERT': 'ALERTA VIAL', WEATHER: 'CLIMA', UPDATE: 'ACTUALIZACIÓN', LOCAL: 'LOCAL', FESTIVAL: 'FESTIVAL', SPORTS: 'DEPORTES' };
+const ES_TAG = { BREAKING: 'ÚLTIMA HORA', 'TRAFFIC ALERT': 'ALERTA VIAL', WEATHER: 'CLIMA', UPDATE: 'ACTUALIZACIÓN', LOCAL: 'LOCAL', FESTIVAL: 'FESTIVAL', SPORTS: 'DEPORTES', URGENT: 'URGENTE' };
 const CHANNEL = { downtown: ['SAN DIEGO', 'LIVE', 'CHANNEL 7 NEWS'], suburbs: ['CHICAGO', 'LIVE', 'CHANNEL 7 NEWS'], tropical: ['LA PLAYA', 'EN VIVO', 'NOTICIAS 7'] };
 
 // headline templates, English and Spanish ({w} = where)
@@ -37,7 +37,7 @@ const T_ES = {
   RIOT: ['Disturbios {w}; policía interviene'],
   DISTURBANCE: ['Policía atiende una riña {w}', 'Reportan pelea callejera {w}'],
   EVACUATION: ['Evacúan la zona {w}', 'Evacuación en curso {w}; eviten el área'],
-  INCIDENT: ['Servicios de emergencia atienden un reporte {w}', 'Policía y bomberos se dirigen {w}'],
+  INCIDENT: ['Servicios de emergencia atienden un reporte {w}', 'Policía y bomberos atienden una emergencia {w}'],
 };
 // the player's destruction: explosions by weapon, collapses, the damage adding up
 const B_EN = {
@@ -71,6 +71,32 @@ const R_ES = {
 const W_EN = { rain: 'Rain moving into {c}', storm: 'Storm approaching {c}; lightning possible', snow: 'Snow falling across Chicago; roads slick', clear: 'Skies clearing over {c}' };
 const W_ES = { rain: 'Lluvias llegan a La Playa', storm: 'Tormenta se acerca a La Playa; posibles rayos', clear: 'Cielos despejados en La Playa' };
 const CITY = { downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa' };
+
+// ---------- casualties: reported as they happen, in an urgent tone that grows with the toll ----------
+// {n} dead, {i} injured, {w} where, {N} the city's running toll
+const K_EN = {
+  one: ['One person killed {w}', 'A person has been killed {w}; emergency crews racing to the scene', 'Fatality confirmed {w}'],
+  few: ['{n} people killed {w}', 'Deadly scene {w}: {n} confirmed dead', '{n} dead {w}; officials urge everyone to stay away'],
+  many: ['Mass casualties {w}: at least {n} dead', 'Horror {w}: {n} killed, many more hurt', 'At least {n} dead {w}; hospitals on alert'],
+  worst: ['Catastrophe {w}: death toll climbs past {n}', 'Devastation {w}: at least {n} feared dead', 'City in shock as {n} are killed {w}'],
+  rise: ['Death toll rises to {n} {w}', 'Grim update {w}: {n} now confirmed dead', 'More bodies found {w}; toll now {n}'],
+  hurt: ['{i} people injured {w}; ambulances on the way', 'Multiple injuries reported {w}: at least {i} hurt'],
+  total: ['Death toll across {c} climbs to {N}', '{c} reeling: {N} dead so far', 'Officials confirm {N} deaths across {c}; residents told to shelter'],
+  explosion: ['Explosion kills {n} {w}', 'Deadly blast {w}: {n} dead'], meteor: ['Meteor strike kills {n} {w}', 'Sky falls {w}: {n} killed'],
+  laser: ['Mysterious beam kills {n} {w}'], wind: ['Freak winds leave {n} dead {w}'], shooting: ['Deadly shooting {w}: {n} killed', 'Gunfire {w} leaves {n} dead'],
+};
+const K_ES = {
+  one: ['Muere una persona {w}', 'Reportan una persona sin vida {w}', 'Confirman un fallecido {w}'],
+  few: ['{n} muertos {w}', 'Tragedia {w}: {n} personas sin vida', '{n} muertos {w}; piden evitar la zona'],
+  many: ['Masacre {w}: al menos {n} muertos', 'Horror {w}: {n} muertos y decenas de heridos', 'Al menos {n} muertos {w}; hospitales en alerta'],
+  worst: ['Catástrofe {w}: más de {n} muertos', 'Devastación {w}: se temen al menos {n} muertos', 'Conmoción en La Playa: {n} muertos {w}'],
+  rise: ['Sube a {n} la cifra de muertos {w}', 'Ya son {n} los muertos {w}'],
+  hurt: ['{i} heridos {w}; ambulancias en camino', 'Reportan al menos {i} heridos {w}'],
+  total: ['Sube a {N} la cifra de muertos en La Playa', 'La Playa en duelo: {N} muertos hasta ahora'],
+  explosion: ['Explosión deja {n} muertos {w}'], meteor: ['Meteorito deja {n} muertos {w}'], laser: ['Misterioso rayo deja {n} muertos {w}'],
+  wind: ['Vientos dejan {n} muertos {w}'], shooting: ['Balacera deja {n} muertos {w}', 'Ataque armado {w}: {n} muertos'],
+};
+const MILESTONES = [10, 25, 50, 100, 200, 350, 500, 750, 1000];
 
 // ---------- places: street names on the road grid, named landmarks, and what kind of building got hit ----------
 // Streets run along the map's grid lines (x = north-south streets, west to east; z = east-west streets, north to
@@ -128,6 +154,10 @@ const CSS = `
 #newsTicker .live{display:inline-flex;align-items:center;gap:5px;color:#ff4d4d;font-weight:700}
 #newsTicker .live:before{content:'';width:5px;height:5px;border-radius:50%;background:#ff4d4d}
 #newsTicker .bar{position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--accent);transform-origin:left;opacity:.85}
+#newsTicker.urgent{border-color:rgba(255,45,60,.75);animation:newsUrgent 1.1s ease-in-out infinite}
+#newsTicker.urgent .head{font-weight:800}
+@keyframes newsUrgent{0%,100%{box-shadow:0 0 0 1px rgba(255,40,55,.35),0 10px 34px rgba(170,0,20,.35)}50%{box-shadow:0 0 0 1px rgba(255,60,70,.8),0 10px 46px rgba(220,0,30,.65)}}
+@media (prefers-reduced-motion: reduce){#newsTicker.urgent{animation:none}}
 @media (max-width:760px){#newsTicker{width:calc(100vw - 32px)}#newsTicker .head{font-size:13px}}
 html.touch #newsTicker{top:calc(env(safe-area-inset-top,0px) + 64px);bottom:auto;left:10px;right:10px;width:auto;transform:translateY(-10px);border-radius:14px}
 html.touch #newsTicker.on{transform:none}
@@ -265,11 +295,13 @@ export class News {
     if (key && G.time - (this.last[key] ?? -1e9) < (prio > 1 ? 12 : 120)) return;
     if (key) this.last[key] = G.time;
     // breaking news goes ahead of everyday items; the queue stays short so what's shown is current
-    if (prio > 1) { const k = this.queue.findIndex((q) => q.prio <= 1); this.queue.splice(k < 0 ? this.queue.length : k, 0, { tag, text, prio }); this.queue = this.queue.slice(0, 5); }
+    if (prio > 2) { this.queue.unshift({ tag, text, prio }); this.queue = this.queue.slice(0, 5); }
+    else if (prio > 1) { const k = this.queue.findIndex((q) => q.prio <= 1); this.queue.splice(k < 0 ? this.queue.length : k, 0, { tag, text, prio }); this.queue = this.queue.slice(0, 5); }
     else if (this.queue.length < 3) this.queue.push({ tag, text, prio });
   }
   // a world event was raised
   event(ev) {
+    if (ev.type === 'SHOOTING' || ev.type === 'GANG_CONFLICT') this.cause = { kind: 'shooting', x: ev.x, z: ev.z, t: G.time };
     const T = ev.type, fill = (s) => s.replace('{w}', this.where(ev.x, ev.z)).replace('{c}', CITY[this.map]);
     let tag, text;
     if (T === 'WEATHER_EVENT') { tag = 'WEATHER'; const t = (this.es ? W_ES : W_EN)[ev.news]; text = t && fill(t); }
@@ -286,6 +318,7 @@ export class News {
   }
   // the player's weapons (only the big ones make the news; one story per kind every few seconds)
   onBlast(x, y, z, r, power, kind) {
+    if (kind !== 'collapse' && power >= 1.5) this.cause = { kind: kind === 'bomb' ? 'explosion' : kind, x, z, t: G.time };
     if (!B_EN[kind] || kind === 'collapse' || (kind !== 'laser' && power < 5)) return;
     const t = this.placeHeadline(kind, x, z, 1.5) || pick((this.es ? B_ES : B_EN)[kind]).replace('{w}', this.where(x, z));
     this.post('BREAKING', t, 2, 'blast-' + kind);
@@ -300,8 +333,52 @@ export class News {
     const t = (this.es ? R_ES : R_EN)[ev.type];
     if (t) this.post('UPDATE', t.replace('{w}', this.where(ev.x, ev.z)), 1.2, 'up-' + ev.type);
   }
+  // ---------- casualties ----------
+  // n killed / i hurt at (x, z): gathered into one incident per place and moment, reported once it settles,
+  // with follow-ups as the toll rises (the crowds at Petco and Summer Smash report theirs here too)
+  casualty(x, z, n = 1, i = 0) {
+    const inc = (this.incs ||= []).find((c) => Math.hypot(c.x - x, c.z - z) < 35 && G.time - c.last < 90);
+    if (inc) { inc.dead += n; inc.hurt += i; inc.last = G.time; if (n) inc.lastDead = G.time; }
+    else this.incs.push({ x, z, dead: n, hurt: i, t0: G.time, last: G.time, lastDead: n ? G.time : -1e9, said: 0, saidHurt: 0 });
+    this.total = (this.total || 0) + n;
+  }
+  scanCasualties() {
+    for (const p of G.agents ? G.agents.peds : []) {
+      if (p.dead) { if (!p._toll) { p._toll = true; this.casualty(p.pos.x, p.pos.z, 1, 0); } }
+      else { p._toll = false; if (p.state === 'down' || p.state === 'air') { if (!p._hurt && p.threat) { p._hurt = true; this.casualty(p.pos.x, p.pos.z, 0, 1); } } else if (p.state !== 'carried') p._hurt = false; }
+    }
+  }
+  reportCasualties() {
+    const K = this.es ? K_ES : K_EN;
+    for (const c of this.incs || []) {
+      // wait for things to settle a moment, but don't sit on a big toll
+      if (c.dead > c.said && (G.time - c.lastDead > 2.5 || c.dead - c.said >= 12)) {
+        const w = this.where(c.x, c.z), n = c.dead;
+        const cause = this.cause && G.time - this.cause.t < 10 && Math.hypot(this.cause.x - c.x, this.cause.z - c.z) < 40 ? this.cause.kind : null;
+        let t;
+        if (c.said > 0) t = pick(K.rise);
+        else if (n >= 20) t = pick(K.worst);
+        else if (cause && K[cause] && n > 1 && Math.random() < 0.6) t = pick(K[cause]);
+        else t = pick(n === 1 ? K.one : n < 6 ? K.few : K.many);
+        let text = t.replace('{w}', w).replace('{n}', n);
+        if (c.said === 0 && c.hurt >= 2 && n > 1) text += this.es ? `; ${c.hurt} heridos` : `; ${c.hurt} injured`;
+        this.post('URGENT', text, 3, null);
+        if (!c.said) this.nIncidents = (this.nIncidents || 0) + 1;
+        c.said = n; c.saidHurt = c.hurt;
+      } else if (c.said === 0 && c.dead === 0 && c.hurt - c.saidHurt >= 5 && G.time - c.last > 2.5) {
+        this.post('BREAKING', pick(K.hurt).replace('{w}', this.where(c.x, c.z)).replace('{i}', c.hurt), 2, null);
+        c.saidHurt = c.hurt;
+      }
+    }
+    this.incs = (this.incs || []).filter((c) => G.time - c.last < 90);
+    // milestones for the whole city
+    const m = MILESTONES.filter((v) => v <= (this.total || 0)).pop();
+    // (only once the deaths come from more than one scene, otherwise it just repeats the last report)
+    if (m && m !== this.mile && (this.nIncidents || 0) > 1) { this.mile = m; this.post('URGENT', pick(K.total).replace('{N}', this.total).replace('{c}', CITY[this.map]), 3, null); }
+  }
   update(dt) {
     this.quiet += dt;
+    if ((this.casT = (this.casT || 0) - dt) <= 0) { this.casT = 0.25; this.scanCasualties(); this.reportCasualties(); }
     // banners switched off in Settings: nothing shows (and nothing piles up for later)
     if (settings.news === false) { if (this.showT > 0 || this.queue.length) { this.showT = 0; this.queue.length = 0; this.el.classList.remove('on'); } return; }
     // the damage adds up: a running tally every so often while things are being destroyed
@@ -330,7 +407,8 @@ export class News {
     const bar = this.el.querySelector('.bar');
     bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)'; void bar.offsetWidth;
     bar.style.transition = `transform ${SHOW}s linear`; bar.style.transform = 'scaleX(0)';
+    this.el.classList.toggle('urgent', q.tag === 'URGENT');
     this.el.classList.add('on');
-    this.showT = SHOW;
+    this.showT = q.tag === 'URGENT' ? SHOW + 2 : SHOW;
   }
 }

@@ -637,16 +637,19 @@ export class Concert {
     }
     this.lastAttack = { kind, x, z, time: G.time };
     const kill = kind === 'wind' ? r * 0.55 : r * 0.28;
+    let dead = 0, hurt = 0;
     if (power > 1.5) for (let i = 0; i < this.N; i++) {
       const h = this.home[i]; if (h.gone || h.out) continue;
       const dx = h[0] - x, dz = h[2] - z, d = Math.hypot(dx, dz);
       if (d >= kill) continue;
       const f = power * (1 - d / kill) * 0.8;
       h.gone = true; h.run = null; this.setJump(i, 0);
+      if (f > 2) dead++; else hurt++;                                     // for the news
       this.flyers.push({ i, p: new THREE.Vector3(h[0], h[1], h[2]), v: new THREE.Vector3(dx / (d + 0.1) * f, f * 0.9 + 1, dz / (d + 0.1) * f), rot: 0, spin: rand(-8, 8), yaw: rand(0, 6.28), bleed: f > 2 });
       // fans are one merged mesh, so no limbs come off here: spray and spatter, and a pool where they land
       if (G.gore && G.gore.on && Math.random() < 0.6) { G.gore.spray(h[0], h[1] + 0.35, h[2], 6 + Math.round(Math.min(12, f * 2)), dx / (d + 0.1), dz / (d + 0.1), 0.7 + Math.min(1.2, f * 0.15)); if (Math.random() < 0.5) G.gore.splat(h[0], h[2], 0.2 + Math.min(0.3, f * 0.03), dx / (d + 0.1), dz / (d + 0.1)); }
     }
+    if ((dead || hurt) && G.news && G.news.casualty) G.news.casualty(x, z, dead, hurt);
     this.evacuate(x, z);
   }
 

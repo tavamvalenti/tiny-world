@@ -657,10 +657,12 @@ class Crowd {
   groan() { this.hype = 0.02; this.hypeT = 2; this.arms = 0; }
   onBlast(x, y, z, r, power) {
     const kill = r * 0.5;
+    let lost = 0;
     for (let i = 0; i < this.N; i++) {
       const [px, , pz] = this.pts[i];
-      if (Math.hypot(px - x, pz - z) < kill && !this.gone[i]) { this.gone[i] = 1; this.place(i, false); if (G.gore && G.gore.on && Math.random() < 0.15) G.gore.pool(px, pz, rand(0.2, 0.35)); }
+      if (Math.hypot(px - x, pz - z) < kill && !this.gone[i]) { this.gone[i] = 1; lost++; this.place(i, false); if (G.gore && G.gore.on && Math.random() < 0.15) G.gore.pool(px, pz, rand(0.2, 0.35)); }
     }
+    if (lost && G.news && G.news.casualty) G.news.casualty(x, z, Math.ceil(lost * 0.6), Math.floor(lost * 0.4));   // fans in the blast: most killed, the rest hurt
     this.mesh.instanceMatrix.needsUpdate = true;
     this.hype = 0; this.hypeT = 0; this.arms = 0; this.wave = -1;
   }

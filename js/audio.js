@@ -486,7 +486,7 @@ export const sfx = {
   bombFall(x, z, T) {
     if (!init()) return;
     // the recorded whistle, started so it finishes as the bomb lands (it's 3.95 s long)
-    if (SMP.whistle) { if (T >= 3.9) setTimeout(() => slice('whistle', 'fall', x, z, { vol: 0.9 }), (T - 3.9) * 1000); else slice('whistle', 'fall', x, z, { vol: 0.9, skip: 3.9 - T }); return; }
+    if (SMP.whistle) { if (T >= 3.9) setTimeout(() => slice('whistle', 'fall', x, z, { vol: 0.4 }), (T - 3.9) * 1000); else slice('whistle', 'fall', x, z, { vol: 0.4, skip: 3.9 - T }); return; }   // kept low: loud, it sounded cartoonish
     const t = now();
     const ch = chain(x, z, { vol: 0.9 });
     // falling whistle: pitch drops as it approaches, air rush swells
