@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick } from './core.js';
-import { sfx } from './audio.js';
 import { carGeos } from './agents.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
@@ -361,7 +360,7 @@ export class Harbor {
           if (p) { G.roles.look(p, 'TOURIST'); G.roles.visit(p, { x: s.door.x + rand(-0.8, 0.8), z: s.door.z }, rand(60, 120), true); }
         }
         if (s.t < 25 && !s.warned) { s.warned = true; G.news && G.news.post('LOCAL', 'Cruise ship preparing to depart the harbor.', 1, 'cruise-dep'); }
-        if (s.t <= 0) { s.phase = 'departing'; s.v = 0; s.warned = false; sfx.shipHorn && sfx.shipHorn(s.x, s.sz); }
+        if (s.t <= 0) { s.phase = 'departing'; s.v = 0; s.warned = false; }
       } else if (s.phase === 'departing') {
         // out into the channel, swing round to the north and sail up the bay toward the sea
         s.z ??= s.sz; s.yaw ??= Math.PI;
@@ -374,7 +373,7 @@ export class Harbor {
       } else if (s.phase === 'arriving') {
         // down the bay, turn at the pier, back in to the berth
         if (s.z < s.sz - 0.1) { const d = s.sz - s.z; s.z += Math.max(0.4, Math.min(3.2, d * 0.04)) * dt; }
-        else { s.z = s.sz; s.yaw += (Math.PI - s.yaw) * Math.min(1, dt * 0.35); if (Math.abs(s.yaw - Math.PI) < 0.05) { const d = s.sx - s.x; s.x += Math.max(0.25, Math.min(1.6, d * 0.05)) * dt; if (d < 0.05) { s.x = s.sx; s.yaw = Math.PI; s.phase = 'boarding'; s.t = rand(150, 280); sfx.shipHorn && sfx.shipHorn(s.x, s.sz); } } }
+        else { s.z = s.sz; s.yaw += (Math.PI - s.yaw) * Math.min(1, dt * 0.35); if (Math.abs(s.yaw - Math.PI) < 0.05) { const d = s.sx - s.x; s.x += Math.max(0.25, Math.min(1.6, d * 0.05)) * dt; if (d < 0.05) { s.x = s.sx; s.yaw = Math.PI; s.phase = 'boarding'; s.t = rand(150, 280); } } }
       }
       s.g.position.x = s.x; if (s.z != null) s.g.position.z = s.z; if (s.yaw != null) s.g.rotation.y = s.yaw;
     }
