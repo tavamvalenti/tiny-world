@@ -30,6 +30,7 @@ import { Director } from './director.js';
 import { initMenu } from './menu.js';
 import { Playa, terrainH } from './playa.js';
 import { SanDiego } from './sandiego.js';
+import { Pets } from './pets.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 
@@ -178,6 +179,7 @@ function load(name) {
   G.agents = new Agents(scene, map.city, map.agents);
   G.chaos = new Chaos(G.agents);
   new Roles(scene, map.city, name, sites);                 // sets G.roles
+  new Pets(scene, name, map.city);                          // dogs on walks, a groundskeeper mowing (sets G.pets)
   G.responders = new Responders(scene, map.city);
   G.station = map.city.policeHQ ? new Station(scene, map.city.policeHQ, name) : null;
   G.world = new World(scene);
@@ -336,6 +338,7 @@ function step(dt) {
   G.responders.update(dt);
   G.station && G.station.update();
   G.playa && G.playa.update(dt);
+  G.pets && G.pets.update(dt);
   G.sandiego && G.sandiego.update();
   G.construction && G.construction.update(dt);
   G.world.update(dt);

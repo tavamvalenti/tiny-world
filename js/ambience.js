@@ -6,11 +6,12 @@ import { sfx, CASUAL, REACT, pickLine } from './audio.js';
 const R = (a, b) => a + Math.random() * (b - a);
 const pick = (a) => a[(Math.random() * a.length) | 0];
 
-// events per second, per map (the synthesized shop music and distant boat hoots are off: they sounded artificial)
+// events per second, per map (the synthesized shop music and distant boat hoots are off: they sounded artificial;
+// dogs bark and the mower runs from js/pets.js, where there's actually a dog or someone mowing)
 const RATES = {
   downtown: { line: 1 / 4, car: 1.3, horn: 0.1, siren: 1 / 45, chatter: 1.6, say: 0, music: 0, birds: 0.05, dog: 0, mower: 0, construct: 1 / 25, gull: 0.05, boat: 0, stadium: 1 / 7 },
-  tropical: { line: 1 / 4.5, car: 0.45, horn: 0.03, siren: 1 / 150, chatter: 1.0, say: 0, music: 0, birds: 0.08, dog: 1 / 80, mower: 0, construct: 0, gull: 0.18, boat: 0 },
-  suburbs: { line: 1 / 6, car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 0, birds: 0.35, dog: 1 / 16, mower: 1 / 45, construct: 1 / 120, gull: 0, boat: 0 },
+  tropical: { line: 1 / 4.5, car: 0.45, horn: 0.03, siren: 1 / 150, chatter: 1.0, say: 0, music: 0, birds: 0.08, dog: 0, mower: 0, construct: 0, gull: 0.18, boat: 0 },
+  suburbs: { line: 1 / 6, car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 0, birds: 0.35, dog: 0, mower: 0, construct: 1 / 120, gull: 0, boat: 0 },
 };
 // city: the recorded city ambience (assets/amb-city.mp4); murmur: crowd voices; waves: the sea
 const BEDS = {
@@ -248,6 +249,8 @@ export class Ambience {
   }
 
   bird(gull) {
+    // gulls: only when one is actually flying near the camera, from where it is
+    if (gull) { const T = G.camTarget, bd = G.sky && G.sky.nearestBird && G.sky.nearestBird(T.x, T.z, 50); if (bd && sfx.gull(bd.x, bd.z, bd.n > 4 && Math.random() < 0.25)) return; if (!bd) return; }
     const I = this.I, t = I.ctx.currentTime, p = this.spotNear(45);
     const ch = I.chain(p.x, p.z, { bus: I.ambBus, vol: gull ? 0.5 : 0.35 });
     if (gull) {

@@ -271,7 +271,10 @@ function recorded(kind, x, z, vol = 1) {
 // ---------- recorded sound effects (assets/sfx-*.mp4): bat, crowd, fire, cars, sirens ----------
 // Decoded at 22 kHz mono and levelled to the same peak; each one is played as a slice (with short fades) through
 // the same positional chain as everything else, so distance muffling still applies.
-const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fire: 'assets/sfx-fire.mp4', cars: 'assets/sfx-cars.mp4', fireSiren: 'assets/sfx-firetruck.mp4', policeSiren: 'assets/sfx-police.mp4', crash: 'assets/sfx-crash.mp4' };
+const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fire: 'assets/sfx-fire.mp4', cars: 'assets/sfx-cars.mp4', fireSiren: 'assets/sfx-firetruck.mp4', policeSiren: 'assets/sfx-police.mp4', crash: 'assets/sfx-crash.mp4',
+  bell: 'assets/sfx-bell.mp4', dog: 'assets/sfx-dog.mp4', gull: 'assets/sfx-gull.mp4', whistle: 'assets/sfx-whistle.mp4', collapse: 'assets/sfx-collapse.mp4', boom: 'assets/sfx-boom.mp4', pyro: 'assets/sfx-pyro.mp4', glass: 'assets/sfx-glass.mp4', dunk: 'assets/sfx-dunk.mp4', net: 'assets/sfx-net.mp4', horn: 'assets/sfx-horn.mp4', thunder: 'assets/sfx-thunder.mp4', rain: 'assets/sfx-rain.mp4', mower: 'assets/sfx-mower.mp4' };
+// where each take sits inside its (trimmed, compressed) file: [offset, duration] in seconds, grouped by kind
+const SL = {"bell":{"bell":[[0.1,2.6]]},"dog":{"bark":[[0.1,0.58],[0.8,0.6]]},"gull":{"call":[[0.1,0.6],[0.82,0.75],[1.69,0.35],[2.16,0.37],[2.65,0.65],[3.42,0.9],[4.44,0.7]],"flock":[[5.26,2.05],[7.43,2.0],[9.55,2.2],[11.87,2.1]]},"whistle":{"fall":[[0.1,3.95]]},"collapse":{"collapse":[[0.1,5.5],[5.72,5.5],[11.34,5.5],[16.96,5.5],[22.58,5.5]]},"boom":{"boom":[[0.1,4.4],[4.62,4.9]]},"pyro":{"burst":[[0.1,2.9]]},"glass":{"break":[[0.1,0.75],[0.97,0.92],[2.01,0.9],[3.03,1.03],[4.18,0.97],[5.27,0.9],[6.29,0.9],[7.31,0.77],[8.2,1.0],[9.32,0.87]]},"dunk":{"dunk":[[0.1,0.95],[1.17,0.95],[2.24,1.15]],"bounce":[[3.51,0.32],[3.95,0.27],[4.34,0.32],[4.78,0.24],[5.14,0.28],[5.54,0.25]]},"net":{"swish":[[0.1,0.55],[0.77,0.77],[1.66,0.47],[2.25,0.53],[2.9,0.5],[3.52,0.66],[4.3,0.63],[5.05,0.65],[5.82,0.85],[6.79,0.43]]},"horn":{"honk":[[0.1,0.85],[1.07,0.62],[1.81,0.53],[2.46,0.88],[3.46,1.06],[4.64,0.85],[5.61,1.03]],"long":[[6.76,4.11]]},"thunder":{"roll":[[0.1,12.5]]}};
 const SMP = {};
 function loadSamples() {
   const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
@@ -292,7 +295,23 @@ function sample(name, x, z, { vol = 1, offset = 0, dur = null, fade = 0.05, rate
   s.start(t, offset, D + 0.05);
   return { ch, s, g, D };
 }
-let carsPlaying = 0, fireLoop = null;
+// play one take of a recorded sound: a random one from the group (or o.pick), optionally skipping into it
+function slice(name, group, x, z, o = {}) {
+  const list = SL[name] && SL[name][group];
+  if (!list || !SMP[name]) return null;
+  const [off, dur] = list[o.pick != null ? o.pick % list.length : (Math.random() * list.length) | 0];
+  const skip = Math.min(o.skip || 0, dur - 0.05), rate = o.rate || 1;
+  return sample(name, x, z, { fade: 0.01, ...o, offset: off + skip, dur: (o.len ?? dur - skip) / rate });
+}
+// a recorded loop held at a level (rain, the lawnmower): returns { set(level), move(x, z), stop() }
+function loopOf(name, x, z, { bus = ambBus } = {}) {
+  const buf = SMP[name]; if (!buf) return null;
+  const ch = chain(x, z, { vol: 1, bus }), s = ctx.createBufferSource(), g = amp(0);
+  s.buffer = buf; s.loop = true; s.loopStart = 0.05; s.loopEnd = buf.duration - 0.03;
+  s.connect(g); g.connect(ch.input); s.start(now(), 0.05 + Math.random() * (buf.duration - 0.2));
+  return { set(v, tc = 0.4) { g.gain.setTargetAtTime(A.muted ? 0 : v, now(), tc); }, move(x, z) { ch.move(x, z, 0.3); }, stop() { g.gain.setTargetAtTime(0, now(), 0.3); s.stop(now() + 1.5); } };
+}
+let carsPlaying = 0, fireLoop = null, rainLoop = null;
 
 function voice(kind, x, z, vol = 1, rate = 1) {
   // screams use the recordings once they're loaded; if too many are already going, this one stays silent
@@ -466,6 +485,8 @@ export const sfx = {
 
   bombFall(x, z, T) {
     if (!init()) return;
+    // the recorded whistle, started so it finishes as the bomb lands (it's 3.95 s long)
+    if (SMP.whistle) { if (T >= 3.9) setTimeout(() => slice('whistle', 'fall', x, z, { vol: 0.9 }), (T - 3.9) * 1000); else slice('whistle', 'fall', x, z, { vol: 0.9, skip: 3.9 - T }); return; }
     const t = now();
     const ch = chain(x, z, { vol: 0.9 });
     // falling whistle: pitch drops as it approaches, air rush swells
@@ -506,6 +527,16 @@ export const sfx = {
   // Layered explosion: crack, body, sub thump, debris, secondary thumps, echo tail.
   boom(x, z, size = 1, kind = 'bomb') {
     if (!init()) return;
+    if (SMP.boom) {
+      // the recorded explosion: lower and longer for big blasts and meteors, a little higher for small ones
+      const rate = kind === 'meteor' ? 0.78 : kind === 'small' ? 1.15 : Math.max(0.82, 1.02 - size * 0.08);
+      slice('boom', 'boom', x, z, { vol: 1.15 * Math.min(1.7, 0.6 + size * 0.5), rate: rate * R(0.97, 1.03), echo: 0.6 });
+      if (kind === 'meteor') slice('collapse', 'collapse', x, z, { vol: 0.7, rate: 0.85, skip: 0.6 });                  // the ground rumbling after
+      if (kind === 'energy') { const ch = chain(x, z, { vol: 1 }), t = now(); tone(ch.input, t, { type: 'sawtooth', f: 1400, f1: 90, a: 0.002, peak: 0.25, d: 0.5 }); }
+      if (kind !== 'meteor') sfx.glass(x, z, 10 * size, 0.12);
+      G.camTarget && sfx.duck(kind === 'meteor' ? 0.15 : 0.35, kind === 'meteor' ? 3 : 1.2);
+      return;
+    }
     const t = now();
     const s = spatial(x, z);
     const ch = chain(x, z, { vol: 1.1 * Math.min(1.8, size), echoAmt: 0.7, wetBoost: kind === 'meteor' ? 0.25 : 0.1 });
@@ -545,6 +576,8 @@ export const sfx = {
 
   crumble(x, z, size = 1) {
     if (!init()) return;
+    // a chunk breaking off: a short stretch of rubble from inside one of the recorded collapses
+    if (SMP.collapse) { slice('collapse', 'collapse', x, z, { vol: 0.45 * Math.min(1.6, size), skip: R(1, 3.5), len: 0.9, fade: 0.08, rate: R(1, 1.15) }); return; }
     const t = now(), ch = chain(x, z, { vol: 0.6 * size });
     burst(ch.input, t, { buf: brown, type: 'lowpass', f: 400, a: 0.005, peak: 0.6, d: 0.35 });
     for (let i = 0; i < 6; i++) burst(ch.input, t + R(0, 0.5), { f: R(800, 4000), q: 3, a: 0.001, peak: R(0.05, 0.2), d: 0.04 });
@@ -552,6 +585,7 @@ export const sfx = {
   collapse(x, z, n) {
     if (!init()) return;
     const t = now(), sz = Math.min(3, 0.6 + n / 40);
+    if (SMP.collapse) { slice('collapse', 'collapse', x, z, { vol: 0.75 * sz, rate: Math.max(0.8, 1.05 - sz * 0.08), echo: 0.5 }); sfx.duck(0.4, 2); return; }
     const ch = chain(x, z, { vol: 1.1 * sz, echoAmt: 0.6, wetBoost: 0.15 });
     burst(ch.input, t, { buf: brown, type: 'lowpass', f: 500, sweep: 120, a: 0.15, peak: 1.1, d: 2.5 + sz });
     burst(ch.input, t, { buf: pink, type: 'lowpass', f: 2500, sweep: 300, a: 0.05, peak: 0.5, d: 1.8 + sz });
@@ -562,6 +596,8 @@ export const sfx = {
   },
   glass(x, z, n = 8, delay = 0) {
     if (!init()) return;
+    // one to three recorded breaks, a beat apart, depending on how much glass goes
+    if (SMP.glass) { const k = n > 14 ? 3 : n > 6 ? 2 : 1; for (let i = 0; i < k; i++) setTimeout(() => slice('glass', 'break', x, z, { vol: 0.45, rate: R(0.92, 1.1) }), (delay + i * R(0.08, 0.25)) * 1000); return; }
     const t = now() + delay, ch = chain(x, z, { vol: 0.5 });
     for (let i = 0; i < n; i++) {
       const dt = R(0, 0.6);
@@ -611,6 +647,7 @@ export const sfx = {
   // trolley bell: two bright struck tones, rung twice
   bell(x, z) {
     if (!init()) return;
+    if (slice('bell', 'bell', x, z, { vol: 0.55, bus: ambBus, fade: 0.05 })) return;   // the recorded warning bell
     const t = now(), ch = chain(x, z, { vol: 0.5, bus: ambBus });
     for (const k of [0, 0.32]) for (const f of [1480, 2230, 3690]) tone(ch.input, t + k, { f, a: 0.002, peak: f === 1480 ? 0.12 : 0.05, d: 0.9 });
   },
@@ -666,6 +703,7 @@ export const sfx = {
   // concert pyro: a gas whoomp with crackle
   pyro(x, z, big = false) {
     if (!init()) return;
+    if (slice('pyro', 'burst', x, z, { vol: big ? 0.85 : 0.5, rate: big ? 0.9 : R(1, 1.12), echo: 0.4 })) return;   // the recorded flame burst
     const t = now(), ch = chain(x, z, { vol: big ? 0.8 : 0.45, echoAmt: 0.4 });
     burst(ch.input, t, { buf: brown, type: 'lowpass', f: 900, sweep: 200, a: 0.03, peak: 0.9, d: big ? 0.9 : 0.5 });
     burst(ch.input, t, { buf: pink, type: 'bandpass', f: 1800, q: 0.8, a: 0.02, peak: 0.35, d: 0.4 });
@@ -674,6 +712,16 @@ export const sfx = {
   // weather: a steady hiss of rain on the city, and thunder (a crack close up, a long rumble far away)
   rain(level) {
     if (!ctx) return;
+    // the recorded downpour (rain only: the thunder in that recording is kept for lightning strikes)
+    if (SMP.rain && !rainNode) {
+      if (!rainLoop && level > 0.01) {
+        const s = ctx.createBufferSource(), g = amp(0); s.buffer = SMP.rain; s.loop = true; s.loopStart = 0.05; s.loopEnd = SMP.rain.duration - 0.03;
+        s.connect(g); g.connect(ambBus); s.start(now(), Math.random() * 3);
+        rainLoop = g;
+      }
+      if (rainLoop) rainLoop.gain.setTargetAtTime(level * 0.55, now(), 0.6);
+      return;
+    }
     if (!rainNode && level > 0.01) {
       const n = noise(pink), hp = filt('highpass', 700), lp = filt('lowpass', 7000); rainNode = amp(0);
       n.connect(hp); hp.connect(lp); lp.connect(rainNode); rainNode.connect(ambBus); n.start();
@@ -682,6 +730,8 @@ export const sfx = {
   },
   thunder(x, z, v = 1) {
     if (!init()) return;
+    // the recorded roll: a strike close by comes in sharp; far off it's slower, deeper and softer
+    if (SMP.thunder) { const D = spatial(x, z).D; slice('thunder', 'roll', x, z, { vol: 0.9 * v, rate: D < 40 ? 1 : R(0.82, 0.92), skip: D < 40 ? 0.3 : 0, echo: 0.6, bus: ambBus }); return; }
     const t = now(), s = spatial(x, z), ch = chain(x, z, { vol: 0.9 * v, echoAmt: 0.8, wetBoost: 0.3 });
     const close = s.D < 40;
     if (close) burst(ch.input, t, { type: 'highpass', f: 1200, a: 0.002, peak: 0.8, d: 0.25 });
@@ -692,23 +742,35 @@ export const sfx = {
   // streetball: ball on asphalt, rim clank, net swish
   bounce(x, z, v = 1) {
     if (!init()) return;
+    if (slice('dunk', 'bounce', x, z, { vol: 0.5 * v, rate: R(0.95, 1.05) })) return;   // a recorded dribble
     const t = now(), ch = chain(x, z, { vol: 0.35 * v });
     tone(ch.input, t, { f: 140, f1: 70, a: 0.002, peak: 0.5, d: 0.07 });
     burst(ch.input, t, { buf: brown, type: 'lowpass', f: 900, a: 0.001, peak: 0.25, d: 0.04 });
   },
   rim(x, z) {
     if (!init()) return;
+    if (slice('dunk', 'dunk', x, z, { vol: 0.35, rate: R(1.05, 1.15), len: 0.45 })) return;   // the iron ringing off a miss
     const t = now(), ch = chain(x, z, { vol: 0.4, echoAmt: 0.3 });
     for (const f of [690, 1140, 1830]) tone(ch.input, t, { type: 'triangle', f, a: 0.001, peak: 0.12, d: 0.35 });
     burst(ch.input, t, { f: 2500, q: 2, a: 0.001, peak: 0.2, d: 0.05 });
   },
+  // a dog barking where it stands (one or two barks)
+  bark(x, z, vol = 0.6) { if (!init()) return false; const h = slice('dog', 'bark', x, z, { vol, rate: R(0.92, 1.12) }); if (h && Math.random() < 0.45) setTimeout(() => slice('dog', 'bark', x, z, { vol: vol * 0.9, rate: R(0.92, 1.12) }), R(250, 500)); return !!h; },
+  // a gull calling from where it flies; a whole flock squabbling now and then
+  gull(x, z, flock = false) { return init() ? !!slice('gull', flock ? 'flock' : 'call', x, z, { vol: flock ? 0.4 : 0.5, rate: R(0.94, 1.08), bus: ambBus, fade: 0.06 }) : false; },
+  // the lawnmower engine, held while someone is mowing (returns a handle: set(level) / move(x, z) / stop())
+  mowerLoop(x, z) { return init() ? loopOf('mower', x, z) : null; },
+  // a dunk: the ball slammed through the rim (recorded)
+  dunk(x, z) { if (init() && !slice('dunk', 'dunk', x, z, { vol: 0.75 })) { sfx.rim(x, z); sfx.swish(x, z); } },
   swish(x, z) {
     if (!init()) return;
+    if (slice('net', 'swish', x, z, { vol: 0.55 })) return;   // the recorded net
     const t = now(), ch = chain(x, z, { vol: 0.35 });
     burst(ch.input, t, { buf: pink, f: 3200, q: 0.7, a: 0.03, peak: 0.25, d: 0.22 });
   },
   horn(x, z, vol = 0.5) {
     if (!init()) return;
+    if (slice('horn', vol > 0.55 ? 'long' : 'honk', x, z, { vol: vol * 1.1, rate: R(0.94, 1.06), len: vol > 0.55 ? R(1.2, 2.6) : undefined, fade: 0.04 })) return;   // the recorded V8 horn
     const t = now(), ch = chain(x, z, { vol });
     const n = Math.random() < 0.4 ? 2 : 1, f = R(350, 480);
     for (let k = 0; k < n; k++) {

@@ -281,7 +281,7 @@ class Game {
         if (b.make) {
           b.mode = 'drop'; b.p.set(h.x, h.y - 0.02, h.z); b.v.set(0, -1.4, 0); b.lock = 1 - b.shooter.team;
           h.wobble = 0.6;
-          if (near) b.dunk ? sfx.rim(h.x, h.z) : sfx.swish(h.x, h.z);
+          if (near) b.dunk ? (sfx.dunk ? sfx.dunk(h.x, h.z) : sfx.rim(h.x, h.z)) : sfx.swish(h.x, h.z);
         } else {
           b.mode = 'loose'; b.lock = null;
           const a = Math.atan2(b.p.z - h.z, b.p.x - h.x);

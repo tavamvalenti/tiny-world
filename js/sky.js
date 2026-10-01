@@ -167,6 +167,15 @@ export class Sky {
     }
   }
 
+  // the bird closest to (x, z) within r, with how many of its flock are near it: { x, y, z, n } or null
+  nearestBird(x, z, r = 50) {
+    let best = null, bd = r;
+    for (const f of this.flocks) for (const b of f.birds) {
+      const bx = f.x + b.ox, bz = f.z + b.oz, d = Math.hypot(bx - x, bz - z);
+      if (d < bd) { bd = d; best = { x: bx, y: f.y + b.oy, z: bz, n: f.birds.length }; }
+    }
+    return best;
+  }
   update(dt) {
     const T = G.camTarget, M = this.map;
     // schedule: rare, and never two of a kind at once

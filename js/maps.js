@@ -663,6 +663,7 @@ export function suburbs(B) {
       B.add({ x: cx - 4, z: b.lz0 + 4, w: 18, d: 6, floors: 3, style: 'brick', tint: chicagoBrick(), cell: 1.7, gh: 1.4, fh: 1.1 });
       B.add({ x: b.lx0 + 3.5, z: cz + 2, w: 5, d: 8, floors: 3, style: 'brick', tint: chicagoBrick(), cell: 1.7, gh: 1.4, fh: 1.1 });
       city.paintGrass(g, cx - 1.5, cz + 0.5, cx + 11.5, cz + 9.5, '#667a3e');
+      (city.lawns ||= []).push({ x0: cx - 1, x1: cx + 11, z0: cz + 1, z1: cz + 9, name: 'school field' });   // mowed by the groundskeeper (js/pets.js)
       g.x.save(); g.x.strokeStyle = '#a4553d'; g.x.lineWidth = 1.2 * g.k;
       g.x.beginPath(); g.x.ellipse(g.px(cx + 5), g.px(cz + 5), 5.6 * g.k, 3.4 * g.k, 0, 0, 6.283); g.x.stroke(); g.x.restore();
       for (let fx = b.lx0 + 0.5; fx < b.lx1; fx += 1) { city.addProp('chainlink', fx, b.lz1 - 0.15, 0); city.addProp('chainlink', fx, b.lz0 + 0.15, 0); }
@@ -694,6 +695,7 @@ export function suburbs(B) {
       const z0 = b.lz0 + 1.2, D = cz - alleyW / 2 - 1.5 - z0, W = b.lx1 - b.lx0 - 3, tint = chicagoBrick();
       g.rect(b.lx0, b.lz0, b.lx1, cz - alleyW / 2, '#5f5e5a');
       city.paintGrass(g, cx - W / 2 + 5, z0, cx + W / 2 - 5, z0 + D - 4.5, '#667a3e');
+      (city.lawns ||= []).push({ x0: cx - W / 2 + 5.5, x1: cx + W / 2 - 5.5, z0: z0 + 0.5, z1: z0 + D - 5, name: 'courtyard' });
       g.rect(cx - 0.5, b.lz0, cx + 0.5, z0 + D - 4.5, '#aaa59b');
       const abandoned = Math.random() < 0.3;
       for (const o of [{ x: cx - W / 2 + 2.5, z: z0 + D / 2, w: 5, d: D }, { x: cx + W / 2 - 2.5, z: z0 + D / 2, w: 5, d: D }, { x: cx, z: z0 + D - 2.25, w: W - 10, d: 4.5 }]) {
