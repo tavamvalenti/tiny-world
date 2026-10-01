@@ -14,7 +14,7 @@ const RATES = {
 };
 const BEDS = {
   downtown: { traffic: 0.34, murmur: 0.5, wind: 0.05, hum: 0.05, waves: 0.5 },
-  tropical: { traffic: 0.12, murmur: 0.35, wind: 0.12, hum: 0.0, waves: 0.9 },
+  tropical: { traffic: 0.12, murmur: 0.35, wind: 0.12, hum: 0.0, waves: 0.5 },
   suburbs: { traffic: 0.05, murmur: 0.12, wind: 0.08, hum: 0.0, waves: 0 },
 };
 

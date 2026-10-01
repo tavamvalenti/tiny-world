@@ -341,7 +341,8 @@ export class Playa {
   speakers(scene) {
     this.spk = [];
     const SKIN = [0xf1c9a5, 0xd9a47a, 0xb97a55, 0x8d5a3b, 0x6a4230], SUIT = [0xd6336c, 0x1c7ed6, 0x2b8a3e, 0xf59f00, 0x212529, 0xe8590c, 0x7048e8];
-    for (const [x, z, ry] of [[-44, -30.4, 0.3], [-19, -31, -0.2], [21, -30.6, 0.15], [39, -31.2, -0.35]]) {
+    // eight groups along the sand, clear of the two piers (x = -2 and 50)
+    for (const [x, z, ry] of [[-56, -29.8, 0.25], [-44, -30.4, 0.3], [-31, -31.4, -0.1], [-19, -31, -0.2], [9, -30.2, 0.4], [21, -30.6, 0.15], [39, -31.2, -0.35], [59, -30.6, 0.2]]) {
       const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
       const parts = [];
       // towels, then the people on them: lying face-up (head toward the land), and one sitting at the front

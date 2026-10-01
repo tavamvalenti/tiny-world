@@ -957,7 +957,7 @@ export const beachRadio = {
     // a short reach: loud-ish right by a speaker, gone about 36 units away (the zoom counts a little, not like the concert)
     const D = Math.hypot(bd, T.dist * 0.15), near = Math.max(0, Math.min(1, 1 - (D - 6) / 30));
     this.level = Math.pow(near, 1.7);
-    this.out.gain.setTargetAtTime(0.16 * this.level, t, 0.15);
+    this.out.gain.setTargetAtTime(0.21 * this.level, t, 0.15);   // about half the concert at its loudest
     this.lp.frequency.setTargetAtTime(600 + 9000 * Math.pow(near, 1.5), t, 0.15);
     const s = spatial(best.x, best.z);
     this.pan.pan.setTargetAtTime(s.pan * 0.7, t, 0.15);
