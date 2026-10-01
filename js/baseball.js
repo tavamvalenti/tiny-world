@@ -477,7 +477,8 @@ export class Baseball {
       // fireworks over centre field
       for (let k = 0; k < 6; k++) setTimeout(() => { const x = c.x + rand(-6, 6), z = c.z + rand(-6, 6), y = rand(14, 20); G.fx.flash(x, y, z, pick([0xffc425, 0xffffff, 0xff6a3a]), 60, 0.3, 40); G.fx.sparks(x, y, z, 40, 6, 5, 3, 6); if (this.near()) sfx.pyro && sfx.pyro(x, z, true); }, k * 350);
     } else this.crowd.groan();
-    G.news && G.news.post('SPORTS', home ? 'Home run! San Diego goes deep at Petco Park' : 'Visitors homer at Petco Park; the crowd goes quiet', 1.5, 'hr');
+    const opp = (G.petco && G.petco.opp) || ['the visitors', 'Visitors'];
+    G.news && G.news.post('SPORTS', home ? pick([`Home run! The Padres go deep against the ${opp[1]}`, `Padres homer at Petco Park; the crowd erupts`]) : `${opp[1]} homer at Petco Park; the crowd goes quiet`, 1.5, 'hr');
   }
   walkOff() {
     // game over (or called): both teams head for the dugouts and out of sight
@@ -557,7 +558,7 @@ export class Baseball {
     x.fillText(`${this.half === 0 ? 'TOP' : 'BOT'} ${this.inning}  ·  ${this.outs} OUT${this.outs === 1 ? '' : 'S'}`, 8 + w * 0.26, h * 0.7);
     x.fillText(`BALLS ${this.balls}  STRIKES ${this.strikes}`, 8 + w * 0.26, h * 0.85);
     x.textAlign = 'left'; x.font = `800 ${h * 0.16}px Inter, Arial`;
-    [['VIS', this.score[1]], ['SD', this.score[0]]].forEach(([a, s], i) => {
+    [[(G.petco && G.petco.opp && G.petco.opp[2]) || 'VIS', this.score[1]], ['SD', this.score[0]]].forEach(([a, s], i) => {
       x.fillStyle = a === 'SD' ? '#ffc425' : '#9ea3a9'; x.fillText(a, w * 0.6, h * (0.32 + i * 0.34));
       x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(String(s), w * 0.95, h * (0.32 + i * 0.34)); x.textAlign = 'left';
     });

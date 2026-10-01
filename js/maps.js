@@ -659,6 +659,7 @@ export function suburbs(B) {
       continue;
     }
     if (key === '1,1') { // public school: three-storey brick, asphalt schoolyard, a small field
+      city.school = { x0: b.lx0, x1: b.lx1, z0: b.lz0, z1: b.lz1 };       // named in the news (js/news.js)
       g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#5e5d59'); g.grainRect(b.lx0, b.lz0, b.lx1, b.lz1, 0.25, 40);
       B.add({ x: cx - 4, z: b.lz0 + 4, w: 18, d: 6, floors: 3, style: 'brick', tint: chicagoBrick(), cell: 1.7, gh: 1.4, fh: 1.1 });
       B.add({ x: b.lx0 + 3.5, z: cz + 2, w: 5, d: 8, floors: 3, style: 'brick', tint: chicagoBrick(), cell: 1.7, gh: 1.4, fh: 1.1 });

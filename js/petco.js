@@ -6,6 +6,18 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick } from './core.js';
 import { Baseball } from './baseball.js';
 
+// the Padres host a real MLB club each game: [full name, nickname, scoreboard abbreviation]
+export const MLB = [
+  ['Arizona Diamondbacks', 'Diamondbacks', 'ARI'], ['Athletics', 'Athletics', 'ATH'], ['Atlanta Braves', 'Braves', 'ATL'], ['Baltimore Orioles', 'Orioles', 'BAL'],
+  ['Boston Red Sox', 'Red Sox', 'BOS'], ['Chicago Cubs', 'Cubs', 'CHC'], ['Chicago White Sox', 'White Sox', 'CWS'], ['Cincinnati Reds', 'Reds', 'CIN'],
+  ['Cleveland Guardians', 'Guardians', 'CLE'], ['Colorado Rockies', 'Rockies', 'COL'], ['Detroit Tigers', 'Tigers', 'DET'], ['Houston Astros', 'Astros', 'HOU'],
+  ['Kansas City Royals', 'Royals', 'KC'], ['Los Angeles Angels', 'Angels', 'LAA'], ['Los Angeles Dodgers', 'Dodgers', 'LAD'], ['Miami Marlins', 'Marlins', 'MIA'],
+  ['Milwaukee Brewers', 'Brewers', 'MIL'], ['Minnesota Twins', 'Twins', 'MIN'], ['New York Mets', 'Mets', 'NYM'], ['New York Yankees', 'Yankees', 'NYY'],
+  ['Philadelphia Phillies', 'Phillies', 'PHI'], ['Pittsburgh Pirates', 'Pirates', 'PIT'], ['San Francisco Giants', 'Giants', 'SF'], ['Seattle Mariners', 'Mariners', 'SEA'],
+  ['St. Louis Cardinals', 'Cardinals', 'STL'], ['Tampa Bay Rays', 'Rays', 'TB'], ['Texas Rangers', 'Rangers', 'TEX'], ['Toronto Blue Jays', 'Blue Jays', 'TOR'],
+  ['Washington Nationals', 'Nationals', 'WSH'],
+];
+
 const NAVY = new THREE.Color(0x1c2945), NAVY2 = new THREE.Color(0x24345a);
 const FANS = [0xf2efe6, 0xf2efe6, 0xffc425, 0x6b4a2e, 0x6b4a2e, 0xe8c4a8, 0x9a6b4c, 0x2f241d, 0x2f241d, 0xbfd3e6].map((c) => new THREE.Color(c).lerp(NAVY, 0.35));
 
@@ -108,6 +120,7 @@ export class Petco {
     for (let i = 1; i <= 8; i++) this.seatRows.push({ o: 4.8 + (i - 0.5) * 0.36, y: 3.5 + (i - 0.5) * 0.33 });
     // game day: game -> ending (the stands empty, fans pour out, traffic builds) -> empty (staff clean) -> pregame
     this.phase = 'game'; this.phaseT = rand(220, 340); this.fillT = 0;
+    this.opp = pick(MLB);                                              // tonight's visitors
     // end caps where the bowl stops at the foul poles
     const shape = new THREE.Shape(prof.map(([o, y]) => new THREE.Vector2(o, y)));
     for (const [p, dir] of [[path[0], 1], [path[path.length - 1], -1]]) {
@@ -241,7 +254,11 @@ export class Petco {
     if (this.phase === 'game' && this.phaseT <= 0) {
       this.phase = 'ending'; this.phaseT = 70;
       const sc = this.game ? this.game.score : null;
-      this.news(sc ? `Final at Petco Park: San Diego ${sc[0]}, Visitors ${sc[1]}` : 'Final out at Petco Park; fans heading home.');
+      const [full, nick] = this.opp;
+      this.news(!sc ? `Final out at Petco Park; fans heading home after Padres–${nick}.`
+        : sc[0] > sc[1] ? pick([`Padres beat the ${full} ${sc[0]}-${sc[1]} at Petco Park`, `Final at Petco Park: Padres ${sc[0]}, ${nick} ${sc[1]}`])
+        : sc[0] < sc[1] ? pick([`${full} top the Padres ${sc[1]}-${sc[0]} at Petco Park`, `Final at Petco Park: ${nick} ${sc[1]}, Padres ${sc[0]}`])
+        : `Padres and ${nick} tied ${sc[0]}-${sc[1]} as play ends at Petco Park`);
       // traffic builds on the streets round the park
       if (A && G.world) for (let k = 0; k < 8; k++) { const c = A.borrowCar(this.center, 60); if (c && !c.moto) { const g = pick(this.gates()); G.world.onRoad(c, g.x + rand(-8, 8), g.z + rand(2, 6)); } }
     } else if (this.phase === 'ending') {
@@ -254,8 +271,8 @@ export class Petco {
       }
       if (this.phaseT <= 0) { this.phase = 'empty'; this.phaseT = rand(60, 90); this.setFill(0); }
     } else if (this.phase === 'empty' && this.phaseT <= 0) {
-      this.phase = 'pregame'; this.phaseT = 80;
-      this.news('Gates open at Petco Park; fans arriving for tonight\'s game.');
+      this.phase = 'pregame'; this.phaseT = 80; this.opp = pick(MLB.filter((t) => t !== this.opp));
+      this.news(pick([`Gates open at Petco Park: the Padres host the ${this.opp[0]} tonight`, `Padres vs. ${this.opp[0]} tonight; fans arriving at Petco Park`]));
     } else if (this.phase === 'pregame') {
       this.setFillSoon(1 - Math.max(0, this.phaseT / 80));
       // people nearby head in through the gates
@@ -264,7 +281,7 @@ export class Petco {
         const p = A.peds.find((q) => q.state === 'walk' && !q.role && !q.officer && Math.hypot(q.pos.x - this.center.x, q.pos.z - this.center.z) < 45);
         if (p) R.visit(p, pick(this.gates()), rand(40, 90));
       }
-      if (this.phaseT <= 0) { this.phase = 'game'; this.phaseT = rand(220, 340); this.setFill(1); this.news('Home game under way at Petco Park.'); }
+      if (this.phaseT <= 0) { this.phase = 'game'; this.phaseT = rand(220, 340); this.setFill(1); this.news(`First pitch at Petco Park: ${this.opp[1]} at Padres`); }
     }
   }
   setFillSoon(f) { if (Math.abs(f - this.fill) > 0.04) this.setFill(f); }
@@ -273,7 +290,7 @@ export class Petco {
     if (!this.game || kind === 'collapse') return;
     if (this.game.onBlast(x, y, z, r, power) && (this.phase === 'game' || this.phase === 'pregame')) {
       this.phase = 'ending'; this.phaseT = 70;
-      this.news('Game suspended at Petco Park after an explosion in the stands');
+      this.news(`Padres–${this.opp[1]} game suspended at Petco Park after an explosion in the stands`);
     }
   }
   update(dt = 0) {

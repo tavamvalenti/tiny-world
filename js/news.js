@@ -72,6 +72,46 @@ const W_EN = { rain: 'Rain moving into {c}', storm: 'Storm approaching {c}; ligh
 const W_ES = { rain: 'Lluvias llegan a La Playa', storm: 'Tormenta se acerca a La Playa; posibles rayos', clear: 'Cielos despejados en La Playa' };
 const CITY = { downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa' };
 
+// ---------- places: street names on the road grid, named landmarks, and what kind of building got hit ----------
+// Streets run along the map's grid lines (x = north-south streets, west to east; z = east-west streets, north to
+// south). Downtown San Diego's are the real ones in the right order (the trolley runs down C Street; One America
+// Plaza and the Westin sit on Broadway at Kettner, as they do); Chicago's are South Side streets; La Playa's are
+// the kind of names every Mexican beach town has.
+const STREETS = {
+  downtown: { x: ['Kettner Boulevard', 'India Street', 'Columbia Street', 'Union Street', 'Front Street', 'Fourth Avenue', 'Fifth Avenue'], z: ['Ash Street', 'A Street', 'B Street', 'C Street', 'Broadway', 'Market Street', 'Harbor Drive'] },
+  suburbs: { x: ['Wentworth Avenue', 'State Street', 'Michigan Avenue', 'King Drive', 'Cottage Grove Avenue'], z: ['Pershing Road', '43rd Street', '47th Street', '51st Street', 'Garfield Boulevard'] },
+  tropical: { x: ['Calle Hidalgo', 'Calle Morelos', 'Calle Juárez', 'Calle Zaragoza', 'Calle Allende', 'Calle Guerrero'], z: ['Paseo del Malecón', 'Avenida México', 'Calle Insurgentes', 'Calle Independencia'] },
+};
+const RESORTS = ['Hotel Playa Dorada', 'Hotel Costa Azul', 'Hotel Las Palmas', 'Hotel Vista del Mar', 'Hotel Bahía Real', 'Hotel Marena', 'Hotel Sol y Arena', 'Hotel Coral'];
+const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const an = (s) => (/^[aeiou]|^eight|^eleven/i.test(s) ? 'an ' : 'a ') + s;
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+// a landmark: { S: subject ("OXXO", "The Manchester Grand Hyatt San Diego"), o: object ("an OXXO", "the Manchester
+// Grand Hyatt San Diego"), es: Spanish ("un OXXO"), near: where-phrase when merely close by }
+const LM = (S, o = S, es = o) => ({ S, o, es });
+// landmark headlines (the subject is a named place) and everyday-building ones (the subject is "a three-story ...")
+const L_EN = {
+  FIRE: ['{S} catches fire', 'Fire breaks out at {o}', 'Flames reported at {o}; crews responding'],
+  SHOOTING: ['Shots fired at {o}; police on scene'], EVACUATION: ['{S} being evacuated', 'Evacuation under way at {o}'],
+  INCIDENT: ['Emergency crews responding to {o}'], explosion: ['Explosion at {o}', 'Blast rocks {o}'],
+  meteor: ['Meteor slams into {o}!', 'Object falls from the sky onto {o}'], laser: ['Mysterious beam sets {o} ablaze'],
+  wind: ['Violent winds batter {o}'], collapse: ['Part of {o} comes down', '{S} partially collapses'],
+};
+const L_ES = {
+  FIRE: ['Se incendia {es}', 'Incendio en {es}; bomberos en camino'], SHOOTING: ['Reportan disparos en {es}'], EVACUATION: ['Evacúan {es}'],
+  INCIDENT: ['Emergencia en {es}'], explosion: ['Explosión en {es}', 'Fuerte explosión sacude {es}'], meteor: ['¡Cae un meteorito sobre {es}!'],
+  laser: ['Misterioso rayo incendia {es}'], wind: ['Fuertes vientos azotan {es}'], collapse: ['Se derrumba parte de {es}', 'Colapsa {es}'],
+};
+const D_EN = {
+  FIRE: ['Fire tears through {d} {w}', 'Crews battle a fire at {d} {w}', 'Smoke pouring from {d} {w}'],
+  explosion: ['Explosion rocks {d} {w}', 'Blast tears through {d} {w}'], meteor: ['Meteor smashes into {d} {w}!'],
+  collapse: ['{D} collapses {w}', 'Part of {d} comes down {w}'],
+};
+const D_ES = {
+  FIRE: ['Se incendia {d} {w}', 'Incendio en {d} {w}'], explosion: ['Explosión sacude {d} {w}'], meteor: ['¡Meteorito cae sobre {d} {w}!'],
+  collapse: ['Se derrumba {d} {w}', 'Colapsa {d} {w}'],
+};
+
 const CSS = `
 #newsTicker{position:fixed;left:50%;bottom:96px;width:clamp(320px,calc(100vw - 540px),600px);z-index:6;pointer-events:none;font-family:Inter,system-ui,sans-serif;
   opacity:0;transform:translate(-50%,12px);transition:opacity .4s ease,transform .5s cubic-bezier(.2,.8,.2,1);
@@ -110,26 +150,117 @@ export class News {
   }
 
   get es() { return this.map === 'tropical' && settings.spanish !== false; }
-  // "near Petco Park", "on the waterfront", "en la playa"... or just the part of town
+  // ---------- places ----------
+  // named landmarks with their footprints (built on first use, once everything on the map exists)
+  lms() {
+    if (this._lms) return this._lms;
+    const C = this.city, L = [];
+    const rect = (r, lm, m = 0, extra = {}) => r && L.push({ ...lm, ...extra, x0: r.x0 - m, x1: r.x1 + m, z0: r.z0 - m, z1: r.z1 + m });
+    const bld = (b, lm) => b && L.push({ ...lm, x0: b.x - b.w / 2, x1: b.x + b.w / 2, z0: b.z - b.d / 2, z1: b.z + b.d / 2 });
+    const hq = C.policeHQ ? { x0: C.policeHQ.x - 9, x1: C.policeHQ.x + 9, z0: C.policeHQ.z - 9, z1: C.policeHQ.z + 9 } : null;
+    if (this.map === 'downtown') {
+      for (const l of C.landmarks || []) {
+        if (l.kind === 'oneAmerica') bld(l.b, LM('One America Plaza'));
+        if (l.kind === 'emerald') for (const t of l.towers) bld(t, LM('The Westin San Diego Bayview', 'the Westin San Diego Bayview'));
+        if (l.kind === 'hyatt') for (const t of l.towers) bld(t, LM('The Manchester Grand Hyatt San Diego', 'the Manchester Grand Hyatt San Diego'));
+      }
+      rect(C.petco, LM('Petco Park'), 3);
+      rect(hq, LM('San Diego Police Headquarters'));
+    } else if (this.map === 'suburbs') {
+      rect(C.concert, LM('Summer Smash', 'the Summer Smash grounds'), 2);
+      rect(C.court, LM('The streetball courts', 'the streetball courts'), 1);
+      rect(C.school, LM('Washington Park Elementary'));
+      rect(hq, LM('The Chicago Police district station', 'the Chicago Police district station'));
+    } else {
+      const P = C.playa || {};
+      for (const o of P.oxxo || []) L.push({ ...(o.gas ? LM('OXXO Gas', 'an OXXO Gas station', 'una gasolinera OXXO') : LM('OXXO', 'an OXXO', 'un OXXO')), street: true, x0: o.x - o.w / 2, x1: o.x + o.w / 2, z0: o.z, z1: o.z + 3.6 });
+      (P.hotels || []).forEach((h, k) => { const n = RESORTS[k % RESORTS.length]; bld(h, LM(n, n, 'el ' + n)); });
+      for (const f of P.food || []) L.push({ ...(f.kind === 'taco' ? LM('A taco stand', 'a taco stand', 'un puesto de tacos') : LM('A fruit stand', 'a fruit stand', 'un puesto de fruta')), street: true, x0: f.x - 1, x1: f.x + 1, z0: f.z - 1, z1: f.z + 1 });
+      for (const p of P.piers || []) L.push({ ...LM('The pier', 'the pier', 'el muelle'), x0: p.x - 1, x1: p.x + 1, z0: Math.min(p.z0, p.z1), z1: Math.max(p.z0, p.z1) });
+      rect(hq, LM('Police headquarters', 'police headquarters', 'la comandancia'));
+    }
+    return (this._lms = L);
+  }
+  // the landmark at (x, z) (m = how close counts), the Coronado Bridge included
+  landmarkAt(x, z, m = 0) {
+    for (const l of this.lms()) if (x > l.x0 - m && x < l.x1 + m && z > l.z0 - m && z < l.z1 + m) return l;
+    const P = this.city.bridgePath;
+    if (P) for (let k = 0; k + 1 < P.length; k++) {
+      const [ax, az] = P[k], [bx, bz] = P[k + 1], dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+      if (Math.hypot(ax + dx * t - x, az + dz * t - z) < 4 + m * 0.4) return { ...LM('The Coronado Bridge', 'the Coronado Bridge', 'el puente de Coronado'), bridge: true };
+    }
+    return null;
+  }
+  // the nearest street, or the intersection when it's right at a corner: { on } or { at: [a, b] }
+  street(x, z) {
+    const S = STREETS[this.map], C = this.city;
+    if (!S || !C.xs || !C.zs) return null;
+    const near = (arr, v) => arr.reduce((b, a, k) => (Math.abs(v - a) < b.d ? { k, d: Math.abs(v - a) } : b), { k: 0, d: 1e9 });
+    const nx = near(C.xs, x), nz = near(C.zs, z), X = S.x[nx.k], Z = S.z[nz.k];
+    if (!X || !Z) return null;
+    if (nx.d < 6 && nz.d < 6) return { at: [Z, X] };
+    return { on: nx.d < nz.d ? X : Z };
+  }
+  streetPhrase(x, z) {
+    const s = this.street(x, z);
+    if (!s) return null;
+    if (this.es) return s.at ? `en ${s.at[0]} esquina con ${s.at[1]}` : `en ${s.on}`;
+    return s.at ? `at ${s.at[0]} and ${s.at[1]}` : `on ${s.on}`;
+  }
+  // the ordinary building at a spot, described like a reporter would ("a three-story brick building", "a two-flat")
+  buildingAt(x, z) {
+    let best = null, bd = 2.2;
+    G.buildings && G.buildings.query(x, z, 2.2, (c) => { if (!c.b) return; const d = Math.hypot(c.x - x, c.z - z); if (d < bd) { bd = d; best = c.b; } });
+    if (!best) return null;
+    const n = best.floors || 1, st = best.style, m = this.map;
+    let kind = 'building', storeys = true;
+    if (m === 'suburbs') {
+      if (st === 'flat') { kind = n <= 2 ? 'two-flat' : n === 3 ? 'three-flat' : 'apartment building'; storeys = n > 3; }
+      else if (st === 'house') { kind = 'home'; storeys = false; } else if (st === 'garage') { kind = 'garage'; storeys = false; }
+      else if (st === 'boarded') kind = 'vacant building'; else if (st === 'brick') kind = 'brick building';
+    } else if (m === 'downtown') {
+      kind = (st === 'office' || st === 'concrete') ? (n >= 10 ? 'office tower' : 'office building') : st === 'brick' ? 'brick building' : 'building';
+    } else {
+      if (st === 'stucco' && n <= 2) { kind = 'home'; storeys = false; } else if (st === 'stucco') kind = 'apartment building';
+    }
+    const en = (storeys ? `${NUM[n] || n}-story ` : '') + kind;
+    const es = m === 'tropical' && st === 'stucco' && n <= 2 ? 'una casa' : n <= 1 ? 'un local comercial' : `un edificio de ${n} pisos`;
+    return { en: an(en), es };
+  }
+  // "near Petco Park", "at Fifth Avenue and Market Street", "in the Favelas", "en Calle Morelos"...
   where(x, z) {
     const C = this.city, near = (S, m = 12) => S && x > S.x0 - m && x < S.x1 + m && z > S.z0 - m && z < S.z1 + m;
-    if (this.es) {
-      if (C.policeHQ && Math.hypot(x - C.policeHQ.x, z - C.policeHQ.z) < 25) return 'frente a la comandancia';
-      if (z > 100 && Math.abs(x - 22) < 20) return 'en el mirador del Cristo';
-      if (z > 64) return pick(['en los cerros', 'en el barrio del cerro']);
-      return z < -14 ? pick(['en la playa', 'en el malecón']) : pick(['en La Playa', 'en el centro']);
+    const L = this.landmarkAt(x, z, 6);
+    if (L) {
+      if (L.bridge) return this.es ? 'en el puente de Coronado' : 'on the Coronado Bridge';
+      const at = this.landmarkAt(x, z, 0.5) === L;
+      if (!L.street) return this.es ? (at ? 'en ' : 'cerca de ') + L.es : (at ? 'at ' : 'near ') + L.o;
     }
-    if (near(C.concert, 25)) return 'near Summer Smash';
-    if (near(C.court, 10)) return 'by the streetball courts';
-    if (near(C.petco, 14)) return 'near Petco Park';
-    if (C.policeHQ && Math.hypot(x - C.policeHQ.x, z - C.policeHQ.z) < 25) return 'outside police headquarters';
-    if (C.shoreX != null && x < C.shoreX + 12) return 'on the waterfront';
+    if (this.map === 'tropical') {
+      if (z > 100 && Math.abs(x - 22) < 20) return this.es ? 'en el mirador del Cristo' : 'at the Cristo lookout';
+      if (z > 64) return this.es ? pick(['en las favelas', 'en las favelas del cerro']) : pick(['in the Favelas', 'up in the Favelas']);
+      if (z < -14) return this.es ? pick(['en la playa', 'en el malecón']) : pick(['on the beach', 'on the malecón']);
+    }
+    if (this.map === 'downtown' && C.shoreX != null && x < C.shoreX + 10) return 'on the Embarcadero';
     if (G.gangs && G.gangs.zones) { const Z = G.gangs.zones; if (near(Z.blue, 4)) return 'in Blue Line'; if (near(Z.red, 4)) return 'in Red Row'; }
-    if (this.map === 'tropical') return z > 100 && Math.abs(x - 22) < 20 ? 'at the Cristo lookout' : z > 64 ? pick(['up in the hills', 'in the hillside barrio']) : z < -14 ? pick(['on the beachfront', 'on the malecón']) : pick(['in La Playa', 'in the old town']);
-    if (this.map === 'downtown') return pick(['downtown', 'in the Gaslamp Quarter']);
-    return pick(['on the South Side', 'in Chicago']);
+    return this.streetPhrase(x, z) || (this.es ? 'en La Playa' : 'in ' + CITY[this.map]);
+  }
+  // a headline about a named landmark: {S} subject, {o} object, {es} Spanish; chain stores get their street
+  fillL(t, L, x, z) {
+    const st = L.street ? this.street(x, z) : null, on = st ? (st.on || st.at[0]) : null;
+    const S = on ? `${L.S} on ${on}` : L.S, o = on ? `${L.o} on ${on}` : L.o, es = on ? `${L.es} en ${on}` : L.es;
+    return t.replace('{S}', S).replace('{o}', o).replace('{es}', es);
+  }
+  // the best headline for something that happened at (x, z): about the landmark, else the building, else null
+  placeHeadline(kind, x, z, m = 0.8) {
+    const L = this.landmarkAt(x, z, m), Lt = (this.es ? L_ES : L_EN)[kind];
+    if (L && Lt) return this.fillL(pick(Lt), L, x, z);
+    const b = this.buildingAt(x, z), Dt = (this.es ? D_ES : D_EN)[kind];
+    if (b && Dt) { const d = this.es ? b.es : b.en; return pick(Dt).replace('{d}', d).replace('{D}', cap(d)).replace('{w}', this.streetPhrase(x, z) || this.where(x, z)); }
+    return null;
   }
   post(tag, text, prio = 1, key = null) {
+    if (this.es) text = text.replace(/\b([Dd])e el\b/g, '$1el').replace(/\b([Aa]) el\b/g, '$1l');   // Spanish contractions: del, al
     // the same kind of story isn't repeated back to back
     if (key && G.time - (this.last[key] ?? -1e9) < (prio > 1 ? 12 : 120)) return;
     if (key) this.last[key] = G.time;
@@ -147,7 +278,8 @@ export class News {
       const t = (this.es ? T_ES : T_EN)[T];
       if (!t) return;
       tag = { TRAFFIC_ACCIDENT: 'TRAFFIC ALERT', TRAFFIC_JAM: 'TRAFFIC ALERT', DISTURBANCE: 'LOCAL' }[T] || 'BREAKING';
-      text = fill(pick(t));
+      // named when it's at a landmark ("OXXO catches fire") or a building ("Fire tears through a two-flat on 47th Street")
+      text = (['FIRE', 'SHOOTING', 'EVACUATION', 'INCIDENT'].includes(T) && this.placeHeadline(T, ev.x, ev.z)) || fill(pick(t));
     }
     if (!text) return;
     this.post(tag, text, ['WEATHER_EVENT', 'FESTIVAL_EVENT', 'DISTURBANCE', 'TRAFFIC_JAM'].includes(T) ? 1.5 : 2, T);
@@ -155,12 +287,12 @@ export class News {
   // the player's weapons (only the big ones make the news; one story per kind every few seconds)
   onBlast(x, y, z, r, power, kind) {
     if (!B_EN[kind] || kind === 'collapse' || (kind !== 'laser' && power < 5)) return;
-    const t = pick((this.es ? B_ES : B_EN)[kind]).replace('{w}', this.where(x, z));
+    const t = this.placeHeadline(kind, x, z, 1.5) || pick((this.es ? B_ES : B_EN)[kind]).replace('{w}', this.where(x, z));
     this.post('BREAKING', t, 2, 'blast-' + kind);
   }
   destruction(x, z, many) {
     if (many < 4) return;
-    this.post('BREAKING', pick((this.es ? B_ES : B_EN).collapse).replace('{w}', this.where(x, z)), 2, 'collapse');
+    this.post('BREAKING', this.placeHeadline('collapse', x, z, 1.5) || pick((this.es ? B_ES : B_EN).collapse).replace('{w}', this.where(x, z)), 2, 'collapse');
   }
   // ...and wrapped up (usually: most scenes get a follow-up)
   resolved(ev) {

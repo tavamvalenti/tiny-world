@@ -248,6 +248,7 @@ export class Harbor {
     // …over to Coronado, coming down on the island by the golf course (js/sandiego.js draws the island)
     const pts = [[-40, 0.2, 128], [-70, 4, 112], [-100, 10, 96], [-128, 15, 80], [-152, 12, 64], [-170, 5, 52], [-186, 0.9, 44]]
       .map(([x, y, z]) => new THREE.Vector3(x, y, z));
+    if (G.city) G.city.bridgePath = pts.map((p) => [p.x, p.z]);           // the news knows when something happens on the bridge
     const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
     this.curve = curve;
     this.len = curve.getLength();
