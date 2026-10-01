@@ -12,10 +12,11 @@ const RATES = {
   tropical: { line: 1 / 4.5, car: 0.45, horn: 0.03, siren: 1 / 150, chatter: 1.0, say: 0, music: 1 / 18, birds: 0.08, dog: 1 / 80, mower: 0, construct: 0, gull: 0.18, boat: 1 / 70 },
   suburbs: { line: 1 / 6, car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 1 / 90, birds: 0.35, dog: 1 / 16, mower: 1 / 45, construct: 1 / 120, gull: 0, boat: 0 },
 };
+// city: the recorded city ambience (assets/amb-city.mp4); murmur: crowd voices; waves: the sea
 const BEDS = {
-  downtown: { traffic: 0.34, murmur: 0.5, wind: 0.05, hum: 0.05, waves: 0.3 },
-  tropical: { traffic: 0.12, murmur: 0.35, wind: 0.12, hum: 0.0, waves: 0.3 },
-  suburbs: { traffic: 0.05, murmur: 0.12, wind: 0.08, hum: 0.0, waves: 0 },
+  downtown: { city: 0.55, murmur: 0.5, waves: 0.3 },
+  tropical: { city: 0.22, murmur: 0.35, waves: 0.3 },
+  suburbs: { city: 0.42, murmur: 0.12, waves: 0 },
 };
 
 export class Ambience {
@@ -35,11 +36,15 @@ export class Ambience {
       s.connect(fl); fl.connect(g); g.connect(p); p.connect(ambBus); s.start();
       return { g, fl };
     };
-    this.traffic = [bed(I.brown, 'lowpass', 380, 0.7, -0.4), bed(I.brown, 'lowpass', 420, 0.7, 0.4)];
-    this.tires = bed(I.pink, 'bandpass', 900, 0.5);
-    this.wind = bed(I.pink, 'bandpass', 520, 0.6);
-    this.windLfo = 0;
-    this.hum = bed(I.brown, 'bandpass', 110, 3);
+    // the city itself: a recorded skyline ambience (distant traffic, a train going by, the air of the place), prepared
+    // as a 62 s seamless loop (its end is crossfaded into its start) and levelled; it replaces the old noise beds
+    this.city = null;
+    fetch('assets/amb-city.mp4').then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)).then((buf) => {
+      const s = ctx.createBufferSource(), g = I.amp(0);
+      s.buffer = buf; s.loop = true; s.loopStart = 0.06; s.loopEnd = buf.duration - 0.03;   // clear of any encoder padding
+      s.connect(g); g.connect(ambBus); s.start(0, 0.06 + Math.random() * (buf.duration - 1));
+      this.city = { g };
+    }).catch((e) => console.warn('city ambience unavailable', e));
     // surf: a deep rumble plus a soft, muffled wash (no bright white-noise hiss, which read as static)
     this.surf = [bed(I.brown, 'lowpass', 360, 0.6, -0.3), bed(I.pink, 'lowpass', 1100, 0.5, 0.3)];
     // crowd murmur: two decorrelated loops for width
@@ -96,23 +101,16 @@ export class Ambience {
       const s = (this.s = this.sample());
       const alt = Math.min(1, T.dist / 150);
       const close = 1 - alt * 0.5;
-      const tr = L.traffic * Math.min(1.4, 0.35 + s.cars / 14) * close;
-      this.traffic.forEach((b) => this.set(b, tr));
-      this.set(this.tires, tr * 0.12);
-      for (const b of this.traffic) b.fl.frequency.setTargetAtTime(300 + (1 - alt) * 250, this.I.ctx.currentTime, 1);
+      // the city bed: steady, a touch fuller with traffic about and when you're up high over the skyline
+      if (this.city) this.city.g.gain.setTargetAtTime(L.city * (0.85 + 0.15 * Math.min(1, s.cars / 10)) * (0.85 + 0.25 * alt), this.I.ctx.currentTime, 1.5);
       const mm = L.murmur * Math.min(1.5, s.peds / 45) * close * (1 - Math.min(0.7, s.panicked / Math.max(1, s.peds)));
       this.murmur.forEach((m) => { m.g.gain.setTargetAtTime(mm, this.I.ctx.currentTime, 1); m.lp.frequency.setTargetAtTime(1400 + (1 - alt) * 1800, this.I.ctx.currentTime, 1); });
-      this.set(this.hum, L.hum);
       // sea gets louder the closer the view is to the shoreline
       if (L.waves) {
         const near = G.city.shoreX != null ? Math.max(0, 1 - Math.max(0, T.x - G.city.shoreX) / 70) : Math.max(0, 1 - Math.max(0, T.z - (G.city.shore ?? -36)) / 90);
         this.waveLevel = L.waves * (0.25 + near * 0.75);
       }
     }
-    // gusting wind bed, stronger at altitude
-    this.windLfo += dt;
-    const gust = 0.6 + 0.4 * Math.sin(this.windLfo * 0.3) * Math.sin(this.windLfo * 0.17 + 1);
-    this.wind.g.gain.setTargetAtTime(L.wind * gust * (0.5 + T.dist / 150), this.I.ctx.currentTime, 0.5);
     // wave swells
     if (L.waves) {
       this.waveT -= dt;
