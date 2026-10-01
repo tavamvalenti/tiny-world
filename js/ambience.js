@@ -13,8 +13,8 @@ const RATES = {
   suburbs: { line: 1 / 6, car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 1 / 90, birds: 0.35, dog: 1 / 16, mower: 1 / 45, construct: 1 / 120, gull: 0, boat: 0 },
 };
 const BEDS = {
-  downtown: { traffic: 0.34, murmur: 0.5, wind: 0.05, hum: 0.05, waves: 0.5 },
-  tropical: { traffic: 0.12, murmur: 0.35, wind: 0.12, hum: 0.0, waves: 0.5 },
+  downtown: { traffic: 0.34, murmur: 0.5, wind: 0.05, hum: 0.05, waves: 0.3 },
+  tropical: { traffic: 0.12, murmur: 0.35, wind: 0.12, hum: 0.0, waves: 0.3 },
   suburbs: { traffic: 0.05, murmur: 0.12, wind: 0.08, hum: 0.0, waves: 0 },
 };
 
@@ -40,7 +40,8 @@ export class Ambience {
     this.wind = bed(I.pink, 'bandpass', 520, 0.6);
     this.windLfo = 0;
     this.hum = bed(I.brown, 'bandpass', 110, 3);
-    this.surf = [bed(I.brown, 'lowpass', 500, 0.6, -0.3), bed(I.white, 'highpass', 2500, 0.5, 0.3)];
+    // surf: a deep rumble plus a soft, muffled wash (no bright white-noise hiss, which read as static)
+    this.surf = [bed(I.brown, 'lowpass', 360, 0.6, -0.3), bed(I.pink, 'lowpass', 1100, 0.5, 0.3)];
     // crowd murmur: two decorrelated loops for width
     this.murmur = [-0.5, 0.5].map((pan) => {
       const s = ctx.createBufferSource(); s.buffer = I.voicePool.murmur; s.loop = true;
@@ -118,7 +119,7 @@ export class Ambience {
       if (this.waveT <= 0) {
         this.waveT = R(4.5, 8);
         const t = this.I.ctx.currentTime, lv = this.waveLevel || 0.3;
-        for (const [b, k] of [[this.surf[0], 0.55], [this.surf[1], 0.08]]) {
+        for (const [b, k] of [[this.surf[0], 0.45], [this.surf[1], 0.05]]) {
           b.g.gain.cancelScheduledValues(t);
           b.g.gain.setTargetAtTime(lv * k, t, 0.9);
           b.g.gain.setTargetAtTime(lv * k * 0.25, t + R(1.6, 2.4), 1.6);
