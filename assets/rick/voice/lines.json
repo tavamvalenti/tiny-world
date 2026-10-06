@@ -1,0 +1,216 @@
+[
+ {
+  "file": "both_00.mp3",
+  "speaker": "both",
+  "text": "Morty: Holy cow, Rick! I didn't know hanging out with you is making me smarter! — Rick: Full disclosure, Morty, it's not.",
+  "tags": [
+   "idle",
+   "discovery"
+  ]
+ },
+ {
+  "file": "morty_01.mp3",
+  "speaker": "morty",
+  "text": "Oh, man! Oh, oh, oh, jeez!",
+  "tags": [
+   "crash",
+   "reply"
+  ]
+ },
+ {
+  "file": "rick_03.mp3",
+  "speaker": "rick",
+  "text": "If you stick with me, I'm gonna accomplish great things, Morty… Rick and Morty forever and forever, a hundred years.",
+  "tags": [
+   "idle"
+  ]
+ },
+ {
+  "file": "rick_04.mp3",
+  "speaker": "rick",
+  "text": "Listen, Morty, what people call love is just a chemical reaction… Break the cycle, Morty. Rise above. Focus on science.",
+  "tags": [
+   "idle"
+  ]
+ },
+ {
+  "file": "morty_06.mp3",
+  "speaker": "morty",
+  "text": "Oh my god!",
+  "tags": [
+   "sonic",
+   "warp",
+   "reply"
+  ]
+ },
+ {
+  "file": "rick_07.mp3",
+  "speaker": "rick",
+  "text": "Listen to your sister, Morty. To live is to risk it all. Otherwise you're just an inert chunk of randomly assembled molecules drifting wherever the universe blows you.",
+  "tags": [
+   "idle",
+   "takeoff",
+   "land"
+  ]
+ },
+ {
+  "file": "rick_08.mp3",
+  "speaker": "rick",
+  "text": "I'll tell you how I feel about school, Jerry. It's a waste of time… It's not a place for smart people.",
+  "tags": [
+   "idle"
+  ]
+ },
+ {
+  "file": "rick_09.mp3",
+  "speaker": "rick",
+  "text": "If you'll excuse me, I've got pancakes back home with syrup on top of them… So as they say in Canada, peace oot.",
+  "tags": [
+   "idle",
+   "takeoff"
+  ]
+ },
+ {
+  "file": "rick_10.mp3",
+  "speaker": "rick",
+  "text": "Every hospital claims to have the best doctor in the galaxy. It's like those pizza places… Have you ever been to a pizza contest?",
+  "tags": [
+   "idle"
+  ]
+ },
+ {
+  "file": "rick_11.mp3",
+  "speaker": "rick",
+  "text": "Uncertainty is inherently unsustainable. Eventually, everything either is or isn't.",
+  "tags": [
+   "idle",
+   "discovery",
+   "leaveSystem",
+   "rickReply"
+  ]
+ },
+ {
+  "file": "morty_12.mp3",
+  "speaker": "morty",
+  "text": "This is insane.",
+  "tags": [
+   "fast",
+   "sonic",
+   "reply"
+  ]
+ },
+ {
+  "file": "morty_13.mp3",
+  "speaker": "morty",
+  "text": "Rick, what about the reality we left behind?",
+  "tags": [
+   "idle",
+   "leaveSystem",
+   "warp"
+  ]
+ },
+ {
+  "file": "rick_14.mp3",
+  "speaker": "rick",
+  "text": "Listen, I'm not the nicest guy in the universe, because I'm the smartest. Being nice is something stupid people do to hedge their bets.",
+  "tags": [
+   "idle",
+   "rickReply"
+  ]
+ },
+ {
+  "file": "rick_15.mp3",
+  "speaker": "rick",
+  "text": "I couldn't make marriage work, and I could turn a black hole into a sun… what are the odds this is legit?",
+  "tags": [
+   "idle"
+  ]
+ },
+ {
+  "file": "morty_16.mp3",
+  "speaker": "morty",
+  "text": "Oh, boy.",
+  "tags": [
+   "land",
+   "takeoff",
+   "reply"
+  ]
+ },
+ {
+  "file": "rick_17.mp3",
+  "speaker": "rick",
+  "text": "Did you just try to call my bluff? Have you ever seen me bluff? I'm not a cow. I'm a pickle when I feel like it.",
+  "tags": [
+   "idle",
+   "rickReply"
+  ]
+ },
+ {
+  "file": "both_x0.mp3",
+  "speaker": "both",
+  "text": "Morty: I don't like how meta this is getting, Rick. — Rick: Shut up, Morty. You're 14. You watch videos of people on YouTube reacting to fucking YouTube.",
+  "tags": [
+   "idle"
+  ]
+ },
+ {
+  "file": "rick_x1.mp3",
+  "speaker": "rick",
+  "text": "Oh god, it hurts. She got me right in the goddamn liver, Morty. It's the hardest working liver in the galaxy, and now it has a hole in it.",
+  "tags": [
+   "crash"
+  ]
+ },
+ {
+  "file": "rick_x2.mp3",
+  "speaker": "rick",
+  "text": "You're both young, you're both unsure about your place in the universe… as far as grandpa's concerned, you're both pieces of shit. I can prove it mathematically.",
+  "tags": [
+   "idle"
+  ]
+ },
+ {
+  "file": "rick_x3.mp3",
+  "speaker": "rick",
+  "text": "Pack your shit. You fuck with squirrels, Morty. We got five minutes before they're on our ass. We're fucked over here because of these damn squirrels.",
+  "tags": [
+   "idle",
+   "warp",
+   "leaveSystem"
+  ]
+ },
+ {
+  "file": "both_x4.mp3",
+  "speaker": "both",
+  "text": "Rick: Oh, that's great logic, Morty. You probably spilled this shit everywhere… — Morty: I did not spill it. — Rick: Which is why I have sidekick rules.",
+  "tags": [
+   "idle"
+  ]
+ },
+ {
+  "file": "morty_r1.mp3",
+  "speaker": "morty",
+  "text": "Oh, man!",
+  "tags": [
+   "crash",
+   "reply"
+  ]
+ },
+ {
+  "file": "morty_r2.mp3",
+  "speaker": "morty",
+  "text": "Yeah, yeah, so you keep telling me.",
+  "tags": [
+   "reply"
+  ]
+ },
+ {
+  "file": "morty_r3.mp3",
+  "speaker": "morty",
+  "text": "I was just trying to do right!",
+  "tags": [
+   "crash",
+   "reply"
+  ]
+ }
+]

@@ -33,6 +33,7 @@ import { SanDiego } from './sandiego.js';
 import { Pets } from './pets.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
+import { RickMode } from './rick.js';
 
 const TOUCH = document.documentElement.classList.contains('touch');   // phones and tablets (set in index.html)
 export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO' };
@@ -316,9 +317,14 @@ function frame(now) {
   step(dt);
 }
 // one simulation + render tick (also used by automated tests via G.step)
+let rick = null;
+const NO_INPUT = { down: false, pressed: false };
 function step(dt) {
   G.dt = dt; G.time += dt;
+  const flying = !!(rick && rick.active);
+  if (flying) rick.update(dt);                                  // Rick's ship: flies, then parks the view target on itself
   updateCamera(dt);
+  if (flying) rick.applyCamera(dt);                             // ... and the chase camera replaces the overhead one
   aim();
   tod && tod.update(dt);
   G.city.update(dt);
@@ -346,7 +352,8 @@ function step(dt) {
   G.sky && G.sky.update(dt);
   G.news && G.news.update(dt);
   updatePlacing(dt);
-  G.weapons.update(dt, input);
+  G.weapons.update(dt, flying ? NO_INPUT : input);
+  if (flying) G.weapons.reticle.visible = G.weapons.reticleDot.visible = false;
   input.pressed = false;
   G.buildings.update(dt);
   G.fx.update(dt, camera, renderer);
@@ -416,6 +423,7 @@ function flashHint(text) { placeHint.textContent = text; placeHint.classList.add
 // ---------- input ----------
 window.addEventListener('keydown', (e) => {
   if (settingsOpen) { if (e.code === 'Escape') closeSettings(); return; }
+  if (rick && rick.key(e, true)) return;                        // flying the ship: it takes the keys it uses
   keys[e.code] = true;
   if (!running) return;
   if (e.code >= 'Digit1' && e.code <= 'Digit5') selectWeapon(+e.code.slice(5) - 1);
@@ -424,7 +432,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV') resetView();
   if (e.code === 'KeyM') { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; }
 });
-window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+window.addEventListener('keyup', (e) => { keys[e.code] = false; if (rick) rick.key(e, false); });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; input.down = false; });
 canvasEl.addEventListener('mousemove', (e) => {
   input.mx = e.clientX; input.my = e.clientY;
@@ -435,6 +443,7 @@ canvasEl.addEventListener('mousedown', (e) => {
   if (TOUCH && !matchMedia('(any-pointer: fine)').matches) return;   // touch-only device: taps go through the touch code, not these copies
   if (e.button !== 0) return;
   sfx.unlock();
+  if (rick && rick.active) return;                              // the ship has its own guns
   if (G.world && G.world.armed) { startPlacing(); return; }      // placing from the WORLD menu, not firing
   input.down = true; input.pressed = true;
 });
@@ -465,6 +474,7 @@ function syncTilt() { tiltThumb.style.top = `${(cam.tiltT - TILT_MIN) / (TILT_MA
 canvasEl.addEventListener('contextmenu', (e) => { e.preventDefault(); if (G.world && G.world.armed) disarm(); });
 canvasEl.addEventListener('wheel', (e) => {
   e.preventDefault();
+  if (rick && rick.active) { rick.wheel(e); return; }
   const k = 0.0012 * settings.zoomSpeed / 100 * (settings.invertZoom ? -1 : 1);
   cam.distT = clamp(cam.distT * Math.exp(e.deltaY * k), cam.minD, cam.maxD);
 }, { passive: false });
@@ -490,6 +500,7 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     }
     $('#loading').style.display = 'none';
     $('#hud').style.display = 'block';
+    if (!TOUCH) rick = new RickMode(scene, camera, post, cam, renderer);   // the RICK & MORTY button (desktop)
     last = performance.now();
     running = true;
   }, 60);
