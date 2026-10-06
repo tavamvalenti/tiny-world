@@ -83,7 +83,7 @@ const K_EN = {
   hurt: ['{i} people injured {w}; ambulances on the way', 'Multiple injuries reported {w}: at least {i} hurt'],
   total: ['Death toll across {c} climbs to {N}', '{c} reeling: {N} dead so far', 'Officials confirm {N} deaths across {c}; residents told to shelter'],
   explosion: ['Explosion kills {n} {w}', 'Deadly blast {w}: {n} dead'], meteor: ['Meteor strike kills {n} {w}', 'Sky falls {w}: {n} killed'],
-  laser: ['Mysterious beam kills {n} {w}'], wind: ['Freak winds leave {n} dead {w}'], shooting: ['Deadly shooting {w}: {n} killed', 'Gunfire {w} leaves {n} dead'],
+  laser: ['Mysterious beam kills {n} {w}'], rick: ['Rick and Morty rampage {w}: {n} dead', '{n} killed {w} as Rick and Morty strike again', 'Rick and Morty attack leaves {n} dead {w}'], wind: ['Freak winds leave {n} dead {w}'], shooting: ['Deadly shooting {w}: {n} killed', 'Gunfire {w} leaves {n} dead'],
 };
 const K_ES = {
   one: ['Muere una persona {w}', 'Reportan una persona sin vida {w}', 'Confirman un fallecido {w}'],
@@ -93,8 +93,27 @@ const K_ES = {
   rise: ['Sube a {n} la cifra de muertos {w}', 'Ya son {n} los muertos {w}'],
   hurt: ['{i} heridos {w}; ambulancias en camino', 'Reportan al menos {i} heridos {w}'],
   total: ['Sube a {N} la cifra de muertos en La Playa', 'La Playa en duelo: {N} muertos hasta ahora'],
-  explosion: ['Explosión deja {n} muertos {w}'], meteor: ['Meteorito deja {n} muertos {w}'], laser: ['Misterioso rayo deja {n} muertos {w}'],
+  explosion: ['Explosión deja {n} muertos {w}'], meteor: ['Meteorito deja {n} muertos {w}'], laser: ['Misterioso rayo deja {n} muertos {w}'], rick: ['Ataque de Rick y Morty deja {n} muertos {w}', '{n} muertos {w}: Rick y Morty atacan de nuevo'],
   wind: ['Vientos dejan {n} muertos {w}'], shooting: ['Balacera deja {n} muertos {w}', 'Ataque armado {w}: {n} muertos'],
+};
+// ---------- Rick and Morty: regulars in the news. Everyone in town knows the green saucer by now ----------
+const RM_EN = {
+  sighted: ['Rick and Morty spotted over {w} again; residents told to stay indoors', "Here we go again: Rick Sanchez's saucer seen {w}", 'Green portal opens {w}; witnesses say it\'s Rick and Morty. Again', 'Rick and Morty are back {w}; police say they are "monitoring the situation"', "Rick Sanchez's ship hovering {w}; schools on lockdown, as usual"],
+  laser: ['Rick and Morty open fire {w}', 'Green laser fire {w}: witnesses blame Rick and Morty, again', 'Rick Sanchez shooting up {w}; Morty reportedly "really not okay with this"', 'Laser blasts rake {w}; Rick and Morty suspected, as always', 'Rick and Morty strafe {w}; insurers stop answering the phone'],
+  bomb: ['Rick and Morty drop a bomb {w}', 'Another Rick and Morty bombing {w}; officials "not even surprised anymore"', 'Bomb falls from Rick Sanchez\'s saucer {w}', 'Explosion {w}; the green saucer seen speeding away', 'Rick and Morty level part of {w}; city council calls an emergency session, again'],
+  collapse: ['Building comes down {w}; Rick and Morty seen flying off', 'Collapse {w} as Rick and Morty\'s rampage goes on', 'Structure falls {w}; residents: "it\'s Rick and Morty, it\'s always Rick and Morty"'],
+  crash: ["Rick and Morty's saucer clips a building {w}; witnesses say the pilot looked drunk", 'Flying saucer bounces off a building {w}; Rick Sanchez seen swigging from a flask', "Rick's ship scrapes the rooftops {w}; Morty heard screaming"],
+  damage: ['Rick and Morty damage bill climbs {w}: {n} building sections destroyed', '{n} sections down {w}; city adds it to the Rick Sanchez tab', 'Mayor: Rick and Morty have now destroyed {n} sections {w}'],
+  gone: ["Rick and Morty's saucer vanishes; cleanup crews move in", 'The green saucer is gone, for now; residents start sweeping up', 'Rick and Morty leave town; officials expect them back by the weekend'],
+};
+const RM_ES = {
+  sighted: ['Avistan otra vez a Rick y Morty {w}; piden no salir de casa', 'Ahí van de nuevo: el platillo de Rick Sánchez {w}', 'Se abre un portal verde {w}; testigos dicen que son Rick y Morty, otra vez'],
+  laser: ['Rick y Morty abren fuego {w}', 'Rayos verdes {w}: culpan de nuevo a Rick y Morty', 'Rick Sánchez dispara {w}; Morty "no está de acuerdo", dicen testigos'],
+  bomb: ['Rick y Morty sueltan una bomba {w}', 'Otro bombardeo de Rick y Morty {w}; autoridades "ya ni se sorprenden"', 'Cae una bomba del platillo de Rick Sánchez {w}'],
+  collapse: ['Se derrumba un edificio {w}; ven a Rick y Morty alejarse', 'Derrumbe {w}: "siempre son Rick y Morty", dicen vecinos'],
+  crash: ['El platillo de Rick y Morty choca con un edificio {w}; el piloto parecía ebrio', 'La nave de Rick roza los techos {w}; se escuchan gritos de Morty'],
+  damage: ['Crece la factura de Rick y Morty {w}: {n} secciones destruidas', '{n} secciones destruidas {w}; todo a la cuenta de Rick Sánchez'],
+  gone: ['Desaparece el platillo de Rick y Morty; comienza la limpieza', 'Rick y Morty se van de La Playa; esperan que vuelvan pronto'],
 };
 const MILESTONES = [10, 25, 50, 100, 200, 350, 500, 750, 1000];
 
@@ -316,8 +335,20 @@ export class News {
     if (!text) return;
     this.post(tag, text, ['WEATHER_EVENT', 'FESTIVAL_EVENT', 'DISTURBANCE', 'TRAFFIC_JAM'].includes(T) ? 1.5 : 2, T);
   }
+  // Rick and Morty in town: their own stories ('sighted', 'crash', 'gone'), and everything they wreck is theirs
+  get rickOn() { return !!(G.rick && G.rick.active); }
+  rick(kind, x, z, n) {
+    const t = (this.es ? RM_ES : RM_EN)[kind]; if (!t) return;
+    const w = x == null ? (this.es ? 'en La Playa' : 'in ' + CITY[this.map]) : this.where(x, z), text = pick(t).replace('{w}', w).replace('{n}', n);
+    this.post(kind === 'gone' || kind === 'sighted' ? 'LOCAL' : 'BREAKING', text, kind === 'gone' ? 1.5 : 2, 'rick-' + kind);
+  }
   // the player's weapons (only the big ones make the news; one story per kind every few seconds)
   onBlast(x, y, z, r, power, kind) {
+    if (this.rickOn && (kind === 'laser' || kind === 'explosion')) {
+      if (power >= 1.5) this.cause = { kind: 'rick', x, z, t: G.time };
+      if (kind === 'laser' || power >= 5) this.rick(kind === 'laser' ? 'laser' : 'bomb', x, z);
+      return;
+    }
     if (kind !== 'collapse' && power >= 1.5) this.cause = { kind: kind === 'bomb' ? 'explosion' : kind, x, z, t: G.time };
     if (!B_EN[kind] || kind === 'collapse' || (kind !== 'laser' && power < 5)) return;
     const t = this.placeHeadline(kind, x, z, 1.5) || pick((this.es ? B_ES : B_EN)[kind]).replace('{w}', this.where(x, z));
@@ -325,6 +356,7 @@ export class News {
   }
   destruction(x, z, many) {
     if (many < 4) return;
+    if (this.rickOn) return this.rick('collapse', x, z);
     this.post('BREAKING', this.placeHeadline('collapse', x, z, 1.5) || pick((this.es ? B_ES : B_EN).collapse).replace('{w}', this.where(x, z)), 2, 'collapse');
   }
   // ...and wrapped up (usually: most scenes get a follow-up)
@@ -385,7 +417,8 @@ export class News {
     if ((this.dmgT -= dt) <= 0) {
       this.dmgT = 20;
       const n = G.buildings ? G.buildings.destroyed : 0;
-      if (n - this.lastDestroyed >= 15) { this.lastDestroyed = n; this.post('UPDATE', pick((this.es ? B_ES : B_EN).damage).replace('{w}', this.es ? 'en La Playa' : 'in ' + CITY[this.map]).replace('{n}', n), 1.5, 'damage'); }
+      if (n - this.lastDestroyed >= 15 && this.rickOn) { this.lastDestroyed = n; this.rick('damage', null, null, n); }
+      else if (n - this.lastDestroyed >= 15) { this.lastDestroyed = n; this.post('UPDATE', pick((this.es ? B_ES : B_EN).damage).replace('{w}', this.es ? 'en La Playa' : 'in ' + CITY[this.map]).replace('{n}', n), 1.5, 'damage'); }
     }
     if (this.showT > 0) {
       if ((this.showT -= dt) <= 0) { this.el.classList.remove('on'); this.quiet = 0; }

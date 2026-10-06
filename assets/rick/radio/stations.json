@@ -1,0 +1,205 @@
+[
+ {
+  "name": "Midnight Dock",
+  "freq": "88.9",
+  "genre": "City Pop · House",
+  "songs": [
+   {
+    "file": "songs/makoto-matsushita-september-rain.m4a",
+    "title": "September Rain",
+    "artist": "Makoto Matsushita",
+    "duration": 267.29,
+    "cover": "covers/makoto-matsushita-september-rain.jpg",
+    "album": "First Light (+1; 2018 Remaster)"
+   },
+   {
+    "file": "songs/saint-etienne-only-love.m4a",
+    "title": "Only Love Can Break Your Heart (Masters at Work Mix)",
+    "artist": "Saint Etienne",
+    "duration": 457.85,
+    "cover": "covers/saint-etienne-only-love.jpg",
+    "album": "Casino Classics (Deluxe Edition)"
+   },
+   {
+    "file": "songs/berlioz-deep-in-it.m4a",
+    "title": "deep in it",
+    "artist": "berlioz & Ted Jasper",
+    "duration": 147.94,
+    "cover": "covers/berlioz-deep-in-it.jpg",
+    "album": "deep in it - Single"
+   }
+  ]
+ },
+ {
+  "name": "Classic Rock Asteroid",
+  "freq": "92.7",
+  "genre": "Classic Rock",
+  "songs": [
+   {
+    "file": "songs/gerry-rafferty-baker-street.m4a",
+    "title": "Baker Street",
+    "artist": "Gerry Rafferty",
+    "duration": 365.36,
+    "cover": "covers/gerry-rafferty-baker-street.jpg",
+    "album": "City to City"
+   },
+   {
+    "file": "songs/journey-whos-crying-now.m4a",
+    "title": "Who's Crying Now",
+    "artist": "Journey",
+    "duration": 298.9,
+    "cover": "covers/journey-whos-crying-now.jpg",
+    "album": "Greatest Hits (2024 Remaster)"
+   },
+   {
+    "file": "songs/jimi-hendrix-all-along-the-watchtower.m4a",
+    "title": "All Along the Watchtower",
+    "artist": "The Jimi Hendrix Experience",
+    "duration": 238.53,
+    "cover": "covers/jimi-hendrix-all-along-the-watchtower.jpg",
+    "album": "Electric Ladyland"
+   }
+  ]
+ },
+ {
+  "name": "Slow Orbit",
+  "freq": "97.3",
+  "genre": "R&B · Soul",
+  "songs": [
+   {
+    "file": "songs/bryson-tiller-dont.m4a",
+    "title": "Don't",
+    "artist": "Bryson Tiller",
+    "duration": 198.29,
+    "cover": "covers/bryson-tiller-dont.jpg",
+    "album": "T R A P S O U L"
+   },
+   {
+    "file": "songs/che.m4a",
+    "title": "Frank Ocean",
+    "artist": "Che",
+    "duration": 116.5,
+    "album": "closed captions",
+    "cover": "covers/che.jpg"
+   },
+   {
+    "file": "songs/erykah-badu-didnt-cha-know.m4a",
+    "title": "Didn't Cha Know",
+    "artist": "Erykah Badu",
+    "duration": 238.1,
+    "cover": "covers/erykah-badu-didnt-cha-know.jpg",
+    "album": "Mama's Gun"
+   },
+   {
+    "file": "songs/marvin-gaye-if-i-should-die-tonight.m4a",
+    "title": "If I Should Die Tonight",
+    "artist": "Marvin Gaye",
+    "duration": 239.39,
+    "cover": "covers/marvin-gaye-if-i-should-die-tonight.jpg",
+    "album": "Let's Get It On (Deluxe Edition)"
+   },
+   {
+    "file": "songs/outkast-prototype.m4a",
+    "title": "Prototype",
+    "artist": "OutKast",
+    "duration": 324.03,
+    "cover": "covers/outkast-prototype.jpg",
+    "album": "Speakerboxxx/The Love Below"
+   },
+   {
+    "file": "songs/outkast-pink-and-blue.m4a",
+    "title": "Pink & Blue",
+    "artist": "OutKast",
+    "duration": 304.6,
+    "cover": "covers/outkast-pink-and-blue.jpg",
+    "album": "Speakerboxxx/The Love Below"
+   }
+  ]
+ },
+ {
+  "name": "Event Horizon",
+  "freq": "101.5",
+  "genre": "Hip-Hop",
+  "songs": [
+   {
+    "file": "songs/drake-gods-plan.m4a",
+    "title": "God's Plan",
+    "artist": "Drake",
+    "duration": 197.75,
+    "cover": "covers/drake-gods-plan.jpg",
+    "album": "Scorpion"
+   },
+   {
+    "file": "songs/drake-in-my-feelings.m4a",
+    "title": "In My Feelings",
+    "artist": "Drake",
+    "duration": 216.21,
+    "cover": "covers/drake-in-my-feelings.jpg",
+    "album": "Scorpion"
+   },
+   {
+    "file": "songs/kanye-west-spaceship.m4a",
+    "title": "Spaceship (feat. GLC & Consequence)",
+    "artist": "Kanye West",
+    "duration": 324.31,
+    "cover": "covers/kanye-west-spaceship.jpg",
+    "album": "The College Dropout"
+   }
+  ]
+ },
+ {
+  "name": "Trap Nebula",
+  "freq": "105.9",
+  "genre": "Trap · Rap",
+  "songs": [
+   {
+    "file": "songs/future-hallucinating.m4a",
+    "title": "Hallucinating",
+    "artist": "Future",
+    "duration": 215.23,
+    "cover": "covers/future-hallucinating.jpg",
+    "album": "HNDRXX"
+   },
+   {
+    "file": "songs/young-thug-surf.m4a",
+    "title": "Surf (feat. Gunna)",
+    "artist": "Young Thug",
+    "duration": 183.17,
+    "cover": "covers/young-thug-surf.jpg",
+    "album": "So Much Fun"
+   },
+   {
+    "file": "songs/lucki-space-boy.m4a",
+    "title": "Space Boy",
+    "artist": "LUCKI",
+    "duration": 164.64,
+    "cover": "covers/lucki-space-boy.jpg",
+    "album": "Storm Coming"
+   },
+   {
+    "file": "songs/soulja-boy-rick-and-morty.m4a",
+    "title": "Rick and Morty Freestyle",
+    "artist": "Soulja Boy",
+    "duration": 152.16,
+    "cover": "covers/soulja-boy-rick-and-morty.jpg",
+    "album": "Rick & Morty"
+   },
+   {
+    "file": "songs/otm-double-date.m4a",
+    "title": "Double Date",
+    "artist": "OTM",
+    "duration": 192.16,
+    "cover": "covers/otm-double-date.jpg",
+    "album": "Old OTM"
+   },
+   {
+    "file": "songs/jankyassgeez.m4a",
+    "title": "JANKYASSGEEZ",
+    "artist": "SieteNameKeek",
+    "duration": 100.56,
+    "cover": "covers/jankyassgeez.jpg",
+    "album": "JANKYASSGEEZ"
+   }
+  ]
+ }
+]

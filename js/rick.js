@@ -15,19 +15,36 @@ import { RickShipModel, CartoonCharacter } from './rickship.js';
 const S = 0.42;                          // Cosmic Solitude metres -> Tiny World units
 const VMAX = 11;                          // top speed near the ground (CS: 240 m/s), x(1 + 1.4 boost)
 const ACCEL = VMAX * 1.4;                 // CS: 120 + vmax * 0.9
-const VERT = 6;                           // vertical thrusters
+const VERT = 10;                          // vertical thrusters (R up, F down)
 const BOLT_SPEED = 90, BOLT_LIFE = 1.35;  // lasers: 9 shots/s, alternating muzzles
 const BASE = 'assets/rick/';
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _z = new THREE.Vector3(0, 0, 1);
 
 const CSS = `
 :root{--rk-ease:cubic-bezier(.2,.8,.2,1)}
-#rickBtn{display:flex;align-items:center;gap:8px;font:800 11px Inter;letter-spacing:.2em;color:#eaffd8;padding:8px 16px 8px 10px;border-radius:999px;margin:-3px 0 -3px 8px;cursor:pointer;user-select:none;
-  border:1px solid rgba(150,255,120,.55);background:radial-gradient(circle at 25% 50%,rgba(120,255,90,.45),rgba(40,120,60,.35) 45%,rgba(20,40,30,.55));backdrop-filter:blur(8px);
-  box-shadow:0 0 16px -3px rgba(120,255,90,.7),inset 0 0 12px rgba(150,255,120,.2);text-shadow:0 0 8px rgba(160,255,120,.8);transition:transform .18s cubic-bezier(.2,1.4,.4,1),filter .18s}
-#rickBtn:hover{transform:translateY(-3px) scale(1.04);filter:brightness(1.2)}
-#rickBtn .portal{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle,#eaffd0 0 18%,#7dff4a 30%,#2fc93a 55%,#0d5a1e 75%,transparent 77%);box-shadow:0 0 10px #7dff4a;animation:rkSpin 3s linear infinite}
+#rickBtn{position:relative;display:flex;align-items:center;font:800 11px Inter;letter-spacing:.2em;color:#eaffd8;padding:8px 16px 8px 54px;border-radius:999px;margin:-3px 0 -3px 10px;cursor:pointer;user-select:none;
+  border:1px solid rgba(150,255,120,.55);background:linear-gradient(90deg,rgba(40,140,60,.55),rgba(20,40,30,.55));backdrop-filter:blur(8px);
+  box-shadow:0 0 16px -3px rgba(120,255,90,.7),inset 0 0 12px rgba(150,255,120,.2);text-shadow:0 0 8px rgba(160,255,120,.8);transition:transform .25s cubic-bezier(.2,1.4,.4,1),filter .2s,box-shadow .3s}
+#rickBtn:hover{transform:translateY(-3px);filter:brightness(1.15);box-shadow:0 0 28px 0 rgba(120,255,90,.85),inset 0 0 14px rgba(150,255,120,.3)}
+#rickBtn .rk-portal{position:absolute;left:3px;bottom:-5px;width:48px;height:48px;pointer-events:none;transition:transform .35s cubic-bezier(.2,1.4,.4,1)}
+#rickBtn .rk-swirl{position:absolute;inset:5px;border-radius:50%;background:conic-gradient(from 0deg,#d9ff9a,#2fbf3a,#8dff52,#0b6a22,#c8ff7a,#1e9f33,#e9ffb0,#2fbf3a,#d9ff9a);
+  -webkit-mask:radial-gradient(circle,#000 0 30%,rgba(0,0,0,.85) 48%,#000 62%,transparent 71%);mask:radial-gradient(circle,#000 0 30%,rgba(0,0,0,.85) 48%,#000 62%,transparent 71%);
+  filter:blur(.6px) drop-shadow(0 0 6px #7dff4a);animation:rkSpin 2.2s linear infinite}
+#rickBtn .rk-swirl.s2{inset:11px;opacity:.75;mix-blend-mode:screen;animation-duration:1.4s;animation-direction:reverse}
+#rickBtn .rk-core{position:absolute;inset:16px;border-radius:50%;background:radial-gradient(circle,#f4ffe6,#9dff6a 45%,transparent 72%);animation:rkPulse 1.6s ease-in-out infinite}
+#rickBtn .rk-chars{position:absolute;left:50%;bottom:10px;width:54px;transform:translateX(-50%) translateY(12px) scale(.78);transform-origin:50% 100%;transition:transform .45s cubic-bezier(.2,1.5,.4,1),filter .3s;
+  -webkit-mask:linear-gradient(#000 70%,transparent 96%);mask:linear-gradient(#000 70%,transparent 96%);filter:drop-shadow(0 0 4px rgba(150,255,110,.6))}
+#rickBtn:hover .rk-chars{transform:translateX(-50%) translateY(-6px) scale(1.05) rotate(-3deg)}
+#rickBtn:hover .rk-portal{transform:scale(1.18)}
+#rickBtn:hover .rk-swirl{animation-duration:.9s}
+#rickBtn .rk-spark{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:#d6ff9e;box-shadow:0 0 6px #7dff4a;opacity:0}
+#rickBtn:hover .rk-spark{animation:rkSpark 1.1s ease-out infinite}
+#rickBtn .rk-spark:nth-child(5){--a:20deg}#rickBtn .rk-spark:nth-child(6){--a:140deg;animation-delay:.35s}#rickBtn .rk-spark:nth-child(7){--a:260deg;animation-delay:.7s}#rickBtn .rk-spark:nth-child(8){--a:330deg;animation-delay:.2s}
+@keyframes rkSpark{0%{opacity:1;transform:rotate(var(--a)) translateX(10px)}100%{opacity:0;transform:rotate(calc(var(--a) + 90deg)) translateX(28px)}}
 @keyframes rkSpin{to{transform:rotate(360deg)}}
+@keyframes rkPulse{50%{transform:scale(1.2);opacity:.7}}
+#rickBtn.warp .rk-portal{animation:rkWarpBtn .6s ease-in}
+@keyframes rkWarpBtn{40%{transform:scale(1.6)}100%{transform:scale(1)}}
 #rickBtn.on{border-color:#d6ffc8;box-shadow:0 0 26px 2px rgba(120,255,90,.9)}
 html.touch #rickBtn{display:none}
 body.rick-on #weapons .w, body.rick-on #weapons .sep, body.rick-on #worldBtn, body.rick-on #tiltCtl, body.rick-on #help, body.rick-on #placeHint, body.rick-on #worldMenu{display:none!important}
@@ -35,7 +52,7 @@ body.rick-on #weapons .w, body.rick-on #weapons .sep, body.rick-on #worldBtn, bo
 body.rick-on #rickHud{display:block}
 #rickHud .rk-reticle{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:1.5px solid rgba(140,255,170,.75);box-shadow:0 0 10px rgba(120,255,150,.5)}
 #rickHud .rk-reticle::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#bfffcf}
-#rickHud .rk-keys{position:absolute;left:16px;bottom:calc(4.2vh + 70px);display:flex;flex-direction:column;gap:5px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(230,255,235,.7);text-shadow:0 1px 3px rgba(0,0,0,.8)}
+#rickHud .rk-keys{position:absolute;left:16px;bottom:calc(4.2vh + 150px);display:flex;flex-direction:column;gap:5px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(230,255,235,.7);text-shadow:0 1px 3px rgba(0,0,0,.8)}
 #rickHud .key{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:16px;padding:0 4px;margin-right:4px;border-radius:3px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);font:600 9px Inter;color:#fff;letter-spacing:0}
 #rickHud .rk-heat{position:absolute;width:60px;margin:26px 0 0 -30px;height:4px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
 #rickHud .rk-heat i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6dff9a,#ffd36b,#ff5a3c)}
@@ -116,7 +133,31 @@ class ShipAudio {
     lp.type = 'lowpass'; lp.frequency.value = 3800;
     o.connect(lp); lp.connect(g); g.connect(this.out); o.start(t + start); o.stop(t + start + dur + 0.05);
   }
-  laser() { this.sweep(1900, 260, 0, 0.16, 0.05 * 0.55); this.sweep(950, 140, 0, 0.12, 0.03 * 0.55, 'square'); }
+  // the guns: a harsh, gritty zap: overdriven saw and square dives, plus a crack of noise at the front
+  laser() {
+    const c = this.ctx; if (!c) return;
+    if (!this.drive) {
+      this.drive = c.createWaveShaper();
+      const curve = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; curve[i] = Math.tanh(x * 6) * 0.9; }
+      this.drive.curve = curve; this.driveOut = c.createGain(); this.driveOut.gain.value = 0.5;
+      const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 180;
+      this.drive.connect(hp); hp.connect(this.driveOut); this.driveOut.connect(this.out);
+      const n = c.createBuffer(1, c.sampleRate * 0.1, c.sampleRate), d = n.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      this.noiseBuf = n;
+    }
+    const t = c.currentTime, j = 1 + (Math.random() - 0.5) * 0.12;
+    const dive = (type, f0, f1, dur, vol) => {
+      const o = c.createOscillator(), g = c.createGain(); o.type = type;
+      o.frequency.setValueAtTime(f0 * j, t); o.frequency.exponentialRampToValueAtTime(f1 * j, t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(this.drive); o.start(t); o.stop(t + dur + 0.02);
+    };
+    dive('sawtooth', 2600, 170, 0.15, 0.22); dive('square', 1300, 90, 0.12, 0.14); dive('sawtooth', 2645, 175, 0.14, 0.12);
+    const ns = c.createBufferSource(), bp = c.createBiquadFilter(), ng = c.createGain();
+    ns.buffer = this.noiseBuf; bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.8;
+    ng.gain.setValueAtTime(0.35, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    ns.connect(bp); bp.connect(ng); ng.connect(this.drive); ns.start(t);
+  }
   bombDrop() { this.sweep(900, 120, 0, 0.7, 0.03 * 0.8, 'triangle'); }
   overheat() { this.sweep(600, 120, 0, 0.6, 0.05 * 0.8, 'square'); }
   stop() { if (this.eng) this.eng.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2); }
@@ -289,16 +330,61 @@ export class RickMode {
     this.group = new THREE.Group(); this.group.add(this.model.root); this.model.root.scale.setScalar(S);
     this.rick = new CartoonCharacter('rick'); this.morty = new CartoonCharacter('morty');
     this.model.seat.add(this.rick.root); this.model.passengerSeat.add(this.morty.root);
-    // laser bolts: instanced additive streaks, a glow and a white-hot core (Projectiles.ts), and the bomb casing
-    const geo = new THREE.BoxGeometry(1, 1, 1);
-    this.boltGlow = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.55, fog: false }), 120);
-    this.boltCore = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), 120);
-    for (const m of [this.boltGlow, this.boltCore]) { m.frustumCulled = false; m.count = 0; m.renderOrder = 7; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(360), 3); }
-    this.bombMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.22, 0.3, 2.4, 8).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xb8bcc2, roughness: 0.4, metalness: 0.8, emissive: new THREE.Color(0.2, 0.05, 0) }), 16);
-    this.bombMesh.frustumCulled = false; this.bombMesh.count = 0;
-    // muzzle flashes: two little additive sprites that pop for a frame
-    this.flashMat = new THREE.SpriteMaterial({ color: new THREE.Color(0.35, 2.4, 0.9), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
-    this.flash = new THREE.Sprite(this.flashMat); this.flash.scale.setScalar(0.6); this.flash.visible = false;
+    // laser bolts: round energy beams, a soft green glow around a white-hot core, brightest at the head and
+    // fading down the tail (instanced, additive, lit by nothing but themselves)
+    const geo = new THREE.CylinderGeometry(1, 1, 1, 14, 1, true).rotateX(Math.PI / 2);   // along +Z, uv.y = 1 at the head
+    const beam = (color, edge, power) => new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: color } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      vertexShader: `varying float vAlong; varying vec3 vN; varying vec3 vV;
+        void main() { vAlong = uv.y; mat4 mv = modelViewMatrix * instanceMatrix; vN = normalize(mat3(mv) * normal);
+          vec4 p = mv * vec4(position, 1.0); vV = normalize(-p.xyz); gl_Position = projectionMatrix * p; }`,
+      fragmentShader: `uniform vec3 uColor; varying float vAlong; varying vec3 vN; varying vec3 vV;
+        void main() { float core = pow(max(abs(dot(normalize(vN), normalize(vV))), 1e-4), ${edge.toFixed(1)});
+          float tail = pow(max(vAlong, 1e-4), 1.6) * smoothstep(1.0, 0.9, vAlong);
+          gl_FragColor = vec4(max(uColor * core * tail * ${power.toFixed(2)}, 0.0), 1.0); }`,
+    });
+    this.boltGlow = new THREE.InstancedMesh(geo, beam(new THREE.Color(0.25, 1.6, 0.55), 2.0, 1.4), 120);
+    this.boltCore = new THREE.InstancedMesh(geo, beam(new THREE.Color(0.85, 1.6, 0.95), 0.8, 2.6), 120);
+    for (const m of [this.boltGlow, this.boltCore]) { m.frustumCulled = false; m.count = 0; m.renderOrder = 7; }
+    // glow sprites: the hot head of each bolt, muzzle flashes and the green flash where a bolt lands
+    const tex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.18, 'rgba(220,255,225,.9)'); r.addColorStop(0.45, 'rgba(110,255,140,.35)'); r.addColorStop(1, 'rgba(60,255,100,0)');
+      g.fillStyle = r; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+    this.glowTex = tex;
+    this.sprites = [];
+    for (let i = 0; i < 48; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: new THREE.Color(0.6, 1.4, 0.7), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+      sp.visible = false; sp.renderOrder = 8; this.sprites.push(sp);
+    }
+    this.flashes = [];
+    this.fxGroup = new THREE.Group(); this.fxGroup.add(...this.sprites);
+    // the bomb: a stubby finned casing with a nose cone, a hazard band and a blinking red light
+    this.bombProto = (() => {
+      const g = new THREE.Group(), metal = new THREE.MeshStandardMaterial({ color: 0x5d646c, roughness: 0.35, metalness: 0.85 });
+      const band = new THREE.MeshStandardMaterial({ color: 0xe9c21a, roughness: 0.5, metalness: 0.2 }), dark = new THREE.MeshStandardMaterial({ color: 0x23272c, roughness: 0.5, metalness: 0.7 });
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.9, 6, 14).rotateX(Math.PI / 2), metal);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.33, 0.45, 14).rotateX(Math.PI / 2), dark); nose.position.z = 0.78;
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.335, 0.335, 0.12, 14).rotateX(Math.PI / 2), band); ring.position.z = 0.35;
+      g.add(body, nose, ring);
+      for (let i = 0; i < 4; i++) {
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.42, 0.38), dark);
+        fin.position.set(0, 0, -0.62); fin.rotation.z = i * Math.PI / 2; fin.translateY(0.36); g.add(fin);
+      }
+      const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.06, 14, 1, true).rotateX(Math.PI / 2), dark); tail.position.z = -0.8; g.add(tail);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a1a })); lamp.position.set(0, 0.32, 0.1); lamp.name = 'lamp'; g.add(lamp);
+      g.scale.setScalar(1.25 * S);
+      return g;
+    })();
+    this.fxGroup.add(this.boltGlow, this.boltCore);
+    this._spinQ = new THREE.Quaternion();
+  }
+  // a glow that pops and fades: muzzle flashes, bolt impacts
+  pop(p, size, life, color) {
+    const sp = this.sprites.find((s) => !s.visible && !s.userData.bolt); if (!sp) return;
+    sp.visible = true; sp.position.copy(p); sp.material.color.copy(color || new THREE.Color(0.6, 1.4, 0.7)); sp.material.opacity = 1;
+    sp.userData = { t: 0, life, size }; sp.scale.setScalar(size * 0.4); this.flashes.push(sp);
   }
 
   // ---------------- HUD
@@ -306,11 +392,11 @@ export class RickMode {
     const hud = document.getElementById('hud');
     // the button sits next to WORLD in the bottom bar
     this.btn = document.createElement('span'); this.btn.id = 'rickBtn'; this.btn.title = 'Fly Rick\'s ship';
-    this.btn.innerHTML = '<i class="portal"></i>RICK &amp; MORTY';
+    this.btn.innerHTML = '<span class="rk-portal"><i class="rk-swirl"></i><i class="rk-swirl s2"></i><i class="rk-core"></i><img class="rk-chars" src="assets/rick/rickmorty.png" alt=""><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i></span>RICK &amp; MORTY';
     document.getElementById('weapons').appendChild(this.btn);
     this.hud = document.createElement('div'); this.hud.id = 'rickHud';
     this.hud.innerHTML = `<div class="rk-reticle"></div><div class="rk-heat"><i></i></div>
-      <div class="rk-keys"><span><b class="key">Mouse</b>steer</span><span><b class="key">W</b>hold to fly</span><span><b class="key">S</b>brake / back</span><span><b class="key">A</b><b class="key">D</b>turn</span><span><b class="key">Q</b><b class="key">E</b>roll</span><span><b class="key">R</b><b class="key">C</b>up / down</span><span><b class="key">Shift</b>boost</span><span><b class="key">Space</b>guns</span><span><b class="key">G</b>bomb</span><span><b class="key">P</b>radio</span><span><b class="key">V</b>camera</span><span><b class="key">Esc</b>leave ship</span></div>
+      <div class="rk-keys"><span><b class="key">Mouse</b>steer</span><span><b class="key">W</b>hold to fly</span><span><b class="key">S</b>brake / back</span><span><b class="key">A</b><b class="key">D</b>turn</span><span><b class="key">Q</b><b class="key">E</b>roll</span><span><b class="key">R</b><b class="key">F</b>up / down</span><span><b class="key">Shift</b>boost</span><span><b class="key">Space</b>guns</span><span><b class="key">G</b>bomb</span><span><b class="key">P</b>radio</span><span><b class="key">V</b>camera</span><span><b class="key">Esc</b>leave ship</span></div>
       <div class="rk-tip">Click to grab the mouse and steer</div><div class="crew-caption"></div>`;
     hud.appendChild(this.hud);
     this.reticle = this.hud.querySelector('.rk-reticle'); this.heatEl = this.hud.querySelector('.rk-heat'); this.heatBar = this.heatEl.querySelector('i');
@@ -327,7 +413,7 @@ export class RickMode {
   }
 
   bind() {
-    this.btn.addEventListener('click', (e) => { e.stopPropagation(); sfx.unlock(); this.active ? this.exit() : this.enter(); });
+    this.btn.addEventListener('click', (e) => { e.stopPropagation(); sfx.unlock(); this.warp(); this.active ? this.exit() : this.enter(); });
     const canvas = this.canvas;
     canvas.addEventListener('mousedown', (e) => {
       if (!this.active) return;
@@ -346,6 +432,12 @@ export class RickMode {
   }
 
   lock() { try { const r = this.canvas.requestPointerLock(); if (r && r.catch) r.catch(() => undefined); } catch { /* the click-to-steer tip stays up */ } }
+
+  // the button's portal flares as you jump in (or out)
+  warp() {
+    this.btn.classList.remove('warp'); void this.btn.offsetWidth; this.btn.classList.add('warp');
+    if (this.audio.init()) { this.audio.sweep(140, 900, 0, 0.55, 0.05, 'triangle'); this.audio.sweep(900, 120, 0.45, 0.6, 0.04, 'sine'); }
+  }
 
   // Tiny World's key handler asks first while the ship is up; returns true when the ship used the key
   key(e, down) {
@@ -381,25 +473,29 @@ export class RickMode {
     this.quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     this.vel.set(0, 0, 0); this.angVel.set(0, 0, 0); this.throttle = 0; this.boost = 0; this.lostControl = 0;
     this.heat = 0; this.overheated = false; this.stick.set(0, 0); this.camInit = false;
-    this.scene.add(this.group, this.boltGlow, this.boltCore, this.bombMesh, this.flash);
+    this.scene.add(this.group, this.fxGroup);
     this.active = true; G.rick = this;
     document.body.classList.add('rick-on'); this.btn.classList.add('on');
     this.tip.style.opacity = 1;
     this.lock();
     if (this.radio.wasOn) this.radio.load().then(() => this.active && this.radio.setOn(true));
     setTimeout(() => this.chatter.react('takeoff'), 900);
+    setTimeout(() => this.active && G.news && G.news.rick('sighted', this.pos.x, this.pos.z), 2500);
   }
 
   exit() {
     if (!this.active) return;
     this.active = false;
     if (document.pointerLockElement) document.exitPointerLock();
-    this.scene.remove(this.group, this.boltGlow, this.boltCore, this.bombMesh, this.flash);
+    this.scene.remove(this.group, this.fxGroup);
     this.bolts.length = 0;
-    for (const b of this.bombs) b.dead = true;
+    for (const b of this.bombs) { b.dead = true; this.fxGroup.remove(b.mesh); }
+    for (const sp of this.sprites) { sp.visible = false; sp.userData = {}; }
+    this.flashes.length = 0;
     this.audio.stop(); this.radio.wasOn = this.radio.on; this.radio.halt();
     this.caption.classList.remove('show');
     document.body.classList.remove('rick-on'); this.btn.classList.remove('on');
+    G.news && G.news.rick('gone', this.pos.x, this.pos.z);
     this.keys = {};
     // back to the normal view, over where the ship was
     const C = this.cam, fwd = _v.set(0, 0, -1).applyQuaternion(this.quat);
@@ -448,7 +544,7 @@ export class RickMode {
       yaw: clamp(this.stick.x + (ax('KeyA', 'KeyD') + ax('ArrowLeft', 'ArrowRight')) * 0.85, -1, 1),
       roll: ax('KeyQ', 'KeyE'),
       throttleUp: !!k.KeyW, throttleDown: !!k.KeyS,
-      vertical: ax('KeyC', 'KeyR') - (k.ControlLeft ? 1 : 0), boost: !!(k.ShiftLeft || k.ShiftRight),
+      vertical: (k.KeyR ? 1 : 0) - (k.KeyF || k.KeyC || k.ControlLeft ? 1 : 0), boost: !!(k.ShiftLeft || k.ShiftRight),
     };
     // no throttle lever here: hold W to fly forward, let go and the ship eases to a hover; S brakes, then backs up
     if (control > 0.2) this.throttle = ctrl.throttleUp ? 1 : ctrl.throttleDown ? -0.3 : 0;
@@ -518,6 +614,7 @@ export class RickMode {
       this.audio.play(Math.random() < 0.5 ? 'impact0' : 'impact1', 0.4 + strength * 0.6);
       this.shake = Math.min(1.5, this.shake + strength);
       if (strength > 0.15) this.chatter.react('crash');
+      if (impact > 3 && G.news) G.news.rick('crash', wp.x, wp.z);
       if (wallCell && impact > 3) B.damageSphere(wp.x, wp.y, wp.z, 0.8, impact * 9, 0, 0, this.pos);   // a hard knock chips the wall
     }
   }
@@ -548,14 +645,13 @@ export class RickMode {
     if (this.overheated && this.heat < 0.3) this.overheated = false;
     const firing = this.keys.Space || this.keys.Mouse0;
     if (firing && this.fireCd <= 0 && !this.overheated) this.fireLaser();
-    this.flash.visible = this.flashT > 0; this.flashT = (this.flashT || 0) - dt;
   }
   fireLaser() {
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.quat);
     this.muzzleSide = -this.muzzleSide;
     const origin = new THREE.Vector3(this.muzzleSide * 2.4 * S, -0.3 * S, -3 * S).applyQuaternion(this.quat).add(this.pos);
     this.bolts.push({ pos: origin.clone(), prev: origin.clone(), vel: fwd.multiplyScalar(BOLT_SPEED).add(this.vel), life: BOLT_LIFE });
-    this.flash.position.copy(origin); this.flashT = 0.05;
+    this.pop(origin, 0.9, 0.08);
     this.heat += 0.05;
     if (this.heat >= 1) { this.heat = 1; this.overheated = true; this.audio.overheat(); }
     this.fireCd = 1 / 9;
@@ -564,7 +660,9 @@ export class RickMode {
   dropBomb() {
     this.secCd = 0.9;
     const origin = this.pos.clone().add(new THREE.Vector3(0, -3 * S, 0));
-    this.bombs.push({ pos: origin, vel: this.vel.clone().add(new THREE.Vector3(0, -25 * S, 0)), life: 25 });
+    const mesh = this.bombProto.clone(); mesh.position.copy(origin); this.fxGroup.add(mesh);
+    this.bombs.push({ pos: origin, vel: this.vel.clone().add(new THREE.Vector3(0, -25 * S, 0)), life: 25, mesh, t: 0, spin: rand(-6, 6) });
+    this.pop(origin, 1.1, 0.15, new THREE.Color(1.4, 0.9, 0.4));
     this.audio.bombDrop();
   }
 
@@ -585,35 +683,49 @@ export class RickMode {
     }
     for (const b of this.bombs) {
       if (b.dead) continue;
-      b.life -= dt; b.vel.y -= 14 * dt;
+      b.life -= dt; b.vel.y -= 14 * dt; b.t += dt;
+      // a thin smoke trail and a little rocket glow behind it on the way down
+      if (Math.random() < dt * 30) G.fx.smokePuff(b.pos.x, b.pos.y, b.pos.z, 0.25, 0.35, 1.4);
       const prev = b.pos.clone(); b.pos.addScaledVector(b.vel, dt);
       const floor = B.surfaceAt(b.pos.x, b.pos.z, prev.y + 0.3).y;
       if (b.pos.y <= floor || B.inside(b.pos) || b.life <= 0) {
         b.dead = true;
         if (b.pos.y < floor) b.pos.y = floor;
+        this.fxGroup.remove(b.mesh);
         G.weapons.bombImpact(b.pos.clone());                                         // exactly Tiny World's bomb
       }
     }
     this.bombs = this.bombs.filter((b) => !b.dead);
-    // draw
+    // draw: each bolt a long tapered beam (the streak grows out of the muzzle over its first metres) with a hot head
     let n = 0;
-    const len = 26 * S * 0.45, w = 0.9 * S, col = new THREE.Color(0.35, 2.4, 0.9), core = new THREE.Color(1, 1, 1).lerp(col, 0.25).multiplyScalar(2.4);
+    const w = 0.15, heads = this.sprites.filter((s) => s.userData.bolt);
+    for (const s of heads) { s.visible = false; s.userData = {}; }
     for (const b of this.bolts) {
       if (n >= 120) break;
       const d = _v.copy(b.vel).normalize(); _q.setFromUnitVectors(_z, d);
+      const len = Math.min(5.5, (BOLT_LIFE - b.life) * BOLT_SPEED * 0.9 + 0.3);
       const c = _v2.copy(b.pos).addScaledVector(d, -len / 2);
-      _m.compose(c, _q, new THREE.Vector3(w * 2.6, w * 2.6, len)); this.boltGlow.setMatrixAt(n, _m); this.boltGlow.setColorAt(n, col);
-      _m.compose(c, _q, new THREE.Vector3(w * 0.7, w * 0.7, len * 0.9)); this.boltCore.setMatrixAt(n, _m); this.boltCore.setColorAt(n, core);
+      _m.compose(c, _q, new THREE.Vector3(w * 2.8, w * 2.8, len)); this.boltGlow.setMatrixAt(n, _m);
+      _m.compose(c, _q, new THREE.Vector3(w * 0.75, w * 0.75, len * 0.92)); this.boltCore.setMatrixAt(n, _m);
+      const h = this.sprites.find((s) => !s.visible);
+      if (h) { h.visible = true; h.userData = { bolt: true }; h.position.copy(b.pos); h.scale.setScalar(0.5); h.material.opacity = 0.8; h.material.color.setRGB(0.5, 1.5, 0.65); }
       n++;
     }
     this.boltGlow.count = this.boltCore.count = n;
-    let k = 0;
+    this.boltGlow.instanceMatrix.needsUpdate = this.boltCore.instanceMatrix.needsUpdate = true;
+    // the bombs tumble nose-down along their fall, the red light blinking
     for (const b of this.bombs) {
-      _q.setFromUnitVectors(_z, _v.copy(b.vel).normalize());
-      _m.compose(b.pos, _q, new THREE.Vector3(2.2 * S, 2.2 * S, 2.2 * S)); this.bombMesh.setMatrixAt(k++, _m);
+      b.mesh.position.copy(b.pos);
+      _q.setFromUnitVectors(_z, _v.copy(b.vel).normalize()); b.mesh.quaternion.copy(_q).multiply(this._spinQ.setFromAxisAngle(_z, b.t * b.spin));
+      b.mesh.getObjectByName('lamp').visible = (b.t * 6) % 1 < 0.5;
     }
-    this.bombMesh.count = k;
-    for (const m of [this.boltGlow, this.boltCore, this.bombMesh]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    // flashes grow and fade
+    for (let i = this.flashes.length - 1; i >= 0; i--) {
+      const f = this.flashes[i], u = f.userData; u.t += dt;
+      const k = u.t / u.life;
+      if (k >= 1) { f.visible = false; f.userData = {}; this.flashes.splice(i, 1); continue; }
+      f.scale.setScalar(u.size * (0.4 + 0.8 * Math.sqrt(k))); f.material.opacity = 1 - k * k;
+    }
   }
   boltVictim(o, dir, len) {
     const A = G.agents; if (!A) return null;
@@ -633,6 +745,7 @@ export class RickMode {
   boltHit(hit) {
     const B = G.buildings, fx = G.fx, p = hit.point, n = hit.normal;
     B.damageSphere(p.x, p.y, p.z, 1.3, 60, 0.35, 0.07, this.pos);
+    this.pop(_v.set(p.x + n.x * 0.15, p.y + n.y * 0.15, p.z + n.z * 0.15), 2.2, 0.22);
     fx.sparks(p.x + n.x * 0.1, p.y + n.y * 0.1, p.z + n.z * 0.1, 8, 1.2, 4, 1.6, 6);
     fx.fire.emit(p.x + n.x * 0.2, p.y + n.y * 0.2, p.z + n.z * 0.2, n.x, 1.5, n.z, rand(1, 1.8), 0.25, 1.6, 1.3, 1.2, 1);
     if (Math.random() < 0.3) fx.smokePuff(p.x + n.x * 0.4, p.y + 0.3, p.z + n.z * 0.4, 0.6, 0.12, 4);
