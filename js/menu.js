@@ -310,22 +310,50 @@ const near = (lon, ref) => lon + 360 * Math.round((ref - lon) / 360);
 const EARTH_VERT = /* glsl */ `
 varying vec2 vUv; varying vec3 vN; varying vec3 vW;
 void main() { vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+// a relief-map Earth: the real colours pulled toward a soft painted palette, terrain picked out by exaggerated
+// hill shading from the normal map, turquoise shelves along the coasts fading to deep blue, a light coastline,
+// and a glassy sheen; the dark theme keeps a real terminator with the night side in city lights
 const EARTH_FRAG = /* glsl */ `
-uniform sampler2D uDay, uNight, uSpec; uniform vec3 uSun, uCam, uAtmo; uniform float uMode, uNightOn, uSpecOn;
+uniform sampler2D uDay, uNight, uSpec, uNorm; uniform vec3 uSun, uCam, uAtmo; uniform float uMode, uNightOn, uSpecOn, uNormOn;
 varying vec2 vUv; varying vec3 vN; varying vec3 vW;
 void main() {
   vec3 N = normalize(vN), V = normalize(uCam - vW), L = normalize(uSun);
-  vec3 day = texture2D(uDay, vUv).rgb;
+  vec3 day = texture2D(uDay, vUv, -0.5).rgb;
+  // water mask (the ocean map once it's in; till then a guess from the colours), and a blurred copy for the shelves
+  float water = mix(smoothstep(0.03, 0.12, day.b - day.r), texture2D(uSpec, vUv, -0.5).r, uSpecOn);
+  float open = mix(water, texture2D(uSpec, vUv, 4.5).r, uSpecOn);
+  float wide = mix(water, texture2D(uSpec, vUv, 6.5).r, uSpecOn);
+  // relief: the terrain's normals, tipped hard so ranges and valleys read from orbit
+  vec3 E = normalize(cross(vec3(0.0, 1.0, 0.0), N) + vec3(1e-5)), Nn = cross(N, E);
+  vec3 nm = texture2D(uNorm, vUv).xyz * 2.0 - 1.0;
+  vec3 P = normalize(N + (nm.x * E + nm.y * Nn) * 3.2 * uNormOn);
+  // land: sand to sage by how green it really is, snow and ice kept white
+  float lum = dot(day, vec3(0.3, 0.59, 0.11)), green = clamp((day.g - day.r) * 14.0 + 0.45, 0.0, 1.0);
+  vec3 pal = mix(vec3(0.79, 0.64, 0.37), vec3(0.3, 0.47, 0.19), green);      // (colours here are linear light)
+  pal = mix(pal, vec3(0.92, 0.95, 1.0), smoothstep(0.3, 0.55, lum));
+  vec3 land = mix(day * 1.35, pal * (0.8 + lum * 0.6), 0.55);
+  // sea: bright turquoise on the shelves, deep blue far out
+  vec3 deep = mix(vec3(0.016, 0.17, 0.34), vec3(0.006, 0.075, 0.2), uMode), mid = mix(vec3(0.03, 0.33, 0.5), vec3(0.012, 0.2, 0.36), uMode), shallow = vec3(0.1, 0.58, 0.6);
+  vec3 sea = mix(shallow, mid, smoothstep(0.55, 0.95, open));
+  sea = mix(sea, deep, smoothstep(0.8, 1.0, wide));
+  vec3 base = mix(land, sea, water);
+  // light
   float ndl = dot(N, L), lit = smoothstep(-0.18, 0.32, ndl);
-  // light theme: a bright, evenly lit Earth; dark theme: a real terminator with the night side in city lights
-  float amb = mix(0.62, 0.025, uMode);
-  vec3 col = day * (amb + (1.0 - amb) * max(ndl, 0.0) * mix(0.8, 1.25, uMode)) * mix(1.22, 1.0, uMode);
+  float relief = clamp(1.0 + (dot(P, L) - ndl) * 2.6, 0.4, 1.7);
+  float amb = mix(0.6, 0.04, uMode);
+  float diff = amb + (1.0 - amb) * max(ndl, 0.0) * mix(0.82, 1.22, uMode);
+  vec3 col = base * diff * mix(relief, 1.0, water) * mix(1.1, 1.0, uMode);
+  // a thin pale line where the land meets the sea
+  float coast = clamp(water * (1.0 - water) * 4.0, 0.0, 1.0);
+  col = mix(col, vec3(0.66, 0.93, 0.88) * diff * 1.1, coast * 0.55 * uSpecOn);
   vec3 night = texture2D(uNight, vUv).rgb * uNightOn;
-  col += night * vec3(1.0, 0.76, 0.46) * 1.7 * (1.0 - lit) * uMode;
+  col += night * vec3(1.0, 0.78, 0.5) * 1.7 * (1.0 - lit) * uMode;
+  // glass: a broad soft sheen over everything, a sharper glint on the water
   vec3 H = normalize(L + V);
-  col += vec3(1.0, 0.95, 0.86) * pow(max(dot(N, H), 0.0), 60.0) * texture2D(uSpec, vUv).r * uSpecOn * 0.4 * lit;
-  float fr = pow(1.0 - max(dot(N, V), 0.0), 2.6);
-  col = mix(col, uAtmo * (0.3 + lit * 0.9), fr * 0.6);
+  float nh = max(dot(N, H), 0.0);
+  col += vec3(1.0) * pow(nh, 10.0) * 0.06 * lit + vec3(1.0, 0.97, 0.9) * pow(nh, 70.0) * water * 0.35 * lit;
+  float fr = pow(1.0 - max(dot(N, V), 0.0), 2.4);
+  col = mix(col, mix(uAtmo, vec3(0.69, 0.93, 1.0), 0.4) * (0.3 + lit * 0.8), fr * 0.55);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -336,7 +364,7 @@ void main() {
   vec4 t = texture2D(uMap, vUv);
   float a = t.a * dot(t.rgb, vec3(0.333)), ndl = dot(normalize(vN), normalize(uSun));
   float light = mix(0.92, 0.05 + 1.05 * smoothstep(-0.15, 0.6, ndl), uMode);
-  gl_FragColor = vec4(vec3(light), a * mix(0.72, 0.85, uMode) * uFade);
+  gl_FragColor = vec4(vec3(light), a * mix(0.32, 0.55, uMode) * uFade);
   #include <colorspace_fragment>
 }`;
 const ATMO_VERT = /* glsl */ `
@@ -419,7 +447,7 @@ export function initMenu() {
   const camera = new THREE.PerspectiveCamera(30, 1, 0.005, 100);
   const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); black.needsUpdate = true;
   const U = {
-    uDay: { value: fallbackDay() }, uNight: { value: black }, uSpec: { value: black }, uNightOn: { value: 0 }, uSpecOn: { value: 0 },
+    uDay: { value: fallbackDay() }, uNight: { value: black }, uSpec: { value: black }, uNorm: { value: black }, uNightOn: { value: 0 }, uSpecOn: { value: 0 }, uNormOn: { value: 0 },
     uSun: { value: new THREE.Vector3(1, 0, 0) }, uCam: { value: new THREE.Vector3() }, uAtmo: { value: new THREE.Color() }, uMode: { value: mode },
   };
   const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 128, 96), new THREE.ShaderMaterial({ uniforms: U, vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG }));
@@ -439,6 +467,7 @@ export function initMenu() {
   load('earth_atmos_2048.jpg', true, (t) => { U.uDay.value = t; });
   load('earth_lights_2048.png', true, (t) => { U.uNight.value = t; U.uNightOn.value = 1; });
   load('earth_specular_2048.jpg', false, (t) => { U.uSpec.value = t; U.uSpecOn.value = 1; });
+  load('earth_normal_2048.jpg', false, (t) => { U.uNorm.value = t; U.uNormOn.value = 1; });
   load('earth_clouds_1024.png', false, (t) => { CU.uMap.value = t; cloudsReady = true; });
 
   // ---- the view: the camera orbits the planet (lat/lon over a point, distance from the centre)
@@ -557,13 +586,14 @@ export function initMenu() {
   // ---- per frame
   const _p = new THREE.Vector3(), _c = new THREE.Vector3(), sunView = new THREE.Vector3();
   const SUN_LIGHT = new THREE.Vector3(-0.42, 0.5, 0.76).normalize(), SUN_DARK = new THREE.Vector3(-0.62, 0.36, 0.58).normalize();
-  const ATMO_LIGHT = new THREE.Color(0.42, 0.66, 1.0), ATMO_DARK = new THREE.Color(0.32, 0.62, 1.0);
-  let last = performance.now(), t = 0, running = true, issA = Math.random() * 6, shown = 0;
+  const ATMO_LIGHT = new THREE.Color(0.5, 0.86, 1.0), ATMO_DARK = new THREE.Color(0.34, 0.7, 1.0);
+  let last = performance.now(), born = last, t = 0, running = true, issA = Math.random() * 6, shown = 0;
   function frame(ms) {
     if (!running) return;
     if (menu.style.display === 'none') { stop(); return; }     // the game has started: stop and let the GPU go
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (ms - last) / 1000); last = ms; t += dt; now = t;
+    const wall = (performance.now() - born) / 1000;                 // real seconds since the menu opened
     mode += ((theme === 'dark' ? 1 : 0) - mode) * Math.min(1, dt * 2.6);
     hovered = going ? going.i : pinHover >= 0 ? pinHover : rowHover;
     if (!going) {
@@ -613,7 +643,7 @@ export function initMenu() {
       const vis = clamp((facing - horizon - 0.02) / 0.14, 0, 1);
       d.project(camera);
       el.style.transform = `translate3d(${((d.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-d.y * 0.5 + 0.5) * H).toFixed(1)}px, 0)`;
-      el.style.opacity = going && going.i !== i ? 0 : vis * clamp((t - 1.3 - i * 0.15) / 0.7, 0, 1);   // the pins land once the planet has come in
+      el.style.opacity = going && going.i !== i ? 0 : vis * clamp((wall - 1.3 - i * 0.15) / 0.7, 0, 1);   // the pins land once the planet has come in
       el.style.zIndex = Math.round(facing * 100) + (hovered === i ? 200 : 0);
       el.classList.toggle('on', hovered === i); el.classList.toggle('dim', hovered >= 0 && hovered !== i);
       el.classList.toggle('off', vis < 0.4);
@@ -629,7 +659,7 @@ export function initMenu() {
     running = false;
     removeEventListener('resize', layout);
     scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose()); });
-    for (const u of [U.uDay, U.uNight, U.uSpec, CU.uMap]) u.value && u.value.dispose();
+    for (const u of [U.uDay, U.uNight, U.uSpec, U.uNorm, CU.uMap]) u.value && u.value.dispose();
     renderer.dispose(); renderer.forceContextLoss && renderer.forceContextLoss();
     canvas.remove();
   }

@@ -34,7 +34,7 @@
   #menu { position:fixed; inset:0; z-index:20; overflow:hidden; font-family:Inter,system-ui,sans-serif; --pad:clamp(22px,4.6vw,72px); --top:calc(4.2vh + 3.4vh);
     --bg:#04060c; --fg:#eef2f8; --dim:rgba(232,238,248,.58); --faint:rgba(232,238,248,.3); --line:rgba(232,238,248,.12); --panel:rgba(14,18,28,.5); --shadow:rgba(0,0,0,.5);
     background:var(--bg); color:var(--fg); transition:background-color 1s cubic-bezier(.4,0,.2,1), color 1s ease; }
-  #menu[data-theme="light"] { --bg:#f2f1ed; --fg:#14171d; --dim:rgba(20,23,29,.6); --faint:rgba(20,23,29,.34); --line:rgba(20,23,29,.12); --panel:rgba(255,255,255,.6); --shadow:rgba(40,50,70,.18); }
+  #menu[data-theme="light"] { --bg:#edf4f4; --fg:#14171d; --dim:rgba(20,23,29,.6); --faint:rgba(20,23,29,.34); --line:rgba(20,23,29,.12); --panel:rgba(255,255,255,.6); --shadow:rgba(40,50,70,.18); }
   #menu .maps { display:none; }
   /* drifting colour light behind everything */
   #menu .gm-bg { position:absolute; inset:-25%; z-index:0; pointer-events:none; filter:blur(60px); transition:opacity 1s; }
@@ -42,9 +42,9 @@
   #menu .gm-bg .b1 { width:55vmax; height:55vmax; left:48%; top:12%; background:radial-gradient(circle, rgba(40,90,220,.55), transparent 65%); animation:gmDrift1 38s ease-in-out infinite alternate; }
   #menu .gm-bg .b2 { width:42vmax; height:42vmax; left:10%; top:52%; background:radial-gradient(circle, rgba(20,170,170,.35), transparent 65%); animation:gmDrift2 46s ease-in-out infinite alternate; }
   #menu .gm-bg .b3 { width:36vmax; height:36vmax; left:68%; top:58%; background:radial-gradient(circle, rgba(130,70,220,.35), transparent 65%); animation:gmDrift3 52s ease-in-out infinite alternate; }
-  #menu[data-theme="light"] .gm-bg .b1 { background:radial-gradient(circle, rgba(140,185,255,.55), transparent 65%); }
+  #menu[data-theme="light"] .gm-bg .b1 { background:radial-gradient(circle, rgba(110,205,220,.55), transparent 65%); }
   #menu[data-theme="light"] .gm-bg .b2 { background:radial-gradient(circle, rgba(255,196,150,.5), transparent 65%); }
-  #menu[data-theme="light"] .gm-bg .b3 { background:radial-gradient(circle, rgba(170,230,215,.5), transparent 65%); }
+  #menu[data-theme="light"] .gm-bg .b3 { background:radial-gradient(circle, rgba(150,225,230,.55), transparent 65%); }
   @keyframes gmDrift1 { to { transform:translate(-14vmax, 8vmax) scale(1.15); } }
   @keyframes gmDrift2 { to { transform:translate(16vmax, -10vmax) scale(.9); } }
   @keyframes gmDrift3 { to { transform:translate(-10vmax, -14vmax) scale(1.2); } }
