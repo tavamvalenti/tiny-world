@@ -276,6 +276,7 @@ export function london(B) {
     const b = blk(0, 2);
     grass(b.lx0 - 1.6, b.lz0 - 1.6, b.lx1 + 1.6, b.lz1 + 1.6);
     g.x.save(); g.x.fillStyle = '#5a7880'; g.x.beginPath(); g.x.ellipse(g.px((b.lx0 + b.lx1) / 2), g.px((b.lz0 + b.lz1) / 2), 4 * g.k, 15 * g.k, 0.05, 0, 6.283); g.x.fill(); g.x.restore();
+    (city.ponds ||= []).push({ x: (b.lx0 + b.lx1) / 2, z: (b.lz0 + b.lz1) / 2, rx: 4, rz: 15, rot: -0.05 });
     for (let i = 0; i < 70; i++) { const x = rand(b.lx0 + 0.5, b.lx1 - 0.5), z = rand(b.lz0 + 0.5, b.lz1 - 0.5); if (Math.abs((x - (b.lx0 + b.lx1) / 2) / 4.6) ** 2 + ((z - (b.lz0 + b.lz1) / 2) / 15.6) ** 2 > 1) city.addTree(x, z, rand(1.1, 1.6)); }
     city.wanderZones.push({ x0: b.lx0, x1: b.lx0 + 2.4, z0: b.lz0, z1: b.lz1 }, { x0: b.lx1 - 2.4, x1: b.lx1, z0: b.lz0, z1: b.lz1 });
     for (let k = 0; k < 6; k++) city.addProp('bench', b.lx0 + 1.2, rand(b.lz0 + 2, b.lz1 - 2), Math.PI / 2);

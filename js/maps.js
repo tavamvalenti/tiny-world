@@ -272,7 +272,7 @@ function resortBlock(ctx, b) {
   const { city, B, g } = ctx, P = city.playa;
   const cx = (b.lx0 + b.lx1) / 2, W = b.lx1 - b.lx0, front = b.lz0;
   g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#e3dccb');
-  const pool = (x0, z0, x1, z1) => { g.rect(x0 - 0.5, z0 - 0.5, x1 + 0.5, z1 + 0.5, '#efe9dc'); g.rect(x0, z0, x1, z1, '#2fa9bf'); g.rect(x0 + 0.25, z0 + 0.25, x1 - 0.25, z1 - 0.25, '#5fd2dc'); };
+  const pool = (x0, z0, x1, z1) => { g.rect(x0 - 0.5, z0 - 0.5, x1 + 0.5, z1 + 0.5, '#efe9dc'); g.rect(x0, z0, x1, z1, '#2fa9bf'); g.rect(x0 + 0.25, z0 + 0.25, x1 - 0.25, z1 - 0.25, '#5fd2dc'); (city.pools ||= []).push({ x0, z0, x1, z1 }); };
   const deckLoungers = (x0, x1, z) => { for (let x = x0; x < x1; x += 0.55) P.loungers.push({ x, z }); };
   const hotel = (o) => { const h = B.add({ style: 'stucco', tint: RESORT(), cell: 1.7, gh: 1.5, fh: 0.95, ...o }); h.noSigns = true; P.hotels.push(h); return h; };
   if (b.i === 1 || b.i === 4) {

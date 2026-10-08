@@ -34,6 +34,7 @@ import { Pets } from './pets.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 import { RickMode } from './rick.js';
+import { addRipples, gatherWakes, buildPools } from './water.js';
 import { Chains } from './chains.js';
 import { vegas, Vegas } from './vegas.js';
 import { london, London } from './london.js';
@@ -133,6 +134,8 @@ function makeWater(shore, axis = 'z') {
                        cos(vW.z * 1.5 + uTime * 1.3) + sin(vW.z * 0.7 - vW.x * 0.9 + uTime) + 0.5 * cos(vW.z * 2.9 + vW.x * 2.1 - uTime * 2.2)) * 0.05
                   + vec2(sin(vW.x * 0.21 + vW.z * 0.13 + uTime * 0.6), cos(vW.z * 0.19 - vW.x * 0.11 + uTime * 0.5)) * 0.05;
         normal = normalize(normal + (viewMatrix * vec4(wv.x, 0., wv.y, 0.)).xyz * mix(0.8, 0.45, axisX));`);
+    // ripples carried by the current and the swell, and the wakes of every boat out on it (js/water.js)
+    addRipples(sh, { flow: axis === 'x' ? [0.05, 0.35] : [0.08, 0.45], scale: 0.9, amp: 0.85, gloss: [0.14, 0.34] });
   };
   const m = new THREE.Mesh(new THREE.PlaneGeometry(axis === 'x' ? 800 : 700, axis === 'x' ? 1400 : 400).rotateX(-Math.PI / 2), mat);
   if (axis === 'x') m.position.set(shore + 1.5 - 400, 0.05, 0); else m.position.set(0, 0.05, shore + 1.5 - 200);
@@ -164,6 +167,7 @@ function load(name) {
   ground.receiveShadow = true;
   scene.add(ground);
   if (map.water) { water = makeWater(map.water.shore, map.water.axis); scene.add(water.mesh); }
+  buildPools(scene, map.city.pools, map.city.ponds);                          // pools and ponds painted on the ground get real water
 
   B.finalize(scene);
   G.construction = new Construction(scene, sites, map.city, name);
@@ -373,6 +377,7 @@ function step(dt) {
   G.fx.update(dt, camera, renderer);
   G.ground.update(dt);
   if (water) water.timeU.value = G.time;
+  gatherWakes();
   post.render(scene, camera, G.time);
   frames++; fpsT += dt;
   if (fpsT > 0.5) {

@@ -23,6 +23,7 @@ import { beachRadio, sfx } from './audio.js';
 // the rooftop clubs' set (shuffled, every song once before any repeats)
 const CLUB_SET = ['assets/club-come-get-her.mp4', 'assets/club-disco-inferno.mp4', 'assets/club-massive.mp4', 'assets/club-like-a-g6.mp4', 'assets/club-low.mp4'];
 import { hsl, tint, box, cyl, cone, sph, canvasTex, hipRoof, merged, netCtx, paintNetwork, widenFor, topOf, hangOn, rnd, skinOn, pyramidTris } from './mapkit.js';
+import { waterMaterial } from './water.js';
 
 const XS = [-80, 0, 54, 104, 142], ZS = [-138, -86, -24, 16, 60, 102, 140];
 const STRIP = 5.5;                       // half width of Las Vegas Boulevard (8 lanes and a median)
@@ -108,7 +109,7 @@ export function vegas(B) {
   for (let z = -170; z < 172; z += 6) if (!ZS.some((zz) => Math.abs(z - zz) < 6)) city.addTree(rand(-0.25, 0.25), z, 1.2, 'palm');
 
   const lot = (x0, z0, x1, z1, c = '#a49d91') => { g.rect(x0, z0, x1, z1, c); g.grainRect(x0, z0, x1, z1, 0.2, 30); };
-  const pool = (x0, z0, x1, z1) => { g.rect(x0 - 0.8, z0 - 0.8, x1 + 0.8, z1 + 0.8, '#e6dccb'); g.rect(x0, z0, x1, z1, '#3fc3d8'); g.rect(x0 + 0.3, z0 + 0.3, x1 - 0.3, z1 - 0.3, '#5fd6e6'); city.crowds.push({ x: (x0 + x1) / 2, z: z1 + 0.5, r: 1.2, n: 6, look: 'swim' }); };
+  const pool = (x0, z0, x1, z1) => { g.rect(x0 - 0.8, z0 - 0.8, x1 + 0.8, z1 + 0.8, '#e6dccb'); g.rect(x0, z0, x1, z1, '#3fc3d8'); g.rect(x0 + 0.3, z0 + 0.3, x1 - 0.3, z1 - 0.3, '#5fd6e6'); (city.pools ||= []).push({ x0, z0, x1, z1 }); city.crowds.push({ x: (x0 + x1) / 2, z: z1 + 0.5, r: 1.2, n: 6, look: 'swim' }); };
   const palmsAlong = (x0, z0, x1, z1, step = 4) => { for (let t = 0; t <= 1.0001; t += step / Math.max(1, Math.hypot(x1 - x0, z1 - z0))) city.addTree(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, 1.1, 'palm'); };
   // a porte-cochère drive off the Strip with a cab line, valets and doormen
   const driveway = (side, z, look = 'valet') => {
@@ -755,7 +756,7 @@ export class Vegas {
     for (const v of villas) { const t = topOf(v); hangOn(v, [this.add([tint(hipRoof(t.w + 0.4, t.d + 0.4, 1).translate(t.cx, t.y, t.cz), 0xb8613a)])]); }
     // the lake: dark water, the lit balustrade along the Strip, olive trees and lamps
     const water = new THREE.Mesh(new THREE.PlaneGeometry(lake.x1 - lake.x0, lake.z1 - lake.z0, 1, 1).rotateX(-Math.PI / 2).translate((lake.x0 + lake.x1) / 2, 0.06, (lake.z0 + lake.z1) / 2),
-      new THREE.MeshStandardMaterial({ color: 0x17485e, roughness: 0.04, metalness: 0.45, envMapIntensity: 1.2 }));
+      waterMaterial({ color: 0x17485e, flow: [0.05, 0.12], wakes: false }));
     water.receiveShadow = true; this.scene.add(water); this.lakeWater = water;
     const Bal = [];
     for (let z = lake.z0; z < lake.z1; z += 0.5) Bal.push(box(0.12, 0.6, 0.12, lake.x1 + 0.25, 0.3, z, 0xf2ece0));
@@ -892,7 +893,7 @@ export class Vegas {
     for (let k = 0; k <= 10; k++) { const t = k / 10 - 0.5; P.push(box(4.8, 0.4, 0.62, r.x, 1.6 - t * t * 4.4, r.z + t * 6.2, 0xf0ebe0)); }
     P.push(box(1.4, 1.6, 2.4, r.x, 2.3, r.z, 0xece4d2), tint(hipRoof(1.8, 2.8, 0.8).translate(r.x, 3.1, r.z), 0xb8613a));
     this.add(P);
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(v.canal.x1 - v.canal.x0, v.canal.z1 - v.canal.z0).rotateX(-Math.PI / 2).translate((v.canal.x0 + v.canal.x1) / 2, 0.06, (v.canal.z0 + v.canal.z1) / 2), new THREE.MeshStandardMaterial({ color: 0x2f8a96, roughness: 0.1, metalness: 0.2 }));
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(v.canal.x1 - v.canal.x0, v.canal.z1 - v.canal.z0).rotateX(-Math.PI / 2).translate((v.canal.x0 + v.canal.x1) / 2, 0.06, (v.canal.z0 + v.canal.z1) / 2), waterMaterial({ color: 0x2f8a96, flow: [0.02, 0.1], scale: 1.0 }));
     this.scene.add(water);
     const gGeo = mergeGeometries([tint(new THREE.BoxGeometry(0.45, 0.22, 2.2).translate(0, 0.16, 0), 0x0d0d10), tint(new THREE.BoxGeometry(0.06, 0.4, 0.1).translate(0, 0.35, 1.05), 0x0d0d10), tint(new THREE.CylinderGeometry(0.07, 0.08, 0.36, 6).translate(0, 0.45, -0.7), 0xf2f2ee)]);
     this.gondolas = [0, 1, 2].map((k) => { const m = new THREE.Mesh(gGeo, this.mat); this.scene.add(m); return { m, t: k / 3, v: v.canal }; });
@@ -1336,7 +1337,9 @@ export class Vegas {
       if (r.y == null) continue;
       const t = topOf(r.b), y = r.y;
       if (r.kind === 'pool') {
-        P.push(box(t.w * 0.6, 0.12, t.d * 0.45, t.cx, y + 0.06, t.cz - t.d * 0.1, 0x3fc3d8), box(t.w * 0.66, 0.08, t.d * 0.52, t.cx, y + 0.02, t.cz - t.d * 0.1, 0xe6dccb));
+        P.push(box(t.w * 0.66, 0.1, t.d * 0.52, t.cx, y + 0.05, t.cz - t.d * 0.1, 0xe6dccb));
+        const pw = new THREE.Mesh(new THREE.PlaneGeometry(t.w * 0.6, t.d * 0.45).rotateX(-Math.PI / 2), this.poolMat ||= waterMaterial({ pool: true, color: 0x2fb6c8, wakes: false }));
+        pw.position.set(t.cx, y + 0.115, t.cz - t.d * 0.1); this.scene.add(pw); hangOn(r.b, [pw], r.b.floors - 1);
         for (let k = 0; k < 4; k++) { const x = t.cx - t.w * 0.3 + k * t.w * 0.2; P.push(box(0.35, 0.12, 0.9, x, y + 0.1, t.cz + t.d * 0.3, 0xf2f2ee), cyl(0.03, 0.03, 1, x + 0.3, y + 0.5, t.cz + t.d * 0.3, 0xdddddd, 4), cone(0.55, 0.3, x + 0.3, y + 1.05, t.cz + t.d * 0.3, pick([0xe83a3a, 0xf2f2ee, 0x2a8ad8, 0xf2c230]), 8)); }
       } else {
         P.push(box(t.w * 0.7, 0.06, t.d * 0.6, t.cx, y + 0.03, t.cz, 0x1a1a22), box(1.6, 0.9, 0.7, t.cx, y + 0.45, t.cz - t.d * 0.32, 0x101014));
