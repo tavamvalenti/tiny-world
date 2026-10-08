@@ -122,10 +122,16 @@ export function vegas(B) {
   // a casino's pylon sign by the Strip: the name, an LED screen, a chase of bulbs
   const pylon = (x, z, name2, col, glow, h = 9) => { V.pylons.push({ x, z, name: name2, col, glow, h }); clear(x - 1.2, x + 1.2, z - 2.6, z + 2.6); };
   // the Strip sidewalks: tourists, people filming, groups heading out for the night
-  const strip = (side, z0, z1, every = 3.6) => {
-    for (let z = z0; z < z1; z += every) if (!ZS.some((zz) => Math.abs(z - zz) < 5)) city.crowds.push({ x: side * rand(6.4, 8), z: z + rand(-1, 1), r: 0.7, n: Math.round(rand(2, 6)), look: Math.random() < 0.3 ? 'nightlife' : 'tourist', act: Math.random() < 0.25 ? 'film' : null, face: Math.random() < 0.25 ? { x: -side * 30, z } : null });
+  const strip = (side, z0, z1, every = 2.1) => {
+    for (let z = z0; z < z1; z += every) if (!ZS.some((zz) => Math.abs(z - zz) < 4)) city.crowds.push({ x: side * rand(6.2, 8.2), z: z + rand(-1, 1), r: 0.75, n: Math.round(rand(3, 7)), look: Math.random() < 0.3 ? 'nightlife' : 'tourist', act: Math.random() < 0.25 ? 'film' : null, face: Math.random() < 0.25 ? { x: -side * 30, z } : null });
   };
   strip(-1, -132, 134); strip(1, -132, 134);
+  // street performers on the Strip, each with a ring of people watching (and filming) the show
+  for (const [x, z, look] of [[-7.4, 1, 'performer'], [7.4, -4, 'elvis'], [-7.4, -27.5, 'showgirl'], [7.4, -44, 'performer'], [-7.4, 46, 'performer'], [7.4, 40, 'busker'], [-7.4, -70, 'performer'], [7.4, -64, 'elvis'],
+    [-7.4, 88, 'performer'], [7.4, 18.5, 'performer'], [-7.4, -100, 'busker'], [7.4, -120, 'performer'], [7.4, -27.5, 'showgirl'], [-7.4, 12, 'elvis'], [24, -47.6, 'performer'], [36, -47.6, 'busker']]) {
+    city.crowds.push({ x, z, r: 0.25, n: 1, look, act: look === 'busker' ? 'dance' : 'trick', stay: true });
+    city.crowds.push({ x, z, r: 2.1, n: Math.round(rand(9, 15)), look: 'tourist', act: 'spect', stay: true });
+  }
   city.wanderZones.push({ x0: -8.4, x1: -6, z0: -132, z1: 134 }, { x0: 6, x1: 8.4, z0: -132, z1: 134 });
 
   // ===== WEST SIDE =====
@@ -383,7 +389,7 @@ export function vegas(B) {
   }
   // the blocks off the Strip: mid-rise hotels, apartments, garages, motels; the odd strip club
   const used = (b) => b.i === 0 || b.i === 1 || b.i === 3 || (b.i === 2 && (b.j === 3 || b.j === 1));
-  const clubNames = ['PLATINUM ROSE', 'SAPPHIRE NIGHTS', 'DIAMOND DOLLS', 'VELVET ROOM'];
+  const clubNames = ['STRIP CLUB', 'STRIP CLUB', 'STRIP CLUB', 'STRIP CLUB'];
   let nClub = 0;
   for (const b of city.blocks) {
     if (used(b)) continue;
@@ -421,11 +427,19 @@ export function vegas(B) {
   // a Henderson-style tract neighbourhood out to the south-east: stucco, tile roofs, block walls, palms
   {
     g.rect(108, 60, 175, 175, '#c8b896');
+    const park = { x0: 128, x1: 150, z0: 136, z1: 158 };
+    city.paintGrass(g, park.x0, park.z0, park.x1, park.z1, '#6f8a46');
+    (city.lawns ||= []).push({ x0: park.x0 + 1, x1: park.x1 - 1, z0: park.z0 + 1, z1: park.z1 - 1, name: 'the park' });
+    for (let k = 0; k < 10; k++) city.addTree(rand(park.x0 + 1, park.x1 - 1), pick([park.z0 + 1, park.z1 - 1]), 1, pick(['palm', 'round']));
+    city.dogArea = { x0: 108, x1: 175, z0: 60, z1: 175 };
     for (let z = 66; z < 172; z += 13) {
       g.rect(108, z - 1.6, 175, z + 1.6, '#5a5b5e');
+      city.wanderZones.push({ x0: 110, x1: 172, z0: z - 2.4, z1: z - 1.8 }, { x0: 110, x1: 172, z0: z + 1.8, z1: z + 2.4 });
+      (V.bikeRows ||= []).push(z);
+      for (let k = 0; k < 2; k++) city.crowds.push({ x: rand(114, 170), z: z + pick([-2.2, 2.2]), r: 0.6, n: Math.round(rand(2, 3)), look: pick(['tourist', 'commuter']) });
       for (let x = 112; x < 172; x += 6.2) for (const s of [-1, 1]) {
         const hz = z + s * 5;
-        if (hz > 172) continue;
+        if (hz > 172 || (x > park.x0 - 2 && x < park.x1 + 2 && hz > park.z0 - 2 && hz < park.z1 + 2)) continue;
         B.add({ x, z: hz, w: 4.4, d: 4.6, floors: 1 + (Math.random() < 0.3), style: 'house', tint: hsl(rand(0.07, 0.12), rand(0.25, 0.45), rand(0.74, 0.86)), cell: 2.2, fh: 0.95, gh: 1, gable: true, roofTint: hsl(rand(0.03, 0.06), 0.45, rand(0.38, 0.48)) });
         if (Math.random() < 0.4) city.addTree(x + 2.6, hz + s * 1.5, 0.9, 'palm');
       }
@@ -453,7 +467,7 @@ export function vegas(B) {
     for (let i = 0; i < 260; i++) g.circle(rand(105, 175), rand(-175, 58), rand(0.2, 1.4), `rgba(${pick(['30,28,26', '60,50,40', '90,80,60'])},${rand(0.1, 0.3)})`);   // stains, oil, litter
     const KINDS = ['711', 'casino', 'club', 'motel', 'shop', 'shop', 'shop', 'vacant', 'casino', 'shop', 'vacant', '711', 'club'];
     const casinoNames = ['LUCKY 7 CASINO', 'SILVER SPUR', 'HOT SHOE CASINO', 'WILD ACE', 'DOUBLE DOWN', 'GOLDEN BUCK'];
-    const clubNames2 = ['VIP', 'TOP HAT', 'CHERRY', 'DIAMONDS', 'BLUE MOON'];
+    const clubNames2 = ['STRIP CLUB'];
     const motelNames = ['DESERT ROSE MOTEL', 'STARLITE MOTEL', 'EL RANCHO INN', 'WEEKLY RATES MOTEL'];
     let ki = Math.floor(rand(0, KINDS.length));
     for (const [xf, dir, z0, z1, xBack] of strips) {
@@ -551,7 +565,7 @@ export function vegas(B) {
   }
   city.hotspot = { x: 0, z: -10, r: 70 };
   city.side = 1;
-  return { ...ctx, agents: { cars: 80, peds: 460, wanderFrac: 0.12 }, fog: 0xe2d2b6, start: { x: 0, z: -4 }, zMin: -168, zMax: 150, xMin: -100, maxD: 230, yaw: 0.42, ownBackdrop: true };
+  return { ...ctx, agents: { cars: 112, peds: 640, wanderFrac: 0.16 }, fog: 0xe2d2b6, start: { x: 0, z: -4 }, zMin: -168, zMax: 150, xMin: -100, maxD: 230, yaw: 0.42, ownBackdrop: true };
 }
 
 // ====================================================================================================
@@ -575,7 +589,7 @@ export class Vegas {
     this.venice(R.venetian, R.palazzo, V.venice); this.wynn(R.wynn, R.encore); this.rw(R.rw); this.flamingo(R.flamingo, R.linq, R.harrahs);
     this.ph(R.ph); this.ti(R.ti, V.lagoon, V.exhibit); this.cloud(V.cloud); this.sphere(V.sphere); this.wheel(V.wheel); this.bridges(); this.welcome();
     this.clubs(V.clubs || [], V.chapel); this.site(V.site); this.crowns(R); this.saharaSign(V.sahara);
-    this.dark(V.dark);
+    this.dark(V.dark); this.bikes(V.bikeRows || []);
     this.pylons(V.pylons); this.screens(V.screens); this.neonEdges(V.neon); this.rooftops(V.roofs); this.crownLights(V.crownLit || []);
     this.world(scene);
   }
@@ -1131,6 +1145,23 @@ export class Vegas {
     // a couple of failing streetlights
     this.flicker = this.city.lamps.filter((l) => l.x > 104).filter(() => Math.random() < 0.15);
   }
+  // people out on bikes in the suburb, riding up and down its streets
+  bikes(rows) {
+    this.bikers = [];
+    const wheel = new THREE.TorusGeometry(0.12, 0.018, 6, 16);
+    for (let k = 0; k < Math.min(12, rows.length * 2); k++) {
+      const g3 = new THREE.Group(), frame = new THREE.MeshStandardMaterial({ color: pick([0xc8102e, 0x2a6ad8, 0x1a1a1a, 0x2aa86a, 0xf2c230]), roughness: 0.4, metalness: 0.5 });
+      const shirt = new THREE.MeshStandardMaterial({ color: pick([0xff8fa3, 0x4fc3f7, 0xfff176, 0xffffff, 0x81c784, 0xff7043]) }), skin = new THREE.MeshStandardMaterial({ color: pick([0xe8c4a8, 0xc99b78, 0x9a6b4c, 0xf0d6c0]) });
+      for (const z of [-0.22, 0.22]) { const w = new THREE.Mesh(wheel, new THREE.MeshStandardMaterial({ color: 0x111111 })); w.rotation.y = Math.PI / 2; w.position.set(0, 0.12, z); g3.add(w); }
+      g3.add(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.44).translate(0, 0.24, 0), frame), new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.2, 0.03).translate(0, 0.3, -0.08), frame), new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.02).translate(0, 0.38, 0.18), frame));
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.22, 7).rotateX(0.35).translate(0, 0.52, -0.02), shirt); g3.add(body);
+      g3.add(new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6).translate(0, 0.68, 0.03), skin), new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 5, 0, 6.28, 0, 1.6).translate(0, 0.69, 0.03), new THREE.MeshStandardMaterial({ color: pick([0x111111, 0xc8102e, 0xf2f2ee]) })));
+      const legs = [-1, 1].map((sx) => { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.018, 0.26, 5).translate(0, -0.13, 0), new THREE.MeshStandardMaterial({ color: 0x2a3448 })); l.position.set(sx * 0.04, 0.42, -0.06); g3.add(l); return l; });
+      this.scene.add(g3);
+      const row = rows[k % rows.length];
+      this.bikers.push({ g: g3, legs, row, x: rand(112, 170), dir: Math.random() < 0.5 ? 1 : -1, v: rand(2.2, 3.4), ph: rand(0, 6) });
+    }
+  }
   // the resort towers' crowns: a band of light round each top, warm white (MGM green, Wynn gold, the Cosmo violet...)
   crownLights(list) {
     const L = [];
@@ -1216,19 +1247,16 @@ export class Vegas {
     for (let i = 0; i < 30; i++) { x.strokeStyle = 'rgba(235,220,190,.35)'; x.lineWidth = Rr(2, 6); x.beginPath(); let px = Rr(0, S), pz = Rr(0, S); x.moveTo(px, pz); for (let j = 0; j < 12; j++) { px += Rr(-40, 40); pz += Rr(10, 50); x.lineTo(px, pz); } x.stroke(); }   // dry washes
     // the valley's edge of town around the map, thinning quickly into open desert
     const blob = (cx, cz, rx, rz, col) => { x.save(); x.translate(P(cx), P(cz)); x.scale(1, rz / rx); const g2 = x.createRadialGradient(0, 0, 0, 0, 0, rx * k); g2.addColorStop(0, col); g2.addColorStop(0.75, col.replace(/[\d.]+\)$/, '0.5)')); g2.addColorStop(1, col.replace(/[\d.]+\)$/, '0)')); x.fillStyle = g2; x.beginPath(); x.arc(0, 0, rx * k, 0, 6.28); x.fill(); x.restore(); };
-    blob(80, -40, 230, 330, 'rgba(184,172,152,1)'); blob(240, 260, 120, 110, 'rgba(196,182,158,1)');
     // the roads: I-15 and Las Vegas Boulevard running in from far off; the airport's runways
     x.fillStyle = '#4a4b4e'; x.fillRect(P(I15 - 8), 0, 16 * k, S);
     x.fillStyle = '#bdb8ac'; x.fillRect(P(I15 - 0.3), 0, 0.6 * k + 0.5, S);
     x.fillStyle = '#4a4b4e'; x.fillRect(P(-STRIP), P(150), STRIP * 2 * k, S); x.fillStyle = '#9a9384'; x.fillRect(P(-0.6), P(150), 1.2 * k + 0.5, S);
-    x.save(); x.translate(P(280), P(300)); x.fillStyle = '#b9ab90'; x.fillRect(-160 * k, -120 * k, 330 * k, 260 * k);
-    x.fillStyle = '#3e3f42'; for (const b of [-50, -18]) x.fillRect(-130 * k, b * k, 280 * k, 8 * k); x.rotate(Math.PI / 2 - 0.3); for (const b of [-50, -20]) x.fillRect(-120 * k, b * k, 240 * k, 8 * k); x.restore();
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
     ground.position.y = -0.05; ground.receiveShadow = true; scene.add(ground);
     // a little edge-of-town development right around the map (motels, warehouses, a few houses), nothing far out
     const boxes = [];
-    for (let i = 0; i < 700; i++) {
+    for (let i = 0; i < 0; i++) {   // (nothing built out there: just the desert)
       const bx = Rr(-330, 330), bz = Rr(-380, 320), d = Math.hypot(bx * 0.9, (bz + 40) * 0.8);
       if (Math.max(Math.abs(bx), Math.abs(bz)) < 182 || r() > Math.exp(-(d - 170) / 70) || bx < I15 + 12 || (Math.abs(bx) < 10 && bz > 150)) continue;   // nothing built west of I-15
       boxes.push([bx, bz, Rr(4, 10), Rr(4, 10), Rr(1.2, 3.6)]);
@@ -1269,7 +1297,7 @@ export class Vegas {
     this.billboards(scene);
   }
   desertPlants(scene, Rr, r) {
-    const out = (x, z) => (Math.abs(x) > 178 || Math.abs(z) > 178) && Math.abs(x - I15) > 12 && !(Math.abs(x) < 9 && z > 140) && Math.hypot(x, z + 40) < 1150 && !(Math.hypot(x - 280, z - 300) < 210);
+    const out = (x, z) => (Math.abs(x) > 178 || Math.abs(z) > 178) && Math.abs(x - I15) > 12 && !(Math.abs(x) < 9 && z > 140) && Math.hypot(x, z + 40) < 1150;
     const place = (n, minR) => { const a = []; for (let i = 0; a.length < n && i < n * 6; i++) { const x = Rr(-1100, 1100), z = Rr(-1100, 1100); if (out(x, z) && Math.hypot(x, z) > minR) a.push([x, z, Rr(0.7, 1.4), Rr(0, 6.28)]); } return a; };
     // Joshua tree: a shaggy trunk splitting into crooked arms, each tipped with a spiky green tuft
     const jt = []; const arm = (x0, y0, ang, len, tilt) => { const g3 = new THREE.CylinderGeometry(0.09, 0.13, len, 5).translate(0, len / 2, 0).rotateZ(tilt).rotateY(ang).translate(x0, y0, 0); jt.push(tint(g3, 0x6a5a44)); const tip = new THREE.Vector3(0, len, 0).applyEuler(new THREE.Euler(0, 0, tilt)).applyAxisAngle(new THREE.Vector3(0, 1, 0), ang); jt.push(tint(new THREE.IcosahedronGeometry(0.32, 0).scale(1, 1.3, 1).translate(x0 + tip.x, y0 + tip.y + 0.2, tip.z), 0x5f7a3a)); };
@@ -1362,6 +1390,7 @@ export class Vegas {
     // the ad reels: each screen changes ad every few seconds
     for (const r of this.reels) if (t > r.next) { r.next = t + 6 + Math.random() * 3; r.i++; this.drawReel(r); }
     this.updateHighway(dt);
+    for (const b of this.bikers || []) { b.x += b.dir * b.v * dt; if (b.x > 171 || b.x < 111) { b.dir *= -1; b.x = Math.max(111, Math.min(171, b.x)); } b.g.position.set(b.x, 0, b.row + (b.dir > 0 ? 0.8 : -0.8)); b.g.rotation.y = b.dir > 0 ? Math.PI / 2 : -Math.PI / 2; b.ph += dt * b.v * 3; b.legs[0].rotation.x = Math.sin(b.ph) * 0.7; b.legs[1].rotation.x = -Math.sin(b.ph) * 0.7; }
     if (this.flicker && G.city && (this._fl = (this._fl || 0) - dt) <= 0) { this._fl = rand(0.05, 0.4); for (const l of this.flicker) { l.flick = Math.random() < 0.4 ? 1 : 0; } }
     if (this.flashSprite && (this.flashT -= dt) <= 0) this.flashSprite.visible = false;
     this.trucks();
@@ -1375,7 +1404,7 @@ export class Vegas {
   // at the nearest rooftop club, neon tubes humming right beside you after dark, phones snapping photos (with the
   // flash), people laughing in the groups on the sidewalk, dice at a casino door now and then
   sounds(dt) {
-    const T = G.camTarget, n = G.night || 0; if (!T || !sfx.ready) return;
+    const T = G.camTarget, n = G.night || 0, t = G.time; if (!T || !sfx.ready) return;
     if (!this.doors) {
       const V = this.city.vegas;
       this.doors = [...V.pylons.map((p) => ({ x: p.x, z: p.z })), ...V.neon.filter((q) => q.b.floors <= 4).map((q) => ({ x: q.b.x + (q.side < 0 ? q.b.w / 2 : -q.b.w / 2), z: q.b.z }))];
@@ -1404,9 +1433,9 @@ export class Vegas {
       if (p) { sfx.once('shutter', p.pos.x, p.pos.z, 0.5, rand(0.95, 1.08)); this.flash(p.pos.x + Math.sin(p.heading) * 0.15, p.pos.y + 0.62, p.pos.z + Math.cos(p.heading) * 0.15); }
     }
     if ((this._laugh = (this._laugh ?? 4) - dt) <= 0) {
-      this._laugh = rand(5, 12);
+      this._laugh = rand(10, 22);
       const p = near((q) => q.group && !q.officer);
-      if (p) sfx.once(Math.random() < 0.55 ? 'laughW' : 'laughM', p.pos.x, p.pos.z, 0.45, rand(0.95, 1.06));
+      if (p) { const man = Math.random() < 0.15 && t - (this._manLaugh || -1e9) > 75; if (man) this._manLaugh = t; sfx.once(man ? 'laughM' : 'laughW', p.pos.x, p.pos.z, man ? 0.3 : 0.4, rand(0.95, 1.06)); }
     }
     if ((this._dice = (this._dice ?? 8) - dt) <= 0) { this._dice = rand(12, 25); if (door && dd < 22) sfx.once('dice', door.x, door.z, 0.3); }
   }
