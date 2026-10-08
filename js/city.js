@@ -226,18 +226,32 @@ export class City {
     for (let i = 0; i < (x1 - x0) * (z1 - z0) * 1.5; i++) g.circle(rand(x0, x1), rand(z0, z1), rand(0.2, 0.9), `rgba(${Math.random() < 0.5 ? '40,70,20' : '120,140,60'},${rand(0.05, 0.14)})`);
     g.grainRect(x0, z0, x1, z1, 0.3, 50);
   }
-  paintParking(g, x0, z0, x1, z1, stallsAlongX = true) {
+  // A parking lot laid out like a real one: rows of stalls with a white line on both sides of every stall and a line
+  // across the end, rows back to back down the middle, driving aisles between them. Each stall gets a parking spot
+  // facing straight in (agents.spawnParked turns some round, so some are nosed in and some backed in).
+  paintParking(g, x0, z0, x1, z1) {
     g.rect(x0, z0, x1, z1, '#55565a');
     g.grainRect(x0, z0, x1, z1, 0.2, 30);
-    const spots = [];
-    const W = 1.05, D = 2.1;
-    if (stallsAlongX) {
-      for (const [zz, dir] of [[z0 + 0.2, 1], [z1 - 0.2, -1]]) {
-        for (let x = x0 + 0.4; x + W < x1 - 0.2; x += W) {
-          g.line(x, zz, x, zz + dir * D, 0.06, 'rgba(240,240,235,.8)');
-          spots.push({ x: x + W / 2, z: zz + dir * D / 2, rot: Math.PI / 2 });
-        }
-      }
+    const spots = [], W = 1.0, D = 2.0, A = 2.6, line = 'rgba(240,240,235,.85)', lw = 0.07;
+    // bands across the lot (z): an edge row, then [aisle, double row] repeated, then an aisle and an edge row
+    const depth = z1 - z0, rows = [];
+    if (depth < D + 0.4) return spots;
+    if (depth < 2 * D + A) rows.push({ z: z0 + 0.15, dir: 1 });
+    else {
+      // as many double rows as fit, the spare room shared out evenly between the aisles
+      const inner = depth - 0.3, m = Math.max(0, Math.floor((inner - 2 * D - A) / (2 * D + A))), aisle = (inner - 2 * D - m * 2 * D) / (m + 1);
+      rows.push({ z: z0 + 0.15, dir: 1 });
+      let z = z0 + 0.15 + D + aisle;
+      for (let k = 0; k < m; k++) { rows.push({ z: z + D, dir: -1 }, { z: z + D, dir: 1 }); z += 2 * D + aisle; }
+      rows.push({ z: z1 - 0.15, dir: -1 });
+    }
+    const n = Math.floor((x1 - x0 - 0.6) / W), sx = x0 + (x1 - x0 - n * W) / 2;
+    if (n < 1) return spots;
+    for (const { z, dir } of rows) {
+      const zEnd = z + dir * D;
+      g.line(sx, z, sx + n * W, z, lw, line);                                         // the line across the end of the stalls
+      for (let k = 0; k <= n; k++) g.line(sx + k * W, z, sx + k * W, zEnd, lw, line);  // the lines between them
+      for (let k = 0; k < n; k++) spots.push({ x: sx + (k + 0.5) * W, z: z + dir * (D / 2 + 0.05), rot: dir > 0 ? Math.PI : 0 });
     }
     return spots;
   }
