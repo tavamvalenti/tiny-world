@@ -17,9 +17,9 @@ const S = 0.42;                                     // the characters' scale (as
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _z = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0);
 
 const KINDS = {
-  drone: { name: 'Armed Drone', sub: 'Machine gun · explodes on contact', keys: [['Mouse', 'aim'], ['W S A D', 'fly'], ['R F', 'up / down'], ['Shift', 'boost'], ['Click / Space', 'machine gun'], ['V', 'camera'], ['Esc', 'leave']] },
-  glider: { name: 'Paraglider', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'aim'], ['A D', 'bank / turn'], ['W', 'throttle: climb'], ['S', 'idle: glide down'], ['Shift', 'speed bar'], ['Click / Space', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
-  jetpack: { name: 'Jetpack', sub: 'Machine gun · grenade launcher', keys: [['Mouse', 'aim'], ['W S A D', 'move'], ['R F', 'up / down'], ['Shift', 'thrust burst'], ['Click / Space', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
+  drone: { name: 'Armed Drone', sub: 'Machine gun · explodes on contact', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Shift', 'boost'], ['Click / Space', 'machine gun'], ['V', 'camera'], ['Esc', 'leave']] },
+  glider: { name: 'Paraglider', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['A D', 'bank / turn'], ['W', 'throttle'], ['S', 'idle'], ['Shift', 'speed bar'], ['Click / Space', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
+  jetpack: { name: 'Jetpack', sub: 'Machine gun · grenade launcher', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Shift', 'thrust burst'], ['Click / Space', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
 };
 
 const CSS = `
@@ -53,10 +53,26 @@ html.touch #vehBtn{display:none}
 body.veh-on #weapons .w, body.veh-on #weapons .sep, body.veh-on #worldBtn, body.veh-on #tiltCtl, body.veh-on #help, body.veh-on #placeHint, body.veh-on #worldMenu{display:none!important}
 #vehHud{position:absolute;inset:0;pointer-events:none;display:none;font-family:Inter,system-ui,sans-serif}
 body.veh-on #vehHud{display:block}
-#vehHud .vh-ret{position:absolute;left:50%;top:46%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:1.5px solid rgba(255,220,170,.8);box-shadow:0 0 10px rgba(255,170,90,.45)}
-#vehHud .vh-ret::before,#vehHud .vh-ret::after{content:'';position:absolute;background:rgba(255,230,190,.9)}
-#vehHud .vh-ret::before{left:50%;top:-7px;width:1.5px;height:44px;margin-left:-.75px;-webkit-mask:linear-gradient(#000 0 7px,transparent 7px 37px,#000 37px);mask:linear-gradient(#000 0 7px,transparent 7px 37px,#000 37px)}
-#vehHud .vh-ret::after{top:50%;left:-7px;height:1.5px;width:44px;margin-top:-.75px;-webkit-mask:linear-gradient(90deg,#000 0 7px,transparent 7px 37px,#000 37px);mask:linear-gradient(90deg,#000 0 7px,transparent 7px 37px,#000 37px)}
+/* crosshairs: a classic four-line cross with a gap that opens while firing, one look per vehicle */
+#vehHud .vh-ret{position:absolute;left:50%;top:46%;width:0;height:0;--gap:6px;--len:9px;--th:2px;--col:#fff;transition:--gap .1s}
+#vehHud .vh-ret i{position:absolute;background:var(--col);box-shadow:0 0 0 1px rgba(0,0,0,.55);transition:transform .08s ease-out}
+#vehHud .vh-ret .t,#vehHud .vh-ret .b{width:var(--th);height:var(--len);left:calc(var(--th) / -2)}
+#vehHud .vh-ret .l,#vehHud .vh-ret .r{height:var(--th);width:var(--len);top:calc(var(--th) / -2)}
+#vehHud .vh-ret .t{bottom:var(--gap)} #vehHud .vh-ret .b{top:var(--gap)} #vehHud .vh-ret .l{right:var(--gap)} #vehHud .vh-ret .r{left:var(--gap)}
+#vehHud .vh-ret .c{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%;display:none}
+/* the drone: thin white lines, a centre dot and corner ticks like a gimbal camera's targeting box */
+#vehHud .vh-ret.drone{--gap:5px;--len:10px;--th:1.5px;--col:#f2f6f8}
+#vehHud .vh-ret.drone .c{display:block}
+#vehHud .vh-ret.drone .k{display:block;position:absolute;width:7px;height:7px;border:1.5px solid rgba(242,246,248,.8);background:none;box-shadow:none}
+#vehHud .vh-ret .k{display:none}
+#vehHud .vh-ret.drone .k1{left:-20px;top:-20px;border-right:0;border-bottom:0} #vehHud .vh-ret.drone .k2{right:-20px;top:-20px;border-left:0;border-bottom:0}
+#vehHud .vh-ret.drone .k3{left:-20px;bottom:-20px;border-right:0;border-top:0} #vehHud .vh-ret.drone .k4{right:-20px;bottom:-20px;border-left:0;border-top:0}
+/* the jetpack: a heavier assault-rifle cross, wider gap, warm white, no dot */
+#vehHud .vh-ret.jetpack{--gap:8px;--len:11px;--th:2.5px;--col:#fff4e2}
+/* the paraglider: the fireball launcher's sight, flame-orange, with a dot and a short drop line under it */
+#vehHud .vh-ret.glider{--gap:7px;--len:8px;--th:2px;--col:#ffb04a}
+#vehHud .vh-ret.glider .c{display:block;width:4px;height:4px;left:-2px;top:-2px;background:#ffe2b0}
+#vehHud .vh-ret.glider .b{height:16px}
 #vehHud .vh-cd{position:absolute;left:50%;top:46%;width:64px;height:4px;margin:24px 0 0 -32px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden}
 #vehHud .vh-cd i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ffb35a,#ff5a3c)}
 #vehHud .vh-title{font:800 12px Inter;letter-spacing:.24em;color:#ffd9a8;text-shadow:0 1px 4px rgba(0,0,0,.8);margin-bottom:4px}
@@ -138,9 +154,9 @@ export class VehicleMode {
     document.addEventListener('click', (e) => { if (!this.btn.contains(e.target)) this.btn.classList.remove('open'); });
     const hud = document.getElementById('hud');
     this.hud = document.createElement('div'); this.hud.id = 'vehHud';
-    this.hud.innerHTML = '<div class="vh-ret"></div><div class="vh-cd"><i></i></div><div class="vh-keys"></div><div class="vh-msg"></div><div class="vh-tip">Click to grab the mouse and aim</div>';
+    this.hud.innerHTML = '<div class="vh-ret"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="c"></i><i class="k k1"></i><i class="k k2"></i><i class="k k3"></i><i class="k k4"></i></div><div class="vh-cd"><i></i></div><div class="vh-keys"></div><div class="vh-msg"></div><div class="vh-tip">Click to grab the mouse and aim</div>';
     hud.appendChild(this.hud);
-    this.cdEl = this.hud.querySelector('.vh-cd'); this.cdBar = this.cdEl.querySelector('i'); this.msgEl = this.hud.querySelector('.vh-msg'); this.tip = this.hud.querySelector('.vh-tip');
+    this.ret = this.hud.querySelector('.vh-ret'); this.spread = 0; this.cdEl = this.hud.querySelector('.vh-cd'); this.cdBar = this.cdEl.querySelector('i'); this.msgEl = this.hud.querySelector('.vh-msg'); this.tip = this.hud.querySelector('.vh-tip');
   }
   bindInput() {
     const canvas = this.canvas;
@@ -154,7 +170,7 @@ export class VehicleMode {
     window.addEventListener('mousemove', (e) => {
       if (!this.active || document.pointerLockElement !== canvas) return;
       this.look += e.movementX * 0.0026;
-      this.aim = clamp(this.aim - e.movementY * 0.0022, -1.15, 0.7);
+      this.aim = clamp(this.aim - e.movementY * 0.0022, -1.2, 0.95);
     });
     document.addEventListener('pointerlockchange', () => { if (this.tip) this.tip.style.opacity = document.pointerLockElement === canvas || !this.active ? 0 : 1; });
     window.addEventListener('blur', () => { this.keys = {}; });
@@ -164,7 +180,7 @@ export class VehicleMode {
   key(e, down) {
     if (!this.active) return false;
     const c = e.code;
-    if (c === 'KeyT' || c === 'KeyM' || c.startsWith('F') && c.length > 1 && c !== 'KeyF') return false;
+    if (c === 'KeyT' || c === 'KeyM' || /^F\d+$/.test(c)) return false;
     if (down && !e.repeat) {
       if (c === 'Escape') { this.exit(); return true; }
       if (c === 'KeyV') this.zoom = this.zoom > 1.2 ? 0.75 : this.zoom < 0.9 ? 1 : 1.5;
@@ -186,7 +202,7 @@ export class VehicleMode {
     this.scene.add(this.model.root, this.fxGroup);
     // appear above where the view was looking, facing the way it faced
     const T = this.cam, B = G.buildings, ground = B.surfaceAt(T.x, T.z, 999).y;
-    this.yaw = T.yaw; this.look = 0; this.aim = kind === 'drone' ? -0.35 : -0.15;
+    this.yaw = T.yaw; this.look = 0; this.aim = 0;
     this.pos.set(T.x, kind === 'jetpack' ? ground + 0.05 : Math.max(ground + (kind === 'drone' ? 18 : 14), 20), T.z);
     this.vel.set(0, 0, 0); this.dead = false; this.respawnT = 0; this.safeT = 1.2; this.fireCd = 0; this.secCd = 0; this.burstCd = 0; this.lost = 0; this.bank = 0;
     this.airspeed = kind === 'glider' ? 8 : 0; this.grounded = kind === 'jetpack';
@@ -196,6 +212,7 @@ export class VehicleMode {
     this.hud.querySelector('.vh-keys').innerHTML = `<div class="vh-title">${KINDS[kind].name.toUpperCase()}</div>` + KINDS[kind].keys.map(([k, t]) => `<span>${k.split(' / ').map((x) => `<b class="key">${x}</b>`).join('')}${t}</span>`).join('');
     this.btn.querySelectorAll('.vh-item').forEach((el) => el.classList.toggle('on', el.dataset.k === kind));
     this.cdEl.style.display = kind === 'drone' ? 'none' : '';
+    this.ret.className = 'vh-ret ' + kind;
     this.tip.style.opacity = 1;
     this.lock();
   }
@@ -239,6 +256,11 @@ export class VehicleMode {
     sp.userData = { t: 0, life, size, flash: true }; sp.scale.setScalar(size * 0.4); this.flashes.push(sp);
   }
 
+  // the direction through the crosshair (from the last frame's camera): pointing steers up and down
+  lookDir() {
+    const cam = this.camera; cam.updateMatrixWorld();
+    return new THREE.Vector3(0, 0.08, -1).unproject(cam).sub(cam.position).normalize();
+  }
   // ---------------- per frame (before Tiny World's camera update)
   update(dt) {
     if (!this.active) return;
@@ -255,6 +277,10 @@ export class VehicleMode {
     this.model.update(dt);
     // everything that follows the camera (shadows, sound, crowd detail) follows the vehicle
     const C = this.cam; C.x = this.pos.x; C.z = this.pos.z; C.dist = C.distT = 26; C.ty = 0;
+    // the cross opens up while the gun runs and closes again after
+    this.spread = Math.max(0, this.spread - dt * 6);
+    const base = { drone: 5, jetpack: 8, glider: 7 }[this.kind];
+    this.ret.style.setProperty('--gap', `${base + this.spread * (this.kind === 'jetpack' ? 9 : 6)}px`);
     this.cdBar.style.width = `${(1 - clamp(this.secCd / (this.kind === 'glider' ? 2.4 : 0.7), 0, 1)) * 100}%`;
   }
   keepInBounds() {
@@ -288,9 +314,10 @@ export class VehicleMode {
   flyDrone(dt, turn) {
     const k = this.keys, boost = k.ShiftLeft || k.ShiftRight;
     this.yaw -= turn;
-    const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0), u = (k.KeyR || k.KeyE ? 1 : 0) - (k.KeyF || k.KeyQ || k.KeyC ? 1 : 0);
+    const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
     const vmax = boost ? 24 : 14, fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), rt = _v2.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    const want = new THREE.Vector3().addScaledVector(fw, f).addScaledVector(rt, s); if (want.lengthSq() > 1) want.normalize(); want.multiplyScalar(vmax); want.y = u * 9;
+    // W flies straight down the crosshair (point down to dive, up to climb); A/D slide sideways; let go to hover
+    const look = this.lookDir(), want = new THREE.Vector3().addScaledVector(look, f).addScaledVector(rt, s); if (want.lengthSq() > 1) want.normalize(); want.multiplyScalar(vmax); const u = want.y / vmax;
     this.vel.lerp(want, 1 - Math.exp(-dt * 2.6));
     this.pos.addScaledVector(this.vel, dt);
     // lean into the motion
@@ -321,14 +348,14 @@ export class VehicleMode {
     // a fresh drone high over the wreck; the wreckage stays
     const B = G.buildings, ground = B.surfaceAt(this.pos.x, this.pos.z, 999).y;
     this.pos.y = Math.max(ground + 30, 40); this.vel.set(0, 0, 0);
-    this.dead = false; this.safeT = 1.0; this.aim = -0.45;
+    this.dead = false; this.safeT = 1.0; this.aim = -0.2;
     this.msgEl.classList.remove('show');
   }
 
   // ---------------- the paraglider: always flying, banks to turn, climbs on the throttle
   flyGlider(dt, turn) {
     const k = this.keys, B = G.buildings;
-    const throttle = k.KeyW || k.KeyR ? 1 : 0, idle = k.KeyS || k.KeyF, bar = k.ShiftLeft || k.ShiftRight;
+    const throttle = k.KeyW ? 1 : 0, idle = k.KeyS, bar = k.ShiftLeft || k.ShiftRight;
     const steer = clamp(((k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0)) + turn * 6, -1, 1);
     this.lost = Math.max(0, this.lost - dt);
     // the wing banks (and swings the pilot under it) toward the turn; the turn follows the bank
@@ -338,9 +365,12 @@ export class VehicleMode {
     if (!this.grounded) this.yaw -= this.bank * 1.25 * dt; else this.yaw -= steer * 0.9 * dt;
     const target = this.grounded ? (throttle ? 10 : 0) : bar ? 12.5 : 8.5;
     this.airspeed += (target - this.airspeed) * (1 - Math.exp(-dt * (this.grounded ? 0.8 : 1.4)));
+    // up and down by pointing: nose the view up to climb (the throttle gives the power to climb hard), down to dive;
+    // with the engine off it can only glide, slowly sinking
+    const look = this.lookDir();
     let vy;
-    if (this.grounded) vy = this.airspeed > 7 && throttle ? 3 : 0;                 // rolls along, lifts off at speed
-    else vy = throttle ? 3.6 : idle ? -3.4 : -1.1 - (bar ? 0.6 : 0);
+    if (this.grounded) vy = this.airspeed > 7 && throttle && look.y > -0.05 ? 3 : 0;   // rolls along, lifts off at speed
+    else vy = clamp(look.y * this.airspeed * 1.1, -7, throttle ? 4.5 : idle ? -1.8 : 0.4) - (throttle ? 0 : 0.9) - (bar ? 0.4 : 0);
     if (this.lost > 0) vy = Math.min(vy, -3.5);
     const fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     this.vel.set(fw.x * this.airspeed, vy, fw.z * this.airspeed);
@@ -362,23 +392,24 @@ export class VehicleMode {
   flyJetpack(dt, turn) {
     const k = this.keys, B = G.buildings;
     this.yaw -= turn;
-    const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0), u = (k.KeyR || k.KeyE ? 1 : 0) - (k.KeyF || k.KeyQ || k.KeyC ? 1 : 0);
+    const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
     const fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), rt = _v2.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    const wish = new THREE.Vector3().addScaledVector(fw, f).addScaledVector(rt, s); if (wish.lengthSq() > 1) wish.normalize();
+    // W flies down the crosshair: point up to rise, down to drop; A/D strafe; nothing pressed: he hovers
+    const look = this.lookDir(), dir3 = new THREE.Vector3().addScaledVector(look, f).addScaledVector(rt, s); if (dir3.lengthSq() > 1) dir3.normalize();
+    const wish = new THREE.Vector3(dir3.x, 0, dir3.z), u = clamp(dir3.y * 1.6, -1, 1);
     const ground = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.4).y;
     this.grounded = this.pos.y <= ground + 0.03 && this.vel.y <= 0.01;
     // horizontal: quick to answer, a little slide
     const hv = new THREE.Vector3(this.vel.x, 0, this.vel.z).lerp(wish.clone().multiplyScalar(13), 1 - Math.exp(-dt * (this.grounded ? 6 : 3.4)));
     // vertical: lift on R, drop on F, hold altitude (hover) with neither; standing on the ground until you lift off
     let vy = this.vel.y;
-    if (u > 0) vy += (24 - 14) * dt + (vy < 0 ? -vy * dt * 4 : 0);
-    else if (u < 0) vy -= 16 * dt;
+    if (Math.abs(u) > 0.05) vy += (u * 11 - vy) * (1 - Math.exp(-dt * 4));
     else if (!this.grounded) vy *= Math.exp(-dt * 3.5);
-    vy = clamp(vy, -14, 9);
+    vy = clamp(vy, -14, 11);
     // burst: a sharp kick of thrust the way you're steering (or straight ahead)
     this.burstCd -= dt;
     if ((k.ShiftLeft || k.ShiftRight) && this.burstCd <= 0) {
-      const d = wish.lengthSq() > 0 ? wish.clone() : fw.clone(); hv.addScaledVector(d, 16); vy += u > 0 ? 6 : 2.5;
+      const d = dir3.lengthSq() > 0 ? dir3.clone() : look.clone(); hv.addScaledVector(new THREE.Vector3(d.x, 0, d.z), 16); vy += d.y * 14 + 1.5;
       this.burstCd = 0.9; this.model.burst = 0.35; this.shake = Math.max(this.shake, 0.35);
     }
     this.vel.set(hv.x, vy, hv.z);
@@ -416,7 +447,7 @@ export class VehicleMode {
       // fireballs: a rapid stream of glowing balls of fire
       dir.x += rand(-0.02, 0.02); dir.y += rand(-0.02, 0.02); dir.normalize();
       this.shots.push({ kind: 'fire', pos: mz.clone(), prev: mz.clone(), vel: dir.multiplyScalar(48).add(this.vel), life: 1.6, sp: null });
-      this.fireCd = 1 / 10;
+      this.fireCd = 1 / 10; this.spread = Math.min(1, this.spread + 0.15);
       this.pop(mz, 0.9, 0.08, new THREE.Color(1.8, 0.9, 0.3));
       if (Math.random() < 0.5) sfx.zap && sfx.zap(mz.x, mz.z);
       return;
@@ -426,7 +457,7 @@ export class VehicleMode {
     this.shots.push({ kind: 'bullet', pos: mz.clone(), prev: mz.clone(), vel: dir.multiplyScalar(150), life: 1.1 });
     this.fireCd = this.kind === 'drone' ? 1 / 13 : 1 / 11;
     this.pop(mz, 0.7, 0.05, new THREE.Color(2, 1.5, 0.7));
-    this.model.recoil = 1;
+    this.model.recoil = 1; this.spread = Math.min(1, this.spread + 0.25);
     if ((this.shotN = (this.shotN || 0) + 1) % 2 === 0) sfx.gunshot(mz.x, mz.z, 1);
   }
   fireSecondary() {
