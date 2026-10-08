@@ -58,6 +58,8 @@ body.rick-on #rickHud{display:block}
 #rickHud .rk-heat i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6dff9a,#ffd36b,#ff5a3c)}
 #rickHud .rk-heat.hot i{animation:rkBlink .35s steps(2) infinite}
 @keyframes rkBlink{50%{opacity:.35}}
+#rickHud .rk-lock{position:absolute;left:50%;bottom:9vh;transform:translateX(-50%);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#1a0f00;background:#ffd36b;padding:6px 14px;border-radius:999px;opacity:0;transition:opacity .25s;box-shadow:0 0 18px rgba(255,190,80,.6)}
+#rickHud .rk-lock.on{opacity:1}
 #rickHud .rk-tip{position:absolute;left:50%;top:calc(4.2vh + 64px);transform:translateX(-50%);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#d8ffe0;background:rgba(10,20,14,.55);border:1px solid rgba(140,255,170,.35);padding:7px 14px;border-radius:999px;transition:opacity .4s}
 .radio-widget{position:absolute;top:calc(4.2vh + 58px);right:16px;width:268px;padding:12px 14px 10px;border-radius:6px;background:linear-gradient(160deg,rgba(20,34,54,.62),rgba(6,10,18,.7));border:1px solid rgba(127,212,255,.2);box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(200,238,255,.12),0 0 24px rgba(127,212,255,.08);backdrop-filter:blur(10px);opacity:0;transform:translateY(-8px);transition:opacity .5s var(--rk-ease),transform .5s var(--rk-ease),box-shadow .6s;pointer-events:none;font-family:Inter,system-ui,sans-serif;color:#eef6ff}
 .radio-widget.on{opacity:.82;transform:none}
@@ -396,11 +398,11 @@ export class RickMode {
     document.getElementById('weapons').appendChild(this.btn);
     this.hud = document.createElement('div'); this.hud.id = 'rickHud';
     this.hud.innerHTML = `<div class="rk-reticle"></div><div class="rk-heat"><i></i></div>
-      <div class="rk-keys"><span><b class="key">Mouse</b>steer</span><span><b class="key">W</b>hold to fly</span><span><b class="key">S</b>brake / back</span><span><b class="key">A</b><b class="key">D</b>turn</span><span><b class="key">Q</b><b class="key">E</b>roll</span><span><b class="key">R</b><b class="key">F</b>up / down</span><span><b class="key">Shift</b>boost</span><span><b class="key">Space</b>guns</span><span><b class="key">G</b>bomb</span><span><b class="key">P</b>radio</span><span><b class="key">V</b>camera</span><span><b class="key">Esc</b>leave ship</span></div>
-      <div class="rk-tip">Click to grab the mouse and steer</div><div class="crew-caption"></div>`;
+      <div class="rk-keys"><span><b class="key">Mouse</b>steer</span><span><b class="key">W</b>hold to fly</span><span><b class="key">S</b>brake / back</span><span><b class="key">A</b><b class="key">D</b>turn</span><span><b class="key">Q</b><b class="key">E</b>roll</span><span><b class="key">R</b><b class="key">F</b>up / down</span><span><b class="key">Shift</b>boost (2× to lock)</span><span><b class="key">Space</b>guns</span><span><b class="key">G</b>bomb</span><span><b class="key">P</b>radio</span><span><b class="key">V</b>camera</span><span><b class="key">Esc</b>leave ship</span></div>
+      <div class="rk-tip">Click to grab the mouse and steer</div><div class="rk-lock">Boost locked · Shift to release</div><div class="crew-caption"></div>`;
     hud.appendChild(this.hud);
     this.reticle = this.hud.querySelector('.rk-reticle'); this.heatEl = this.hud.querySelector('.rk-heat'); this.heatBar = this.heatEl.querySelector('i');
-    this.tip = this.hud.querySelector('.rk-tip'); this.caption = this.hud.querySelector('.crew-caption');
+    this.tip = this.hud.querySelector('.rk-tip'); this.lockEl = this.hud.querySelector('.rk-lock'); this.caption = this.hud.querySelector('.crew-caption');
     // the radio readout (RadioWidget.ts)
     this.rw = document.createElement('div'); this.rw.className = 'radio-widget';
     this.rw.innerHTML = `<div class="radio-top"><span class="radio-dot"></span><span class="radio-kicker">Intergalactic radio</span></div>
@@ -453,6 +455,14 @@ export class RickMode {
       if (c === 'KeyH') this.model.state.headlights = !this.model.state.headlights;
       if (c === 'KeyV') this.zoom = this.zoom > 1.2 ? 0.75 : this.zoom < 0.9 ? 1 : 1.6;
       if (c === 'KeyG' && this.secCd <= 0) this.dropBomb();
+      // double-tap Shift locks boost on (tap Shift again to release)
+      if (c === 'ShiftLeft' || c === 'ShiftRight') {
+        const now = performance.now();
+        if (this.boostLock) { this.boostLock = false; this.lastShift = 0; }
+        else if (now - (this.lastShift || 0) < 320) { this.boostLock = true; this.lastShift = 0; }
+        else this.lastShift = now;
+        this.lockEl && this.lockEl.classList.toggle('on', !!this.boostLock);
+      }
     }
     this.keys[c] = down;
     if (down) this.activity = Math.min(1, this.activity + 0.15);
@@ -471,7 +481,7 @@ export class RickMode {
     const yaw = T.yaw, ground = B.surfaceAt(T.x, T.z, 999).y;
     this.pos.set(T.x, Math.max(ground + 4, 10), T.z);
     this.quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-    this.vel.set(0, 0, 0); this.angVel.set(0, 0, 0); this.throttle = 0; this.boost = 0; this.lostControl = 0;
+    this.vel.set(0, 0, 0); this.angVel.set(0, 0, 0); this.throttle = 0; this.boost = 0; this.lostControl = 0; this.boostLock = false; this.lockEl && this.lockEl.classList.remove("on");
     this.heat = 0; this.overheated = false; this.stick.set(0, 0); this.camInit = false;
     this.scene.add(this.group, this.fxGroup);
     this.active = true; G.rick = this;
@@ -544,7 +554,7 @@ export class RickMode {
       yaw: clamp(this.stick.x + (ax('KeyA', 'KeyD') + ax('ArrowLeft', 'ArrowRight')) * 0.85, -1, 1),
       roll: ax('KeyQ', 'KeyE'),
       throttleUp: !!k.KeyW, throttleDown: !!k.KeyS,
-      vertical: (k.KeyR ? 1 : 0) - (k.KeyF || k.KeyC || k.ControlLeft ? 1 : 0), boost: !!(k.ShiftLeft || k.ShiftRight),
+      vertical: (k.KeyR ? 1 : 0) - (k.KeyF || k.KeyC || k.ControlLeft ? 1 : 0), boost: !!(k.ShiftLeft || k.ShiftRight || this.boostLock),
     };
     // no throttle lever here: hold W to fly forward, let go and the ship eases to a hover; S brakes, then backs up
     if (control > 0.2) this.throttle = ctrl.throttleUp ? 1 : ctrl.throttleDown ? -0.3 : 0;
