@@ -1,20 +1,17 @@
-// Title screen: the three maps as miniature living dioramas, slices cut out of each world (you can see the earth
-// and water layers on the sides), floating in a dark display case under their own spotlights. The whole scene
-// drifts with the cursor; hovering a world lifts it toward you, tilts it after the cursor and dims the others while
-// its name, place and description fade in underneath. Clicking one flies the camera down into it, then hands over
-// to the real map load (the original menu buttons stay the source of truth, so load() is untouched).
+// Title screen: Earth. A large interactive globe floating in clean space is the map picker: drag to spin it,
+// scroll or pinch to zoom, and each Tiny World sits on its real place with a flag pin (Gaslamp in San Diego,
+// Chicago, La Playa on Mexico's Pacific coast). Hovering a pin (or a row in the destination list) lifts it, names
+// it and turns the globe toward it; clicking flies the camera down through the clouds into the city, then hands
+// over to the real map load (the original menu buttons stay the source of truth, so load() is untouched), and the
+// game camera finishes the descent onto the miniature. Light and dark themes, saved per browser.
 // It has its own small renderer, which is stopped and disposed as soon as the game starts.
 import * as THREE from 'three';
 import { viewH } from './core.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-const S = 5.6, H = S / 2;                                   // diorama tile size
-const MAPS = ['downtown', 'tropical', 'suburbs'];
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const R = (a, b) => a + Math.random() * (b - a);
-const pick = (a) => a[(Math.random() * a.length) | 0];
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const D2R = Math.PI / 180;
 
 // ---------- shared bits ----------
 function tint(geo, c) {
@@ -26,286 +23,6 @@ function tint(geo, c) {
 function canvasTex(w, h, draw) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
-}
-// facade atlas: walls white (tinted per building), windows dark glass; the emissive twin lights some of them.
-// The bottom-left corner is plain wall so roofs can point their uvs there.
-function facadeTextures() {
-  const N = 64, lit = [];
-  const map = canvasTex(N, N, (x) => {
-    x.fillStyle = '#e8e6e2'; x.fillRect(0, 0, N, N);
-    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { x.fillStyle = '#39414d'; x.fillRect(c * 16 + 4, r * 16 + 3, 8, 10); lit.push(Math.random() < 0.55); }
-  });
-  const em = canvasTex(N, N, (x) => {
-    x.fillStyle = '#000'; x.fillRect(0, 0, N, N);
-    let k = 0;
-    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if (lit[k++]) { x.fillStyle = pick(['#ffcf87', '#ffe2ad', '#ffd49a', '#cfe3ff']); x.fillRect(c * 16 + 4, r * 16 + 3, 8, 10); }
-  });
-  for (const t of [map, em]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter; }
-  return { map, em };
-}
-// a box building with windows scaled to its size and a darker, windowless roof
-function building(w, h, d, x, z, color, pitch = 0.3) {
-  const g = new THREE.BoxGeometry(w, h, d).toNonIndexed(); g.translate(x, h / 2, z);
-  const uv = g.attributes.uv, n = g.attributes.normal, col = new Float32Array(uv.count * 3), c = new THREE.Color(color);
-  for (let i = 0; i < uv.count; i++) {
-    const ny = n.getY(i), nx = Math.abs(n.getX(i));
-    if (Math.abs(ny) > 0.5) { uv.setXY(i, 0.02, 0.02); c.clone().multiplyScalar(0.55).toArray(col, i * 3); continue; }
-    uv.setXY(i, uv.getX(i) * (nx > 0.5 ? d : w) / pitch, uv.getY(i) * h / pitch); c.toArray(col, i * 3);
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return g;
-}
-const block = (w, h, d, x, y, z, c) => tint(new THREE.BoxGeometry(w, h, d).translate(x, y, z), c);
-
-// ---------- one diorama ----------
-class Diorama {
-  constructor(kind, tex) {
-    this.kind = kind; this.g = new THREE.Group(); this.inner = new THREE.Group(); this.g.add(this.inner);
-    this.focus = 0.6; this.hover = 0; this.movers = []; this.update = [];
-    const mood = { downtown: [0x9fc4ff, 0xffd49a], tropical: [0xffc58a, 0xffe0b0], suburbs: [0xc7a0ff, 0xff9fd6] }[kind];
-    this.mat = new THREE.MeshStandardMaterial({ map: tex.map, emissiveMap: tex.em, emissive: 0xffe0b0, emissiveIntensity: 1.2, vertexColors: true, roughness: 0.8 });
-    this.plain = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-    this.glow = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
-    // display-case spotlight + a coloured rim from behind
-    this.spot = new THREE.SpotLight(mood[1], 40, 22, 0.5, 0.7, 1.4); this.spot.position.set(0, 9, 3.5); this.spot.target = this.inner; this.g.add(this.spot);
-    this.rim = new THREE.PointLight(mood[0], 10, 12, 1.6); this.rim.position.set(0, 3, -4.5); this.g.add(this.rim);
-    this[kind]();
-    // invisible hit box for the cursor
-    this.hit = new THREE.Mesh(new THREE.BoxGeometry(S, 4.4, S).translate(0, 0.8, 0), new THREE.MeshBasicMaterial({ visible: false }));
-    this.g.add(this.hit);
-    this.inner.traverse((o) => { if (o.isMesh && o !== this.hit) { o.castShadow = true; o.receiveShadow = true; } });
-  }
-  add(geos, mat = this.plain) { const m = new THREE.Mesh(mergeGeometries(geos), mat); this.inner.add(m); return m; }
-  // the slice: painted top, then earth layers down the sides; `water` cuts a translucent sea section into it
-  slab(paint, water = null) {
-    const top = canvasTex(512, 512, (x, w) => { x.scale(w / S, w / S); x.translate(H, H); paint(x); if (water) x.clearRect(water.x0, water.z0, water.x1 - water.x0, water.z1 - water.z0); });
-    const P = [];
-    const layers = [[0.1, 0x6b5238], [0.18, 0x7a5c3e], [0.34, 0x5a4431], [0.6, 0x3b302a]];
-    const cut = (x0, x1, z0, z1, from) => { let y = from; for (const [h, c] of layers) { P.push(block(x1 - x0, h, z1 - z0, (x0 + x1) / 2, y - h / 2, (z0 + z1) / 2, c)); y -= h; } };
-    if (!water) cut(-H, H, -H, H, -0.02);
-    else {
-      const { x0, x1, z0, z1, depth } = water;
-      // land around the water, then the sea bed under it
-      if (z0 > -H) cut(-H, H, -H, z0, -0.02);
-      if (z1 < H) cut(-H, H, z1, H, -0.02);
-      if (x0 > -H) cut(-H, x0, z0, z1, -0.02);
-      if (x1 < H) cut(x1, H, z0, z1, -0.02);
-      P.push(block(x1 - x0, 0.12, z1 - z0, (x0 + x1) / 2, -depth - 0.06, (z0 + z1) / 2, 0xc9b58a));
-      cut(x0, x1, z0, z1, -depth - 0.12);
-      const sea = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, depth, z1 - z0).translate((x0 + x1) / 2, -depth / 2 - 0.03, (z0 + z1) / 2),
-        new THREE.MeshStandardMaterial({ color: 0x155a74, transparent: true, opacity: 0.78, roughness: 0.5, metalness: 0 }));
-      this.inner.add(sea);
-      // the moving surface
-      const seg = 28, geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0, seg, seg).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, 0.005, (z0 + z1) / 2);
-      const surf = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: water.color || 0x2a8fb0, roughness: 0.35, metalness: 0, flatShading: true }));
-      surf.receiveShadow = true; this.inner.add(surf);
-      const base = geo.attributes.position.array.slice();
-      this.update.push((t) => {
-        const p = geo.attributes.position.array;
-        for (let i = 0; i < p.length; i += 3) p[i + 1] = base[i + 1] + Math.sin(base[i] * 3.1 + t * 1.6) * 0.014 + Math.sin(base[i + 2] * 4.3 - t * 2.1) * 0.012;
-        geo.computeVertexNormals();
-        geo.attributes.position.needsUpdate = true;
-      });
-    }
-    this.add(P);
-    const topMesh = new THREE.Mesh(new THREE.PlaneGeometry(S, S).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: top, roughness: 0.9, transparent: true }));
-    topMesh.position.y = -0.015; topMesh.receiveShadow = true; this.inner.add(topMesh);
-  }
-  // things that move along a closed polyline
-  mover(mesh, path, speed, offset = 0, y = 0) {
-    let L = 0; const seg = [];
-    for (let i = 0; i < path.length; i++) { const a = path[i], b = path[(i + 1) % path.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); seg.push([a, b, l]); L += l; }
-    this.movers.push({ mesh, seg, L, speed, s: offset * L, y });
-  }
-  cars(routes, n, colors) {
-    const body = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.07, 0.19).translate(0, 0.05, 0), new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.3 }), n);
-    const lights = new THREE.InstancedMesh(mergeGeometries([new THREE.BoxGeometry(0.08, 0.02, 0.01).translate(0, 0.055, 0.1), new THREE.BoxGeometry(0.08, 0.02, 0.01).translate(0, 0.055, -0.1)]), new THREE.MeshBasicMaterial({ color: 0xfff1c8 }), n);
-    for (let i = 0; i < n; i++) body.setColorAt(i, new THREE.Color(pick(colors)));
-    this.inner.add(body, lights); body.castShadow = true;
-    const cars = [];
-    for (let i = 0; i < n; i++) { const r = routes[i % routes.length]; cars.push({ r, s: R(0, 1), v: R(0.35, 0.55) }); }
-    this.update.push((t, dt) => {
-      cars.forEach((c, i) => {
-        c.s = (c.s + c.v * dt / c.r.len) % 1;
-        const u = c.s, x = c.r.a[0] + (c.r.b[0] - c.r.a[0]) * u, z = c.r.a[1] + (c.r.b[1] - c.r.a[1]) * u;
-        _q.setFromAxisAngle(_v.set(0, 1, 0), Math.atan2(c.r.b[0] - c.r.a[0], c.r.b[1] - c.r.a[1]));
-        const vis = u > 0.02 && u < 0.98 ? 1 : 0;
-        _m.compose(_v.set(x, 0, z), _q, _s.set(vis, vis, vis)); body.setMatrixAt(i, _m); lights.setMatrixAt(i, _m);
-      });
-      body.instanceMatrix.needsUpdate = lights.instanceMatrix.needsUpdate = true;
-    });
-  }
-  // little people pacing the sidewalks
-  people(spots, n, colors) {
-    const p = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.022, 0.026, 0.1, 5).translate(0, 0.05, 0), new THREE.MeshStandardMaterial({ roughness: 0.8 }), n);
-    const list = [];
-    for (let i = 0; i < n; i++) {
-      const [x0, z0, x1, z1] = pick(spots);
-      list.push({ a: [R(x0, x1), R(z0, z1)], b: [R(x0, x1), R(z0, z1)], s: Math.random(), v: R(0.08, 0.16), ph: R(0, 6) });
-      p.setColorAt(i, new THREE.Color(pick(colors)));
-    }
-    this.inner.add(p);
-    this.update.push((t, dt) => {
-      list.forEach((q, i) => {
-        const L = Math.hypot(q.b[0] - q.a[0], q.b[1] - q.a[1]) || 0.1;
-        q.s += q.v * dt / L; if (q.s > 1) { q.s = 0; q.a = q.b; const [x0, z0, x1, z1] = pick(spots); q.b = [R(x0, x1), R(z0, z1)]; }
-        _m.makeTranslation(q.a[0] + (q.b[0] - q.a[0]) * q.s, Math.abs(Math.sin(t * 9 + q.ph)) * 0.008, q.a[1] + (q.b[1] - q.a[1]) * q.s);
-        p.setMatrixAt(i, _m);
-      });
-      p.instanceMatrix.needsUpdate = true;
-    });
-  }
-  palm(P, L, x, z, s = 1) {
-    P.push(tint(new THREE.CylinderGeometry(0.018 * s, 0.028 * s, 0.5 * s, 5).translate(0, 0.25 * s, 0).rotateZ(R(-0.15, 0.15)).translate(x, 0, z), 0x6b4a2e));
-    for (let k = 0; k < 6; k++) L.push(tint(new THREE.ConeGeometry(0.035 * s, 0.32 * s, 4).rotateZ(Math.PI / 2 - 0.5).translate(0.15 * s, 0, 0).rotateY(k * 1.05 + R(0, 0.3)).translate(x, 0.5 * s, z), pick([0x2f7a3a, 0x3b8a3f, 0x2a6b34])));
-  }
-
-  // ---------- GASLAMP: towers, the harbour with a cruise ship, the ballpark, a trolley ----------
-  downtown() {
-    const W = { x0: -H, x1: -1.7, z0: -H, z1: H, depth: 0.34, color: 0x1f6f95 };
-    this.slab((x) => {
-      x.fillStyle = '#3b3e44'; x.fillRect(-H, -H, S, S);
-      x.fillStyle = '#9b958b'; x.fillRect(-1.7, -H, 0.34, S);                                  // promenade
-      x.fillStyle = '#26282c'; x.fillRect(-0.55, -H, 0.5, S); x.fillRect(-1.36, 0.45, 4.2, 0.5);   // streets
-      x.strokeStyle = '#d9b44a'; x.lineWidth = 0.02; x.setLineDash([0.08, 0.06]);
-      x.beginPath(); x.moveTo(-0.3, -H); x.lineTo(-0.3, H); x.moveTo(-1.36, 0.7); x.lineTo(H, 0.7); x.stroke();
-      x.setLineDash([]); x.fillStyle = '#8f8a82';
-      for (const [a, b, c, d] of [[-1.36, -H, -0.55, 0.45], [-0.05, -H, H, 0.45], [-1.36, 0.95, -0.55, H], [-0.05, 0.95, H, H]]) { x.fillRect(a, b, c - a, 0.08); x.fillRect(a, d - 0.08, c - a, 0.08); }
-      // the ballpark: green diamond in a sandstone bowl
-      x.fillStyle = '#c9b89a'; x.beginPath(); x.arc(1.35, 1.8, 0.95, 0, 7); x.fill();
-      x.fillStyle = '#4f8a33'; x.beginPath(); x.arc(1.35, 1.8, 0.7, 0, 7); x.fill();
-      x.fillStyle = '#b98a5a'; x.beginPath(); x.moveTo(1.35, 2.35); x.lineTo(1.75, 1.95); x.lineTo(1.35, 1.55); x.lineTo(0.95, 1.95); x.fill();
-      x.fillStyle = '#5f8d3c'; x.fillRect(-1.3, 1.05, 0.7, 1.6);                               // a little park
-    }, W);
-    const B = [], P = [], L = [];
-    const tones = [0xb9c3cf, 0xd6d0c4, 0x8f9aa8, 0xa8653f, 0xc7b89e, 0x7f8ea3];
-    // towers on the two north blocks, mid-rises on the south-west
-    for (const [x, z, w, d, h] of [[-1.05, -2.2, 0.55, 0.6, 1.3], [-0.95, -1.35, 0.7, 0.8, 2.1], [-1.05, -0.35, 0.55, 0.9, 0.9],
-      [0.35, -2.15, 0.7, 0.7, 2.8], [1.3, -2.2, 0.8, 0.6, 1.9], [2.25, -2.1, 0.55, 0.75, 1.2], [0.4, -1.1, 0.75, 0.8, 1.6], [1.4, -1.0, 0.85, 0.9, 3.3], [2.3, -0.9, 0.5, 0.7, 0.8], [0.45, -0.1, 0.6, 0.6, 0.7], [1.55, -0.05, 1.2, 0.5, 1.0]])
-      B.push(building(w, h, d, x, z, pick(tones), 0.22));
-    // setbacks + crowns on the tallest
-    B.push(building(0.5, 0.5, 0.55, 1.4, -1.0, 0xb9c3cf, 0.22).translate(0, 3.3, 0), building(0.45, 0.6, 0.45, 0.35, -2.15, 0x8f9aa8, 0.22).translate(0, 2.8, 0));
-    this.add(B, this.mat);
-    // the ballpark bowl: stands round the field, light towers
-    for (let k = 0; k < 20; k++) { const a = -0.3 + k / 19 * 3.6; P.push(block(0.24, 0.3, 0.12, 1.35 + Math.cos(a) * 0.82, 0.15, 1.8 + Math.sin(a) * 0.82, pick([0x1c2945, 0x24345a])).rotateY(0)); }
-    for (const [a] of [[0.2], [1.6], [3.1]]) { P.push(block(0.03, 0.7, 0.03, 1.35 + Math.cos(a) * 1.0, 0.35, 1.8 + Math.sin(a) * 1.0, 0xe8e8e4)); L.push(block(0.12, 0.05, 0.05, 1.35 + Math.cos(a) * 1.0, 0.72, 1.8 + Math.sin(a) * 1.0, 0xfff4d8)); }
-    // pier + cruise ship
-    P.push(block(0.9, 0.06, 0.28, -2.15, 0.02, 0.2, 0xc9c3b6), block(0.9, 0.06, 0.28, -2.15, 0.02, -1.6, 0xc9c3b6));
-    const ship = new THREE.Group();
-    ship.add(new THREE.Mesh(mergeGeometries([block(0.34, 0.2, 1.7, 0, 0.02, 0, 0xf2f2f0), block(0.34, 0.05, 1.7, 0, -0.08, 0, 0x1f3f73), building(0.28, 0.24, 1.3, 0, 0, 0.05, 0xf2f2f0, 0.1).translate(0, 0.12, 0), block(0.1, 0.12, 0.14, 0, 0.42, -0.45, 0xc8102e)]), this.mat));
-    ship.position.set(-2.25, -0.03, -0.7); this.inner.add(ship);
-    this.update.push((t) => { ship.position.y = -0.03 + Math.sin(t * 0.9) * 0.012; ship.rotation.z = Math.sin(t * 0.7) * 0.012; });
-    // palms along the promenade, street lamps
-    for (let z = -2.4; z < 2.6; z += 0.55) this.palm(P, P, -1.53, z, 0.9);
-    for (const [x, z] of [[-0.62, -2], [-0.62, -1], [-0.62, 0.2], [0.02, 1.2], [0.02, 2.3], [-0.62, 1.4], [1, 0.38], [2, 0.38], [-1, 1.02]]) { P.push(block(0.015, 0.28, 0.015, x, 0.14, z, 0x2f3338)); L.push(block(0.05, 0.02, 0.05, x, 0.29, z, 0xffe4b0)); }
-    this.add(P); this.add(L, this.glow);
-    // the trolley and the traffic
-    const trolley = new THREE.Mesh(mergeGeometries([block(0.13, 0.11, 0.7, 0, 0.07, 0, 0xc8102e), block(0.135, 0.03, 0.6, 0, 0.1, 0, 0xfff1c8)]), this.plain);
-    this.inner.add(trolley); trolley.castShadow = true;
-    let tz = -H;
-    this.update.push((t, dt) => { tz += dt * 0.35; if (tz > H + 0.4) tz = -H - 0.4; trolley.position.set(-0.42, 0, tz); trolley.visible = Math.abs(tz) < H - 0.3; });
-    this.cars([{ a: [-0.2, -H], b: [-0.2, H], len: S }, { a: [H, 0.58], b: [-1.3, 0.58], len: 4.1 }, { a: [-1.3, 0.82], b: [H, 0.82], len: 4.1 }], 8, [0xf2f2f0, 0x1c1d20, 0x9e1b1b, 0x1e3f73, 0xf2c230, 0x8a9096]);
-    this.people([[-1.66, -2.6, -1.4, 2.6], [-0.6, -2.6, -0.52, 2.6], [-0.05, 0.36, 2.6, 0.42], [-0.05, 0.98, 2.6, 1.02]], 36, [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a]);
-  }
-
-  // ---------- LA PLAYA: pastel town, hotel, palms, umbrellas on the sand, waves and boats ----------
-  tropical() {
-    const W = { x0: -H, x1: H, z0: 0.75, z1: H, depth: 0.42, color: 0x2aa3b8 };
-    this.slab((x) => {
-      x.fillStyle = '#d9c7a0'; x.fillRect(-H, -H, S, S);
-      x.fillStyle = '#c8c0b0'; x.fillRect(-H, -H, S, 1.7);                                    // town
-      x.fillStyle = '#3a3c3e'; x.fillRect(-H, -1.05, S, 0.36);                                 // coast road
-      x.strokeStyle = '#f2f2ee'; x.lineWidth = 0.015; x.setLineDash([0.07, 0.07]); x.beginPath(); x.moveTo(-H, -0.87); x.lineTo(H, -0.87); x.stroke(); x.setLineDash([]);
-      x.fillStyle = '#e6d6b0'; x.fillRect(-H, -0.69, S, 0.12);                                 // malecón
-      for (let i = 0; i < 260; i++) { x.fillStyle = `rgba(${Math.random() < 0.5 ? '255,250,235' : '170,150,110'},.25)`; x.fillRect(R(-H, H), R(-0.57, 0.8), 0.02, 0.02); }
-      x.fillStyle = '#3fb6c8'; x.fillRect(1.3, -2.3, 0.8, 0.45); x.fillStyle = '#6fd6e0'; x.fillRect(1.35, -2.25, 0.7, 0.35);   // hotel pool
-    }, W);
-    const B = [], P = [], L = [];
-    const pastel = [0xf2c9a0, 0xf7e3a8, 0xbfe3d6, 0xf4b8b8, 0xe8e0f5, 0xffffff, 0xf0d0a0];
-    for (let x = -2.5; x < 0.9; x += R(0.45, 0.6)) for (const z of [-2.45, -1.55]) B.push(building(R(0.36, 0.46), R(0.22, 0.5), R(0.38, 0.5), x, z, pick(pastel), 0.18));
-    B.push(building(0.95, 1.9, 0.55, 1.65, -1.55, 0xf4f1e8, 0.2), building(0.75, 0.3, 0.45, 1.65, -1.55, 0xf4f1e8, 0.2).translate(0, 1.9, 0));
-    this.add(B, this.mat);
-    for (let x = -2.6; x < 2.7; x += R(0.45, 0.7)) this.palm(P, P, x, -0.62 + R(-0.03, 0.03), R(0.85, 1.15));
-    for (const [x, z] of [[-2, -2], [0.2, -2.05], [-0.9, -1.95], [2.4, -2.5]]) this.palm(P, P, x, z, 1);
-    // umbrellas and towels on the sand
-    for (let i = 0; i < 16; i++) {
-      const x = R(-2.5, 2.5), z = R(-0.4, 0.55), c = pick([0xe6394a, 0xf2c230, 0x2a9d8f, 0xf28c28, 0x9b5de5, 0xffffff]);
-      P.push(tint(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 4).translate(x, 0.1, z), 0xeeeeee), tint(new THREE.ConeGeometry(0.12, 0.06, 8).translate(x, 0.21, z), c), block(0.08, 0.004, 0.15, x + 0.12, 0.003, z + 0.05, pick([0xf4b8b8, 0xbfe3d6, 0xf7e3a8])));
-    }
-    // lifeguard tower
-    P.push(block(0.02, 0.2, 0.02, -0.5, 0.1, 0.4, 0xf2f2ee), block(0.02, 0.2, 0.02, -0.38, 0.1, 0.4, 0xf2f2ee), block(0.18, 0.1, 0.14, -0.44, 0.25, 0.4, 0xd8262a));
-    for (let x = -2.6; x < 2.7; x += 0.7) { P.push(block(0.015, 0.26, 0.015, x, 0.13, -0.72, 0x2f3338)); L.push(block(0.045, 0.02, 0.045, x, 0.27, -0.72, 0xffe4b0)); }
-    this.add(P); this.add(L, this.glow);
-    // foam where the waves reach the sand, and boats riding the swell
-    const foam = new THREE.Mesh(new THREE.PlaneGeometry(S, 0.12, 40, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }));
-    foam.position.set(0, -0.005, 0.8); this.inner.add(foam);
-    this.update.push((t) => { foam.position.z = 0.8 + Math.sin(t * 0.9) * 0.06; foam.material.opacity = 0.35 + Math.sin(t * 0.9 + 1) * 0.2; });
-    for (const [x, z, c] of [[-1.6, 1.9, 0xf2f2ee], [0.9, 2.3, 0xe6394a], [2.1, 1.4, 0x2a6fb5]]) {
-      const b = new THREE.Mesh(mergeGeometries([block(0.14, 0.06, 0.34, 0, 0.02, 0, c), block(0.1, 0.07, 0.12, 0, 0.08, -0.03, 0xf2f2ee)]), this.plain);
-      b.position.set(x, -0.03, z); b.rotation.y = R(0, 6); this.inner.add(b);
-      const ph = R(0, 6); this.update.push((t) => { b.position.y = -0.03 + Math.sin(t * 1.4 + ph) * 0.02; b.rotation.z = Math.sin(t * 1.1 + ph) * 0.08; b.position.x = x + Math.sin(t * 0.15 + ph) * 0.3; });
-    }
-    this.cars([{ a: [-H, -0.95], b: [H, -0.95], len: S }, { a: [H, -0.79], b: [-H, -0.79], len: S }], 6, [0xf2f2f0, 0xf2c230, 0x9e1b1b, 0x2a9d8f, 0x1e3f73]);
-    this.people([[-2.6, -0.5, 2.6, 0.7], [-2.6, -0.67, 2.6, -0.6]], 44, [0xf0f0f0, 0x6fb3c9, 0xe0b640, 0xc94f7c, 0xf28c8c, 0x9ad0a0, 0xd8262a]);
-  }
-
-  // ---------- CHICAGO: brick walk-ups, the Summer Smash stage and crowd, the streetball court ----------
-  suburbs() {
-    this.slab((x) => {
-      x.fillStyle = '#4b4c4a'; x.fillRect(-H, -H, S, S);
-      x.fillStyle = '#2a2b2c'; x.fillRect(-0.3, -H, 0.46, S); x.fillRect(-H, 0.5, S, 0.46);
-      x.fillStyle = '#8e8a82'; for (const [a, b, c, d] of [[-H, -H, -0.3, 0.5], [0.16, -H, H, 0.5], [-H, 0.96, -0.3, H], [0.16, 0.96, H, H]]) { x.fillRect(a, b, c - a, 0.07); x.fillRect(a, d - 0.07, c - a, 0.07); x.fillRect(a, b, 0.07, d - b); x.fillRect(c - 0.07, b, 0.07, d - b); }
-      x.fillStyle = '#56693a'; x.fillRect(0.3, -2.62, 2.2, 3.0);                               // festival field
-      x.fillStyle = '#3b3b3a'; x.fillRect(0.3, -2.62, 2.2, 0.75);
-      // streetball court, painted blue/red
-      x.fillStyle = '#c56a2c'; x.fillRect(0.35, 1.1, 2.1, 1.35);
-      x.strokeStyle = '#f2f2ee'; x.lineWidth = 0.02; x.strokeRect(0.42, 1.17, 1.96, 1.21); x.beginPath(); x.moveTo(1.4, 1.17); x.lineTo(1.4, 2.38); x.stroke();
-      x.fillStyle = '#1d3f8f'; x.fillRect(0.42, 1.55, 0.35, 0.45); x.fillStyle = '#c8102e'; x.fillRect(2.03, 1.55, 0.35, 0.45);
-      x.beginPath(); x.arc(1.4, 1.775, 0.18, 0, 7); x.stroke();
-    });
-    const B = [], P = [], L = [];
-    const brick = [0x8a3b2a, 0x9c4a33, 0x7a3a2c, 0xa3593c, 0x6e4a3a, 0xb58a6a];
-    for (let z = -2.4; z < 0.3; z += 0.52) for (const x of [-2.35, -1.7, -1.05]) B.push(building(0.5, R(0.45, 0.85), 0.42, x + R(-0.03, 0.03), z, pick(brick), 0.16));
-    for (let z = 1.2; z < 2.6; z += 0.5) for (const x of [-2.35, -1.7, -1.05]) B.push(building(0.5, R(0.4, 0.75), 0.4, x, z, pick(brick), 0.16));
-    this.add(B, this.mat);
-    // the stage: roof, truss, the blue Summer Smash banner and screens
-    P.push(block(1.5, 0.04, 0.55, 1.4, 0.72, -2.3, 0x1c1d20), block(0.04, 0.7, 0.04, 0.68, 0.35, -2.05, 0x2b2e33), block(0.04, 0.7, 0.04, 2.12, 0.35, -2.05, 0x2b2e33), block(1.5, 0.14, 0.55, 1.4, 0.07, -2.3, 0x2b2e33));
-    L.push(block(1.3, 0.14, 0.02, 1.4, 0.62, -2.02, 0x1b43c0), block(0.3, 0.22, 0.02, 0.5, 0.4, -2.0, 0x6fd0ff), block(0.3, 0.22, 0.02, 2.3, 0.4, -2.0, 0x6fd0ff));
-    // court lights and street lamps
-    for (const [x, z] of [[0.4, 1.12], [2.4, 1.12], [0.4, 2.42], [2.4, 2.42]]) { P.push(block(0.02, 0.4, 0.02, x, 0.2, z, 0x2f3338)); L.push(block(0.08, 0.03, 0.05, x, 0.41, z, 0xfff4d8)); }
-    for (const [x, z] of [[-0.36, -2], [-0.36, -0.8], [0.22, -0.4], [-0.36, 1.6], [1, 0.44], [2, 1.02], [-1.5, 0.44]]) { P.push(block(0.015, 0.26, 0.015, x, 0.13, z, 0x2f3338)); L.push(block(0.045, 0.02, 0.045, x, 0.27, z, 0xffd49a)); }
-    for (const x of [0.6, 1.2, 1.9]) L.push(block(0.02, 0.35, 0.02, x, 0.18, 1.78, 0xf2f2ee).translate(0, 0, 0));
-    this.add(P); this.add(L, this.glow);
-    // the crowd, jumping on the beat
-    const n = 260, fans = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.022, 0.026, 0.09, 5).translate(0, 0.045, 0), new THREE.MeshStandardMaterial({ roughness: 0.8 }), n);
-    const pos = [];
-    for (let i = 0; i < n; i++) { const d = Math.random(); pos.push([R(0.45, 2.35), 0.2 + Math.pow(d, 0.7) * -1.9 + 0.25, R(0, 6), Math.random() < 0.6]); fans.setColorAt(i, new THREE.Color(pick([0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0xc94f7c, 0x1c1d20]))); }
-    this.inner.add(fans);
-    // light beams sweeping from the stage
-    const beams = [];
-    for (let k = 0; k < 5; k++) {
-      const c = [0x3aa0ff, 0xff4fd8, 0xffd23a, 0x7a5cff, 0x2fe0c0][k];
-      const b = new THREE.Mesh(new THREE.ConeGeometry(0.22, 2.4, 12, 1, true).translate(0, -1.2, 0).rotateX(Math.PI), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-      b.position.set(0.8 + k * 0.3, 0.7, -2.1); this.inner.add(b); beams.push(b);
-    }
-    this.update.push((t) => {
-      const beat = t * 151.5 / 60;
-      pos.forEach(([x, z, ph, jumper], i) => { const h = jumper ? Math.abs(Math.sin(beat * Math.PI + ph * 0.1)) * 0.05 : 0; _m.makeTranslation(x, h, z); fans.setMatrixAt(i, _m); });
-      fans.instanceMatrix.needsUpdate = true;
-      beams.forEach((b, k) => { b.rotation.x = -0.5 + Math.sin(t * 0.8 + k) * 0.3; b.rotation.z = Math.sin(t * 1.1 + k * 1.7) * 0.5; b.material.opacity = 0.1 + 0.08 * (1 - (beat % 1)); });
-    });
-    this.cars([{ a: [-0.2, -H], b: [-0.2, H], len: S }, { a: [0.06, H], b: [0.06, -H], len: S }, { a: [-H, 0.62], b: [H, 0.62], len: S }], 6, [0xf2f2f0, 0x1c1d20, 0x5a1f2b, 0x3a3f46, 0x9e1b1b]);
-    this.people([[-2.6, 0.45, -0.35, 0.5], [0.2, 0.96, 2.6, 1.0], [-0.35, -2.6, -0.3, 2.6], [0.4, 1.2, 2.3, 2.3]], 34, [0xe8e4dc, 0x2b2d33, 0xcc1f2a, 0x1f55d6, 0xe0b640]);
-  }
-
-  tick(t, dt) {
-    for (const u of this.update) u(t, dt);
-    // lights follow focus: the chosen world is lit like a display piece, the rest fall back into the dark
-    const f = this.focus;
-    this.spot.intensity = 10 + f * 55; this.rim.intensity = 4 + f * 12;
-    this.mat.emissiveIntensity = 0.35 + f * 1.1;
-    this.glow.color.setScalar(0.35 + f * 0.9);
-  }
 }
 
 // ---------- the stage ----------
@@ -575,275 +292,344 @@ function titleGlow(h1) {
   word.addEventListener('pointerleave', () => { titleHover = false; });
 }
 
+
+// ---------- the globe ----------
+// the worlds where they really are (La Playa: a Pacific beach town with a Cristo on the hill, around Puerto Vallarta)
+const PLACES = [
+  { map: 'downtown', name: 'Gaslamp District', place: 'San Diego, California', lat: 32.711, lon: -117.161, badge: 'assets/flag-california.png', color: '#ff8a3d' },
+  { map: 'suburbs', name: 'Chicago', place: 'Chicago, Illinois', lat: 41.878, lon: -87.63, badge: 'assets/flag-illinois.png', color: '#3d9bff' },
+  { map: 'tropical', name: 'La Playa', place: 'Pacific Coast, Mexico', lat: 20.65, lon: -105.23, badge: 'assets/flag-mexico.png', color: '#16c79a' },
+];
+// NASA Blue Marble-based maps from the three.js examples (day, city lights, ocean mask, clouds)
+const TEX = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/';
+// lat/lon -> unit vector, matching SphereGeometry's uv layout (u = 0 at 180° W)
+const llDir = (lat, lon, o = new THREE.Vector3()) => { const la = lat * D2R, ph = (lon + 180) * D2R; return o.set(-Math.cos(ph) * Math.cos(la), Math.sin(la), Math.sin(ph) * Math.cos(la)); };
+// the nearest copy of a longitude to another (so the globe always turns the short way round)
+const near = (lon, ref) => lon + 360 * Math.round((ref - lon) / 360);
+
+const EARTH_VERT = /* glsl */ `
+varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+void main() { vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const EARTH_FRAG = /* glsl */ `
+uniform sampler2D uDay, uNight, uSpec; uniform vec3 uSun, uCam, uAtmo; uniform float uMode, uNightOn, uSpecOn;
+varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+void main() {
+  vec3 N = normalize(vN), V = normalize(uCam - vW), L = normalize(uSun);
+  vec3 day = texture2D(uDay, vUv).rgb;
+  float ndl = dot(N, L), lit = smoothstep(-0.18, 0.32, ndl);
+  // light theme: a bright, evenly lit Earth; dark theme: a real terminator with the night side in city lights
+  float amb = mix(0.62, 0.025, uMode);
+  vec3 col = day * (amb + (1.0 - amb) * max(ndl, 0.0) * mix(0.8, 1.25, uMode)) * mix(1.22, 1.0, uMode);
+  vec3 night = texture2D(uNight, vUv).rgb * uNightOn;
+  col += night * vec3(1.0, 0.76, 0.46) * 1.7 * (1.0 - lit) * uMode;
+  vec3 H = normalize(L + V);
+  col += vec3(1.0, 0.95, 0.86) * pow(max(dot(N, H), 0.0), 60.0) * texture2D(uSpec, vUv).r * uSpecOn * 0.4 * lit;
+  float fr = pow(1.0 - max(dot(N, V), 0.0), 2.6);
+  col = mix(col, uAtmo * (0.3 + lit * 0.9), fr * 0.6);
+  gl_FragColor = vec4(col, 1.0);
+  #include <colorspace_fragment>
+}`;
+const CLOUD_FRAG = /* glsl */ `
+uniform sampler2D uMap; uniform vec3 uSun; uniform float uMode, uFade;
+varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+void main() {
+  vec4 t = texture2D(uMap, vUv);
+  float a = t.a * dot(t.rgb, vec3(0.333)), ndl = dot(normalize(vN), normalize(uSun));
+  float light = mix(0.92, 0.05 + 1.05 * smoothstep(-0.15, 0.6, ndl), uMode);
+  gl_FragColor = vec4(vec3(light), a * mix(0.72, 0.85, uMode) * uFade);
+  #include <colorspace_fragment>
+}`;
+const ATMO_VERT = /* glsl */ `
+varying vec3 vNv; varying vec3 vNw;
+void main() { vNv = normalize(normalMatrix * normal); vNw = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const ATMO_FRAG = /* glsl */ `
+uniform vec3 uColor, uSun; uniform float uStrength;
+varying vec3 vNv; varying vec3 vNw;
+void main() {
+  // the far side of a slightly bigger sphere: 0 at its outer rim, 1 where it meets the planet's edge
+  float g = pow(smoothstep(0.02, -0.4, dot(vNv, vec3(0.0, 0.0, 1.0))), 2.6);
+  float sun = 0.4 + 0.8 * max(dot(vNw, normalize(uSun)), 0.0);
+  gl_FragColor = vec4(uColor, clamp(g * uStrength * sun, 0.0, 1.0));
+  #include <colorspace_fragment>
+}`;
+
+// a quick stand-in Earth from the coarse coastlines, shown until the real maps arrive (or if they can't)
+function fallbackDay() {
+  const { land } = earthMaps();
+  return canvasTex(MW * 4, MH * 4, (x, w, h) => {
+    const im = x.createImageData(w, h);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const l = land[Math.floor(j / 4) * MW + Math.floor(i / 4)], lat = Math.abs(90 - (j + 0.5) / h * 180), o = (j * w + i) * 4;
+      const dry = Math.max(0, 1 - Math.abs(lat - 24) / 12), ice = clamp((lat - 64) / 6, 0, 1);
+      let r = 16 + (88 + 90 * dry - 16) * l, g = 52 + (122 + 30 * dry - 52) * l, b = 98 + (64 + 30 * dry - 98) * l;
+      r += (236 - r) * ice; g += (242 - g) * ice; b += (248 - b) * ice;
+      im.data[o] = r; im.data[o + 1] = g; im.data[o + 2] = b; im.data[o + 3] = 255;
+    }
+    x.putImageData(im, 0, 0);
+  });
+}
+
 export function initMenu() {
   const menu = document.getElementById('menu');
   if (!menu) return;
-  const buttons = MAPS.map((m) => menu.querySelector(`button[data-map="${m}"]`));
-  const qp = new URLSearchParams(location.search).get('map');
-  if (qp) { buttons.forEach((b) => b && (b.dataset.go = '1')); return; }   // quick-test links skip the show
-
-  titleGlow(menu.querySelector('h1'));
-  const canvas = document.createElement('canvas'); canvas.id = 'menuStage'; menu.prepend(canvas);
-  // atmosphere layers behind the stage (crossfaded in CSS by data-hover) and a faint grain over it
-  for (const k of ['suburbs', 'tropical', 'downtown', 'neutral']) { const a = document.createElement('div'); a.className = 'atmo ' + k; menu.prepend(a); }
-  starfield(menu, menu.querySelector('.atmo.neutral'));
-  const grain = document.createElement('div'); grain.className = 'grain'; menu.appendChild(grain);
-  { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), im = x.createImageData(128, 128);
-    for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
-    x.putImageData(im, 0, 0); grain.style.backgroundImage = `url(${c.toDataURL()})`; }
-  let shownHover = null;
-  const fade = document.createElement('div'); fade.id = 'menuFade'; menu.appendChild(fade);
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; renderer.outputColorSpace = THREE.SRGBColorSpace;
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 200);
-  scene.add(new THREE.HemisphereLight(0x9fb4d8, 0x1a1410, 0.55));
-  const key = new THREE.DirectionalLight(0xfff0dc, 1.1); key.position.set(-8, 16, 10); key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -16, right: 16, top: 12, bottom: -12, near: 1, far: 50 }); key.shadow.bias = -0.0008;
-  scene.add(key);
-  // soft shadows on an unseen floor far below, and dust drifting in the light
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 60).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ opacity: 0.4 }));
-  floor.position.y = -3.4; floor.receiveShadow = true; scene.add(floor);
-  const dustN = 220, dustPos = new Float32Array(dustN * 3);
-  for (let i = 0; i < dustN; i++) { dustPos[i * 3] = R(-18, 18); dustPos[i * 3 + 1] = R(-3, 8); dustPos[i * 3 + 2] = R(-8, 8); }
-  const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffe6c4, size: 0.05, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
-  scene.add(dust);
-
-  // the ISS: passes behind everything, far from the camera, crossing the upper part of the view every minute or so
-  const iss = makeISS(); iss.g.visible = false; scene.add(iss.g);
-  const issRun = { next: 6 + Math.random() * 6, pass: null, fade: 1 };
-  function issTick(t, dt) {
-    issRun.fade += ((shownHover ? 0 : 1) - issRun.fade) * Math.min(1, dt * 1.5);   // fades out with the stars while a world is hovered
-    if (!issRun.pass) {
-      issRun.next -= dt;
-      if (issRun.next > 0) return;
-      const dir = Math.random() < 0.5 ? 1 : -1, v0 = (portrait ? 0.62 : 0.45) + Math.random() * 0.22;
-      issRun.pass = { t0: t, dur: 30 + Math.random() * 14, dir, v0, slope: (Math.random() - 0.5) * 0.3, roll: Math.random() * 6.3, yaw: (Math.random() - 0.5) * 0.9, dist: 58 + Math.random() * 16 };
-    }
-    const p = issRun.pass, k = (t - p.t0) / p.dur;
-    if (k >= 1) { issRun.pass = null; iss.g.visible = false; issRun.next = 18 + Math.random() * 20; return; }
-    // a point on a line across the screen (a little past each edge), pushed out along the view ray to its distance
-    const u = (-1.25 + 2.5 * k) * p.dir, v = p.v0 + p.slope * (k - 0.5) * 2;
-    camera.updateMatrixWorld();
-    const ray = _iss.set(u, v, 0.5).unproject(camera).sub(camera.position).normalize();
-    iss.g.position.copy(camera.position).addScaledVector(ray, p.dist);
-    iss.g.quaternion.copy(camera.quaternion);                                        // turned toward the viewer, then tipped over so the wings show
-    iss.g.rotateX(0.95); iss.g.rotateY(p.yaw); iss.g.rotateX(Math.sin(t * 0.05 + p.roll) * 0.25); iss.g.rotateZ(p.dir * 0.08);
-    iss.g.visible = true;
-    const edge = Math.min(1, k * 8, (1 - k) * 8);
-    for (const m of iss.mats) m.opacity = issRun.fade * edge;
-    iss.blink.visible = Math.sin(t * 2.4) > 0.75;
-  }
-  const _iss = new THREE.Vector3();
-
-  const tex = facadeTextures();
-  const worlds = MAPS.map((m) => { const d = new Diorama(m, tex); scene.add(d.g); return d; });
-  const hits = worlds.map((d) => d.hit);
-  // each world's own bounding box (for fitting it to a phone screen): measured once at rest
-  worlds.forEach((d) => {
-    const p = d.g.position.clone(), r = d.g.rotation.clone(), sc = d.g.scale.clone();
-    d.g.position.set(0, 0, 0); d.g.rotation.set(0, 0, 0); d.g.scale.setScalar(1); d.g.updateMatrixWorld(true);
-    d.bb = new THREE.Box3().setFromObject(d.g);
-    d.g.position.copy(p); d.g.rotation.copy(r); d.g.scale.copy(sc); d.g.updateMatrixWorld(true);
-  });
-
-  // layout: an arc across wide screens, a column on tall ones
-  let portrait = false, baseCam = new THREE.Vector3(), look = new THREE.Vector3(0, 0.3, 0);
-  // a phone held upright gets a carousel: one world at a time, swipe between them, PLAY (or tap the world) to go in
+  const buttons = Object.fromEntries(PLACES.map((p) => [p.map, menu.querySelector(`button[data-map="${p.map}"]`)]));
+  if (new URLSearchParams(location.search).get('map')) return;          // quick-test links skip the show
   const TOUCH = document.documentElement.classList.contains('touch');
-  let carousel = false, sel = 0, selF = 0;
-  const dots = [...menu.querySelectorAll('.carousel-ui .dots i')];
-  const syncDots = () => dots.forEach((d, k) => d.classList.toggle('on', k === sel));
-  const goTo = (i) => { sel = Math.max(0, Math.min(MAPS.length - 1, i)); syncDots(); };
-  syncDots();
+
+  // ---- theme
+  let theme = 'dark';
+  try { theme = localStorage.getItem('tinyworld.theme') || 'dark'; } catch { /* default */ }
+  menu.dataset.theme = theme;
+  let mode = theme === 'dark' ? 1 : 0;
+
+  // ---- layers: drifting colour light, stars (dark theme), the globe, pins, then the interface
+  titleGlow(menu.querySelector('h1'));
+  const bg = document.createElement('div'); bg.className = 'gm-bg'; bg.innerHTML = '<i class="b1"></i><i class="b2"></i><i class="b3"></i>'; menu.prepend(bg);
+  starfield(menu, bg);
+  const canvas = document.createElement('canvas'); canvas.id = 'menuStage'; menu.querySelector('canvas.stars').after(canvas);
+  const pinLayer = document.createElement('div'); pinLayer.className = 'gm-pins'; canvas.after(pinLayer);
+  const pins = PLACES.map((p) => {
+    const el = document.createElement('div'); el.className = 'pin'; el.style.setProperty('--c', p.color);
+    el.innerHTML = `<i class="halo"></i><i class="ring"></i><i class="ring r2"></i><i class="dot"></i><i class="stem"></i>
+      <button class="badge" aria-label="${p.name}, ${p.place}"><img src="${p.badge}" alt=""></button>
+      <span class="label"><b>${p.name}</b><small>${p.place}</small><em>${TOUCH ? 'Tap again to fly in' : 'Click to fly in'}</em></span>`;
+    pinLayer.appendChild(el); return el;
+  });
+  const ui = document.createElement('div'); ui.className = 'gm-ui';
+  ui.innerHTML = `
+    <aside class="gm-dest"><div class="gm-k"><span>Choose a destination</span><i></i></div>
+      ${PLACES.map((p, i) => `<button class="gm-row" data-i="${i}" style="--c:${p.color}"><span class="n">0${i + 1}</span><span class="t"><b>${p.name}</b><small>${p.place}</small></span><span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>`).join('')}
+    </aside>
+    <button class="gm-mode" aria-label="Switch light or dark theme"><span class="knob"></span>
+      <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
+      <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></button>
+    <div class="gm-zoom"><button data-z="-1" aria-label="Zoom in">+</button><i></i><button data-z="1" aria-label="Zoom out">−</button></div>
+    <div class="gm-foot"><span class="gm-coord"></span><span class="gm-hint">${TOUCH ? 'Drag to spin · pinch to zoom · tap a pin' : 'Drag to spin · scroll to zoom · click a pin to fly in'}</span></div>`;
+  menu.appendChild(ui);
+  const rows = [...ui.querySelectorAll('.gm-row')], coordEl = ui.querySelector('.gm-coord');
+  // the dive overlay lives outside the menu so it can cover the loading screen and fade off the finished map
+  const fade = document.createElement('div'); fade.id = 'diveFade'; fade.innerHTML = '<div class="df-name"></div><div class="df-sub"></div><div class="df-bar"><i></i></div>';
+  document.body.appendChild(fade);
+
+  // ---- renderer and scene
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, TOUCH ? 2 : 1.75));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.005, 100);
+  const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); black.needsUpdate = true;
+  const U = {
+    uDay: { value: fallbackDay() }, uNight: { value: black }, uSpec: { value: black }, uNightOn: { value: 0 }, uSpecOn: { value: 0 },
+    uSun: { value: new THREE.Vector3(1, 0, 0) }, uCam: { value: new THREE.Vector3() }, uAtmo: { value: new THREE.Color() }, uMode: { value: mode },
+  };
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 128, 96), new THREE.ShaderMaterial({ uniforms: U, vertexShader: EARTH_VERT, fragmentShader: EARTH_FRAG }));
+  scene.add(earth);
+  const CU = { uMap: { value: black }, uSun: U.uSun, uMode: U.uMode, uFade: { value: 0 } };
+  const clouds = new THREE.Mesh(new THREE.SphereGeometry(1.008, 96, 72), new THREE.ShaderMaterial({ uniforms: CU, vertexShader: EARTH_VERT, fragmentShader: CLOUD_FRAG, transparent: true, depthWrite: false }));
+  scene.add(clouds);
+  const AU = { uColor: { value: new THREE.Color() }, uSun: U.uSun, uStrength: { value: 1 } };
+  const atmo = new THREE.Mesh(new THREE.SphereGeometry(1.1, 64, 48), new THREE.ShaderMaterial({ uniforms: AU, vertexShader: ATMO_VERT, fragmentShader: ATMO_FRAG, side: THREE.BackSide, transparent: true, depthWrite: false }));
+  scene.add(atmo);
+  // light for the little ISS circling the planet
+  const sunLight = new THREE.DirectionalLight(0xffffff, 2.2); scene.add(sunLight, new THREE.AmbientLight(0xbfd0ff, 0.5));
+  const iss = makeISS(); iss.g.scale.setScalar(0.03); scene.add(iss.g);
+  let cloudsReady = false;
+  const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
+  const load = (f, srgb, done) => loader.load(TEX + f, (t) => { if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); done(t); }, undefined, () => { /* the stand-in stays */ });
+  load('earth_atmos_2048.jpg', true, (t) => { U.uDay.value = t; });
+  load('earth_lights_2048.png', true, (t) => { U.uNight.value = t; U.uNightOn.value = 1; });
+  load('earth_specular_2048.jpg', false, (t) => { U.uSpec.value = t; U.uSpecOn.value = 1; });
+  load('earth_clouds_1024.png', false, (t) => { CU.uMap.value = t; cloudsReady = true; });
+
+  // ---- the view: the camera orbits the planet (lat/lon over a point, distance from the centre)
+  let baseDist = 4.2, minDist = 1.32, maxDist = 7;
+  const view = { lat: 18, lon: -160, dist: 9 }, target = { lat: 31, lon: -104, dist: 4.2 };
+  let shiftX = 0, shiftY = 0;
   function layout() {
     const w = innerWidth, h = viewH(), aspect = w / h;
     renderer.setSize(w, h, false); camera.aspect = aspect;
-    portrait = aspect < 0.95;
-    carousel = TOUCH && portrait;
-    worlds.forEach((d, i) => {
-      const k = i - 1;
-      d.home = carousel ? new THREE.Vector3((i - selF) * 9, 0, 0) : portrait ? new THREE.Vector3(0, -k * 4.6, k * 0.8) : new THREE.Vector3(k * 7.4, 0, -Math.abs(k) * 1.4);
-      d.yaw0 = carousel ? -0.42 : portrait ? 0 : -k * 0.32;
-    });
-    const tanH = Math.tan(THREE.MathUtils.degToRad(14)) * aspect;
-    const dist = carousel ? Math.max(24, 4.7 / tanH) : portrait ? Math.max(24, 16.5 / (2 * Math.tan(THREE.MathUtils.degToRad(14)))) : Math.max(24, 21.5 / (2 * tanH));
-    baseCam.set(0, dist * 0.4, dist * 0.92);
-    look.set(0, carousel ? -0.5 : portrait ? 0 : 0.3, 0);
-    camera.position.copy(baseCam); camera.lookAt(look); camera.updateMatrixWorld();   // placed before the first frame projects anything
-    camera.fov = 28; camera.updateProjectionMatrix();
+    // the globe fills ~80% of the height on a wide screen (less on squarer ones, where the title and list share it),
+    // nearly the width on a phone held upright
+    const halfW = Math.atan(Math.tan(15 * D2R) * aspect), f = aspect >= 1.15 ? 0.8 : aspect < 0.75 ? 0.88 : 0.66;
+    baseDist = 1 / Math.sin(Math.min(15 * D2R, halfW) * f);
+    maxDist = baseDist * 1.7;
+    // wide screens: the globe sits right of centre, leaving the left for the title and the list; tall: a little up
+    shiftX = aspect > 1.15 ? -w * Math.min(0.13, (aspect - 1.15) * 0.25 + 0.06) : 0;
+    shiftY = aspect < 0.9 ? h * 0.07 : 0;
+    camera.setViewOffset(w, h, shiftX, shiftY, w, h);
+    camera.updateProjectionMatrix();
   }
   layout(); addEventListener('resize', layout);
-  worlds.forEach((d) => { d.g.position.copy(d.home); d.g.rotation.y = d.yaw0; });
+  target.dist = baseDist; view.dist = baseDist * 2.3;
+  function place() {
+    llDir(view.lat, view.lon, camera.position).multiplyScalar(view.dist);
+    camera.up.set(0, 1, 0); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+  }
+  place();                                                     // placed before the first frame projects anything
 
-  // pointer: parallax for everything, hover by ray (or by the caption buttons)
-  const ptr = new THREE.Vector2(0, 0), ptrS = new THREE.Vector2(0, 0), ray = new THREE.Raycaster();
-  const _still = new THREE.Vector2(0, 0);
-  let hovered = -1, labelHover = -1, going = null;
-  const hasHover = matchMedia('(hover: hover)').matches;
-  canvas.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / viewH()) * 2 + 1); });
-  menu.addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / viewH()) * 2 + 1); });
-  function pickAt() { if (titleHover) return -1; ray.setFromCamera(ptr, camera); const h = ray.intersectObjects(hits, false)[0]; return h ? hits.indexOf(h.object) : -1; }
-  buttons.forEach((b, i) => {
-    b.addEventListener('pointerenter', () => { labelHover = i; });
-    b.addEventListener('pointerleave', () => { if (labelHover === i) labelHover = -1; });
-    b.addEventListener('focus', () => { labelHover = i; });
-    b.addEventListener('blur', () => { if (labelHover === i) labelHover = -1; });
-    // intercept the real click: play the dive into the world first, then let main.js load it
-    b.addEventListener('click', (e) => {
-      if (b.dataset.go) return;
-      e.stopImmediatePropagation(); e.preventDefault();
-      dive(i);
-    }, true);
+  // ---- input: drag to spin (with a little coast), wheel / pinch / buttons to zoom
+  let lastInput = -10, drag = null, vel = { lon: 0, lat: 0 }, hovered = -1, pinHover = -1, rowHover = -1, going = null, now = 0;
+  const pointers = new Map();
+  const degPerPx = () => 0.2 * (view.dist - 0.92) / (baseDist - 0.92) * (900 / Math.max(500, viewH()));
+  canvas.addEventListener('pointerdown', (e) => {
+    if (going) return;
+    canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    drag = { x: e.clientX, y: e.clientY, t: e.timeStamp, moved: 0 }; vel = { lon: 0, lat: 0 }; lastInput = now; canvas.classList.add('drag');
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; drag.pinch = Math.hypot(a.x - b.x, a.y - b.y); }
   });
-  // carousel: swipe sideways to change world, tap the world (or PLAY) to dive in
-  let swipe = null;
-  menu.addEventListener('pointerdown', (e) => { if (!carousel || going || e.target.closest('button, .tw')) return; swipe = { x: e.clientX, y: e.clientY }; });
-  menu.addEventListener('pointerup', (e) => {
-    if (!swipe) return;
-    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y; swipe = null;
-    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) { goTo(sel + (dx < 0 ? 1 : -1)); return; }
-    if (Math.hypot(dx, dy) > 12) return;
-    ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / viewH()) * 2 + 1);
-    const i = pickAt();
-    if (i === sel) dive(sel); else if (i >= 0) goTo(i);
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag || !pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (drag.pinch) target.dist = clamp(target.dist * drag.pinch / d, minDist, maxDist);
+      drag.pinch = d; lastInput = now; return;
+    }
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y, k = degPerPx(), dt = Math.max(0.008, (e.timeStamp - drag.t) / 1000);
+    target.lon -= dx * k; target.lat = clamp(target.lat + dy * k, -70, 78);
+    vel = { lon: -dx * k / dt, lat: dy * k / dt };
+    drag.x = e.clientX; drag.y = e.clientY; drag.t = e.timeStamp; drag.moved += Math.abs(dx) + Math.abs(dy); lastInput = now;
   });
-  menu.addEventListener('pointercancel', () => { swipe = null; });
-  menu.querySelector('.menu-play').addEventListener('click', (e) => { e.stopPropagation(); if (!going) dive(sel); });
-  addEventListener('keydown', (e) => { if (!carousel || going) return; if (e.key === 'ArrowRight') goTo(sel + 1); else if (e.key === 'ArrowLeft') goTo(sel - 1); else if (e.key === 'Enter') dive(sel); });
-  canvas.addEventListener('click', (e) => {
-    if (carousel) return;
-    ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / viewH()) * 2 + 1);
-    const i = pickAt();
-    if (i < 0 || going) return;
-    // on touch, the first tap picks a world, the second dives in
-    if (!hasHover && hovered !== i) { hovered = labelHover = i; return; }
-    dive(i);
+  const up = (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size) return;
+    if (drag && e.timeStamp - drag.t > 80) vel = { lon: 0, lat: 0 };            // held still before letting go: no coast
+    drag = null; canvas.classList.remove('drag');
+  };
+  canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+  menu.addEventListener('wheel', (e) => {
+    if (going || e.target.closest('#settings')) return;
+    e.preventDefault(); lastInput = now;
+    target.dist = clamp(target.dist * Math.exp(e.deltaY * 0.0011), minDist, maxDist);
+  }, { passive: false });
+  ui.querySelectorAll('.gm-zoom button').forEach((b) => b.addEventListener('click', () => { lastInput = now; target.dist = clamp(target.dist * (+b.dataset.z > 0 ? 1.3 : 1 / 1.3), minDist, maxDist); }));
+
+  // ---- pins and rows: hover to focus, click to fly in (touch: first tap focuses, second goes)
+  pins.forEach((el, i) => {
+    const b = el.querySelector('.badge');
+    b.addEventListener('pointerenter', () => { pinHover = i; });
+    b.addEventListener('pointerleave', () => { if (pinHover === i && !TOUCH) pinHover = -1; });
+    b.addEventListener('focus', () => { pinHover = i; });
+    b.addEventListener('blur', () => { if (pinHover === i) pinHover = -1; });
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (TOUCH && hovered !== i) { pinHover = i; return; } dive(i); });
+  });
+  rows.forEach((r, i) => {
+    r.addEventListener('pointerenter', () => { rowHover = i; });
+    r.addEventListener('pointerleave', () => { if (rowHover === i) rowHover = -1; });
+    r.addEventListener('focus', () => { rowHover = i; });
+    r.addEventListener('blur', () => { if (rowHover === i) rowHover = -1; });
+    r.addEventListener('click', () => dive(i));
+  });
+  // a tap on empty space lets go of a focused pin (touch)
+  canvas.addEventListener('click', () => { if (TOUCH && drag === null) pinHover = -1; });
+
+  // ---- theme switch: everything eases across (CSS for the page, uniforms for the planet)
+  ui.querySelector('.gm-mode').addEventListener('click', () => {
+    theme = theme === 'dark' ? 'light' : 'dark'; menu.dataset.theme = theme;
+    try { localStorage.setItem('tinyworld.theme', theme); } catch { /* not saved */ }
   });
 
+  // ---- flying in
   function dive(i) {
     if (going) return;
-    const dur = reduced ? 500 : 1250;
-    going = { i, t: 0, from: camera.position.clone(), look0: look.clone(), fov0: camera.fov, start: performance.now(), dur };
-    // hand over on time even if frames are few (a busy or backgrounded tab)
-    setTimeout(() => finish(), dur + 120);
-    hovered = i;
-    menu.classList.add('diving');
-    buttons.forEach((b, k) => b.classList.toggle('chosen', k === i));
+    const p = PLACES[i];
+    going = { i, p, start: performance.now(), dur: reduced ? 700 : 2100, from: { ...view }, lon: near(p.lon, view.lon), fov: camera.fov };
+    hovered = i; menu.classList.add('diving');
+    fade.style.setProperty('--fbg', getComputedStyle(menu).getPropertyValue('--bg').trim() || '#05070d');
+    fade.dataset.theme = theme;
+    fade.querySelector('.df-name').textContent = p.name; fade.querySelector('.df-sub').textContent = p.place;
+    fade.style.setProperty('--c', p.color);
+    setTimeout(finish, going.dur + 150);                        // hand over on time even if frames are few
   }
-
   function finish() {
     if (!going || going.done) return;
     going.done = true;
-    const b = buttons[going.i]; b.dataset.go = '1'; b.click();                // hand over to main.js: load the map
+    fade.classList.add('hold'); fade.style.opacity = 1;
+    window.__twDive = true;                                     // main.js: finish the descent onto the miniature
+    buttons[going.p.map].click();                               // hand over to main.js: load the map
   }
-  // captions follow their worlds on screen
-  const ui = menu.querySelector('.carousel-ui'), sub = menu.querySelector('p.sub');
-  const capTop = (b) => ui.getBoundingClientRect().top - b.offsetHeight - 30;
-  // carousel fitting: scale (camera zoom) and shift (view offset) so the chosen world fills the band between the
-  // subtitle and its caption on any phone, measured with an unzoomed copy of the camera so it doesn't chase itself
-  const fitCam = new THREE.PerspectiveCamera();
-  let fitZoom = 1, fitShift = 0;
-  function fitCarousel(dt) {
-    const W = innerWidth, Hh = viewH(), k = Math.min(1, dt * 4);
-    let zT = 1, sT = 0;
-    if (carousel && !going) {
-      fitCam.copy(camera); fitCam.zoom = 1; fitCam.clearViewOffset(); fitCam.updateProjectionMatrix(); fitCam.updateMatrixWorld();
-      const d = worlds[sel], bb = d.bb; d.g.updateMatrixWorld();
-      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-      for (let c = 0; c < 8; c++) {
-        _v.set(c & 1 ? bb.max.x : bb.min.x, c & 2 ? bb.max.y : bb.min.y, c & 4 ? bb.max.z : bb.min.z).applyMatrix4(d.g.matrixWorld).project(fitCam);
-        x0 = Math.min(x0, _v.x); x1 = Math.max(x1, _v.x); y0 = Math.min(y0, _v.y); y1 = Math.max(y1, _v.y);
-      }
-      const top = (1 - y1) / 2 * Hh, bot = (1 - y0) / 2 * Hh, wpx = (x1 - x0) / 2 * W;
-      const bandTop = sub.getBoundingClientRect().bottom + 18, bandBot = capTop(buttons[sel]) - 18;
-      if (bandBot - bandTop > 40 && bot - top > 1) {
-        zT = Math.min((bandBot - bandTop) / (bot - top), W * 0.9 / Math.max(1, wpx), 1.8);
-        sT = (bandTop + bandBot) / 2 - (Hh / 2 + ((top + bot) / 2 - Hh / 2) * zT);
-      }
-    }
-    fitZoom += (zT - fitZoom) * (going ? Math.min(1, dt * 8) : k); fitShift += (sT - fitShift) * (going ? Math.min(1, dt * 8) : k);
-    camera.zoom = fitZoom;
-    if (Math.abs(fitShift) > 0.5) camera.setViewOffset(W, Hh, 0, -fitShift, W, Hh); else camera.clearViewOffset();
-    camera.updateProjectionMatrix();
-  }
-  function placeLabels() {
-    worlds.forEach((d, i) => {
-      _v.set(0, -1.25, H + 0.2).applyMatrix4(d.g.matrixWorld).project(camera);
-      const b = buttons[i]; if (!b) return;
-      // carousel: the caption has a fixed place above the dots and PLAY; the world is fitted into the space above it
-      if (carousel) { b.style.left = `${innerWidth / 2}px`; b.style.top = `${capTop(b)}px`; }
-      else { b.style.left = `${(_v.x * 0.5 + 0.5) * innerWidth}px`; b.style.top = `${(-_v.y * 0.5 + 0.5) * viewH()}px`; }
-      b.classList.toggle('active', hovered === i); b.classList.toggle('dimmed', hovered >= 0 && hovered !== i);
-    });
-  }
+  // the map is built and running: the curtain lifts off the miniature
+  document.addEventListener('tw:start', () => {
+    if (!fade.classList.contains('hold')) return;
+    setTimeout(() => { fade.classList.add('out'); setTimeout(() => fade.remove(), 1800); }, 40);
+  }, { once: true });
 
-  let last = performance.now(), t = 0, running = true;
-  function frame(now) {
+  // ---- per frame
+  const _p = new THREE.Vector3(), _c = new THREE.Vector3(), sunView = new THREE.Vector3();
+  const SUN_LIGHT = new THREE.Vector3(-0.42, 0.5, 0.76).normalize(), SUN_DARK = new THREE.Vector3(-0.62, 0.36, 0.58).normalize();
+  const ATMO_LIGHT = new THREE.Color(0.42, 0.66, 1.0), ATMO_DARK = new THREE.Color(0.32, 0.62, 1.0);
+  let last = performance.now(), t = 0, running = true, issA = Math.random() * 6, shown = 0;
+  function frame(ms) {
     if (!running) return;
-    // the game has started: stop and let the GPU go
-    if (menu.style.display === 'none') { stop(); return; }
+    if (menu.style.display === 'none') { stop(); return; }     // the game has started: stop and let the GPU go
     requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
-    const k = 1 - Math.exp(-dt * 5);
-    ptrS.lerp(carousel ? _still : ptr, reduced ? 1 : k * 0.6);                  // no parallax on a phone: the last tap would leave it skewed
-    if (carousel) selF += (sel - selF) * Math.min(1, dt * 7);
-    if (!going) { const h = carousel ? sel : labelHover >= 0 ? labelHover : pickAt(); hovered = h; canvas.style.cursor = h >= 0 ? 'pointer' : 'default'; }
-    // the room takes on the hovered city's atmosphere (a slow crossfade in CSS)
-    const mood = hovered >= 0 ? MAPS[hovered] : '';
-    if (mood !== shownHover) { shownHover = mood; if (mood) menu.dataset.hover = mood; else delete menu.dataset.hover; }
-    worlds.forEach((d, i) => {
-      if (carousel) { const o = i - selF; d.home.set(o * 9, 0, -Math.abs(o) * 2.5); }
-      const on = hovered === i, any = hovered >= 0;
-      d.hover += ((on ? 1 : 0) - d.hover) * k;
-      d.focus += ((on ? 1 : any ? 0.28 : 0.62) - d.focus) * k;
-      // lift out of the case toward the camera, grow a little; the others settle back
-      const toCam = _v.copy(camera.position).sub(d.home).normalize();
-      const lift = d.hover, back = any && !on ? 1 : 0;
-      d.g.position.copy(d.home).addScaledVector(toCam, lift * (carousel ? 1.4 : 3.2) - back * 0.8);
-      if (!portrait) d.g.position.x -= d.home.x * lift * 0.18;                // side worlds drift in a little so they stay in frame
-      d.g.position.y += lift * 0.5 + (reduced ? 0 : Math.sin(t * 0.7 + i * 2) * 0.08);
-      const sc = 1 + lift * 0.12 - back * 0.05; d.g.scale.setScalar(sc);
-      // idle: a slow turn to show the world; hovered: face the viewer and tilt after the cursor
-      _v.copy(d.home).project(camera);
-      const px = Number.isFinite(_v.x) ? _v.x : 0, py = Number.isFinite(_v.y) ? _v.y : 0;          // a point at the lens would project to NaN
-      const lx = THREE.MathUtils.clamp(ptrS.x - px, -0.6, 0.6), ly = THREE.MathUtils.clamp(ptrS.y - py, -0.6, 0.6);
-      const idleYaw = d.yaw0 + (reduced ? 0 : Math.sin(t * 0.22 + i * 1.7) * 0.22);
-      d.g.rotation.y += ((on ? d.yaw0 * 0.3 + lx * 0.45 : idleYaw) - d.g.rotation.y) * k;
-      d.g.rotation.x += ((on ? -ly * 0.22 + 0.05 : 0) - d.g.rotation.x) * k;
-      d.tick(t, dt);
-    });
-    // the whole case drifts with the cursor
-    if (going) {
-      going.t = Math.min(1, (now - going.start) / going.dur);
-      const e = ease(going.t), d = worlds[going.i], c = _v.copy(d.g.position);
-      const target = c.clone().add(new THREE.Vector3(0, 1.6, 2.0));
-      camera.position.lerpVectors(going.from, target, e);
-      look.lerpVectors(going.look0, c.clone().add(new THREE.Vector3(0, 0.2, 0)), Math.min(1, e * 1.3));
-      camera.fov = going.fov0 + (46 - going.fov0) * e; camera.updateProjectionMatrix();
-      fade.style.opacity = Math.max(0, (going.t - 0.55) / 0.45);
-      if (going.t >= 1) finish();
+    const dt = Math.min(0.05, (ms - last) / 1000); last = ms; t += dt; now = t;
+    mode += ((theme === 'dark' ? 1 : 0) - mode) * Math.min(1, dt * 2.6);
+    hovered = going ? going.i : pinHover >= 0 ? pinHover : rowHover;
+    if (!going) {
+      // coast after a fling; idle: a slow turn west to east; focused: lean toward the place (and in a little)
+      if (!drag) { target.lon += vel.lon * dt; target.lat = clamp(target.lat + vel.lat * dt, -70, 78); const f = Math.exp(-dt * 3.2); vel.lon *= f; vel.lat *= f; }
+      if (hovered >= 0 && !drag) {
+        const p = PLACES[hovered], k = Math.min(1, dt * 1.6);
+        target.lon += (near(p.lon, target.lon) - target.lon) * k; target.lat += (p.lat * 0.85 - target.lat) * k;
+        if (target.dist > baseDist * 0.82) target.dist += (baseDist * 0.82 - target.dist) * Math.min(1, dt * 0.8);
+      } else if (!drag && t - lastInput > 4 && !reduced) target.lon += dt * 2.6;
+      const k = 1 - Math.exp(-dt * (t < 2.6 ? 1.9 : drag ? 14 : 6));
+      view.lat += (target.lat - view.lat) * k; view.lon += (target.lon - view.lon) * k; view.dist += (target.dist - view.dist) * k;
     } else {
-      camera.position.set(baseCam.x + ptrS.x * 1.6, baseCam.y + ptrS.y * 0.8, baseCam.z);
+      const g = going, k = clamp((performance.now() - g.start) / g.dur, 0, 1), turn = ease(Math.min(1, k * 1.3)), e = ease(k);
+      view.lon = g.from.lon + (g.lon - g.from.lon) * turn; view.lat = g.from.lat + (g.p.lat - g.from.lat) * turn;
+      view.dist = g.from.dist + (1.004 - g.from.dist) * Math.pow(e, 1.15);
+      camera.fov = g.fov + (17 - g.fov) * e;
+      camera.setViewOffset(innerWidth, viewH(), shiftX * (1 - turn), shiftY * (1 - turn), innerWidth, viewH());   // the place comes to the middle of the screen
+      camera.updateProjectionMatrix();
+      fade.style.opacity = clamp((k - 0.62) / 0.3, 0, 1);
+      canvas.style.filter = k > 0.55 ? `blur(${((k - 0.55) * 14).toFixed(1)}px)` : '';
+      if (k >= 1) finish();
     }
-    camera.lookAt(look);
-    fitCarousel(dt);
-    if (!going && !reduced) issTick(t, dt); else iss.g.visible = false;
-    const dp = dustGeo.attributes.position.array;
-    if (!reduced) for (let i = 0; i < dustN; i++) { dp[i * 3 + 1] += dt * 0.12; dp[i * 3] += Math.sin(t * 0.3 + i) * dt * 0.05; if (dp[i * 3 + 1] > 8) dp[i * 3 + 1] = -3; }
-    dustGeo.attributes.position.needsUpdate = true;
+    place();
+    // light: kept to the camera's upper left so the face you're looking at is always well lit (dark: side-lit)
+    sunView.copy(SUN_LIGHT).lerp(SUN_DARK, mode).normalize();
+    U.uSun.value.copy(sunView).applyQuaternion(camera.quaternion);
+    U.uCam.value.copy(camera.position); U.uMode.value = mode;
+    U.uAtmo.value.copy(ATMO_LIGHT).lerp(ATMO_DARK, mode);
+    AU.uColor.value.copy(U.uAtmo.value); AU.uStrength.value = (0.7 + 0.35 * mode) * (1 + 0.08 * Math.sin(t * 0.6));
+    sunLight.position.copy(U.uSun.value).multiplyScalar(10);
+    CU.uFade.value = (cloudsReady ? 1 : 0) * clamp((view.dist - 1.03) / 0.35, 0, 1);
+    clouds.rotation.y += dt * 0.006;
+    // the ISS: an inclined orbit, about a minute per lap, truss across its path
+    issA += dt * 0.11;
+    const inc = 51.6 * D2R, ox = Math.cos(issA), oz = Math.sin(issA);
+    iss.g.position.set(ox * 1.22, oz * Math.sin(inc) * 1.22, oz * Math.cos(inc) * 1.22);
+    _c.set(-Math.sin(issA), Math.cos(issA) * Math.sin(inc), Math.cos(issA) * Math.cos(inc));
+    iss.g.lookAt(_p.copy(iss.g.position).add(_c)); iss.g.rotateY(Math.PI / 2);
+    iss.blink.visible = Math.sin(t * 2.4) > 0.75;
     renderer.render(scene, camera);
-    placeLabels();
+    if (!shown && (t > 0.15)) { shown = 1; canvas.classList.add('on'); }
+    // pins ride on their places; past the horizon they fade out
+    const camDir = _c.copy(camera.position).normalize(), horizon = 1 / view.dist, W = innerWidth, H = viewH();
+    pins.forEach((el, i) => {
+      const p = PLACES[i], d = llDir(p.lat, p.lon, _p), facing = d.dot(camDir);
+      const vis = clamp((facing - horizon - 0.02) / 0.14, 0, 1);
+      d.project(camera);
+      el.style.transform = `translate3d(${((d.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-d.y * 0.5 + 0.5) * H).toFixed(1)}px, 0)`;
+      el.style.opacity = going && going.i !== i ? 0 : vis * clamp((t - 1.3 - i * 0.15) / 0.7, 0, 1);   // the pins land once the planet has come in
+      el.style.zIndex = Math.round(facing * 100) + (hovered === i ? 200 : 0);
+      el.classList.toggle('on', hovered === i); el.classList.toggle('dim', hovered >= 0 && hovered !== i);
+      el.classList.toggle('off', vis < 0.4);
+    });
+    rows.forEach((r, i) => { r.classList.toggle('on', hovered === i); r.classList.toggle('dim', hovered >= 0 && hovered !== i); });
+    // where you're looking, as a coordinate readout
+    let lon = ((view.lon + 180) % 360 + 360) % 360 - 180;
+    coordEl.textContent = `${Math.abs(view.lat).toFixed(2)}° ${view.lat >= 0 ? 'N' : 'S'}   ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'E' : 'W'}   ·   ALT ${Math.round((view.dist - 1) * 6371).toLocaleString('en-US')} KM`;
   }
   requestAnimationFrame(frame);
 
   function stop() {
     running = false;
     removeEventListener('resize', layout);
-    scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.map && m.map.dispose(); m.emissiveMap && m.emissiveMap.dispose(); m.dispose(); }); });
+    scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose()); });
+    for (const u of [U.uDay, U.uNight, U.uSpec, CU.uMap]) u.value && u.value.dispose();
     renderer.dispose(); renderer.forceContextLoss && renderer.forceContextLoss();
     canvas.remove();
   }

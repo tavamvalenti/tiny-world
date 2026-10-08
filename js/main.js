@@ -244,7 +244,9 @@ function updateCamera(dt) {
   if (keys.KeyQ) cam.yawT += dt * rs;
   if (keys.KeyE) cam.yawT -= dt * rs;
   cam.yaw = lerp(cam.yaw, cam.yawT, 1 - Math.exp(-dt * 5));
-  cam.dist = lerp(cam.dist, cam.distT, 1 - Math.exp(-dt * 6));
+  // arriving from the globe: a slower glide down onto the miniature, then the usual snappy zoom
+  if (cam.intro > 0) cam.intro -= dt;
+  cam.dist = lerp(cam.dist, cam.distT, 1 - Math.exp(-dt * (cam.intro > 0 ? 1.5 : 6)));
   const zt = clamp((cam.dist - 30) / 120, 0, 1);
   // La Playa zooms out past the usual limit into a panorama: the lens widens and the camera lowers until the
   // whole city lines up in one frame: beach, resorts, streets, the hills and the Cristo on top
@@ -506,10 +508,12 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     if (!TOUCH) rick = new RickMode(scene, camera, post, cam, renderer);   // the RICK & MORTY button (desktop)
     last = performance.now();
     running = true;
+    if (window.__twDive) { cam.dist = Math.min(cam.maxD * 1.25, cam.distT * 2.4); cam.intro = 2.2; }   // the descent from the globe carries on
+    document.dispatchEvent(new Event('tw:start'));
   }, 60);
 }));
 
-initMenu();                                                    // the title screen's miniature worlds
+initMenu();                                                    // the title screen: the interactive Earth
 
 // allow ?map=downtown for quick testing
 const qp = new URLSearchParams(location.search).get('map');
