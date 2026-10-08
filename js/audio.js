@@ -272,7 +272,9 @@ function recorded(kind, x, z, vol = 1) {
 // Decoded at 22 kHz mono and levelled to the same peak; each one is played as a slice (with short fades) through
 // the same positional chain as everything else, so distance muffling still applies.
 const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fire: 'assets/sfx-fire.mp4', cars: 'assets/sfx-cars.mp4', fireSiren: 'assets/sfx-firetruck.mp4', policeSiren: 'assets/sfx-police.mp4', crash: 'assets/sfx-crash.mp4',
-  bell: 'assets/sfx-bell.mp4', dog: 'assets/sfx-dog.mp4', gull: 'assets/sfx-gull.mp4', whistle: 'assets/sfx-whistle.mp4', collapse: 'assets/sfx-collapse.mp4', boom: 'assets/sfx-boom.mp4', pyro: 'assets/sfx-pyro.mp4', glass: 'assets/sfx-glass.mp4', dunk: 'assets/sfx-dunk.mp4', net: 'assets/sfx-net.mp4', horn: 'assets/sfx-horn.mp4', thunder: 'assets/sfx-thunder.mp4', rain: 'assets/sfx-rain.mp4', mower: 'assets/sfx-mower.mp4' };
+  bell: 'assets/sfx-bell.mp4', dog: 'assets/sfx-dog.mp4', gull: 'assets/sfx-gull.mp4', whistle: 'assets/sfx-whistle.mp4', collapse: 'assets/sfx-collapse.mp4', boom: 'assets/sfx-boom.mp4', pyro: 'assets/sfx-pyro.mp4', glass: 'assets/sfx-glass.mp4', dunk: 'assets/sfx-dunk.mp4', net: 'assets/sfx-net.mp4', horn: 'assets/sfx-horn.mp4', thunder: 'assets/sfx-thunder.mp4', rain: 'assets/sfx-rain.mp4', mower: 'assets/sfx-mower.mp4',
+  // Las Vegas: the casino floor through the doors, a club crowd, neon hum, a phone camera, laughter, dice
+  casino: 'assets/amb-casino.mp4', clubCrowd: 'assets/amb-club-crowd.mp4', neon: 'assets/amb-neon.mp4', shutter: 'assets/sfx-shutter.mp4', laughW: 'assets/sfx-laugh-women.mp4', laughM: 'assets/sfx-laugh-man.mp4', dice: 'assets/sfx-dice.mp4', fountain: 'assets/amb-fountain.mp4' };
 // where each take sits inside its (trimmed, compressed) file: [offset, duration] in seconds, grouped by kind
 const SL = {"bell":{"bell":[[0.1,2.6]]},"dog":{"bark":[[0.1,0.58],[0.8,0.6]]},"gull":{"call":[[0.1,0.6],[0.82,0.75],[1.69,0.35],[2.16,0.37],[2.65,0.65],[3.42,0.9],[4.44,0.7]],"flock":[[5.26,2.05],[7.43,2.0],[9.55,2.2],[11.87,2.1]]},"whistle":{"fall":[[0.1,3.95]]},"collapse":{"collapse":[[0.1,5.5],[5.72,5.5],[11.34,5.5],[16.96,5.5],[22.58,5.5]]},"boom":{"boom":[[0.1,4.4],[4.62,4.9]]},"pyro":{"burst":[[0.1,2.9]]},"glass":{"break":[[0.1,0.75],[0.97,0.92],[2.01,0.9],[3.03,1.03],[4.18,0.97],[5.27,0.9],[6.29,0.9],[7.31,0.77],[8.2,1.0],[9.32,0.87]]},"dunk":{"dunk":[[0.1,0.95],[1.17,0.95],[2.24,1.15]],"bounce":[[3.51,0.32],[3.95,0.27],[4.34,0.32],[4.78,0.24],[5.14,0.28],[5.54,0.25]]},"net":{"swish":[[0.1,0.55],[0.77,0.77],[1.66,0.47],[2.25,0.53],[2.9,0.5],[3.52,0.66],[4.3,0.63],[5.05,0.65],[5.82,0.85],[6.79,0.43]]},"horn":{"honk":[[0.1,0.85],[1.07,0.62],[1.81,0.53],[2.46,0.88],[3.46,1.06],[4.64,0.85],[5.61,1.03]],"long":[[6.76,4.11]]},"thunder":{"roll":[[0.1,12.5]]}};
 const SMP = {};
@@ -760,6 +762,9 @@ export const sfx = {
   gull(x, z, flock = false) { return init() ? !!slice('gull', flock ? 'flock' : 'call', x, z, { vol: flock ? 0.4 : 0.5, rate: R(0.94, 1.08), bus: ambBus, fade: 0.06 }) : false; },
   // the lawnmower engine, held while someone is mowing (returns a handle: set(level) / move(x, z) / stop())
   mowerLoop(x, z) { return init() ? loopOf('mower', x, z) : null; },
+  // any loaded recording as a held loop, or played once, at a place
+  loop(name, x, z) { return init() ? loopOf(name, x, z) : null; },
+  once(name, x, z, vol = 1, rate = 1) { return init() ? !!sample(name, x, z, { vol, rate, bus: ambBus, fade: 0.01 }) : false; },
   // a dunk: the ball slammed through the rim (recorded)
   dunk(x, z) { if (init() && !slice('dunk', 'dunk', x, z, { vol: 0.75 })) { sfx.rim(x, z); sfx.swish(x, z); } },
   swish(x, z) {
@@ -969,14 +974,16 @@ export const beachRadio = {
   spots: [], on: false, out: null, bus: null, buf: null, k: -1, bag: [], level: 0,
   pickNext() {
     if (!this.bag.length) {
-      const b = BEACH_SET.map((_, i) => i);
+      const b = (this.list || BEACH_SET).map((_, i) => i);
       for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
       if (this.k >= 0 && b.length > 1 && b[0] === this.k) b.push(b.shift());
       this.bag = b;
     }
     return this.bag.shift();
   },
-  load(k) { return fetch(BEACH_SET[k]).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)); },
+  load(k) { return fetch((this.list || BEACH_SET)[k]).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)); },
+  // another set of songs (the Las Vegas rooftop clubs play their own)
+  setList(list) { if (this.list !== list) { this.list = list; this.bag = []; } },
   play(buf, k, at) {
     const src = ctx.createBufferSource(); src.buffer = buf; src.connect(this.in);
     this.buf = buf; this.k = k; this.src = src; this.on = true;

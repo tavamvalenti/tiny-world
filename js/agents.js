@@ -740,7 +740,9 @@ export class Agents {
     this.pedColors(i);
     if (spot.uniform) { const u = new THREE.Color(spot.uniform); for (const m of [this.pTorso, this.pArmL, this.pArmR, this.pLegL, this.pLegR]) m.setColorAt(i, u); p.officer = true; }
     if (spot.look) this.dressAs(i, p, spot.look);
-    if (spot.face) p.heading = Math.atan2(spot.face.x - p.pos.x, spot.face.z - p.pos.z);     // looking at something (taking photos)
+    if (spot.face) { p.face = spot.face; p.heading = Math.atan2(spot.face.x - p.pos.x, spot.face.z - p.pos.z); }     // looking at something (taking photos)
+    if (spot.y) p.pos.y = spot.y;                                       // up on a roof terrace
+    if (spot.act) { p.act = spot.act === 'mix' ? pick(['dance', 'dance', 'film', null]) : spot.act; if (spot.stay) p.timer = 1e9; }
     this.peds.push(p);
   }
   pedTarget(p) {
@@ -844,7 +846,7 @@ export class Agents {
         p.timer -= dt;
         if (p.group) {
           // face the group and gesture now and then
-          const want = Math.atan2(p.group.x - p.pos.x, p.group.z - p.pos.z);
+          const f = p.face || p.group, want = Math.atan2(f.x - p.pos.x, f.z - p.pos.z);
           p.heading += Math.atan2(Math.sin(want - p.heading), Math.cos(want - p.heading)) * Math.min(1, dt * 3);
         }
         if (p.timer <= 0) { p.state = 'wander'; p.target = { x: rand(p.zone.x0, p.zone.x1), z: rand(p.zone.z0, p.zone.z1) }; }
@@ -1095,11 +1097,18 @@ export class Agents {
       if (moving) { leg = Math.sin(cyc) * (run ? 0.8 : 0.45); arm = -leg * (run ? 1.1 : 0.8); }
       else if (p.state === 'air' || p.state === 'held') { leg = Math.sin(G.time * (p.state === 'held' ? 11 : 18) + p.phase) * 0.7; arm = -leg; armOut = 1.1; }   // flailing
       else if (p.state === 'alert') { armOut = 0.35; }
+      else if (p.state === 'idle' && p.act) {}
       else if (p.state === 'idle' && p.group) arm = Math.max(0, Math.sin(G.time * 1.3 + p.phase * 3)) * 0.7; // talking with hands
       else if (p.state === 'riot' || p.state === 'entering') { arm = p.state === 'riot' ? -2.6 + Math.sin(G.time * 7 + p.phase) * 0.5 : -0.8; }
       // working poses (hammering, sweeping, carrying, radio...) from roles.js
       const o = POSE; o.aL = arm; o.aR = p.state === 'idle' ? 0 : -arm; o.oL = armOut; o.oR = armOut; o.lL = leg; o.lR = -leg; o.dy = 0;
       if (p.role && G.roles) G.roles.pose(p, o, moving);
+      // dancing (clubs, pool parties, the stages) and filming on phones (arms up and forward)
+      if (p.state === 'idle' && p.act) {
+        const tt = G.time * (p.act === 'pole' ? 2.6 : 5.2) + p.phase;
+        if (p.act === 'film') { o.aL = o.aR = -1.45; o.oL = o.oR = 0.28; }
+        else { o.aL = -2.5 + Math.sin(tt) * 0.5; o.aR = -2.5 + Math.cos(tt * 1.1) * 0.5; o.oL = o.oR = 0.35; o.lL = Math.sin(tt) * 0.25; o.lR = -o.lL; o.dy = Math.abs(Math.sin(tt)) * (p.act === 'pole' ? 0.02 : 0.05); _q.multiply(new THREE.Quaternion().setFromAxisAngle(UP, Math.sin(tt * 0.5) * 0.6)); }
+      }
       _p.set(p.pos.x, p.pos.y + bob + o.dy + (p.state === 'down' ? 0.06 : 0) + (TH ? TH(p.pos.x, p.pos.z) : 0), p.pos.z);   // on the hills, stand on the slope
       _m.compose(_p, _q, _s.set(p.s, p.s, p.s));
       const i = p.i;
