@@ -213,9 +213,11 @@ export class News {
         if (l.kind === 'emerald') for (const t of l.towers) bld(t, LM('The Westin San Diego Bayview', 'the Westin San Diego Bayview'));
         if (l.kind === 'hyatt') for (const t of l.towers) bld(t, LM('The Manchester Grand Hyatt San Diego', 'the Manchester Grand Hyatt San Diego'));
       }
+      for (const c of C.chains || []) L.push({ ...LM('In-N-Out', 'an In-N-Out'), street: true, x0: c.lot.lx0, x1: c.lot.lx1, z0: c.lot.lz0, z1: c.lot.lz1 });
       rect(C.petco, LM('Petco Park'), 3);
       rect(hq, LM('San Diego Police Headquarters'));
     } else if (this.map === 'suburbs') {
+      for (const c of C.chains || []) L.push({ ...LM("Raising Cane's", "a Raising Cane's"), street: true, x0: c.x0 - 0.5, x1: c.px + c.pw / 2 + 0.5, z0: c.z0 - 0.5, z1: c.front + 1.5 });
       rect(C.concert, LM('Summer Smash', 'the Summer Smash grounds'), 2);
       rect(C.court, LM('The streetball courts', 'the streetball courts'), 1);
       rect(C.school, LM('Washington Park Elementary'));

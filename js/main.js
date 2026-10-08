@@ -34,6 +34,7 @@ import { Pets } from './pets.js';
 import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 import { RickMode } from './rick.js';
+import { Chains } from './chains.js';
 
 const TOUCH = document.documentElement.classList.contains('touch');   // phones and tablets (set in index.html)
 export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO' };
@@ -167,6 +168,7 @@ function load(name) {
   map.city.build(scene);
   G.playa = map.city.playa ? new Playa(scene, map.city) : null;
   G.sandiego = map.city.landmarks ? new SanDiego(scene, map.city) : null;
+  G.chains = map.city.chains ? new Chains(scene, map.city) : null;           // In-N-Out (Gaslamp), Raising Cane's (Chicago)
   buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
@@ -346,6 +348,7 @@ function step(dt) {
   G.playa && G.playa.update(dt);
   G.pets && G.pets.update(dt);
   G.sandiego && G.sandiego.update();
+  G.chains && G.chains.update();
   G.construction && G.construction.update(dt);
   G.world.update(dt);
   G.director && G.director.update(dt);

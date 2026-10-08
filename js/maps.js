@@ -1,3 +1,4 @@
+import { innOutLot, canesLot } from './chains.js';
 import * as THREE from 'three';
 import { rand, pick } from './core.js';
 import { City, Ground } from './city.js';
@@ -136,7 +137,7 @@ export function downtown(B) {
   const ctx = makeCtx({ xs: P, zs: P, roadW: 5, sw: 1.7, half: 66, extent: 112, centerLine: 'yellow' }, B);
   const { city, g } = ctx;
   // the real skyline: One America Plaza and Emerald Plaza on Broadway by the depot, the Grand Hyatt on the Marina (js/sandiego.js)
-  const special = { '2,3': 'park', '0,4': 'hyatt', '0,5': 'hyatt', '4,1': 'parking', '3,2': 'plaza', '5,5': 'petco', '4,4': 'petco', '5,4': 'petco', '4,5': 'petco', '0,3': 'oneAmerica', '1,3': 'emerald' };
+  const special = { '2,3': 'park', '0,4': 'hyatt', '0,5': 'hyatt', '4,1': 'parking', '3,2': 'plaza', '5,5': 'petco', '4,4': 'petco', '5,4': 'petco', '4,5': 'petco', '0,3': 'oneAmerica', '1,3': 'emerald', '5,1': 'innout', '2,5': 'innout', '0,1': 'innout' };
   const landmarkBlocks = {};
   const towerFloors = { '2,1': 60, '3,1': 50, '1,3': 44 };
   // light rail runs down the street at z = 0 (a trolley-only transit mall), with two stations
@@ -183,6 +184,7 @@ export function downtown(B) {
     city.addProp('hydrant', b.x0 + 0.5, b.z0 + 2.2); city.addProp('bin', b.x1 - 0.5, b.z1 - 2.6);
     city.addProp('sign', b.x0 + 0.4, b.z1 - 0.4, 0);
     if (kind === 'oneAmerica' || kind === 'emerald') { landmarkBlocks[kind] = b; crowdsAroundBlock(city, b, 0.9, 0.45); continue; }
+    if (kind === 'innout') { innOutLot(ctx, b); crowdsAroundBlock(city, b, 0.4, 0.15); continue; }
     if (kind === 'park') {
       city.paintGrass(g, b.lx0 - 0.4, b.lz0 - 0.4, b.lx1 + 0.4, b.lz1 + 0.4, '#58793a');
       g.line(b.lx0, b.lz0, b.lx1, b.lz1, 1.1, '#c8b995'); g.line(b.lx1, b.lz0, b.lx0, b.lz1, 1.1, '#c8b995');
@@ -711,7 +713,8 @@ export function suburbs(B) {
       g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#646b43');
       paintAlley(ctx, b, alleyW);
       flatsRow(ctx, b, -1, alleyW);
-      flatsRow(ctx, b, 1, alleyW);
+      if (key === '0,0' || key === '2,0' || key === '3,3') canesLot(ctx, b, alleyW);       // a Raising Cane's on the corner
+      else flatsRow(ctx, b, 1, alleyW);
       crowdsAroundBlock(city, b, 0.35, 0.05, 0.8);
     }
   }
