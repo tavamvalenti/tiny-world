@@ -17,9 +17,9 @@ const S = 0.42;                                     // the characters' scale (as
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _z = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0);
 
 const KINDS = {
-  drone: { name: 'Armed Drone', sub: 'Machine gun · explodes on contact', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Shift', 'boost'], ['Click / Space', 'machine gun'], ['V', 'camera'], ['Esc', 'leave']] },
-  glider: { name: 'Paraglider', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['A D', 'bank / turn'], ['W', 'throttle'], ['S', 'idle'], ['Shift', 'speed bar'], ['Click / Space', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
-  jetpack: { name: 'Jetpack', sub: 'Machine gun · grenade launcher', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Shift', 'thrust burst'], ['Click / Space', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
+  drone: { name: 'Armed Drone', sub: 'Machine gun · explodes on contact', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'boost'], ['Click', 'machine gun'], ['V', 'camera'], ['Esc', 'leave']] },
+  glider: { name: 'Paraglider', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['A D', 'bank / turn'], ['W', 'throttle'], ['Space', 'climb'], ['S', 'idle'], ['Shift', 'speed bar'], ['Click', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
+  jetpack: { name: 'Jetpack', sub: 'Machine gun · grenade launcher', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'thrust burst'], ['Click', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
 };
 
 const CSS = `
@@ -317,7 +317,7 @@ export class VehicleMode {
     const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
     const vmax = boost ? 24 : 14, fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), rt = _v2.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     // W flies straight down the crosshair (point down to dive, up to climb); A/D slide sideways; let go to hover
-    const look = this.lookDir(), want = new THREE.Vector3().addScaledVector(look, f).addScaledVector(rt, s); if (want.lengthSq() > 1) want.normalize(); want.multiplyScalar(vmax); const u = want.y / vmax;
+    const look = this.lookDir(), want = new THREE.Vector3().addScaledVector(look, f).addScaledVector(rt, s); if (want.lengthSq() > 1) want.normalize(); want.multiplyScalar(vmax); if (k.Space) want.y = Math.max(want.y, 0) + 9; const u = want.y / vmax;
     this.vel.lerp(want, 1 - Math.exp(-dt * 2.6));
     this.pos.addScaledVector(this.vel, dt);
     // lean into the motion
@@ -355,7 +355,7 @@ export class VehicleMode {
   // ---------------- the paraglider: always flying, banks to turn, climbs on the throttle
   flyGlider(dt, turn) {
     const k = this.keys, B = G.buildings;
-    const throttle = k.KeyW ? 1 : 0, idle = k.KeyS, bar = k.ShiftLeft || k.ShiftRight;
+    const climb = !!k.Space, throttle = k.KeyW || climb ? 1 : 0, idle = k.KeyS, bar = k.ShiftLeft || k.ShiftRight;
     const steer = clamp(((k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0)) + turn * 6, -1, 1);
     this.lost = Math.max(0, this.lost - dt);
     // the wing banks (and swings the pilot under it) toward the turn; the turn follows the bank
@@ -369,8 +369,9 @@ export class VehicleMode {
     // with the engine off it can only glide, slowly sinking
     const look = this.lookDir();
     let vy;
-    if (this.grounded) vy = this.airspeed > 7 && throttle && look.y > -0.05 ? 3 : 0;   // rolls along, lifts off at speed
+    if (this.grounded) vy = this.airspeed > 7 && throttle && (look.y > -0.05 || climb) ? 3 : 0;   // rolls along, lifts off at speed
     else vy = clamp(look.y * this.airspeed * 1.1, -7, throttle ? 4.5 : idle ? -1.8 : 0.4) - (throttle ? 0 : 0.9) - (bar ? 0.4 : 0);
+    if (climb && !this.grounded) vy = Math.max(vy, 0) + 4;                         // Space: full power and climb
     if (this.lost > 0) vy = Math.min(vy, -3.5);
     const fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     this.vel.set(fw.x * this.airspeed, vy, fw.z * this.airspeed);
@@ -396,7 +397,7 @@ export class VehicleMode {
     const fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), rt = _v2.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     // W flies down the crosshair: point up to rise, down to drop; A/D strafe; nothing pressed: he hovers
     const look = this.lookDir(), dir3 = new THREE.Vector3().addScaledVector(look, f).addScaledVector(rt, s); if (dir3.lengthSq() > 1) dir3.normalize();
-    const wish = new THREE.Vector3(dir3.x, 0, dir3.z), u = clamp(dir3.y * 1.6, -1, 1);
+    const wish = new THREE.Vector3(dir3.x, 0, dir3.z), u = k.Space ? 1 : clamp(dir3.y * 1.6, -1, 1);
     const ground = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.4).y;
     this.grounded = this.pos.y <= ground + 0.03 && this.vel.y <= 0.01;
     // horizontal: quick to answer, a little slide
@@ -437,7 +438,7 @@ export class VehicleMode {
   }
   weapons(dt) {
     this.fireCd -= dt; this.secCd -= dt;
-    const k = this.keys, firing = k.Space || k.Mouse0, second = k.Mouse2 || k.KeyG;
+    const k = this.keys, firing = k.Mouse0, second = k.Mouse2 || k.KeyG;
     if (firing && this.fireCd <= 0) this.firePrimary();
     if (second && this.secCd <= 0 && this.kind !== 'drone') this.fireSecondary();
   }
