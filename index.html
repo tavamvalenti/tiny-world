@@ -105,7 +105,15 @@
   /* the interface: destination list (bottom left), theme switch and settings (top right), zoom, coordinates */
   .gm-ui { position:absolute; inset:0; z-index:5; pointer-events:none; }
   .gm-ui > * { pointer-events:auto; }
-  .gm-dest { position:absolute; left:var(--pad); bottom:calc(4.2vh + 5vh); width:min(330px, calc(100vw - 2 * var(--pad))); transition:opacity .5s ease, transform .7s cubic-bezier(.2,.8,.2,1); }
+  .gm-dest { position:absolute; left:var(--pad); bottom:calc(4.2vh + 5vh); width:min(330px, calc(100vw - 2 * var(--pad))); transition:opacity .5s ease, transform .7s cubic-bezier(.2,.8,.2,1);
+    display:flex; flex-direction:column; max-height:calc(100vh - var(--top) - clamp(30px,4.4vw,60px) - 82px - 4.2vh - 5vh); max-height:calc(100dvh - var(--top) - clamp(30px,4.4vw,60px) - 82px - 4.2vh - 5vh); }
+  /* the places scroll inside their own box when there are too many to fit; fades hint at more above or below */
+  .gm-list { min-height:0; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; scrollbar-width:thin; scrollbar-color:var(--line) transparent; -webkit-overflow-scrolling:touch; }
+  .gm-list::-webkit-scrollbar { width:4px; } .gm-list::-webkit-scrollbar-thumb { background:var(--line); border-radius:4px; }
+  .gm-list.more-down { -webkit-mask-image:linear-gradient(#000 calc(100% - 46px), transparent); mask-image:linear-gradient(#000 calc(100% - 46px), transparent); }
+  .gm-list.more-up { -webkit-mask-image:linear-gradient(transparent, #000 34px); mask-image:linear-gradient(transparent, #000 34px); }
+  .gm-list.more-up.more-down { -webkit-mask-image:linear-gradient(transparent, #000 34px, #000 calc(100% - 46px), transparent); mask-image:linear-gradient(transparent, #000 34px, #000 calc(100% - 46px), transparent); }
+  @media (max-height: 820px) and (min-width: 761px) { .gm-row { padding:10px 0; } .gm-row .t b { font-size:16px; } }
   .gm-k { display:flex; align-items:center; gap:14px; margin-bottom:6px; font:600 10px Inter,sans-serif; letter-spacing:.32em; text-transform:uppercase; color:var(--faint); }
   .gm-k i { flex:1; height:1px; background:var(--line); }
   .gm-row { position:relative; display:grid; grid-template-columns:34px 1fr 30px; align-items:center; width:100%; padding:14px 0; border:0; border-bottom:1px solid var(--line); background:none; color:var(--fg); text-align:left; cursor:pointer; font:inherit;
@@ -160,12 +168,19 @@
     #menu { --pad:18px; }
     #menu h1 { left:0; right:0; text-align:center; font-size:clamp(30px, 9vw, 52px); }
     #menu p.sub { left:0; right:0; margin:0 auto; text-align:center; top:calc(var(--top) + clamp(30px, 9vw, 52px) + 10px); }
-    .gm-dest { left:var(--pad); right:var(--pad); width:auto; bottom:calc(4.2vh + 2vh); }
+    .gm-dest { left:var(--pad); right:var(--pad); width:auto; bottom:calc(4.2vh + 2vh); max-height:44vh; max-height:min(44dvh, calc(100dvh - var(--top) - 30px - clamp(30px, 9vw, 52px) - 90px - 6.2vh)); }
+    .gm-row .t small { font-size:11px; }
     .gm-row { padding:11px 0; } .gm-row .t b { font-size:15px; }
     .gm-foot { display:none; }
     .gm-zoom { bottom:auto; top:calc(var(--top) + 120px); }
     .gm-mode { top:calc(4.2vh + 10px); } #menu button.menu-settings { top:calc(4.2vh + 10px); }
     #menu h1, #menu p.sub { top:calc(var(--top) + 30px); } #menu p.sub { top:calc(var(--top) + 30px + clamp(30px, 9vw, 52px) + 10px); }
+  }
+  /* phones on their side: the places in a column on the left, the subtitle dropped to give them the height */
+  @media (max-height: 520px) and (orientation: landscape) {
+    #menu p.sub { display:none; }
+    .gm-dest { right:auto; width:min(320px, 42vw); max-height:calc(100vh - var(--top) - 30px - clamp(30px, 9vw, 52px) - 26px - 6.2vh); max-height:calc(100dvh - var(--top) - 30px - clamp(30px, 9vw, 52px) - 26px - 6.2vh); }
+    .gm-row { padding:8px 0; } .gm-row .t b { font-size:14px; } .gm-row .t small { font-size:10.5px; }
   }
   html.touch #menu { --top:calc(var(--st, 0px) + 4vh); touch-action:none; }
   html.touch .gm-dest { bottom:calc(var(--sb, 0px) + 18px); }

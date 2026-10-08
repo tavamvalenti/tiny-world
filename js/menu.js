@@ -430,15 +430,19 @@ export function initMenu() {
   });
   const ui = document.createElement('div'); ui.className = 'gm-ui';
   ui.innerHTML = `
-    <aside class="gm-dest"><div class="gm-k"><span>Choose a destination</span><i></i></div>
-      ${PLACES.map((p, i) => `<button class="gm-row" data-i="${i}" style="--c:${p.color}"><span class="n">0${i + 1}</span><span class="t"><b>${p.name}</b><small>${p.place}</small></span><span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>`).join('')}
-    </aside>
+    <aside class="gm-dest"><div class="gm-k"><span>Choose a destination</span><i></i></div><div class="gm-list">
+      ${PLACES.map((p, i) => `<button class="gm-row" data-i="${i}" style="--c:${p.color}"><span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t"><b>${p.name}</b><small>${p.place}</small></span><span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>`).join('')}
+    </div></aside>
     <button class="gm-mode" aria-label="Switch light or dark theme"><span class="knob"></span>
       <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
       <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></button>
     <div class="gm-zoom"><button data-z="-1" aria-label="Zoom in">+</button><i></i><button data-z="1" aria-label="Zoom out">−</button></div>
     <div class="gm-foot"><span class="gm-coord"></span><span class="gm-hint">${TOUCH ? 'Drag to spin · pinch to zoom · tap a pin' : 'Drag to spin · scroll to zoom · click a pin to fly in'}</span></div>`;
   menu.appendChild(ui);
+  // the destination list scrolls when there are more places than fit; soft fades show there is more above or below
+  const list = ui.querySelector('.gm-list');
+  const fades = () => { const more = list.scrollHeight > list.clientHeight + 2; list.classList.toggle('more-down', more && list.scrollTop + list.clientHeight < list.scrollHeight - 2); list.classList.toggle('more-up', more && list.scrollTop > 2); };
+  list.addEventListener('scroll', fades, { passive: true }); addEventListener('resize', fades); requestAnimationFrame(fades);
   const rows = [...ui.querySelectorAll('.gm-row')], coordEl = ui.querySelector('.gm-coord');
   // the dive overlay lives outside the menu so it can cover the loading screen and fade off the finished map
   const fade = document.createElement('div'); fade.id = 'diveFade'; fade.innerHTML = '<div class="df-name"></div><div class="df-sub"></div><div class="df-bar"><i></i></div>';
@@ -533,6 +537,7 @@ export function initMenu() {
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
   menu.addEventListener('wheel', (e) => {
     if (going || e.target.closest('#settings')) return;
+    if (e.target.closest('.gm-list') && list.scrollHeight > list.clientHeight + 2) return;   // scrolling the list, not zooming
     e.preventDefault(); lastInput = now;
     target.dist = clamp(target.dist * Math.exp(e.deltaY * 0.0011), minDist, maxDist);
   }, { passive: false });
