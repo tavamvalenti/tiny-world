@@ -66,6 +66,7 @@ export class Buildings {
     const b = {
       style: o.style, tint: o.tint || new THREE.Color(1, 1, 1), floors: o.floors, gable: !!o.gable,
       roofTint: o.roofTint, x: o.x, z: o.z, w: o.w, d: o.d, grid: [], cells: [], falling: false,
+      crumble: !!o.crumble,                    // solid stone (pyramids): unsupported blocks crumble away one by one
     };
     const cell = o.cell || 1.6;
     const nx = Math.max(1, Math.round(o.w / cell)), nz = Math.max(1, Math.round(o.d / cell));
@@ -390,7 +391,7 @@ export class Buildings {
   }
 
   ignite(c) {
-    if (!c.alive || c.fire > 0 || c.burnedOut) return;
+    if (!c.alive || c.fire > 0 || c.burnedOut || c.b.crumble) return;          // solid stone doesn't burn
     c.fire = rand(30, 75);
     this.burning.add(c);
     this.writeState(c);
@@ -408,11 +409,12 @@ export class Buildings {
     const fx = G.fx;
     // hybrid LOD: detailed debris near the camera focus, cheaper far away
     const camD = G.camTarget ? Math.hypot(c.x - G.camTarget.x, c.z - G.camTarget.z) : 0;
-    const n = opts.pieces ?? (camD < 45 ? 3 : camD < 90 ? 2 : 1);
+    const fine = c.b.crumble;                  // solid stone breaks into small blocks the colour of the stone
+    const n = opts.pieces ?? (fine ? (camD < 60 ? 5 : camD < 110 ? 3 : 1) : camD < 45 ? 3 : camD < 90 ? 2 : 1);
     const base = c.b.tint;
     for (let i = 0; i < n; i++) {
-      const s = rand(0.35, 0.65);
-      const col = new THREE.Color().copy(base).lerp(new THREE.Color(0.3, 0.29, 0.27), rand(0.3, 0.8)).multiplyScalar(rand(0.35, 0.6) * (1 - c.burn * 0.8));
+      const s = fine ? rand(0.16, 0.32) : rand(0.35, 0.65);
+      const col = fine ? new THREE.Color(0.74, 0.6, 0.4).multiplyScalar(rand(0.75, 1.05)) : new THREE.Color().copy(base).lerp(new THREE.Color(0.3, 0.29, 0.27), rand(0.3, 0.8)).multiplyScalar(rand(0.35, 0.6) * (1 - c.burn * 0.8));
       const vel = new THREE.Vector3(rand(-1.5, 1.5), rand(0, 2), rand(-1.5, 1.5));
       if (src) {
         _v.set(c.x - src.x, c.y - src.y, c.z - src.z);
@@ -428,7 +430,8 @@ export class Buildings {
     if (c.fire > 0 || c.burn > 0.5) fx.emitFire(c.x, c.y, c.z, 4);
     if (c.heat > 0.3 && camD < 70) fx.blowout(c.x, c.y, c.z);
     if (c.props) for (const p of c.props) {
-      if (p.obj) { for (const o of p.obj) o.visible = false; }
+      if (p.hide) { p.hide(); if (p.noDebris) continue; }          // decor that hides itself (a cut-out of a shared mesh)
+      else if (p.obj) { for (const o of p.obj) o.visible = false; }
       else { p.mesh.setMatrixAt(p.idx, ZERO); p.mesh.instanceMatrix.needsUpdate = true; }
       fx.debris.spawn(p.x, p.y + 0.2, p.z, new THREE.Vector3(rand(-2, 2), rand(1, 3), rand(-2, 2)), 0.4, 0.25, 0.35, new THREE.Color(0.55, 0.55, 0.55));
     }
@@ -483,8 +486,8 @@ export class Buildings {
       }
     }
 
-    // Pancake rule: if a storey has lost most of its columns, everything above it comes down.
-    for (let f = 1; f < b.floors; f++) {
+    // Pancake rule: if a storey has lost most of its columns, everything above it comes down (not solid stone).
+    for (let f = 1; f < (b.crumble ? 0 : b.floors); f++) {
       let above = 0, below = 0;
       for (const row of b.grid[f]) for (const c of row) if (alive(c) && !fall.has(c)) above++;
       for (const row of b.grid[f - 1]) for (const c of row) if (alive(c) && !fall.has(c)) below++;
@@ -497,6 +500,14 @@ export class Buildings {
   }
 
   startCollapse(b, cells) {
+    // solid stone: no rigid slab tipping over; each loose block lets go in turn, the highest first, and tumbles
+    // down the slope as small rubble
+    if (b.crumble) {
+      const top = Math.max(...cells.map((c) => c.y));
+      for (const c of cells) { c.falling = true; (this.crumbleQ ||= []).push({ c, t: G.time + (top - c.y) * 0.05 + rand(0, 0.35) + Math.random() * cells.length * 0.004 }); }
+      if (cells.length > 6) G.fx.dust(cells[0].x, cells[0].y, cells[0].z, 1.2);
+      return;
+    }
     let cx = 0, cz = 0, minF = 99;
     for (const c of cells) { c.falling = true; cx += c.x; cz += c.z; minF = Math.min(minF, c.f); }
     cx /= cells.length; cz /= cells.length;
@@ -574,6 +585,17 @@ export class Buildings {
   update(dt) {
     this.timeU.value = G.time;
     this.updateFalling(dt);
+    // crumbling stone: a few loose blocks let go each frame, sliding off outward and down
+    if (this.crumbleQ && this.crumbleQ.length) {
+      let n = 0;
+      for (let i = this.crumbleQ.length - 1; i >= 0 && n < 40; i--) {
+        const q = this.crumbleQ[i]; if (G.time < q.t) continue;
+        this.crumbleQ.splice(i, 1); const c = q.c; if (!c.alive) continue;
+        const b = c.b, ox = c.x - b.x, oz = c.z - b.z, l = Math.hypot(ox, oz) || 1;
+        c.falling = false; n++;
+        this.destroy(c, null, { vel: new THREE.Vector3(ox / l * rand(1, 2.5), rand(-0.5, 1), oz / l * rand(1, 2.5)), quiet: Math.random() < 0.8, push: 0 });
+      }
+    }
 
     // fire lifecycle: heated -> ignited -> burning -> burned out (persistently charred)
     this.burnArrT -= dt;

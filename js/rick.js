@@ -545,8 +545,10 @@ export class RickMode {
   fly(dt) {
     const k = this.keys, p = this.pos;
     const fwd = _v.set(0, 0, -1).applyQuaternion(this.quat).clone(), upS = new THREE.Vector3(0, 1, 0).applyQuaternion(this.quat), right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.quat);
-    const control = this.lostControl > 0 ? Math.max(0, 1 - this.lostControl * 1.2) : 1;
-    this.lostControl = Math.max(0, this.lostControl - dt);
+    // a knock loosens the steering for a moment but never takes the ship away from you: throttle, boost and the
+    // vertical thrusters always answer, and the ship rights itself quickly
+    const control = this.lostControl > 0 ? Math.max(0.4, 1 - this.lostControl * 1.5) : 1;
+    this.lostControl = Math.max(0, this.lostControl - dt * 1.6);
     if (this.stick.length() > 1) this.stick.normalize();
     this.stick.multiplyScalar(Math.exp(-dt * 4));
     const ax = (a, b) => (k[b] ? 1 : 0) - (k[a] ? 1 : 0);
@@ -558,23 +560,22 @@ export class RickMode {
       vertical: (k.KeyR ? 1 : 0) - (k.KeyF || k.KeyC || k.ControlLeft ? 1 : 0), boost: !!(k.ShiftLeft || k.ShiftRight || this.boostLock),
     };
     // no throttle lever here: hold W to fly forward, let go and the ship eases to a hover; S brakes, then backs up
-    if (control > 0.2) this.throttle = ctrl.throttleUp ? 1 : ctrl.throttleDown ? -0.3 : 0;
+    this.throttle = ctrl.throttleUp ? 1 : ctrl.throttleDown ? -0.3 : 0;
     const braking = ctrl.throttleDown && this.vel.dot(fwd) > 0.5;
-    const boosting = ctrl.boost && control > 0.5;
+    const boosting = ctrl.boost;
     this.boost += ((boosting ? 1 : 0) - this.boost) * Math.min(1, dt * 6);
     const vmax = VMAX * (1 + this.boost * 1.4);
     const target = this.throttle * vmax, fwdSpeed = this.vel.dot(fwd);
-    const accel = ACCEL * (1 + this.boost * 0.8) * control;
+    const accel = ACCEL * (1 + this.boost * 0.8) * Math.max(control, 0.8);
     const over = Math.max(0, fwdSpeed - Math.max(target, vmax));
     const decel = Math.max(accel * (braking ? 1.6 : 0.7), over * 2.5);
     const dv = clamp(target - fwdSpeed, -decel * dt, accel * dt);
     const lat = _v2.copy(this.vel).addScaledVector(fwd, -fwdSpeed);
-    const grip = (3.2 + (braking ? 2.5 : 0)) * control;
+    const grip = (3.2 + (braking ? 2.5 : 0)) * Math.max(control, 0.6);
     lat.multiplyScalar(Math.exp(-grip * dt));
     this.vel.copy(fwd).multiplyScalar(fwdSpeed + dv).add(lat);
-    if (ctrl.vertical !== 0 && control > 0.3) this.vel.addScaledVector(upS, ctrl.vertical * VERT * dt);
+    if (ctrl.vertical !== 0) this.vel.addScaledVector(upS, ctrl.vertical * VERT * dt);
     this.model.state.thrustersUp = ctrl.vertical;
-    if (this.lostControl > 0) this.vel.y -= 9.8 * S * dt;                         // gravity only bites when knocked about
     // rotation (rad/s, as in Cosmic Solitude), with auto-level and coordinated banking
     const rates = new THREE.Vector3();
     if (control > 0) { rates.x = ctrl.pitch * 1.7; rates.y = -ctrl.yaw * 1.35; rates.z = -ctrl.roll * 2.3; }
@@ -582,14 +583,22 @@ export class RickMode {
       const bank = Math.asin(clamp(right.y, -1, 1)), desired = rates.y * 0.55;
       rates.z += (desired - bank) * 2.2 * control * (Math.abs(fwd.y) < 0.95 ? 1 : 0);
     }
-    const resp = 1 - Math.exp(-dt * (this.lostControl > 0 ? 0.6 : 7));
-    this.angVel.lerp(rates, resp * control + (1 - control) * dt * 0.2);
+    const resp = 1 - Math.exp(-dt * (this.lostControl > 0 ? 3 : 7));
+    this.angVel.lerp(rates, resp);
     const ang = this.angVel.length() * dt;
     if (ang > 1e-9) { _q.setFromAxisAngle(_v.copy(this.angVel).normalize(), ang); this.quat.multiply(_q).normalize(); }
+    // after a knock the ship levels itself out (keeping its heading) instead of tumbling
+    if (this.lostControl > 0) {
+      const f2 = _v.set(0, 0, -1).applyQuaternion(this.quat), heading = Math.atan2(-f2.x, -f2.z);
+      this._level = (this._level || new THREE.Quaternion()).setFromAxisAngle(_v.set(0, 1, 0), heading);
+      this.quat.slerp(this._level, 1 - Math.exp(-dt * 5)).normalize();
+      this.angVel.multiplyScalar(Math.exp(-dt * 4));
+    }
     p.addScaledVector(this.vel, dt);
     // the edges of the world: a soft wall out past the backdrop, and a ceiling
-    const lim = 150;
-    for (const a of ['x', 'z']) if (Math.abs(p[a]) > lim) { p[a] = Math.sign(p[a]) * lim; if (this.vel[a] * Math.sign(p[a]) > 0) this.vel[a] *= -0.3; }
+    // (each map's own extent plus a margin, never less than the old 150 either way)
+    const Cm = this.cam, lo = { x: Math.min(-150, (Cm.xMin ?? -Cm.half) - 40), z: Math.min(-150, (Cm.zMin ?? -Cm.half) - 40) }, hi = { x: Math.max(150, (Cm.xMax ?? Cm.half) + 40), z: Math.max(150, (Cm.zMax ?? Cm.half) + 40) };
+    for (const a of ['x', 'z']) if (p[a] < lo[a] || p[a] > hi[a]) { const e = p[a] < lo[a] ? lo[a] : hi[a]; p[a] = e; if ((this.vel[a] > 0) === (e > 0)) this.vel[a] *= -0.3; }
     if (p.y > 80) { p.y = 80; if (this.vel.y > 0) this.vel.y = 0; }
     this.speedFrac = clamp(this.vel.length() / (VMAX * 2.4), 0, 1);
   }
@@ -615,12 +624,14 @@ export class RickMode {
     const vn = this.vel.dot(n);
     if (vn >= 0) return;
     const impact = -vn;
-    this.vel.addScaledVector(n, -(1 + 0.35) * vn).multiplyScalar(0.82);
+    // glancing knocks and scrapes slide off; only a hard hit bounces and jolts the ship (briefly)
+    const hard = impact > 3;
+    this.vel.addScaledVector(n, -(1 + (hard ? 0.3 : 0.08)) * vn);
+    if (hard) this.vel.multiplyScalar(0.85);
     if (impact > 1.2) {
-      const arm = wp.clone().sub(this.pos), torque = arm.cross(n).multiplyScalar(impact * 0.012 / S).applyQuaternion(_q.copy(this.quat).invert());
-      this.angVel.add(torque.clampLength(0, 3.5));
-      this.angVel.x += (Math.random() - 0.5) * Math.min(2, impact * 0.1);
-      this.lostControl = Math.max(this.lostControl, clamp(impact / 3.2, 0.35, 2.2));
+      const arm = wp.clone().sub(this.pos), torque = arm.cross(n).multiplyScalar(impact * 0.008 / S).applyQuaternion(_q.copy(this.quat).invert());
+      this.angVel.add(torque.clampLength(0, hard ? 1.8 : 0.6));
+      if (hard) { this.angVel.x += (Math.random() - 0.5) * Math.min(0.8, impact * 0.06); this.lostControl = Math.max(this.lostControl, clamp(impact / 9, 0.2, 0.7)); }
       const strength = Math.min(1, impact / 5.5);
       this.audio.play(Math.random() < 0.5 ? 'impact0' : 'impact1', 0.4 + strength * 0.6);
       this.shake = Math.min(1.5, this.shake + strength);

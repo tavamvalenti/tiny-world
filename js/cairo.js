@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick } from './core.js';
 import { policeHQ } from './maps.js';
-import { hsl, tint, box, cyl, cone, sph, canvasTex, merged, netCtx, paintNetwork, topOf, hangOn, rnd, skinOn, pyramidTris } from './mapkit.js';
+import { hsl, tint, box, cyl, cone, sph, canvasTex, merged, netCtx, paintNetwork, topOf, hangOn, rnd, pyramidTris, latheTris } from './mapkit.js';
 import { waterMaterial } from './water.js';
 import { sfx, beachRadio } from './audio.js';
 
@@ -32,9 +32,9 @@ function vn(x, z) { const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, f
 const fbm = (x, z, o = 4) => { let s = 0, a = 0.5, f = 1, n = 0; for (let i = 0; i < o; i++) { s += a * vn(x * f, z * f); n += a; a *= 0.5; f *= 2.03; } return s / n; };
 const sm = (a, b, t) => { const k = Math.max(0, Math.min(1, (t - a) / (b - a))); return k * k * (3 - 2 * k); };
 export const PYR = [
-  { name: 'Great Pyramid', x: -185, z: -42, base: 50, h: 32, floors: 10 },
-  { name: 'Pyramid of Khafre', x: -232, z: 14, base: 46, h: 31, floors: 10, cap: true },
-  { name: 'Pyramid of Menkaure', x: -262, z: 64, base: 22, h: 14, floors: 6 },
+  { name: 'Great Pyramid', x: -185, z: -42, base: 50, h: 32, floors: 14 },
+  { name: 'Pyramid of Khafre', x: -232, z: 14, base: 46, h: 31, floors: 14, cap: true },
+  { name: 'Pyramid of Menkaure', x: -262, z: 64, base: 22, h: 14, floors: 8 },
 ];
 export const SPHINX = { x: -152, z: 20 };
 // roped-off ground round the monuments: nobody walks up to them, the way the real site is run
@@ -50,6 +50,17 @@ export function terrainH(x, z) {
   const ds = Math.hypot(x - SPHINX.x, z - SPHINX.z); if (ds < 18) h = h + (PLATEAU - 1.2 - h) * (1 - sm(9, 18, ds));
   return Math.max(0, h);
 }
+
+// ---------- domes: the outline of each style as a lathe profile [[radius, height], ...] from the roof up ----------
+export function domeProfile(st, rr, ali) {
+  const P = [], arc = (r0, y0, ry, pointed) => { for (let k = 0; k <= 10; k++) { const t = k / 10; P.push(pointed ? [r0 * Math.cos(t * Math.PI / 2) * (1 - t * 0.05), y0 + ry * t] : [r0 * Math.cos(t * Math.PI / 2), y0 + ry * Math.sin(t * Math.PI / 2)]); } };
+  if (ali) { P.push([rr * 1.1, 0], [rr * 1.05, 1.2], [rr, 1.2]); arc(rr, 1.2, rr * 1.05, false); }
+  else if (st === 'mamluk') { P.push([rr * 1.12, 0], [rr * 1.05, rr * 0.9], [rr, rr * 0.9]); arc(rr, rr * 0.9, rr * 1.35, true); }
+  else if (st === 'ottoman') { P.push([rr * 1.06, 0], [rr * 1.02, rr * 0.4], [rr, rr * 0.4]); arc(rr, rr * 0.4, rr, false); }
+  else { P.push([rr, 0], [rr * 0.95, rr * 0.3], [rr * 0.92, rr * 0.3]); arc(rr * 0.92, rr * 0.3, rr * 0.92, false); }
+  return P;
+}
+const profR = (P, h) => { for (let k = 0; k + 1 < P.length; k++) if (h >= P[k][1] && h <= P[k + 1][1]) { const t = (h - P[k][1]) / Math.max(1e-6, P[k + 1][1] - P[k][1]); return P[k][0] + (P[k + 1][0] - P[k][0]) * t; } return 0; };
 
 // ---------- palettes ----------
 const PLASTER = () => { const r = Math.random(); if (r < 0.7) return hsl(rand(0.085, 0.115), rand(0.2, 0.34), rand(0.66, 0.78)); return r < 0.75 ? hsl(rand(0.08, 0.11), rand(0.22, 0.38), rand(0.66, 0.78)) : r < 0.55 ? hsl(rand(0.06, 0.09), rand(0.28, 0.42), rand(0.56, 0.66)) : r < 0.7 ? hsl(rand(0.1, 0.13), rand(0.1, 0.2), rand(0.7, 0.82)) : r < 0.8 ? hsl(rand(0.02, 0.05), rand(0.22, 0.34), rand(0.62, 0.72)) : r < 0.9 ? hsl(rand(0.12, 0.16), rand(0.25, 0.4), rand(0.66, 0.76)) : hsl(rand(0.5, 0.58), rand(0.06, 0.14), rand(0.62, 0.72)); };
@@ -305,16 +316,16 @@ export function cairo(B) {
     C.pyr = PYR.map((p) => {
       const n = p.floors, cell = p.base / (n * 2), fh = p.h / n, base = terrainH(p.x, p.z);
       const sb = []; for (let f = 1; f < n; f++) sb.push({ f, n: f });
-      const b = M({ x: p.x, z: p.z, w: p.base, d: p.base, floors: n, style: 'limestone', tint: hsl(0.1, 0.38, 0.72), cell, gh: fh, fh, setbacks: sb, base });
+      const b = M({ x: p.x, z: p.z, w: p.base, d: p.base, floors: n, style: 'limestone', tint: hsl(0.1, 0.2, 0.9), cell, gh: fh, fh, setbacks: sb, base, crumble: true });
       b.pyramid = p;
       return b;
     });
     C.queens = [];
-    for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) { const x = -250 + i * 7, z = -102 + j * 6.5; M({ x, z, w: 5, d: 3, floors: 1, style: 'limestone', tint: hsl(0.1, 0.3, rand(0.62, 0.72)), cell: 1.6, gh: 1.4, base: terrainH(x, z) }); }
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) { const x = -250 + i * 7, z = -102 + j * 6.5; M({ x, z, w: 5, d: 3, floors: 1, style: 'limestone', tint: hsl(0.1, 0.2, rand(0.8, 0.9)), cell: 1.6, gh: 1.4, crumble: true, base: terrainH(x, z) }); }
     const sp = SPHINX, by = terrainH(sp.x, sp.z);
     // the destructible cores sit inside the carving (the sculpted stone hung on them is what shows)
-    const body = M({ x: sp.x - 1.5, z: sp.z, w: 9, d: 2.4, floors: 1, style: 'limestone', tint: hsl(0.09, 0.42, 0.66), cell: 1.2, gh: 2.0, base: by });
-    const head = M({ x: sp.x + 4.2, z: sp.z, w: 1.8, d: 1.8, floors: 1, style: 'limestone', tint: hsl(0.09, 0.42, 0.66), cell: 1.8, gh: 1.8, base: by + 2.5 });
+    const body = M({ x: sp.x - 1.5, z: sp.z, w: 9, d: 2.4, floors: 1, style: 'limestone', tint: hsl(0.09, 0.2, 0.85), cell: 1.2, gh: 2.0, base: by, crumble: true });
+    const head = M({ x: sp.x + 4.2, z: sp.z, w: 1.8, d: 1.8, floors: 1, style: 'limestone', tint: hsl(0.09, 0.2, 0.85), cell: 1.8, gh: 1.8, base: by + 2.5, crumble: true });
     C.sphinx = { body, head, x: sp.x, z: sp.z, y: by };
     C.rests = [{ top: head, under: [body] }];
     // tourists, camel men, a tour-bus park at the end of the Pyramids Road
@@ -331,7 +342,7 @@ export function cairo(B) {
     C.busPark = { x0: -150, x1: -134, z0: -28, z1: -18 };
     g.rect(C.busPark.x0, C.busPark.z0, C.busPark.x1, C.busPark.z1, '#5a5650');
     for (const p of PYR) name('the ' + p.name, 'the ' + p.name, p.x - p.base / 2 - 4, p.x + p.base / 2 + 4, p.z - p.base / 2 - 4, p.z + p.base / 2 + 4);
-    name('the Sphinx', 'the Sphinx', SPHINX.x - 12, SPHINX.x + 12, SPHINX.z - 6, SPHINX.z + 6); name('the Giza Plateau', 'the Giza plateau', -300, -124, -165, 165);
+    name('the Sphinx', 'the Sphinx', SPHINX.x - 12, SPHINX.x + 12, SPHINX.z - 6, SPHINX.z + 6); name("the Giza Plateau", "the Giza plateau", -370, -124, -165, 165);
   }
 
   // ---------- keep the river clear; people never walk on the water ----------
@@ -350,9 +361,34 @@ export function cairo(B) {
   for (let z = -E; z <= E; z += 4) g.x.lineTo(g.px(nileX(z) - NILE.hw), g.px(z));
   for (let z = E; z >= -E; z -= 4) g.x.lineTo(g.px(nileX(z) + NILE.hw), g.px(z));
   g.x.closePath(); g.x.fill(); g.x.restore();
+  // every dome is real stone: a stepped core of blocks (inside the round shell the Cairo class hangs on it) standing on
+  // the hall's roof; it crumbles under fire and comes down when the hall under it goes
+  for (const m of C.mosques) {
+    const t = topOf(m.hall), r = Math.min(t.w, t.d) * m.dome, n = m.ali ? 1 : m.domes;
+    m.domeB = [];
+    for (let k = 0; k < n; k++) {
+      const dx = n > 1 ? (k - (n - 1) / 2) * r * 2.3 : 0, rr = r * (n > 1 ? 0.8 : 1), P = domeProfile(m.style, rr, m.ali), H = P[P.length - 1][1];
+      const NF = 5, fh = H / NF, hw0 = Math.min(profR(P, fh), rr) / Math.SQRT2, cell = (2 * hw0) / 6, sb = [];
+      let floors = 0;
+      for (let f = 0; f < NF; f++) { const inset = Math.max(0, Math.ceil((hw0 - profR(P, (f + 1) * fh) / Math.SQRT2) / cell - 0.05)); if (inset > 2) break; floors = f + 1; if (inset) sb.push({ f, n: inset }); }
+      if (!floors) continue;
+      const b = M({ x: t.cx + dx, z: t.cz, w: 2 * hw0, d: 2 * hw0, floors, style: m.style === 'plain' ? 'cairo' : 'islamic', tint: hsl(0.1, 0.2, 0.8), cell, gh: fh, fh, setbacks: sb, base: t.y, crumble: true });
+      b.noSigns = true;
+      m.domeB.push({ b, x: t.cx + dx, z: t.cz, y: t.y, rr, P, H });
+      C.rests.push({ top: b, under: [m.hall] });
+    }
+  }
+  // Tahrir Square painted last, so nothing else draws over it: one clean paved plaza across the block, a stone kerb
+  // ring and the round lawn round the obelisk
+  {
+    const t = C.tahrir, tb = inBlocks(t.x, t.z);
+    if (tb) { g.rect(tb.lx0, tb.lz0, tb.lx1, tb.lz1, '#d2c5ac'); g.grainRect(tb.lx0, tb.lz0, tb.lx1, tb.lz1, 0.1, 60); }
+    g.circle(t.x, t.z, 9.6, '#c9bba0'); g.circle(t.x, t.z, 9.2, '#d8ccb4'); g.circle(t.x, t.z, 4.9, '#a89a80'); g.circle(t.x, t.z, 4.5, '#6f8a44');
+    for (let i = 0; i < 260; i++) { const a2 = Math.random() * 6.283, r2 = Math.sqrt(Math.random()) * 4.3; g.circle(t.x + Math.cos(a2) * r2, t.z + Math.sin(a2) * r2, rand(0.15, 0.5), `rgba(${Math.random() < 0.5 ? '40,70,20' : '130,150,70'},${rand(0.05, 0.12)})`); }
+  }
   city.hotspot = { x: 40, z: -10, r: 90 };
   city.river = { wet, inNile, WL: NILE.WL };
-  return { ...ctx, agents: { cars: 150, peds: 1050, wanderFrac: 0.3 }, fog: 0xd9c49c, start: { x: 20, z: -10 }, zMin: -165, zMax: 165, xMin: -300, maxD: 240, yaw: -1.2, ownBackdrop: true, terrainH };
+  return { ...ctx, agents: { cars: 150, peds: 1050, wanderFrac: 0.3 }, fog: 0xd9c49c, start: { x: 20, z: -10 }, zMin: -165, zMax: 165, xMin: -370, maxD: 240, yaw: -1.2, ownBackdrop: true, terrainH };
 }
 
 // ====================================================================================================
@@ -370,7 +406,7 @@ export class Cairo {
     this.glow = new THREE.MeshBasicMaterial({ vertexColors: true });
     this.signs = [];
     if (G.groundMat) { G.groundMat.alphaTest = 0.5; G.groundMat.needsUpdate = true; }
-    this.nile(); this.bridges(); this.pyramids(C.pyr, C.queens); this.sphinx(C.sphinx); this.mosques(C.mosques); this.tulun(C.tulun); this.cairoTower(C.towerB); this.museum(C.museum); this.tahrir(C.tahrir);
+    this.nile(); this.bridges(); this.pyramids(C.pyr); this.sphinx(C.sphinx); this.mosques(C.mosques); this.tulun(C.tulun); this.cairoTower(C.towerB); this.museum(C.museum); this.tahrir(C.tahrir);
     this.roofs(C.roofs); this.bazaar(C); this.cafes(C.cafes); this.streetSigns(); this.flags();
     this.desert(); this.boats(); this.vehiclesInit(); this.animalsInit(C); this.world(scene);
     this.restsT = 0;
@@ -423,20 +459,36 @@ export class Cairo {
     this.lampGlobe = this.add(globes, new THREE.MeshBasicMaterial({ color: 0xffe8c0 }), false);
   }
   // ---------- the pyramids: smooth limestone casing over the stepped core; Khafre keeps its polished cap ----------
-  pyramids(list, queens) {
-    // the shared helper winds its faces inward; turn them out so the casing faces the sky and the sun
-    const out = (t) => t.map(([a, b, c]) => [a, c, b]);
-    const skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true });
+  // the casing: one textured mesh per pyramid (the stone from the reference photo), its slope running over the
+  // outer edge of every step; each triangle belongs to the outer block under it and is cut out when that block goes
+  pyramids(list) {
+    const out = (t) => t.map(([a, b, c]) => [a, c, b]);                    // the shared helper winds faces inward
+    const tex = new THREE.TextureLoader().load('assets/pyramid-stone.jpg');
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+    const mat = new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: 0.95 });
+    const _n = new THREE.Vector3(), _e1 = new THREE.Vector3(), _e2 = new THREE.Vector3();
     for (const b of list) {
-      const p = b.pyramid, base = b.cells[0].y - b.cells[0].hy, top = base + p.h;
-      const cl = p.base / (p.floors * 2), fh = p.h / p.floors; // the slope runs over the outer edge of every step
-      skinOn(this.scene, b, out(pyramidTris(p.x, p.z, p.base / 2 + cl + 0.35, 0.2, base, top + fh + 0.6, 9)), (c) => {
-        const t = (c.y - base) / p.h, band = Math.floor(c.y * 1.6) % 2 ? 0.96 : 1;
-        if (p.cap && t > 0.78) return new THREE.Color(0xe6d6b4);
-        return new THREE.Color().setHSL(0.1, 0.36 - t * 0.05, (0.62 + t * 0.06) * band, THREE.SRGBColorSpace);
-      }, skinMat);
+      const p = b.pyramid, base = b.cells[0].y - b.cells[0].hy, n = p.floors, cl = p.base / (n * 2), fh = p.h / n;
+      // the outer ring of blocks on each floor (the only ones the casing sits on)
+      const ring = [];
+      for (let f = 0; f < n; f++) { const fc = b.cells.filter((c) => c.f === f); if (!fc.length) continue; const i0 = Math.min(...fc.map((c) => c.i)), i1 = Math.max(...fc.map((c) => c.i)), k0 = Math.min(...fc.map((c) => c.k)), k1 = Math.max(...fc.map((c) => c.k)); ring[f] = fc.filter((c) => c.i === i0 || c.i === i1 || c.k === k0 || c.k === k1); }
+      const tris = out(pyramidTris(p.x, p.z, p.base / 2 + cl + 0.35, 0.2, base, base + p.h + fh + 0.6, n * 2));
+      const pos = new Float32Array(tris.length * 9), col = new Float32Array(tris.length * 9), uv = new Float32Array(tris.length * 6), owner = new Map(), cc = new THREE.Color();
+      tris.forEach(([a, b2, c], t) => {
+        const cx = (a.x + b2.x + c.x) / 3, cy = (a.y + b2.y + c.y) / 3, cz = (a.z + b2.z + c.z) / 3;
+        const f0 = Math.max(0, Math.min(n - 1, Math.floor((cy - base) / fh)));
+        let best = null, bd = 1e9;
+        for (let f = Math.max(0, f0 - 1); f <= Math.min(n - 1, f0 + 1); f++) for (const q of ring[f] || []) { const d = Math.hypot(q.x - cx, (q.y - cy) * 1.5, q.z - cz); if (d < bd) { bd = d; best = q; } }
+        if (!owner.has(best)) owner.set(best, []); owner.get(best).push(t);
+        _n.crossVectors(_e1.subVectors(b2, a), _e2.subVectors(c, a)).normalize();
+        const side = Math.abs(_n.x) > Math.abs(_n.z), slant = 1 / Math.max(0.3, Math.hypot(_n.x, _n.z));
+        const h = (cy - base) / p.h; cc.setHSL(0.1, 0.35, p.cap && h > 0.8 ? 1.0 : 0.96 + Math.sin(cx * 0.7 + cz * 0.9) * 0.03, THREE.SRGBColorSpace);
+        [a, b2, c].forEach((v, k) => { pos.set([v.x, v.y, v.z], t * 9 + k * 3); col.set([cc.r, cc.g, cc.b], t * 9 + k * 3); uv.set([(side ? v.z : v.x) / 7, v.y * slant / 5.2], t * 6 + k * 2); });
+      });
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.computeVertexNormals();
+      const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true; this.scene.add(m);
+      for (const [cell, ts] of owner) (cell.props ||= []).push({ x: cell.x, y: cell.y, z: cell.z, noDebris: true, hide: () => { for (const t of ts) pos.fill(0, t * 9, t * 9 + 9); g.attributes.position.needsUpdate = true; } });
     }
-    for (const q of queens) { const t = topOf(q), base = q.cells[0].y - q.cells[0].hy; skinOn(this.scene, q, out(pyramidTris(q.x, q.z, q.w / 2 + q.w / 6 + 0.25, 0.1, base, t.y + q.w * 0.21 + 0.3, 3)), 0xc8a874, skinMat); }
   }
   sphinx(s) {
     const { body, head } = s, y = s.y, x = s.x, z = s.z, stone = 0xc4ac88, dark = 0xa89070, P = [], H = [];
@@ -460,29 +512,78 @@ export class Cairo {
     this.deck(head, H);
   }
   // ---------- mosques: domes and minarets in different styles ----------
+  // pieces of decor merged into one mesh but tied each to the block under it: when that block goes, its pieces are
+  // cut out of the mesh (one draw call per group instead of one per piece). parts: [{ g, cell }]
+  cutout(parts, mat = this.mat) {
+    parts = parts.filter((q) => q.cell);
+    if (!parts.length) return null;
+    const geos = parts.map((q) => (q.g.index ? q.g.toNonIndexed() : q.g)), merged = mergeGeometries(geos);
+    if (!merged) return null;
+    const pos = merged.attributes.position.array, ranges = new Map(); let off = 0;
+    geos.forEach((g, i) => { const n = g.attributes.position.count * 3, c = parts[i].cell; if (!ranges.has(c)) ranges.set(c, []); ranges.get(c).push(off, off + n); off += n; });
+    const m = new THREE.Mesh(merged, mat); m.castShadow = true; m.receiveShadow = true; this.scene.add(m);
+    for (const [c, r] of ranges) (c.props ||= []).push({ x: c.x, y: c.y, z: c.z, noDebris: true, hide: () => { for (let k = 0; k < r.length; k += 2) pos.fill(0, r[k], r[k + 1]); merged.attributes.position.needsUpdate = true; } });
+    return m;
+  }
+  // the nearest block of building b (on floor f, if given) to a point
+  nearCell(b, x, y, z, f = null) { let best = null, bd = 1e9; for (const c of b.cells) { if (f != null && c.f !== f) continue; const d = Math.hypot(c.x - x, (c.y - y) * 0.7, c.z - z); if (d < bd) { bd = d; best = c; } } return best; }
+  // dome surfaces: carved stone (zigzag chevrons), ribbed lead sheets, or painted plaster; drawn pale so each dome's
+  // colour tints them
+  domeMats() {
+    if (this._dm) return this._dm;
+    const T = (draw) => { const t = canvasTex(256, 256, draw); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return new THREE.MeshStandardMaterial({ map: t, vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }); };
+    const noise = (c, w, h, a) => { for (let i = 0; i < 900; i++) { c.fillStyle = `rgba(60,50,40,${Math.random() * a})`; c.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 6, 2 + Math.random() * 6); } };
+    this._dm = {
+      stone: T((c, w, h) => { c.fillStyle = '#efe8da'; c.fillRect(0, 0, w, h); c.strokeStyle = 'rgba(110,90,60,.55)'; c.lineWidth = 5;
+        for (let y = -32; y < h + 32; y += 32) { c.beginPath(); for (let x = 0; x <= w; x += 32) c.lineTo(x, y + ((x / 32) % 2 ? 16 : 0)); c.stroke(); }
+        c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2; for (let y = -30; y < h + 32; y += 32) { c.beginPath(); for (let x = 0; x <= w; x += 32) c.lineTo(x, y + ((x / 32) % 2 ? 16 : 0)); c.stroke(); }
+        c.fillStyle = 'rgba(110,90,60,.25)'; for (let y = 0; y < h; y += 64) c.fillRect(0, y, w, 2); noise(c, w, h, 0.12); }),
+      lead: T((c, w, h) => { c.fillStyle = '#dde0e4'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(40,46,54,.45)'; for (let x = 0; x < w; x += 32) c.fillRect(x, 0, 3, h);
+        c.fillStyle = 'rgba(255,255,255,.35)'; for (let x = 4; x < w; x += 32) c.fillRect(x, 0, 2, h); c.fillStyle = 'rgba(40,46,54,.25)'; for (let y = 0; y < h; y += 42) c.fillRect(0, y, w, 2);
+        for (let i = 0; i < 300; i++) { c.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '30,34,40'},${Math.random() * 0.12})`; c.fillRect(Math.random() * w, Math.random() * h, 3 + Math.random() * 12, 2 + Math.random() * 8); } }),
+      plaster: T((c, w, h) => { c.fillStyle = '#f4f1ea'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(90,80,60,.14)'; for (let y = 0; y < h; y += 24) c.fillRect(0, y, w, 1.5); noise(c, w, h, 0.16);
+        for (let i = 0; i < 40; i++) { c.fillStyle = `rgba(120,100,70,${Math.random() * 0.12})`; c.fillRect(Math.random() * w, Math.random() * h, 1, 10 + Math.random() * 30); } }),
+    };
+    return this._dm;
+  }
+  // a geometry with a flat colour that keeps its texture coordinates (tint() drops them)
+  paint(geo, col) { const g = geo.index ? geo.toNonIndexed() : geo, c = new THREE.Color(col), a = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < a.length; i += 3) c.toArray(a, i); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color', 'uv'].includes(k)) g.deleteAttribute(k); if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)); return g; }
   mosques(list) {
+    const DM = this.domeMats();
     for (const m of list) {
-      const t = topOf(m.hall), x = t.cx, z = t.cz, y = t.y, D = [], Gd = [], st = m.style;
-      const r = Math.min(t.w, t.d) * m.dome;
-      if (m.ali) {
-        // Muhammad Ali: the great central dome over four half-domes and corner domes, all in grey lead, gilt finials
-        D.push(cyl(r * 1.05, r * 1.1, 1.2, x, y + 0.6, z, 0xd8d4cc, 24), tint(new THREE.SphereGeometry(r, 28, 14, 0, 6.283, 0, Math.PI / 2).scale(1, 1.05, 1).translate(x, y + 1.2, z), 0x8a9098));
-        for (const [sx, sz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) D.push(tint(new THREE.SphereGeometry(r * 0.62, 18, 10, 0, 6.283, 0, Math.PI / 2).translate(x + sx * r * 1.15, y + 0.4, z + sz * r * 1.15), 0x8a9098));
-        for (const [sx, sz] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) D.push(tint(new THREE.SphereGeometry(r * 0.32, 12, 8, 0, 6.283, 0, Math.PI / 2).translate(x + sx * r * 1.3, y + 0.2, z + sz * r * 1.3), 0x8a9098));
-        Gd.push(cyl(0.08, 0.12, 1.4, x, y + r * 1.05 + 1.9, z, 0xd9b04a, 6), tint(new THREE.TorusGeometry(0.3, 0.06, 6, 12, Math.PI * 1.4).translate(x, y + r * 1.05 + 2.8, z), 0xd9b04a));
-      } else for (let k = 0; k < m.domes; k++) {
-        const dx = m.domes > 1 ? (k - (m.domes - 1) / 2) * r * 2.3 : 0, rr = r * (m.domes > 1 ? 0.8 : 1);
-        if (st === 'mamluk') {
-          // a carved stone dome on a tall drum: pointed profile, zigzag ribs, the drum's corner steps
-          D.push(cyl(rr * 1.05, rr * 1.15, rr * 0.9, x + dx, y + rr * 0.45, z, 0xd8c4a0, 16), tint(new THREE.LatheGeometry([0, 0.15, 0.35, 0.55, 0.72, 0.85, 0.94, 1].map((t2) => new THREE.Vector2(rr * Math.cos(t2 * Math.PI / 2) * (1 - t2 * 0.05), rr * 1.35 * t2)), 20).translate(x + dx, y + rr * 0.9, z), 0xd2bc94));
-          for (let a = 0; a < 6.283; a += 0.31) D.push(tint(new THREE.BoxGeometry(0.06, rr * 0.9, 0.06).rotateZ(0.5).translate(Math.cos(a) * rr * 0.72, 0, Math.sin(a) * rr * 0.72).translate(x + dx, y + rr * 1.4, z), 0xb8a07a));
-        } else if (st === 'ottoman') D.push(cyl(rr * 1.02, rr * 1.06, rr * 0.4, x + dx, y + rr * 0.2, z, 0xd8d4cc, 20), tint(new THREE.SphereGeometry(rr, 20, 10, 0, 6.283, 0, Math.PI / 2).translate(x + dx, y + rr * 0.4, z), 0x8a9098));
-        else D.push(cyl(rr * 0.95, rr, rr * 0.3, x + dx, y + rr * 0.15, z, 0xece6da, 16), tint(new THREE.SphereGeometry(rr * 0.92, 18, 10, 0, 6.283, 0, Math.PI / 2).translate(x + dx, y + rr * 0.3, z), pick([0x3a8a5a, 0xece6da, 0x2a6a8a, 0xc8b48a])));
-        Gd.push(cyl(0.05, 0.08, 0.9, x + dx, y + rr * (st === 'mamluk' ? 2.3 : 1.35) + 0.4, z, 0xd9b04a, 6), tint(new THREE.TorusGeometry(0.22, 0.045, 6, 12, Math.PI * 1.4).rotateZ(Math.PI * 0.8).translate(x + dx, y + rr * (st === 'mamluk' ? 2.3 : 1.35) + 1.0, z), 0xd9b04a));
+      const t = topOf(m.hall), y = t.y, st = m.style, topF = m.hall.floors - 1;
+      const kind = m.ali || st === 'ottoman' ? 'lead' : st === 'mamluk' ? 'stone' : 'plaster';
+      const domeCol = kind === 'lead' ? 0x8a9098 : kind === 'stone' ? 0xd2bc94 : pick([0x3a8a5a, 0xece6da, 0x2a6a8a, 0xc8b48a]);
+      const shell = [], gilt = [], plain = [];
+      // each dome's round shell over its stone core: a lathe of the style's outline, every triangle on the block behind it
+      for (const d of m.domeB || []) {
+        const rep = kind === 'lead' ? 6 : 4, outer = d.b.cells;
+        for (const [a, b2, c] of latheTris(d.x, d.z, d.P.map(([r, h]) => [r, d.y + h]), 28)) {
+          const cx = (a.x + b2.x + c.x) / 3, cy = (a.y + b2.y + c.y) / 3, cz = (a.z + b2.z + c.z) / 3;
+          const tri = [a, b2, c], nrm = new THREE.Vector3().subVectors(b2, a).cross(new THREE.Vector3().subVectors(c, a));
+          if (nrm.x * (cx - d.x) + nrm.z * (cz - d.z) + nrm.y * Math.max(0, cy - d.y) * 0.2 < 0) tri.reverse();              // face outward
+          const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(tri.flatMap((v) => [v.x, v.y, v.z]), 3)); g.computeVertexNormals();
+          let us = tri.map((v) => (Math.atan2(v.z - d.z, v.x - d.x) / (Math.PI * 2) + 0.5) * rep); const mx = Math.max(...us); us = us.map((u) => (mx - u > rep / 2 ? u + rep : u));
+          g.setAttribute('uv', new THREE.Float32BufferAttribute(tri.flatMap((v, k) => [us[k], (v.y - d.y) / d.H * 2.2]), 2));
+          const drum = cy - d.y < d.P[2][1];
+          shell.push({ g: this.paint(g, drum && kind !== 'plaster' ? (kind === 'lead' ? 0xd8d4cc : 0xd8c4a0) : drum ? 0xece6da : domeCol), cell: this.nearCell(d.b, cx, cy, cz) });
+        }
+        // the gilt finial and crescent on the top block
+        const ty = d.y + d.H, topC = this.nearCell(d.b, d.x, ty, d.z, d.b.floors - 1);
+        gilt.push({ g: cyl(0.06, 0.1, 1.0, d.x, ty + 0.5, d.z, 0xd9b04a, 6), cell: topC }, { g: tint(new THREE.TorusGeometry(0.24, 0.05, 6, 12, Math.PI * 1.4).rotateZ(Math.PI * 0.8).translate(d.x, ty + 1.15, d.z), 0xd9b04a), cell: topC });
       }
-      // crenellations along the roof edge, a loudspeaker or two
-      for (let u = t.ax + 0.4; u < t.bx; u += 0.7) for (const zz of [t.az, t.bz]) D.push(box(0.3, 0.35, 0.18, u, y + 0.18, zz, st === 'plain' ? 0xe0d6c4 : 0xd0bc94));
-      hangOn(m.hall, [this.add(D), this.add(Gd, this.gilt)].filter(Boolean), m.hall.floors - 1);
+      // Muhammad Ali: the half-domes and corner domes round the great dome, lead over the hall's roof
+      if (m.ali) {
+        const r = Math.min(t.w, t.d) * m.dome;
+        for (const [sx, sz, k] of [[1, 0, 0.62], [-1, 0, 0.62], [0, 1, 0.62], [0, -1, 0.62], [1, 1, 0.32], [-1, 1, 0.32], [1, -1, 0.32], [-1, -1, 0.32]]) {
+          const px = t.cx + sx * r * (k > 0.5 ? 1.15 : 1.3), pz = t.cz + sz * r * (k > 0.5 ? 1.15 : 1.3), g = new THREE.SphereGeometry(r * k, 16, 8, 0, 6.283, 0, Math.PI / 2).translate(px, y + (k > 0.5 ? 0.4 : 0.2), pz);
+          const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 6, uv.getY(i) * 2);
+          shell.push({ g: this.paint(g, 0x8a9098), cell: this.nearCell(m.hall, px, y, pz, topF) });
+        }
+      }
+      // crenellations along the roof edge, each tied to the roof block under it
+      for (let u = t.ax + 0.4; u < t.bx; u += 0.7) for (const zz of [t.az, t.bz]) plain.push({ g: box(0.3, 0.35, 0.18, u, y + 0.18, zz, st === 'plain' ? 0xe0d6c4 : 0xd0bc94), cell: this.nearCell(m.hall, u, y, zz, topF) });
+      this.cutout(shell, DM[kind]); this.cutout(gilt, this.gilt); this.cutout(plain);
       for (const mi of m.mins) this.minaret(mi, st, m.ali);
     }
   }
@@ -631,7 +732,7 @@ export class Cairo {
   }
   // ---------- the desert: dunes and the plateau as a height-field mesh, sand-coloured, rock showing on the slopes ----------
   desert() {
-    const W = 560, geo = new THREE.PlaneGeometry(W, 2 * E, 260, 340).rotateX(-Math.PI / 2).translate(-124 - W / 2, 0, 0), p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
+    const W = 640, geo = new THREE.PlaneGeometry(W, 2 * E, 300, 340).rotateX(-Math.PI / 2).translate(-124 - W / 2, 0, 0), p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
     for (let i = 0; i < p.count; i++) p.setY(i, terrainH(p.getX(i), p.getZ(i)) + (p.getX(i) > -126 ? -0.05 : 0));
     geo.computeVertexNormals();
     const nr = geo.attributes.normal;

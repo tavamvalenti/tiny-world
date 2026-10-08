@@ -140,7 +140,7 @@ export { rand };
 // A smooth skin over a stepped building (glass pyramids, spires, the Gherkin's bullet): the surface is cut into small
 // triangles and each one is hung on the building cell right behind it, so the skin breaks away with the building.
 // tris: [[Vector3, Vector3, Vector3], ...]; color: vertex colour or (tri) => colour
-export function skinOn(scene, b, tris, color, mat) {
+export function skinOn(scene, b, tris, color, mat, uvf) {        // uvf(vertex) -> [u, v]: texture coordinates (optional)
   const byCell = new Map();
   for (const [p1, p2, p3] of tris) {
     const c = new THREE.Vector3().add(p1).add(p2).add(p3).multiplyScalar(1 / 3);
@@ -148,7 +148,9 @@ export function skinOn(scene, b, tris, color, mat) {
     for (const cell of b.cells) { const d = Math.hypot(cell.x - c.x, (cell.y - c.y) * 1.5, cell.z - c.z); if (d < bd) { bd = d; best = cell; } }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([p1, p2, p3].flatMap((v) => [v.x, v.y, v.z]), 3)); g.computeVertexNormals();
     if (!byCell.has(best)) byCell.set(best, []);
-    byCell.get(best).push(tint(g, typeof color === 'function' ? color(c) : color));
+    const tg = tint(g, typeof color === 'function' ? color(c) : color);
+    if (uvf) tg.setAttribute('uv', new THREE.Float32BufferAttribute([p1, p2, p3].flatMap((v) => uvf(v, p1, p2, p3)), 2));
+    byCell.get(best).push(tg);
   }
   for (const [cell, geos] of byCell) { const m = new THREE.Mesh(mergeGeometries(geos), mat); m.castShadow = true; scene.add(m); (cell.props ||= []).push({ obj: [m], x: cell.x, y: cell.y, z: cell.z }); }
 }

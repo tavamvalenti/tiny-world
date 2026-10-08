@@ -317,6 +317,8 @@ export function makeFacades() {
     for (let y = 0; y < S * 2; y += 32) for (let x = (y / 32) % 2 ? -24 : 0; x < S; x += 48) { const v = 180 + Math.random() * 40; c.fillStyle = `rgb(${v + 20},${v},${v * 0.72})`; c.fillRect(x + 2, y + 2, 44, 28); c.fillStyle = 'rgba(80,60,30,.25)'; c.fillRect(x + 2, y + 28, 44, 3); }
     for (let i = 0; i < 160; i++) { c.fillStyle = `rgba(90,70,40,${Math.random() * 0.12})`; c.fillRect(Math.random() * S, Math.random() * S * 2, 3 + Math.random() * 20, 2 + Math.random() * 10); }
   });
+  // the real stone (the pyramid reference photo) replaces the drawn blocks as soon as it has loaded
+  { const img = new Image(); img.onload = () => { const cv = F.limestone.map.image, x = cv.getContext('2d'), h = S * img.height / img.width; for (let y = 0; y < S * 2; y += h) x.drawImage(img, 0, y, S, h); F.limestone.map.needsUpdate = true; }; img.src = 'assets/pyramid-stone.jpg'; }
   return F;
 }
 
