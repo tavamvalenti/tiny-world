@@ -11,6 +11,8 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 const RATES = {
   downtown: { line: 1 / 4, car: 1.3, horn: 0.1, siren: 1 / 45, chatter: 1.6, say: 0, music: 0, birds: 0.05, dog: 0, mower: 0, construct: 1 / 25, gull: 0.05, boat: 0, stadium: 1 / 7 },
   tropical: { line: 1 / 4.5, car: 0.45, horn: 0.03, siren: 1 / 150, chatter: 1.0, say: 0, music: 0, birds: 0.08, dog: 0, mower: 0, construct: 0, gull: 0.18, boat: 0 },
+  vegas: { line: 1 / 3.5, car: 1.5, horn: 0.14, siren: 1 / 50, chatter: 2.2, say: 0, music: 0, birds: 0.02, dog: 0, mower: 0, construct: 1 / 60, gull: 0, boat: 0 },
+  london: { line: 1 / 4, car: 1.3, horn: 0.05, siren: 1 / 55, chatter: 1.7, say: 0, music: 0, birds: 0.12, dog: 0, mower: 0, construct: 1 / 40, gull: 0.07, boat: 0 },
   suburbs: { line: 1 / 6, car: 0.18, horn: 0.01, siren: 1 / 240, chatter: 0.3, say: 0, music: 0, birds: 0.35, dog: 0, mower: 0, construct: 1 / 120, gull: 0, boat: 0 },
 };
 // city: the recorded city ambience (assets/amb-city.mp4); murmur: crowd voices; waves: the sea
@@ -18,6 +20,8 @@ const BEDS = {
   downtown: { city: 0.55, murmur: 0.5, waves: 0.3 },
   tropical: { city: 0.22, murmur: 0.35, waves: 0.3 },
   suburbs: { city: 0.42, murmur: 0.12, waves: 0 },
+  vegas: { city: 0.6, murmur: 0.65, waves: 0 },
+  london: { city: 0.6, murmur: 0.5, waves: 0 },
 };
 
 export class Ambience {

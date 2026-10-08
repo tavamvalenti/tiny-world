@@ -12,6 +12,16 @@ const CAR_COLORS = [0xf2f2f0, 0x1c1d20, 0x8a9096, 0xb4bac0, 0x9e1b1b, 0x1e3f73, 
 const SHIRTS = [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a, 0xd87a3a, 0x9a5fb0, 0xf0f0f0, 0x6fb3c9, 0xc94f7c, 0x1f2a44, 0x8a8f96];
 const PANTS = [0x2a3448, 0x1f1f22, 0x5a5044, 0x7b8794, 0x3c4a3a, 0xb8ad96, 0x33415e];
 const SKIN = [0xe8c4a8, 0xc99b78, 0x9a6b4c, 0x6b4630, 0xf0d6c0, 0xb07e5a];
+// [torso, arms, legs, hair, police]
+const LOOKS = {
+  elvis: [0xf6f3ea, 'torso', 0xf6f3ea, 0x0a0a0c], showgirl: [[0xf2c230, 0xff4fa0, 0xe8e2ff, 0x3ad0d0, 0xc81e5a], 'skin', 'skin', [0x1a1410, 0xc9a86a, 0x8a1a1a]],
+  nightlife: [[0x0e0e10, 0xb3141c, 0xe8c040, 0xf2f2ee, 0x6b1f8a, 0x0e0e10], [0x0e0e10, 'skin'], [0x0e0e10, 'skin', 0x1c1d22], null],
+  security: [0x101012, 'torso', 0x101012, null], valet: [0xb3141c, 0xf2f2ee, 0x101012, null], worker: [0xf2f2ee, 'torso', 0x23252a, null],
+  lvmpd: [0xb9a47a, 'torso', 0x2c3a2a, null, 1], tourist: [[0xff8fa3, 0x4fc3f7, 0xfff176, 0xffffff, 0x81c784, 0xff7043, 0xba68c8], 'skin', [0x7b8794, 0xb8ad96, 0x2a3448, 'skin'], null],
+  metpolice: [0xd8ea3c, 0x101826, 0x101826, 0x0b0f1a, 1], guard: [0xc0141c, 'torso', 0x0d0d10, 0x070708], beefeater: [0x7a0d18, 'torso', 0x7a0d18, 0x1a1414],
+  swim: ['skin', 'skin', [0x1f63b8, 0xd8262c, 0x111111, 0xf2c230, 0x2a9d8f, 0xff7ab0], null],
+  busker: [[0x3a3a3e, 0x6b5a45, 0x2b3445], 'torso', 0x1c1d22, null], commuter: [[0x1c1d22, 0x2b3445, 0x4a4a4e, 0x6b5a45], 'torso', [0x1c1d22, 0x2a3448], null],
+};
 const HAIR = [0x1a1410, 0x2e2118, 0x5a3b22, 0x8a6a3a, 0xc9a86a, 0x6b6b6b, 0x0e0e0e];
 // which vehicles each kind of world event calls for (untyped legacy incidents keep the old mix)
 const NEEDS = {
@@ -156,7 +166,8 @@ export class Agents {
 
   // ---------- cars ----------
   carColor() {
-    const r = Math.random();
+    const r = Math.random(), V = this.city.vehicles;
+    if (V && V.taxi) return r < V.taxi.p ? new THREE.Color(pick(V.taxi.colors)) : new THREE.Color(pick(V.colors || CAR_COLORS));
     if (r < (G.mapName === 'tropical' ? 0.22 : 0.07)) return new THREE.Color(0xf2c230); // taxi (La Playa is full of them)
     return new THREE.Color(pick(CAR_COLORS));
   }
@@ -178,8 +189,12 @@ export class Agents {
   spawnCar(i, replace = null) {
     const r = Math.random();
     const tr = G.mapName === 'tropical';                    // resort town: tour buses and hotel shuttles
-    const c = this.newCar(i, r < (tr ? 0.08 : 0.05) ? 'bus' : r < (tr ? 0.22 : 0.14) ? 'van' : r < 0.3 ? 'suv' : r > 0.88 ? 'moto' : 'car');
+    const V = this.city.vehicles, pb = V && V.bus ? V.bus.p : tr ? 0.08 : 0.05, pm = V && V.moto != null ? V.moto : 0.12;
+    const c = this.newCar(i, r < pb ? 'bus' : r < pb + (tr ? 0.14 : 0.09) ? 'van' : r < 0.3 ? 'suv' : r > 1 - pm ? 'moto' : 'car');
     if (tr && c.scale[1] > 1.3 && c.scale[2] < 2 && Math.random() < 0.6) { c.color = new THREE.Color(0xf6f6f2); this.carBody.setColorAt(i, c.color); }
+    // the city's own buses (London's red double-deckers, Vegas tour coaches and the Deuce) and stretch limos
+    if (V && V.bus && c.scale[2] > 2) { const b = pick(V.bus.kinds); c.color = new THREE.Color(b.color); c.scale = [1.15, b.h || 1.7, b.len || 3.2]; c.len = 0.8 * c.scale[2]; this.carBody.setColorAt(i, c.color); }
+    else if (V && V.limo && !c.moto && c.scale[1] < 1.2 && Math.random() < V.limo.p) { c.color = new THREE.Color(pick(V.limo.colors)); c.scale = [1, 0.95, 1.9]; c.len = 0.8 * 1.9; this.carBody.setColorAt(i, c.color); }
     const C = this.city;
     let edges = [...C.edges.values()].filter((e) => !e.blocked);
     const hs = C.hotspot;
@@ -193,7 +208,7 @@ export class Agents {
       const A = C.nodes[a], B = C.nodes[b];
       const t = rand(0.25, 0.75);
       const d = _v.set(B.x - A.x, 0, B.z - A.z).normalize();
-      const off = C.roadW / 4;
+      const off = C.roadW / 4 * (C.side || 1);
       const x = A.x + (B.x - A.x) * t - d.z * off, z = A.z + (B.z - A.z) * t + d.x * off;
       if (this.cars.some((o) => o.pos.distanceTo(_p.set(x, 0, z)) < 3)) continue;
       if (replace && G.camTarget && Math.hypot(x - G.camTarget.x, z - G.camTarget.z) < 40 && tries < 25) continue;
@@ -223,11 +238,11 @@ export class Agents {
   }
   laneDir(A, B) { return _v.set(B.x - A.x, 0, B.z - A.z).normalize().clone(); }
   stopPoint(A, B) {
-    const C = this.city, d = this.laneDir(A, B), off = C.roadW / 4, back = C.roadW / 2 + 2.3;
+    const C = this.city, d = this.laneDir(A, B), off = C.roadW / 4 * (C.side || 1), back = C.roadW / 2 + 2.3;
     return { x: B.x - d.x * back - d.z * off, z: B.z - d.z * back + d.x * off, stop: true, node: B.id, axis: Math.abs(d.x) > 0.5 ? 'x' : 'z' };
   }
   entryPoint(A, B) {
-    const C = this.city, d = this.laneDir(A, B), off = C.roadW / 4, fwd = C.roadW / 2 + 1.0;
+    const C = this.city, d = this.laneDir(A, B), off = C.roadW / 4 * (C.side || 1), fwd = C.roadW / 2 + 1.0;
     return { x: A.x + d.x * fwd - d.z * off, z: A.z + d.z * fwd + d.x * off };
   }
   // breadth-first route over unblocked streets; returns the next node to take from `from`
@@ -276,7 +291,7 @@ export class Agents {
       const d = this.laneDir(A, B);
       ctrl = { x: B.x + d.x * 1.5, z: B.z + d.z * 1.5 };
     } else {
-      const d1 = this.laneDir(A, B), d2 = this.laneDir(B, N), off = C.roadW / 4;
+      const d1 = this.laneDir(A, B), d2 = this.laneDir(B, N), off = C.roadW / 4 * (C.side || 1);
       ctrl = Math.abs(d1.dot(d2)) > 0.9 ? { x: (p0.x + p2.x) / 2, z: (p0.z + p2.z) / 2 }
         : { x: B.x - d1.z * off - d2.z * off, z: B.z + d1.x * off + d2.x * off };
     }
@@ -290,7 +305,7 @@ export class Agents {
   }
   uTurn(c) {
     const C = this.city, A = C.nodes[c.from], B = C.nodes[c.to];
-    const d = this.laneDir(A, B), off = C.roadW / 4;
+    const d = this.laneDir(A, B), off = C.roadW / 4 * (C.side || 1);
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
     c.queue = [
       { x: c.pos.x + fx * 0.7 + d.z * off * 0.8, z: c.pos.z + fz * 0.7 - d.x * off * 0.8 },
@@ -485,7 +500,7 @@ export class Agents {
   }
   // a stopped car finds the nearest lane and pulls into traffic
   joinTraffic(c) {
-    const C = this.city, off = C.roadW / 4;
+    const C = this.city, off = C.roadW / 4 * (C.side || 1);
     let best = null, bd = 1e9;
     for (const e of C.edges.values()) {
       if (e.blocked) continue;
@@ -549,7 +564,7 @@ export class Agents {
       if (!c) return;
       const wp = c.queue[0];
       if (Math.hypot(wp.x - c.pos.x, wp.z - c.pos.z) < 8) return;          // not right before a junction
-      const fx = Math.sin(c.heading), fz = Math.cos(c.heading), off = C.roadW / 4 + 0.32;
+      const fx = Math.sin(c.heading), fz = Math.cos(c.heading), off = (C.roadW / 4 + 0.32) * (C.side || 1);
       const px = c.pos.x + fx * 3 - fz * off, pz = c.pos.z + fz * 3 + fx * off;
       if (C.pedBlocked && C.pedBlocked(px, pz)) return;
       c.parking = true; c.queue = [{ x: px, z: pz }];
@@ -668,14 +683,24 @@ export class Agents {
 
   // ---------- pedestrians ----------
   pedColors(i) {
-    const shirt = new THREE.Color(pick(SHIRTS)), skin = new THREE.Color(pick(SKIN));
+    const P = this.city.palette || {};
+    const shirt = new THREE.Color(pick(P.shirts || SHIRTS)), skin = new THREE.Color(pick(SKIN));
     this.pTorso.setColorAt(i, shirt);
-    this.pArmL.setColorAt(i, Math.random() < 0.4 ? skin : shirt);
-    const pants = new THREE.Color(pick(PANTS));
+    this.pArmL.setColorAt(i, Math.random() < (P.sleeves ?? 0.4) ? skin : shirt);
+    const pants = new THREE.Color(pick(P.pants || PANTS));
     this.pLegL.setColorAt(i, pants); this.pLegR.setColorAt(i, pants);
     this.pArmR.setColorAt(i, this.pArmL.instanceColor ? new THREE.Color().fromArray(this.pArmL.instanceColor.array, i * 3) : shirt);
     this.pHead.setColorAt(i, skin);
     this.pHair.setColorAt(i, new THREE.Color(pick(HAIR)));
+  }
+  // costumes and uniforms for people standing at a spot: [torso, arms, legs, hair] (arms/legs 'skin' = bare)
+  dressAs(i, p, look) {
+    const L = LOOKS[look]; if (!L) return;
+    const skin = new THREE.Color().fromArray(this.pHead.instanceColor.array, i * 3), c = (v) => { const u = Array.isArray(v) ? pick(v) : v; return u === 'skin' ? skin : new THREE.Color(u); };
+    const t = c(L[0]), a = L[1] === 'torso' ? t : c(L[1]), l = c(L[2]);
+    this.pTorso.setColorAt(i, t); this.pArmL.setColorAt(i, a); this.pArmR.setColorAt(i, a); this.pLegL.setColorAt(i, l); this.pLegR.setColorAt(i, l);
+    if (L[3] != null) this.pHair.setColorAt(i, c(L[3]));
+    if (L[4]) p.officer = true;
   }
   newPed(i) {
     return { i, pos: new THREE.Vector3(), heading: 0, state: 'walk', speed: rand(0.7, 1.1), lat: rand(-0.35, 0.35), vel: new THREE.Vector3(),
@@ -714,6 +739,8 @@ export class Agents {
     p.heading = Math.atan2(spot.x - p.pos.x, spot.z - p.pos.z);
     this.pedColors(i);
     if (spot.uniform) { const u = new THREE.Color(spot.uniform); for (const m of [this.pTorso, this.pArmL, this.pArmR, this.pLegL, this.pLegR]) m.setColorAt(i, u); p.officer = true; }
+    if (spot.look) this.dressAs(i, p, spot.look);
+    if (spot.face) p.heading = Math.atan2(spot.face.x - p.pos.x, spot.face.z - p.pos.z);     // looking at something (taking photos)
     this.peds.push(p);
   }
   pedTarget(p) {

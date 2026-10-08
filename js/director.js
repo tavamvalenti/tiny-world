@@ -18,12 +18,16 @@ const POOL = {
   downtown: { accident: 3, jam: 3, fire: 2, disturbance: 2, evacuation: 0.5, weather: 1.2 },
   suburbs: { accident: 2, jam: 1.5, fire: 2, disturbance: 2, evacuation: 0.5, gang: 1.5, weather: 1.6 },
   tropical: { accident: 2, jam: 2, fire: 1.5, disturbance: 1.5, evacuation: 0.4, weather: 1.2 },
+  vegas: { accident: 3, jam: 3.5, fire: 1.5, disturbance: 3, evacuation: 0.6, weather: 0.8 },
+  london: { accident: 2.5, jam: 3, fire: 1.5, disturbance: 1.5, evacuation: 0.5, weather: 1.8 },
 };
 // weather each place tends toward (clear dominates)
 const WEATHER = {
   downtown: { clear: 5, rain: 2, storm: 0.6 },
   suburbs: { clear: 4, rain: 2, storm: 1, snow: 2 },
   tropical: { clear: 6, rain: 1.5, storm: 1 },
+  vegas: { clear: 9, rain: 0.5, storm: 0.4 },
+  london: { clear: 3, rain: 4.5, storm: 0.6 },
 };
 const weighted = (o) => { let k = Math.random() * Object.values(o).reduce((a, b) => a + b, 0); for (const [n, w] of Object.entries(o)) if ((k -= w) <= 0) return n; return Object.keys(o)[0]; };
 
@@ -94,6 +98,8 @@ export class Director {
     const S = {
       downtown: [['LOCAL', 'Crane work continues on downtown construction sites'], ['LOCAL', 'Trolley running on schedule through the Gaslamp Quarter'], ...(clear ? [['LOCAL', 'Sunny afternoon brings crowds to the waterfront']] : [])],
       suburbs: [['SPORTS', 'Streetball game under way by the courts'], ['LOCAL', 'Construction crews busy on the South Side'], ...(G.concert && G.concert.phase === 'active' ? [['FESTIVAL', 'Summer Smash crowd packed in front of the main stage']] : [])],
+      vegas: [['LOCAL', 'Bellagio fountains drawing crowds on the Strip'], ['LOCAL', 'Heavy traffic on Las Vegas Boulevard tonight'], ['LOCAL', 'Sphere lights up the skyline'], ['LOCAL', 'Record weekend for Strip casinos']],
+      london: [['LOCAL', 'Delays on the Jubilee line'], ['LOCAL', 'Tourists queue for the London Eye'], ['LOCAL', 'Changing of the Guard at Buckingham Palace'], ['TRAFFIC ALERT', 'Congestion on Westminster Bridge'], ['WEATHER', 'Light drizzle expected across London']],
       tropical: N.es ? [['LOCAL', clear ? 'Día soleado: la playa llena de turistas' : 'Pocos bañistas por el mal tiempo'], ['LOCAL', 'Salvavidas vigilan la playa'], ['LOCAL', 'Hoteles de la costa reportan alta ocupación']]
         : [['LOCAL', clear ? 'Sunny day brings crowds to the beach' : 'Beach quiet as weather turns'], ['LOCAL', 'Lifeguards on watch along the beach'], ['LOCAL', 'Beachfront hotels report a busy week']],
     }[this.map];

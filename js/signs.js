@@ -16,6 +16,18 @@ const NAMES = {
     ['BAIT & TACKLE', '#2b2b2b', '#f5c400'], ['CASA AZUL', '#1f63b8', '#ffffff'], ['SEA BREEZE INN', '#dff3f1', '#0c6c74'], ['OCEAN MART', '#c8102e', '#ffffff'],
     ['FARMACIA', '#0d7a3a', '#ffffff'], ['PESCADERIA', '#0b4a6f', '#e8f4ff'], ['LA CANTINA', '#6b1a10', '#ffcf6a'], ['DIVE SHOP', '#f5c400', '#0b2d4a'],
   ],
+  vegas: [
+    ['SLOTS', '#1a0f2e', '#ffd34a'], ['24 HR WEDDING CHAPEL', '#ffffff', '#d81b60'], ['BUFFET', '#b3120f', '#ffe08a'], ['PAWN', '#101010', '#ffcc00'],
+    ['ABC STORE', '#0e4c92', '#ffffff'], ['CASINO', '#2a0a3a', '#ff4fc8'], ['SHOW TICKETS', '#111111', '#3ad0ff'], ['STEAKHOUSE', '#2b1a12', '#f2c879'],
+    ['LIQUOR', '#0e5a2a', '#ffffff'], ['NIGHT CLUB', '#05050a', '#c86bff'], ['GIFT SHOP', '#ffe9f2', '#c2185b'], ['MOTEL', '#ff3b3b', '#ffffff'],
+    ['TATTOO', '#141414', '#ff5252'], ['SPORTSBOOK', '#0d2b52', '#7cf0ff'], ['ICE CREAM', '#ffd1e3', '#6b1f3a'], ['GENTLEMEN\'S CLUB', '#0a0a10', '#ff3fa4'],
+  ],
+  london: [
+    ['THE RED LION', '#5a1414', '#f2d27a'], ['TESCO EXPRESS', '#ffffff', '#00539f'], ['PRET', '#7a0019', '#ffffff'], ['BOOTS', '#05509e', '#ffffff'],
+    ['THE CROWN', '#0f2a1d', '#e8c060'], ['FISH & CHIPS', '#0e3d6b', '#ffffff'], ['NEWSAGENT', '#1d1d1d', '#f2e6c8'], ['CAFFE NERO', '#0e2b4a', '#ffffff'],
+    ['THE GEORGE', '#1a1a2a', '#e8d38a'], ['BARCLAYS', '#00aeef', '#ffffff'], ['GREGGS', '#00488d', '#fbb800'], ['THE KINGS ARMS', '#3a1f10', '#f0c674'],
+    ['WH SMITH', '#003b5c', '#ffffff'], ['BOOKSHOP', '#20304a', '#f1ede4'], ['KEBAB', '#b3120f', '#ffe08a'], ['OFF LICENCE', '#123a1e', '#f5e7b8'],
+  ],
   suburbs: [
     ['SOUTH SIDE SAVINGS', '#12324f', '#e9dcb8'], ['QUIKMART', '#c8102e', '#ffffff'], ['FUELCO', '#f5c400', '#b3120f'], ['MAPLE DENTAL', '#ffffff', '#2c6b4f'],
     ['PIZZA PALACE', '#b3120f', '#fff1c1'], ['HAIR BY ANNA', '#f7e6ee', '#8a2455'], ['PRESTO CLEANERS', '#1d4e89', '#ffffff'], ['PET WORLD', '#f28c28', '#ffffff'],

@@ -7,8 +7,8 @@ import { paintCourts } from './court.js';
 import { buildHills } from './playa.js';
 import { buildLandmarks } from './sandiego.js';
 
-const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace);
-const TINT = {
+export const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace);
+export const TINT = {
   brick: () => Math.random() < 0.2 ? hsl(rand(0.07, 0.1), rand(0.25, 0.4), rand(0.62, 0.72)) : hsl(rand(0.0, 0.05), rand(0.35, 0.55), rand(0.42, 0.6)),
   concrete: () => hsl(rand(0.08, 0.14), rand(0.05, 0.2), rand(0.66, 0.84)),
   office: () => hsl(rand(0.55, 0.62), rand(0.03, 0.12), rand(0.7, 0.88)),
@@ -17,7 +17,7 @@ const TINT = {
 };
 const ROOF_TINTS = [hsl(0, 0, 0.55), hsl(0.05, 0.3, 0.52), hsl(0.6, 0.12, 0.58), hsl(0.02, 0.4, 0.52), hsl(0.08, 0.2, 0.62)];
 
-function partition(total, n, min = 3) {
+export function partition(total, n, min = 3) {
   const w = [];
   let left = total;
   for (let i = 0; i < n - 1; i++) { const v = Math.max(min, rand(0.7, 1.3) * left / (n - i)); w.push(v); left -= v; }
@@ -65,7 +65,7 @@ function outskirts(ctx, kind) {
 }
 
 // Groups of people standing around: street corners, storefronts, plazas.
-function crowdsAroundBlock(city, b, pCorner, pFront, big = 1) {
+export function crowdsAroundBlock(city, b, pCorner, pFront, big = 1) {
   const cr = (city.crowds ||= []), s = city.sw;
   for (const [x, z] of [[b.x0 + 0.9, b.z0 + 0.9], [b.x1 - 0.9, b.z0 + 0.9], [b.x0 + 0.9, b.z1 - 0.9], [b.x1 - 0.9, b.z1 - 0.9]]) {
     if (Math.random() < pCorner) cr.push({ x, z, r: 0.7, n: Math.round(rand(3, 6) * big) });
@@ -79,7 +79,7 @@ function crowdsAroundBlock(city, b, pCorner, pFront, big = 1) {
     if (Math.random() < pFront) cr.push({ x: b.x1 - s * 0.55, z: z + rand(-1, 1), r: 0.55, n: Math.round(rand(2, 4) * big) });
   }
 }
-function crowdsIn(city, z0, n, sizeMin = 3, sizeMax = 7) {
+export function crowdsIn(city, z0, n, sizeMin = 3, sizeMax = 7) {
   for (let i = 0; i < n; i++) (city.crowds ||= []).push({ x: rand(z0.x0, z0.x1), z: rand(z0.z0, z0.z1), r: rand(0.7, 1.2), n: Math.round(rand(sizeMin, sizeMax)) });
 }
 
@@ -95,7 +95,7 @@ function makeCtx(o, B) {
 // ================= POLICE HEADQUARTERS (every map) =================
 // Station building set back on the block, a plaza and guard booth in front, a lot full of patrol cars, and guard
 // posts; js/station.js dresses it and js/responders.js staffs it. Front faces +z (toward the default camera).
-function policeHQ(ctx, b) {
+export function policeHQ(ctx, b) {
   const { city, B, g } = ctx;
   const W = b.lx1 - b.lx0, D = b.lz1 - b.lz0, cx = (b.lx0 + b.lx1) / 2;
   g.rect(b.lx0, b.lz0, b.lx1, b.lz1, '#8f8c86'); g.grainRect(b.lx0, b.lz0, b.lx1, b.lz1, 0.25, 40);

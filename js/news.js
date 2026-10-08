@@ -14,7 +14,7 @@ const TAGS = {
   LOCAL: ['#f4c20d', '#10183a'], FESTIVAL: ['#8a2be2', '#fff'], SPORTS: ['#1f9d55', '#fff'], URGENT: ['#c3001a', '#fff'],
 };
 const ES_TAG = { BREAKING: 'ÚLTIMA HORA', 'TRAFFIC ALERT': 'ALERTA VIAL', WEATHER: 'CLIMA', UPDATE: 'ACTUALIZACIÓN', LOCAL: 'LOCAL', FESTIVAL: 'FESTIVAL', SPORTS: 'DEPORTES', URGENT: 'URGENTE' };
-const CHANNEL = { downtown: ['SAN DIEGO', 'LIVE', 'CHANNEL 7 NEWS'], suburbs: ['CHICAGO', 'LIVE', 'CHANNEL 7 NEWS'], tropical: ['LA PLAYA', 'EN VIVO', 'NOTICIAS 7'] };
+const CHANNEL = { vegas: ['LAS VEGAS', 'LIVE', 'CHANNEL 8 NEWS'], london: ['LONDON', 'LIVE', 'LONDON NEWS 24'], downtown: ['SAN DIEGO', 'LIVE', 'CHANNEL 7 NEWS'], suburbs: ['CHICAGO', 'LIVE', 'CHANNEL 7 NEWS'], tropical: ['LA PLAYA', 'EN VIVO', 'NOTICIAS 7'] };
 
 // headline templates, English and Spanish ({w} = where)
 const T_EN = {
@@ -70,7 +70,7 @@ const R_ES = {
 };
 const W_EN = { rain: 'Rain moving into {c}', storm: 'Storm approaching {c}; lightning possible', snow: 'Snow falling across Chicago; roads slick', clear: 'Skies clearing over {c}' };
 const W_ES = { rain: 'Lluvias llegan a La Playa', storm: 'Tormenta se acerca a La Playa; posibles rayos', clear: 'Cielos despejados en La Playa' };
-const CITY = { downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa' };
+const CITY = { downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London' };
 
 // ---------- casualties: reported as they happen, in an urgent tone that grows with the toll ----------
 // {n} dead, {i} injured, {w} where, {N} the city's running toll
@@ -125,6 +125,8 @@ const MILESTONES = [10, 25, 50, 100, 200, 350, 500, 750, 1000];
 const STREETS = {
   downtown: { x: ['Kettner Boulevard', 'India Street', 'Columbia Street', 'Union Street', 'Front Street', 'Fourth Avenue', 'Fifth Avenue'], z: ['Ash Street', 'A Street', 'B Street', 'C Street', 'Broadway', 'Market Street', 'Harbor Drive'] },
   suburbs: { x: ['Wentworth Avenue', 'State Street', 'Michigan Avenue', 'King Drive', 'Cottage Grove Avenue'], z: ['Pershing Road', '43rd Street', '47th Street', '51st Street', 'Garfield Boulevard'] },
+  vegas: { x: ['Frank Sinatra Drive', 'Las Vegas Boulevard', 'Koval Lane', 'Paradise Road'], z: ['Desert Inn Road', 'Sands Avenue', 'Flamingo Road', 'Harmon Avenue', 'Tropicana Avenue', 'Mandalay Bay Road', 'Russell Road'] },
+  london: { x: ['Park Lane', 'Grosvenor Place', 'Whitehall', 'Kingsway', 'Farringdon Road', 'Bishopsgate', 'Tower Hill'], z: ['Oxford Street', 'Holborn', 'The Strand', 'Victoria Embankment', 'Southwark Street', 'Borough Road'] },
   tropical: { x: ['Calle Hidalgo', 'Calle Morelos', 'Calle Juárez', 'Calle Zaragoza', 'Calle Allende', 'Calle Guerrero'], z: ['Paseo del Malecón', 'Avenida México', 'Calle Insurgentes', 'Calle Independencia'] },
 };
 const RESORTS = ['Hotel Playa Dorada', 'Hotel Costa Azul', 'Hotel Las Palmas', 'Hotel Vista del Mar', 'Hotel Bahía Real', 'Hotel Marena', 'Hotel Sol y Arena', 'Hotel Coral'];
@@ -207,6 +209,8 @@ export class News {
     const rect = (r, lm, m = 0, extra = {}) => r && L.push({ ...lm, ...extra, x0: r.x0 - m, x1: r.x1 + m, z0: r.z0 - m, z1: r.z1 + m });
     const bld = (b, lm) => b && L.push({ ...lm, x0: b.x - b.w / 2, x1: b.x + b.w / 2, z0: b.z - b.d / 2, z1: b.z + b.d / 2 });
     const hq = C.policeHQ ? { x0: C.policeHQ.x - 9, x1: C.policeHQ.x + 9, z0: C.policeHQ.z - 9, z1: C.policeHQ.z + 9 } : null;
+    // named places a map lists for itself (Vegas resorts, London landmarks): { S, o, x0, x1, z0, z1 }
+    for (const n of C.named || []) L.push({ ...LM(n.S, n.o || n.S), x0: n.x0, x1: n.x1, z0: n.z0, z1: n.z1 });
     if (this.map === 'downtown') {
       for (const l of C.landmarks || []) {
         if (l.kind === 'oneAmerica') bld(l.b, LM('One America Plaza'));

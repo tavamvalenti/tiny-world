@@ -582,7 +582,7 @@ export class Roles {
     if (!c) return;
     const wp = c.queue[0];
     if (Math.hypot(wp.x - c.pos.x, wp.z - c.pos.z) < 8) return;
-    const fx = Math.sin(c.heading), fz = Math.cos(c.heading), off = C.roadW / 4 + 0.32;
+    const fx = Math.sin(c.heading), fz = Math.cos(c.heading), off = (C.roadW / 4 + 0.32) * (C.side || 1);
     const px = c.pos.x + fx * 3 - fz * off, pz = c.pos.z + fz * 3 + fx * off;
     if (C.pedBlocked && C.pedBlocked(px, pz)) return;
     c.parking = true; c.queue = [{ x: px, z: pz }]; c.delivery = true;

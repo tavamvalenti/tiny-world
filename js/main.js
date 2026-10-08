@@ -35,9 +35,12 @@ import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 import { RickMode } from './rick.js';
 import { Chains } from './chains.js';
+import { vegas, Vegas } from './vegas.js';
+import { london, London } from './london.js';
+MAPS.vegas = vegas; MAPS.london = london;
 
 const TOUCH = document.documentElement.classList.contains('touch');   // phones and tablets (set in index.html)
-export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO' };
+export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON' };
 
 const $ = (s) => document.querySelector(s);
 const canvasEl = $('#game');
@@ -169,7 +172,9 @@ function load(name) {
   G.playa = map.city.playa ? new Playa(scene, map.city) : null;
   G.sandiego = map.city.landmarks ? new SanDiego(scene, map.city) : null;
   G.chains = map.city.chains ? new Chains(scene, map.city) : null;           // In-N-Out (Gaslamp), Raising Cane's (Chicago)
-  buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
+  G.vegas = map.city.vegas ? new Vegas(scene, map.city) : null;              // the Strip's landmarks, fountains, Sphere, mountains
+  G.london = map.city.london ? new London(scene, map.city) : null;           // the Thames, the landmarks, the city around them
+  if (!map.ownBackdrop) buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
   G.petco = map.city.petco ? new Petco(scene, map.city, map.city.petco, B) : null;
@@ -351,6 +356,8 @@ function step(dt) {
   G.pets && G.pets.update(dt);
   G.sandiego && G.sandiego.update();
   G.chains && G.chains.update();
+  G.vegas && G.vegas.update(dt);
+  G.london && G.london.update(dt);
   G.construction && G.construction.update(dt);
   G.world.update(dt);
   G.director && G.director.update(dt);
