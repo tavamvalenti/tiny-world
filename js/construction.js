@@ -8,7 +8,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick, clamp, blast } from './core.js';
 import { sfx } from './audio.js';
 
-const LIMIT = { downtown: 6, suburbs: 4, tropical: 2, greenland: 0 };
+const LIMIT = { downtown: 6, suburbs: 4, tropical: 2, greenland: 0, cairo: 3 };
 const CRANES = { downtown: 2, suburbs: 2, tropical: 1 };
 
 function tint(geo, c) {
@@ -34,7 +34,7 @@ export function pickSites(B, city, mapName) {
   if (city.policeHQ) { const b = city.policeHQ.block; add(b.x0 - 3, b.z0 - 3, b.x1 + 3, b.z1 + 3); }
   if (city.petco) { const S = city.petco; add(S.x0 - 4, S.z0 - 4, S.x1 + 4, S.z1 + 4); }
   const blocked = (x, z) => keepOut.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) || (city.pedBlocked && city.pedBlocked(x, z));
-  const cands = B.list.filter((b) => !b.gable && !b.landmark && (!b.noSigns || b.style === 'flat') && ['brick', 'concrete', 'office', 'stucco', 'flat'].includes(b.style)
+  const cands = B.list.filter((b) => !b.gable && !b.landmark && (!b.noSigns || b.style === 'flat') && ['brick', 'concrete', 'office', 'stucco', 'flat', 'cairo', 'cairobrick'].includes(b.style)
     && b.floors >= 3 && b.floors <= 16 && b.w >= 3.5 && b.d >= 3.5 && Math.abs(b.x) < city.half - 4 && Math.abs(b.z) < city.half - 4 && !blocked(b.x, b.z));
   const n = Math.min(LIMIT[mapName] ?? 3, Math.max(mapName === 'tropical' ? 1 : 3, Math.round(cands.length * 0.07)));
   // a site needs an open side (street or yard) for its scaffolding, gate and trucks

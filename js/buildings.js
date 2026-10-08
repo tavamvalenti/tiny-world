@@ -8,9 +8,9 @@ import { sfx } from './audio.js';
 // InstancedMesh; per-instance attributes drive a patched standard shader: which faces are exterior
 // (facade vs exposed interior slab), damage (broken glass, cracks), soot and heat glow.
 const HASH = 4;
-const HP = { nordic: 70, gothic: 150, brick: 100, office: 130, concrete: 150, stucco: 85, house: 60, flat: 90, boarded: 70, garage: 55, site: 80 };
+const HP = { cairo: 90, cairobrick: 80, islamic: 140, limestone: 220, nordic: 70, gothic: 150, brick: 100, office: 130, concrete: 150, stucco: 85, house: 60, flat: 90, boarded: 70, garage: 55, site: 80 };
 const ROOF = {
-  nordic: new THREE.Color(0.12, 0.12, 0.13), gothic: new THREE.Color(0.24, 0.26, 0.27), brick: new THREE.Color(0.16, 0.15, 0.14), office: new THREE.Color(0.22, 0.23, 0.24),
+  cairo: new THREE.Color(0.55, 0.5, 0.42), cairobrick: new THREE.Color(0.45, 0.42, 0.38), islamic: new THREE.Color(0.6, 0.54, 0.44), limestone: new THREE.Color(0.7, 0.6, 0.42), nordic: new THREE.Color(0.12, 0.12, 0.13), gothic: new THREE.Color(0.24, 0.26, 0.27), brick: new THREE.Color(0.16, 0.15, 0.14), office: new THREE.Color(0.22, 0.23, 0.24),
   concrete: new THREE.Color(0.2, 0.19, 0.18), stucco: new THREE.Color(0.5, 0.45, 0.38), house: new THREE.Color(0.15, 0.15, 0.15),
   flat: new THREE.Color(0.13, 0.12, 0.12), boarded: new THREE.Color(0.12, 0.11, 0.1), garage: new THREE.Color(0.2, 0.19, 0.18), site: new THREE.Color(0.42, 0.41, 0.39),
 };

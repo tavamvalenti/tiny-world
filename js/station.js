@@ -31,6 +31,7 @@ const LOCALE = {
   tropical: { name: 'POLICÍA · LA PLAYA', sub: 'ESTACIÓN DE POLICÍA', flag: 'mx' },
   vegas: { name: 'LAS VEGAS METRO POLICE', sub: 'STATION', flag: 'us' },
   london: { name: 'METROPOLITAN POLICE', sub: 'POLICE STATION', flag: 'uk' },
+  cairo: { name: 'قسم شرطة الجيزة', sub: 'وزارة الداخلية', flag: 'eg' },
 };
 
 export class Station {
@@ -46,11 +47,11 @@ export class Station {
       // city name, shrunk to fit the band
       const room = w - h * 1.25 - 12;
       let size = h * 0.46;
-      x.font = `800 ${size}px Inter, Arial, sans-serif`;
-      while (x.measureText(L.name).width > room && size > 12) { size -= 1; x.font = `800 ${size}px Inter, Arial, sans-serif`; }
+      x.font = `800 ${size}px Inter, Cairo, Arial, sans-serif`;
+      while (x.measureText(L.name).width > room && size > 12) { size -= 1; x.font = `800 ${size}px Inter, Cairo, Arial, sans-serif`; }
       x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.textAlign = 'left';
       x.fillText(L.name, h * 1.1, h * 0.44);
-      x.font = `600 ${h * 0.18}px Inter, Arial, sans-serif`; x.fillStyle = '#c9d4ea'; x.fillText(L.sub, h * 1.12, h * 0.8);
+      x.font = `600 ${h * 0.18}px Inter, Cairo, Arial, sans-serif`; x.fillStyle = '#c9d4ea'; x.fillText(L.sub, h * 1.12, h * 0.8);
     });
     const sm = new THREE.MeshStandardMaterial({ map: sign, emissiveMap: sign, emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 0.6 });
     const s = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(7, bw * 0.55), 1.3), sm); s.position.set(bx, 2.35, front + 0.02); scene.add(s);
@@ -59,7 +60,7 @@ export class Station {
     P.push(box(4.4, 0.12, 1.4, bx, 1.55, front + 0.7, 0xd8dbe0), box(0.12, 1.55, 0.12, bx - 2.1, 0.78, front + 1.35, 0x2f3338), box(0.12, 1.55, 0.12, bx + 2.1, 0.78, front + 1.35, 0x2f3338));
     P.push(box(3.2, 0.08, 0.5, bx, 0.04, front + 0.25, 0xbab6ae), box(3.2, 0.04, 0.4, bx, 0.1, front + 0.2, 0xc6c2ba));
     // flags: stars & stripes and a blue police flag
-    const national = L.flag === 'mx' ? this.mexico() : L.flag === 'uk' ? canvasTex(96, 54, (x, w, h) => {
+    const national = L.flag === 'eg' ? canvasTex(96, 54, (x, w, h) => { x.fillStyle = '#ce1126'; x.fillRect(0, 0, w, h / 3); x.fillStyle = '#fff'; x.fillRect(0, h / 3, w, h / 3); x.fillStyle = '#000'; x.fillRect(0, h * 2 / 3, w, h / 3); x.fillStyle = '#c09300'; x.beginPath(); x.ellipse(w / 2, h / 2, 5, 7, 0, 0, 6.283); x.fill(); }) : L.flag === 'mx' ? this.mexico() : L.flag === 'uk' ? canvasTex(96, 54, (x, w, h) => {
       x.fillStyle = '#012169'; x.fillRect(0, 0, w, h);
       x.strokeStyle = '#fff'; x.lineWidth = 10; x.beginPath(); x.moveTo(0, 0); x.lineTo(w, h); x.moveTo(w, 0); x.lineTo(0, h); x.stroke();
       x.strokeStyle = '#c8102e'; x.lineWidth = 3.5; x.beginPath(); x.moveTo(0, 0); x.lineTo(w, h); x.moveTo(w, 0); x.lineTo(0, h); x.stroke();

@@ -274,6 +274,49 @@ export function makeFacades() {
     c.fillStyle = '#f6f6f2'; c.fillRect(30, S + 52, 84, 204); c.fillStyle = '#5a3a2a'; c.fillRect(40, S + 62, 64, 194); mc.fillStyle = '#00ff00'; mc.fillRect(30, S + 52, 84, 204);
     win(54, S + 80, 36, 50, 10);
   });
+  // ---- Cairo ----
+  // plastered concrete apartment blocks: worn render, irregular shuttered windows, little balconies, AC boxes, stains
+  F.cairo = mk((c, win, mc) => {
+    c.fillStyle = '#ddd2bf'; c.fillRect(0, 0, S, S * 2);
+    for (let i = 0; i < 260; i++) { c.fillStyle = `rgba(${Math.random() < 0.5 ? '90,70,50' : '255,250,240'},${0.03 + Math.random() * 0.06})`; c.fillRect(Math.random() * S, Math.random() * S * 2, 4 + Math.random() * 30, 3 + Math.random() * 40); }
+    for (let k = 0; k < 6; k++) { const x = Math.random() * S; c.fillStyle = 'rgba(80,60,40,.08)'; c.fillRect(x, 0, 3 + Math.random() * 6, S * 2); }       // streaks down from the roof
+    const shutter = (x, y, w, h) => { c.fillStyle = Math.random() < 0.5 ? '#6b5a3a' : '#4a5a5a'; c.fillRect(x - 5, y, 5, h); c.fillRect(x + w, y, 5, h); };
+    const wins = [[30, 60, 70, 110], [150, 60, 70, 110]];
+    for (const [x, y, w, h] of wins) {
+      win(x, y, w, h, 25); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(x, y + h, w, 5);
+      if (Math.random() < 0.6) shutter(x, y, w, h);
+      if (Math.random() < 0.55) { c.fillStyle = '#b8ad99'; c.fillRect(x - 10, y + h - 6, w + 20, 10); c.fillStyle = '#3a3632'; for (let k = 0; k < 9; k++) c.fillRect(x - 8 + k * (w + 16) / 8, y + h - 34, 3, 30); c.fillRect(x - 10, y + h - 36, w + 20, 3); }
+    }
+    if (Math.random() < 0.7) { c.fillStyle = '#e8e6e2'; c.fillRect(110, 40, 30, 20); c.fillStyle = '#9a9a96'; c.fillRect(112, 44, 26, 2); }       // an AC unit
+    // street level: a shop with its roller shutter half up, or a plain door
+    c.fillStyle = '#c4b8a2'; c.fillRect(0, S, S, S);
+    win(16, S + 92, 224, 150, 30); c.fillStyle = '#5a5a5c'; c.fillRect(16, S + 70, 224, 30); for (let y = S + 70; y < S + 100; y += 5) { c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(16, y, 224, 1); }
+  });
+  // unfinished red-brick infill between grey concrete columns and slabs (the informal city)
+  F.cairobrick = mk((c, win, mc) => {
+    c.fillStyle = '#9a5a3c'; c.fillRect(0, 0, S, S * 2);
+    for (let y = 0; y < S * 2; y += 8) for (let x = (y / 8) % 2 ? -10 : 0; x < S; x += 20) { const v = 120 + Math.random() * 50; c.fillStyle = `rgb(${v + 30},${v * 0.6},${v * 0.42})`; c.fillRect(x + 1, y + 1, 18, 6); }
+    c.fillStyle = '#9c9890'; c.fillRect(0, 0, 14, S * 2); c.fillRect(S - 14, 0, 14, S * 2); c.fillRect(0, S - 18, S, 18); c.fillRect(0, S * 2 - 18, S, 18);
+    for (const x of [40, 150]) { win(x, 70, 66, 100, 30); if (Math.random() < 0.5) { c.fillStyle = '#d8d2c4'; c.fillRect(x - 4, 66, 74, 4); } }
+    c.fillStyle = '#8a8680'; c.fillRect(0, S + 30, S, 200);
+    win(30, S + 90, 196, 140, 30); c.fillStyle = '#4a4a4c'; c.fillRect(30, S + 60, 196, 30);
+  });
+  // Mamluk stone: alternating pale and dark courses (ablaq), tall recessed pointed windows, muqarnas band
+  F.islamic = mk((c, win, mc) => {
+    for (let y = 0; y < S * 2; y += 24) { c.fillStyle = (y / 24) % 2 ? '#d8c4a0' : '#e8dcc4'; c.fillRect(0, y, S, 24); }
+    for (let y = 0; y < S * 2; y += 6) { c.fillStyle = 'rgba(0,0,0,.04)'; c.fillRect(0, y, S, 1); }
+    const arch = (x, y, w, h) => { c.fillStyle = '#5a4630'; c.beginPath(); c.moveTo(x, y + h); c.lineTo(x, y + w * 0.5); c.quadraticCurveTo(x, y, x + w / 2, y - w * 0.2); c.quadraticCurveTo(x + w, y, x + w, y + w * 0.5); c.lineTo(x + w, y + h); c.fill(); win(x + 8, y + w * 0.4, w - 16, h - w * 0.4 - 6, 20); };
+    arch(40, 50, 60, 150); arch(156, 50, 60, 150);
+    c.fillStyle = '#c4ac80'; for (let x = 0; x < S; x += 16) c.fillRect(x, 226, 10, 18);
+    for (let y = S; y < S * 2; y += 24) { c.fillStyle = (y / 24) % 2 ? '#d0bc98' : '#e0d4bc'; c.fillRect(0, y, S, 24); }
+    arch(70, S + 60, 116, 190);
+  });
+  // limestone blocks: the pyramids, the Sphinx, mastabas; coursed, weathered, no windows
+  F.limestone = mk((c) => {
+    c.fillStyle = '#d6bf8c'; c.fillRect(0, 0, S, S * 2);
+    for (let y = 0; y < S * 2; y += 32) for (let x = (y / 32) % 2 ? -24 : 0; x < S; x += 48) { const v = 180 + Math.random() * 40; c.fillStyle = `rgb(${v + 20},${v},${v * 0.72})`; c.fillRect(x + 2, y + 2, 44, 28); c.fillStyle = 'rgba(80,60,30,.25)'; c.fillRect(x + 2, y + 28, 44, 3); }
+    for (let i = 0; i < 160; i++) { c.fillStyle = `rgba(90,70,40,${Math.random() * 0.12})`; c.fillRect(Math.random() * S, Math.random() * S * 2, 3 + Math.random() * 20, 2 + Math.random() * 10); }
+  });
   return F;
 }
 

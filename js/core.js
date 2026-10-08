@@ -54,4 +54,5 @@ export function blast(x, y, z, radius, power, kind = 'explosion') {
   G.news && G.news.onBlast(x, y, z, radius, power, kind);
   G.london && G.london.onBlast(x, y, z, radius, power, kind);
   G.greenland && G.greenland.onBlast(x, y, z, radius, power, kind);
+  G.cairo && G.cairo.onBlast(x, y, z, radius, power, kind);
 }

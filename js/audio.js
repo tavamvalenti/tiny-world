@@ -230,14 +230,14 @@ function buildVoices() {
 // Each file is a strip of short clips cut from a longer recording (silence-split, levelled, faded); CLIPS holds
 // [start, length] in seconds. They're used sparingly: a few voices at once at most, cooldowns between them, and
 // each kind drawn from a shuffled bag so the same clip doesn't come round again soon.
-const CLIPS = {"brit":[[0.1,0.662],[0.862,0.755],[1.716,0.875],[2.691,0.483],[3.274,0.598]],"scream":[[0.0,2.38],[2.5,1.36],[3.98,1.58],[5.68,1.26],[7.06,1.32],[8.5,1.68],[10.3,1.72],[12.14,1.16],[13.42,1.34],[14.88,3.0],[18.0,1.06],[19.18,1.26],[20.56,1.38],[22.06,2.22],[24.4001,1.94],[26.4601,1.8],[28.3801,1.56],[30.0601,0.98],[31.1601,1.74],[33.0201,2.84],[35.9801,1.36],[37.4601,1.12],[38.7001,1.54],[40.3602,1.58],[42.0602,1.56],[43.7402,1.0],[44.8602,1.38],[46.3602,0.96],[47.4402,1.12]],"yelp":[[48.6802,0.54],[49.3402,0.54],[50.0002,0.56],[50.6802,0.82],[51.6202,0.54],[52.2803,0.52],[52.9203,0.92],[53.9603,0.72],[54.8003,0.5],[55.4203,0.56],[56.1003,0.6],[56.8203,0.5],[57.4403,0.76],[58.3203,0.58]],"talk":[[0.0,1.1],[1.22,1.66],[3.0,1.52],[4.64,1.08],[5.84,4.48],[10.44,1.98],[12.54,1.76],[14.42,1.56],[16.1,1.78],[18.0,2.84],[20.9601,1.12],[22.2001,1.84],[24.1601,1.94],[26.2201,2.34],[28.6801,1.38],[30.1801,2.16],[32.4601,2.24],[34.8201,2.92],[37.8601,1.16],[39.1401,1.5],[40.7601,4.82],[45.7001,1.34],[47.16,1.26],[48.54,1.1],[49.76,1.54],[51.42,1.0],[52.54,1.64],[54.3,2.3],[56.72,1.18],[58.02,1.28],[59.42,1.68],[61.22,1.44],[62.78,1.8],[64.7,2.58],[67.4,1.24],[68.76,1.18],[70.0599,1.66],[71.8399,1.0],[72.9599,2.66],[75.7399,2.72],[78.5799,2.54],[81.2399,2.04],[83.3999,1.0],[84.5199,3.92],[88.5599,2.42],[91.0999,2.18],[93.3998,2.9],[96.4198,4.4],[100.9397,4.1]]};
-const REC = { buf: {}, bag: {}, playing: { scream: 0, yelp: 0, talk: 0 }, last: { scream: -9, yelp: -9, talk: -9 } };
-const REC_MAX = { scream: 2, yelp: 1, talk: 1 };            // at most this many of each sounding at once
-const REC_GAP = { scream: 0.4, yelp: 0.8, talk: 3 };         // and at least this long between starts
+const CLIPS = {"artalk":[[0.08, 0.618], [0.778, 0.685], [1.542, 0.675], [2.297, 0.499], [2.876, 0.698], [3.654, 0.777], [4.511, 0.406], [4.998, 0.415], [5.492, 0.931], [6.503, 1.196], [7.779, 0.635], [8.495, 0.6], [9.174, 0.729], [9.983, 0.679], [10.742, 0.73], [11.551, 1.063], [12.694, 0.896], [13.67, 0.923], [14.673, 0.964], [15.716, 0.921], [16.717, 0.812], [17.609, 1.033], [18.723, 0.979], [19.782, 0.735], [20.597, 0.761], [21.437, 0.846], [22.363, 0.312], [22.755, 0.334], [23.168, 0.349], [23.597, 0.75], [24.427, 0.913], [25.42, 0.539], [26.04, 0.412], [26.532, 0.399], [27.011, 0.884], [27.975, 0.834], [28.888, 0.912], [29.881, 0.889], [30.85, 0.366], [31.295, 0.398], [31.774, 0.386], [32.239, 0.37], [32.689, 0.601], [33.37, 0.446], [33.896, 0.52], [34.496, 0.734], [35.309, 0.715], [36.104, 0.744], [36.928, 0.916], [37.924, 0.312], [38.316, 0.28], [38.676, 0.255], [39.011, 0.33], [39.421, 0.573], [40.074, 0.493], [40.647, 0.329]],"arshout":[[0.08, 1.179], [1.339, 0.79], [2.208, 0.925], [3.213, 0.718], [4.011, 0.754], [4.845, 0.734], [5.659, 0.785], [6.525, 0.699], [7.303, 0.61], [7.994, 1.117], [9.191, 1.148], [10.419, 0.834], [11.332, 0.86], [12.273, 0.9], [13.253, 0.856], [14.189, 0.791], [15.06, 0.82], [15.96, 0.952], [16.992, 0.967], [18.039, 0.854], [18.973, 0.962], [20.015, 0.854], [20.949, 0.476], [21.505, 0.379], [21.964, 0.416], [22.46, 0.425], [22.965, 0.577], [23.622, 0.495], [24.197, 1.111], [25.388, 1.05], [26.518, 0.95], [27.548, 1.025], [28.653, 1.021], [29.754, 1.035], [30.869, 0.499], [31.449, 0.733], [32.262, 0.699]],"brit":[[0.1,0.662],[0.862,0.755],[1.716,0.875],[2.691,0.483],[3.274,0.598]],"scream":[[0.0,2.38],[2.5,1.36],[3.98,1.58],[5.68,1.26],[7.06,1.32],[8.5,1.68],[10.3,1.72],[12.14,1.16],[13.42,1.34],[14.88,3.0],[18.0,1.06],[19.18,1.26],[20.56,1.38],[22.06,2.22],[24.4001,1.94],[26.4601,1.8],[28.3801,1.56],[30.0601,0.98],[31.1601,1.74],[33.0201,2.84],[35.9801,1.36],[37.4601,1.12],[38.7001,1.54],[40.3602,1.58],[42.0602,1.56],[43.7402,1.0],[44.8602,1.38],[46.3602,0.96],[47.4402,1.12]],"yelp":[[48.6802,0.54],[49.3402,0.54],[50.0002,0.56],[50.6802,0.82],[51.6202,0.54],[52.2803,0.52],[52.9203,0.92],[53.9603,0.72],[54.8003,0.5],[55.4203,0.56],[56.1003,0.6],[56.8203,0.5],[57.4403,0.76],[58.3203,0.58]],"talk":[[0.0,1.1],[1.22,1.66],[3.0,1.52],[4.64,1.08],[5.84,4.48],[10.44,1.98],[12.54,1.76],[14.42,1.56],[16.1,1.78],[18.0,2.84],[20.9601,1.12],[22.2001,1.84],[24.1601,1.94],[26.2201,2.34],[28.6801,1.38],[30.1801,2.16],[32.4601,2.24],[34.8201,2.92],[37.8601,1.16],[39.1401,1.5],[40.7601,4.82],[45.7001,1.34],[47.16,1.26],[48.54,1.1],[49.76,1.54],[51.42,1.0],[52.54,1.64],[54.3,2.3],[56.72,1.18],[58.02,1.28],[59.42,1.68],[61.22,1.44],[62.78,1.8],[64.7,2.58],[67.4,1.24],[68.76,1.18],[70.0599,1.66],[71.8399,1.0],[72.9599,2.66],[75.7399,2.72],[78.5799,2.54],[81.2399,2.04],[83.3999,1.0],[84.5199,3.92],[88.5599,2.42],[91.0999,2.18],[93.3998,2.9],[96.4198,4.4],[100.9397,4.1]]};
+const REC = { buf: {}, bag: {}, playing: { scream: 0, yelp: 0, talk: 0, arshout: 0 }, last: { scream: -9, yelp: -9, talk: -9, arshout: -9 } };
+const REC_MAX = { scream: 2, yelp: 1, talk: 1, arshout: 2 };            // at most this many of each sounding at once
+const REC_GAP = { scream: 0.4, yelp: 0.8, talk: 3, arshout: 0.5 };         // and at least this long between starts
 function loadRecorded() {
   // decoded at 22 kHz mono (the clips' own rate) to keep memory small
   const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
-  for (const [key, url] of [['screams', 'assets/npc-screams.mp4'], ['talk', 'assets/npc-talk.mp4'], ['brit', 'assets/npc-brit.mp4']]) {
+  for (const [key, url] of [['screams', 'assets/npc-screams.mp4'], ['talk', 'assets/npc-talk.mp4'], ['brit', 'assets/npc-brit.mp4'], ['artalk', 'assets/npc-ar-talk.mp4'], ['arshout', 'assets/npc-ar-shout.mp4']]) {
     fetch(url).then((r) => r.arrayBuffer()).then((ab) => dec.decodeAudioData(ab)).then((b) => { REC.buf[key] = b; }).catch((e) => console.warn('npc voices unavailable', url, e));
   }
 }
@@ -253,12 +253,14 @@ function recClip(kind) {
 // play one recorded clip at a spot in the world; returns false if it's too busy (the caller just stays quiet)
 function recorded(kind, x, z, vol = 1) {
   // in London most of what you overhear is British (the recorded lines), mixed with the usual chatter
+  // London: mostly British voices; Cairo: mostly Arabic (calm in conversation, shouted when something happens)
   const brit = kind === 'talk' && G.mapName === 'london' && REC.buf.brit && Math.random() < 0.65;
-  const buf = brit ? REC.buf.brit : REC.buf[kind === 'talk' ? 'talk' : 'screams'];
+  const ar = kind === 'talk' && G.mapName === 'cairo' && REC.buf.artalk && Math.random() < 0.85;
+  const buf = kind === 'arshout' ? REC.buf.arshout : ar ? REC.buf.artalk : brit ? REC.buf.brit : REC.buf[kind === 'talk' ? 'talk' : 'screams'];
   if (!buf || A.muted) return false;
   const t = now();
   if (REC.playing[kind] >= REC_MAX[kind] || t - REC.last[kind] < REC_GAP[kind]) return false;
-  const [start, len] = recClip(brit ? 'brit' : kind);
+  const [start, len] = recClip(ar ? 'artalk' : brit ? 'brit' : kind);
   REC.playing[kind]++; REC.last[kind] = t;
   const ch = chain(x, z, { vol, bus: voiceBus });
   const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = R(0.96, 1.04);
@@ -281,7 +283,7 @@ const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fi
   anthem: 'assets/anthem.mp4' };
 // where each take sits inside its (trimmed, compressed) file: [offset, duration] in seconds, grouped by kind
 const SL = {"bell":{"bell":[[0.1,2.6]]},"dog":{"bark":[[0.1,0.58],[0.8,0.6]]},"gull":{"call":[[0.1,0.6],[0.82,0.75],[1.69,0.35],[2.16,0.37],[2.65,0.65],[3.42,0.9],[4.44,0.7]],"flock":[[5.26,2.05],[7.43,2.0],[9.55,2.2],[11.87,2.1]]},"whistle":{"fall":[[0.1,3.95]]},"collapse":{"collapse":[[0.1,5.5],[5.72,5.5],[11.34,5.5],[16.96,5.5],[22.58,5.5]]},"boom":{"boom":[[0.1,4.4],[4.62,4.9]]},"pyro":{"burst":[[0.1,2.9]]},"glass":{"break":[[0.1,0.75],[0.97,0.92],[2.01,0.9],[3.03,1.03],[4.18,0.97],[5.27,0.9],[6.29,0.9],[7.31,0.77],[8.2,1.0],[9.32,0.87]]},"dunk":{"dunk":[[0.1,0.95],[1.17,0.95],[2.24,1.15]],"bounce":[[3.51,0.32],[3.95,0.27],[4.34,0.32],[4.78,0.24],[5.14,0.28],[5.54,0.25]]},"net":{"swish":[[0.1,0.55],[0.77,0.77],[1.66,0.47],[2.25,0.53],[2.9,0.5],[3.52,0.66],[4.3,0.63],[5.05,0.65],[5.82,0.85],[6.79,0.43]]},"horn":{"honk":[[0.1,0.85],[1.07,0.62],[1.81,0.53],[2.46,0.88],[3.46,1.06],[4.64,0.85],[5.61,1.03]],"long":[[6.76,4.11]]},"thunder":{"roll":[[0.1,12.5]]}};
-const SMP = {};
+const SMP = {}, EXTRA = {};
 function loadSamples() {
   const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
   for (const [k, url] of Object.entries(SFX_FILES)) fetch(url).then((r) => r.arrayBuffer()).then((ab) => dec.decodeAudioData(ab)).then((b) => {
@@ -641,11 +643,12 @@ export const sfx = {
     if (!init()) return;
     // a panicked crowd: one or two real screams carry it (the limiter drops the rest), not a wall of them
     if (REC.buf.screams) n = Math.min(n, Math.random() < 0.25 ? 1 : 2);
+    if (G.mapName === 'cairo' && REC.buf.arshout) { recorded('arshout', x + R(-4, 4), z + R(-4, 4), 0.6); if (Math.random() < 0.6) setTimeout(() => recorded('arshout', x + R(-6, 6), z + R(-6, 6), 0.5), R(500, 1400)); n = Math.max(0, n - 1); }
     for (let i = 0; i < n; i++) setTimeout(() => voice('scream', x + R(-6, 6), z + R(-6, 6), R(0.25, 0.5)), R(80, 900));
   },
   // a cruise ship's horn: two long low notes across the water
   // someone knocked flying lets out a short cry (now and then)
-  yelp(x, z) { if (init() && Math.random() < 0.55) recorded('yelp', x, z, 0.55); },
+  yelp(x, z) { if (init() && Math.random() < 0.55) recorded(G.mapName === 'cairo' && REC.buf.arshout && Math.random() < 0.6 ? 'arshout' : 'yelp', x, z, 0.55); },
   // a line of real conversation from someone nearby; false if another is already playing
   line(x, z, vol = 0.5) { return init() ? recorded('talk', x, z, vol) : false; },
   chatter(x, z, vol = 0.25) { if (init()) voice(Math.random() < 0.12 ? 'laugh' : 'talk', x, z, vol); },
@@ -768,6 +771,12 @@ export const sfx = {
   mowerLoop(x, z) { return init() ? loopOf('mower', x, z) : null; },
   // any loaded recording as a held loop, or played once, at a place
   loop(name, x, z) { return init() ? loopOf(name, x, z) : null; },
+  // a map's own long recordings, fetched only when that map is open (the adhan, the bazaar, the river...)
+  loadExtra(name, url) {
+    if (SMP[name] || EXTRA[name] || !init()) return;
+    EXTRA[name] = fetch(url).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)).then((b) => { SMP[name] = b; }).catch((e) => console.warn('sound unavailable', url, e));
+  },
+  has(name) { return !!SMP[name]; },
   once(name, x, z, vol = 1, rate = 1) { return init() ? !!sample(name, x, z, { vol, rate, bus: ambBus, fade: 0.01 }) : false; },
   // a dunk: the ball slammed through the rim (recorded)
   dunk(x, z) { if (init() && !slice('dunk', 'dunk', x, z, { vol: 0.75 })) { sfx.rim(x, z); sfx.swish(x, z); } },

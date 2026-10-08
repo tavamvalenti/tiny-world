@@ -9,6 +9,7 @@ export const SCHEMA = [
   { id: 'ambience', label: 'City ambience', type: 'range', min: 0, max: 100, def: 35, unit: '%' },
   { id: 'music', label: 'Concert music', type: 'range', min: 0, max: 100, def: 60, unit: '%', hint: 'Summer Smash in Chicago' },
   { id: 'voices', label: 'Crowd voices', type: 'range', min: 0, max: 100, def: 15, unit: '%' },
+  { id: 'rickTalk', label: 'Rick & Morty dialogue', type: 'toggle', def: true, hint: 'Off: Rick and Morty stay quiet in the ship' },
   { section: 'Controls' },
   { id: 'moveSpeed', label: 'Camera move speed', type: 'range', min: 25, max: 250, def: 100, unit: '%' },
   { id: 'zoomSpeed', label: 'Zoom sensitivity', type: 'range', min: 25, max: 250, def: 100, unit: '%' },

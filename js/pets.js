@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { G, rand, pick } from './core.js';
 import { sfx } from './audio.js';
 
-const DOGS = { suburbs: 7, tropical: 6, downtown: 0, vegas: 6, greenland: 5 };
+const DOGS = { suburbs: 7, tropical: 6, downtown: 0, vegas: 6, greenland: 5, cairo: 6 };
 const COATS = [0x6b4a2e, 0x2a2420, 0xd8c7a6, 0xa86a32, 0xf2efe8, 0x8a8178, 0x3d2a1e];
 const WALKING = new Set(['walk', 'wander', 'wait', 'idle', 'return']);
 const UP = new THREE.Vector3(0, 1, 0);

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600">
+<rect width="900" height="200" fill="#ce1126"/><rect y="200" width="900" height="200" fill="#fff"/><rect y="400" width="900" height="200" fill="#000"/>
+<g fill="#c09300" stroke="#c09300" stroke-linejoin="round">
+<!-- wings: gold feathers fanning down either side -->
+<path d="M418 268 L388 262 L380 360 L420 368 Z" stroke-width="2"/>
+<path d="M482 268 L512 262 L520 360 L480 368 Z" stroke-width="2"/>
+<g stroke="#fff" stroke-width="3" fill="none"><path d="M392 272 V356 M400 270 V360 M408 270 V362 M492 270 V362 M500 270 V360 M508 272 V356"/></g>
+<!-- body and neck -->
+<path d="M430 262 Q450 250 470 262 L466 360 L450 372 L434 360 Z" stroke-width="2"/>
+<path d="M442 262 Q440 240 450 232 Q462 236 460 262 Z" stroke-width="2"/>
+<!-- head looking left, hooked beak -->
+<path d="M444 236 Q446 222 458 222 Q466 226 464 238 L456 240 Z" stroke-width="2"/>
+<path d="M446 226 L434 230 L440 236 L446 234 Z" stroke-width="2"/>
+<circle cx="452" cy="229" r="2" fill="#fff" stroke="none"/>
+<!-- shield -->
+<path d="M434 280 H466 V318 Q466 336 450 344 Q434 336 434 318 Z" fill="#fff" stroke-width="4"/>
+<path d="M434 280 H466 V290 H434 Z" stroke-width="1"/>
+<path d="M446 290 V340 M454 290 V340" stroke-width="5"/>
+<!-- legs and the cartouche scroll -->
+<path d="M438 360 L428 378 M462 360 L472 378" stroke-width="5" fill="none"/>
+<path d="M412 376 Q450 392 488 376 L492 392 Q450 408 408 392 Z" stroke-width="2"/>
+<path d="M418 384 Q450 396 482 384" stroke="#fff" stroke-width="2" fill="none"/>
+</g>
+</svg>

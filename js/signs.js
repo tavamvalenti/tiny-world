@@ -28,6 +28,12 @@ const NAMES = {
     ['THE GEORGE', '#1a1a2a', '#e8d38a'], ['BARCLAYS', '#00aeef', '#ffffff'], ['GREGGS', '#00488d', '#fbb800'], ['THE KINGS ARMS', '#3a1f10', '#f0c674'],
     ['CHICKEN & CHIPS', '#c8102e', '#ffe14a'], ['BOOKIES', '#0e3a1e', '#f2d24a'], ['KEBAB', '#b3120f', '#ffe08a'], ['OFF LICENCE', '#123a1e', '#f5e7b8'],
   ],
+  cairo: [
+    ['سوبر ماركت الخير', '#1f6b3a', '#ffffff'], ['صيدلية الشفاء', '#ffffff', '#1e8a3a'], ['كشري التحرير', '#b3120f', '#ffe08a'], ['حلويات السلطان', '#5a1a3a', '#f5e7b8'],
+    ['موبايلات الأمل', '#0e2b4a', '#5ce1e6'], ['فول وطعمية', '#e8b020', '#3a1a0a'], ['مخبز الحرية', '#6b3a1f', '#f4d29c'], ['عصير قصب', '#2a6a2a', '#f2f2ee'],
+    ['ملابس الهدى', '#2a1a4a', '#f2d27a'], ['أدوات منزلية', '#3a3f46', '#f2c230'], ['محل ذهب', '#141414', '#e8c46a'], ['مكتبة النور', '#20304a', '#f1ede4'],
+    ['مطعم أبو علي', '#8a1a1a', '#ffffff'], ['كوافير', '#f7e6ee', '#8a2455'], ['قهوة البلد', '#2a1a0a', '#e8c070'], ['ورشة سيارات', '#1a1a1a', '#f2a21a'],
+  ],
   greenland: [
     ['PILERSUISOQ', '#c8102e', '#ffffff'], ['BRUGSEN', '#1f3f8a', '#ffffff'], ['KIOSK', '#f2c230', '#1a1a1a'], ['CAFE', '#2a1a10', '#f2d27a'],
     ['FISH & HALIBUT', '#0e3d6b', '#ffffff'], ['POST', '#d8222a', '#ffffff'], ['HOTEL SISIMIUT', '#14243a', '#e8d38a'], ['BAKERY', '#5a3a1a', '#f5e7b8'],
@@ -43,6 +49,8 @@ const NAMES = {
 };
 // rooftop and bus-shelter ads: the shared set, and each city's own
 const ADS_BY_MAP = {
+  cairo: [['شاي النيل', 'طعم الأصالة', '#1f6b3a', '#f5e7b8'], ['اتصالات بلا حدود', 'باقات جديدة كل يوم', '#0e2b4a', '#5ce1e6'], ['سمن البلد', 'من خير مصر', '#e8b020', '#3a1a0a'], ['أفلام العيد', 'في جميع السينمات', '#1a0a2a', '#ffd34a'],
+    ['بنك المستقبل', 'معاك في كل خطوة', '#123a6a', '#ffffff'], ['مياه الواحة', 'نقية ومنعشة', '#2a8ad8', '#ffffff'], ['حلاوة المولد', 'أحلى أيام', '#c8361f', '#fff4d6'], ['شقق للبيع', 'أقساط حتى ١٠ سنوات', '#f2f2ee', '#c8361f']],
   greenland: [['ARCTIC AIR', 'Fly to Nuuk daily', '#c8102e', '#ffffff'], ['HALIBUT CO.', 'Fresh from the bay', '#0e3d6b', '#ffffff'], ['POLAR FM', 'Radio for the north', '#111111', '#7cf0ff'], ['SNOWMOBILE HIRE', 'By the hour', '#f2c230', '#1a1a1a'],
     ['NORTHERN LIGHTS', 'Tours tonight 22:00', '#0a1a2a', '#7aff9a'], ['KAFFEMIK', 'Coffee & cake', '#5a3a1a', '#f5e7b8'], ['QAJAQ CLUB', 'Paddle with us', '#e86a1a', '#ffffff'], ['ICEFJORD CRUISES', 'Book at the harbour', '#1f63b8', '#ffffff']],
   vegas: [['LOOSEST SLOTS', 'On the Strip', '#1a0030', '#ff3bd4'], ['MAGIC OF MARCO', 'Nightly 7 & 9:30', '#120a2a', '#ffd34a'], ['CALL BIG TONY', 'Hurt? 702-555-0142', '#0d1b3d', '#ffd200'], ['BUFFET OF THE GODS', 'All you can eat', '#fffbe6', '#7a2a00'],
@@ -68,8 +76,8 @@ function signAtlas(list) {
     x.fillStyle = bg; x.fillRect(cx, cy, 256, 64);
     x.strokeStyle = fg; x.globalAlpha = 0.5; x.lineWidth = 3; x.strokeRect(cx + 5, cy + 5, 246, 54); x.globalAlpha = 1;
     x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle';
-    let size = 34; x.font = `800 ${size}px Inter, Helvetica, Arial, sans-serif`;
-    while (x.measureText(name).width > 226 && size > 12) { size -= 2; x.font = `800 ${size}px Inter, Helvetica, Arial, sans-serif`; }
+    let size = 34; x.font = `800 ${size}px Inter, Cairo, Helvetica, Arial, sans-serif`;
+    while (x.measureText(name).width > 226 && size > 12) { size -= 2; x.font = `800 ${size}px Inter, Cairo, Helvetica, Arial, sans-serif`; }
     x.fillText(name, cx + 128, cy + 34);
   });
   // row 4+: ads, 512x128 each
@@ -79,8 +87,8 @@ function signAtlas(list) {
     g.addColorStop(0, bg); g.addColorStop(1, shade(bg, -30));
     x.fillStyle = g; x.fillRect(cx, cy, 512, 128);
     x.fillStyle = fg; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
-    x.font = '900 52px Inter, Helvetica, Arial, sans-serif'; x.fillText(t1, cx + 26, cy + 70);
-    x.font = '500 24px Inter, Helvetica, Arial, sans-serif'; x.globalAlpha = 0.85; x.fillText(t2, cx + 28, cy + 104); x.globalAlpha = 1;
+    x.font = '900 52px Inter, Cairo, Helvetica, Arial, sans-serif'; if (/[\u0600-\u06ff]/.test(t1)) { x.textAlign = 'right'; x.fillText(t1, cx + 486, cy + 70); } else x.fillText(t1, cx + 26, cy + 70);
+    x.font = '600 24px Inter, Cairo, Helvetica, Arial, sans-serif'; x.globalAlpha = 0.85; if (/[\u0600-\u06ff]/.test(t2)) x.fillText(t2, cx + 484, cy + 104); else x.fillText(t2, cx + 28, cy + 104); x.globalAlpha = 1; x.textAlign = 'left';
     x.beginPath(); x.arc(cx + 452, cy + 64, 36, 0, 6.283); x.fillStyle = shade(fg, 0); x.globalAlpha = 0.25; x.fill(); x.globalAlpha = 1;
   });
   // landmark + directional sign strips (row at y=768, 1024x64 each)
@@ -125,7 +133,7 @@ export class Signs {
     this.city = city;
     const list = NAMES[mapName];
     ADS = ADS_BY_MAP[mapName] || ADS_DEFAULT;
-    STRIP3 = { greenland: '←  HARBOUR        TOWN CENTRE  ↑        AIRPORT  →', vegas: '←  FLAMINGO RD        THE STRIP  ↑        I-15  →', london: '←  WESTMINSTER        THE CITY  ↑        A4  →' }[mapName] || STRIP3_DEFAULT;
+    STRIP3 = { cairo: '←  الجيزة        وسط البلد  ↑        الأزهر  →', greenland: '←  HARBOUR        TOWN CENTRE  ↑        AIRPORT  →', vegas: '←  FLAMINGO RD        THE STRIP  ↑        I-15  →', london: '←  WESTMINSTER        THE CITY  ↑        A4  →' }[mapName] || STRIP3_DEFAULT;
     const tex = signAtlas(list);
     const shop = atlasMesh(tex, 700), post = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.5 }), 900);
     post.count = 0; post.castShadow = true;

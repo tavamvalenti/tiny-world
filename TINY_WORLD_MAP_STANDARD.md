@@ -289,3 +289,8 @@ Every new map must be added to all of these:
 - Faint effects can vanish against snow or light ground. Test them visibly.
 - Check that no other city's ads, signs, road signs or landmark signs show up. `js/signs.js` falls back to San Diego defaults.
 - Testing: the browser pane throttles `requestAnimationFrame` when hidden. Drive frames with `G.step(dt)`, and measure cost with `gl.finish()` rather than the on-screen FPS counter.
+- Two buildings overlapping on the ground flicker between their colours (z-fighting). Every filler building must claim its footprint and refuse to overlap another; packing the same block twice is the usual cause. Check by testing every pair of building footprints for overlap after load.
+- `pyramidTris` (mapkit) winds its faces inward, so the casing is invisible from outside. Flip the winding (`[a, c, b]`), and run a stepped pyramid's casing over the outer edge of every step, or the steps poke through.
+- Paint on the ground canvas is hidden under any terrain mesh. Roads and car parks on raised ground need their own surface mesh that follows the terrain.
+- Every landmark and set piece belongs inside the explorable map. Put it in place of filler blocks rather than out past the map edge.
+- Boats on a river with bridges: give each direction its own half of the river, slow boats that close on the one ahead, and make sure every boat fits under every bridge (deeper water, higher decks, or masts and sails lowered as they approach).

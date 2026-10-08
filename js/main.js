@@ -39,10 +39,12 @@ import { Chains } from './chains.js';
 import { vegas, Vegas } from './vegas.js';
 import { london, London } from './london.js';
 import { greenland, Greenland, terrainH as glTerrainH } from './greenland.js';
-MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland;
+import { cairo, Cairo, terrainH as caTerrainH } from './cairo.js';
+if (document.fonts && document.fonts.load) for (const f of ['700 40px Cairo', '900 40px Cairo', '700 40px "Reem Kufi"']) document.fonts.load(f, 'القاهرة').catch(() => {});
+MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland; MAPS.cairo = cairo;
 
 const TOUCH = document.documentElement.classList.contains('touch');   // phones and tablets (set in index.html)
-export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON', greenland: 'SISIMIUT' };
+export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON', greenland: 'SISIMIUT', cairo: 'CAIRO' };
 
 const $ = (s) => document.querySelector(s);
 const canvasEl = $('#game');
@@ -152,7 +154,7 @@ function load(name) {
   scene.environment = makeEnv();
   const facades = makeFacades();
   const B = new Buildings(facades);
-  G.terrainH = name === 'tropical' ? terrainH : name === 'greenland' ? glTerrainH : null;       // La Playa's hills, Sisimiut's rock
+  G.terrainH = name === 'tropical' ? terrainH : name === 'greenland' ? glTerrainH : name === 'cairo' ? caTerrainH : null;       // La Playa's hills, Sisimiut's rock
   G.rayExtra = null;                                       // a map can add its own things to aim at (Greenland's icebergs)
   const map = MAPS[name](B);
   const sites = pickSites(B, map.city, name);             // a few buildings are still going up
@@ -180,7 +182,8 @@ function load(name) {
   G.chains = map.city.chains ? new Chains(scene, map.city) : null;           // In-N-Out (Gaslamp), Raising Cane's (Chicago)
   G.vegas = map.city.vegas ? new Vegas(scene, map.city) : null;              // the Strip's landmarks, fountains, Sphere, mountains
   G.london = map.city.london ? new London(scene, map.city) : null;           // the Thames, the landmarks, the city around them
-  G.greenland = map.city.gl ? new Greenland(scene, map.city) : null;        // Sisimiut: the rock, the sea and its ice, the boats, the pitch
+  G.greenland = map.city.gl ? new Greenland(scene, map.city) : null;
+  G.cairo = map.city.cai ? new Cairo(scene, map.city) : null;             // Cairo: the Nile, the pyramids, the bazaar, mosques, feluccas        // Sisimiut: the rock, the sea and its ice, the boats, the pitch
   if (!map.ownBackdrop) buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
@@ -368,6 +371,7 @@ function step(dt) {
   G.vegas && G.vegas.update(dt);
   G.london && G.london.update(dt);
   G.greenland && G.greenland.update(dt);
+  G.cairo && G.cairo.update(dt);
   G.construction && G.construction.update(dt);
   G.world.update(dt);
   G.director && G.director.update(dt);

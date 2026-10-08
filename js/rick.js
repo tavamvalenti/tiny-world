@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { G, clamp, rand, blast } from './core.js';
 import { sfx } from './audio.js';
+import { settings } from './settings.js';
 import { RickShipModel, CartoonCharacter } from './rickship.js';
 
 const S = 0.42;                          // Cosmic Solitude metres -> Tiny World units
@@ -256,7 +257,7 @@ class Chatter {
     }).catch(() => undefined);
   }
   react(tag) {
-    if (!this.active || this.speaking > 0 || this.followUp) return;
+    if (!this.active || this.speaking > 0 || this.followUp || settings.rickTalk === false) return;
     const r = REACT[tag];
     if (!r || (this.cooldowns.get(tag) || 0) > 0 || this.sinceLine < (tag === 'crash' ? 6 : 14) || Math.random() > r.p) return;
     const i = this.pick((l) => l.tags.includes(tag));
@@ -270,10 +271,10 @@ class Chatter {
     if (this.speaking > 0) { this.speaking -= dt; if (this.speaking <= 0) this.caption.classList.remove('show'); return; }
     if (this.followUp) {
       this.followUp.delay -= dt;
-      if (this.followUp.delay <= 0) { const f = this.followUp; this.followUp = null; if (active) this.say(f.index, false); }
+      if (this.followUp.delay <= 0) { const f = this.followUp; this.followUp = null; if (active && settings.rickTalk !== false) this.say(f.index, false); }
       return;
     }
-    if (!active || !this.lines.length) return;
+    if (!active || !this.lines.length || settings.rickTalk === false) return;
     // busy pilots hear a lot more from the crew; idle ones get near-silence
     this.timer -= dt * (0.08 + 1.7 * Math.pow(clamp(activity, 0, 1), 1.2));
     if (this.timer > 0) return;

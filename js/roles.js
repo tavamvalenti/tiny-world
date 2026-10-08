@@ -20,6 +20,8 @@ export const ROLE = {
   GUARD: 'GUARD', ROADMAN: 'ROADMAN', METPOL: 'METPOL',
   // Greenland: fishermen in oilskins with rods, everyone else in a beanie
   FISHER: 'FISHER', WINTER: 'WINTER',
+  // Cairo: women in abayas or modern clothes with a hijab, men in galabeyas (with a shemagh, a white cap or a turban) or modern clothes
+  ABAYA: 'ABAYA', HIJABI: 'HIJABI', GALABEYA: 'GALABEYA',
 };
 const R = ROLE;
 const HIVIS = [0xf26a1a, 0xd8f23a];
@@ -44,6 +46,9 @@ const LOOK = {
   [R.GUARD]: { shirt: [0xc0141c], pants: [0x0d0d10], hat: 'bearskin', tool: 'rifle', belt: 1 },
   [R.ROADMAN]: { hat: 'hood', mask: 1 },
   [R.METPOL]: { hat: 'bobby' },
+  [R.ABAYA]: { shirt: [0x0e0e10, 0x0e0e10, 0x111418, 0x1a2a5a, 0x2a2a6a, 0x3a2a1a, 0x5a1a2a, 0x2a4a3a, 0x4a2a5a, 0x3a3a42, 0x8a2a3a, 0x2a6a8a], same: 1, robe: 1, hat: 'hijab', hatSame: 1 },
+  [R.HIJABI]: { hat: 'hijab', hatC: [0x0e0e10, 0xe8e0d0, 0xd8a8b8, 0x2a3a6a, 0xc8b48a, 0x8a2a4a, 0x3a6a5a, 0xe8c8a0, 0x6a4a8a, 0xf2f2ee, 0xc86a5a] },
+  [R.GALABEYA]: { shirt: [0xf2f0ea, 0xf2f0ea, 0xe8e2d4, 0xd8d0c0, 0xc8c4bc, 0xb8c8d8, 0x8a7a62, 0x6a5a4a, 0x5a6a7a, 0xe0d4b8], same: 1, robe: 1 },
   [R.FISHER]: { hat: 'beanie', hatC: [0x1c1d22, 0xc8102e, 0x1f3f8a, 0xe8601a], tool: 'rod' },
   [R.WINTER]: { hat: 'beanie', hatC: [0x1c1d22, 0xc8102e, 0x1f3f8a, 0xe8e4dc, 0x2a5a3a, 0xf2c21a, 0x6a3a8a], keep: 1 },
 };
@@ -79,14 +84,20 @@ function geos() {
     rifle: mergeGeometries([bx(0.02, 0.44, 0.028, 0, -0.08, 0.035), bx(0.008, 0.11, 0.008, 0, 0.19, 0.035), bx(0.02, 0.06, 0.04, 0, -0.27, 0.03)]),
     knife: mergeGeometries([bx(0.012, 0.035, 0.016, 0, -0.255, 0.02), bx(0.005, 0.085, 0.014, 0, -0.32, 0.02)]),
     beanie: mergeGeometries([new THREE.SphereGeometry(0.056, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.55).scale(1, 1.15, 1).translate(0, 0.634, -0.003), new THREE.CylinderGeometry(0.058, 0.058, 0.022, 12).translate(0, 0.638, -0.003), new THREE.SphereGeometry(0.018, 6, 4).translate(0, 0.705, -0.003)]),
+    robe: new THREE.CylinderGeometry(0.074, 0.1, 0.36, 10, 1, true).scale(1, 1, 0.78).translate(0, 0.2, 0),
+    hijab: mergeGeometries([new THREE.SphereGeometry(0.057, 12, 8, Math.PI / 2 + 0.7, Math.PI * 2 - 1.4, 0, Math.PI * 0.78).translate(0, 0.628, -0.003), new THREE.CylinderGeometry(0.046, 0.085, 0.12, 12, 1, true).scale(1, 1, 0.8).translate(0, 0.545, -0.004)]),
+    shemagh: mergeGeometries([new THREE.SphereGeometry(0.058, 12, 8, Math.PI / 2 + 0.7, Math.PI * 2 - 1.4, 0, Math.PI * 0.66).translate(0, 0.632, -0.004), new THREE.BoxGeometry(0.11, 0.15, 0.015).translate(0, 0.56, -0.05), new THREE.BoxGeometry(0.03, 0.12, 0.012).rotateZ(0.2).translate(0.055, 0.56, 0.02), new THREE.BoxGeometry(0.03, 0.12, 0.012).rotateZ(-0.2).translate(-0.055, 0.56, 0.02)]),
+    agal: new THREE.TorusGeometry(0.05, 0.007, 4, 14).rotateX(Math.PI / 2).translate(0, 0.668, -0.004),
+    taqiyah: new THREE.SphereGeometry(0.053, 12, 5, 0, Math.PI * 2, 0, Math.PI * 0.32).translate(0, 0.638, -0.002),
+    turban: mergeGeometries([new THREE.TorusGeometry(0.046, 0.016, 6, 14).rotateX(Math.PI / 2).translate(0, 0.66, -0.003), new THREE.SphereGeometry(0.044, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2).translate(0, 0.665, -0.003)]),
     rod: mergeGeometries([new THREE.CylinderGeometry(0.004, 0.007, 0.9, 4).rotateX(1.1).translate(0, -0.08, 0.38), bx(0.025, 0.03, 0.03, 0, -0.25, 0.03)]),
     speaker: mergeGeometries([bx(0.15, 0.075, 0.075, 0, -0.31, 0.02), bx(0.01, 0.05, 0.01, -0.05, -0.26, 0.02), bx(0.01, 0.05, 0.01, 0.05, -0.26, 0.02), bx(0.11, 0.01, 0.01, 0, -0.235, 0.02)]),
   };
 }
-const PARTS = ['hard', 'cap', 'sun', 'vest', 'stripe', 'badge', 'lanyard', 'pack', 'bag', 'box', 'hammer', 'broom', 'radio', 'camera', 'clipboard', 'bearskin', 'bobby', 'hood', 'mask', 'belt', 'rifle', 'knife', 'speaker', 'beanie', 'rod'];
+const PARTS = ['hard', 'cap', 'sun', 'vest', 'stripe', 'badge', 'lanyard', 'pack', 'bag', 'box', 'hammer', 'broom', 'radio', 'camera', 'clipboard', 'bearskin', 'bobby', 'hood', 'mask', 'belt', 'rifle', 'knife', 'speaker', 'beanie', 'rod', 'robe', 'hijab', 'shemagh', 'agal', 'taqiyah', 'turban'];
 const TOOLS = new Set(['hammer', 'broom', 'radio', 'camera', 'clipboard', 'rifle', 'knife', 'speaker', 'rod']);
-const TINTED = new Set(['hard', 'cap', 'sun', 'vest', 'pack', 'bag', 'beanie']);
-const SLOTS = 340;
+const TINTED = new Set(['hard', 'cap', 'sun', 'vest', 'pack', 'bag', 'beanie', 'robe', 'hijab', 'turban', 'taqiyah']);
+let SLOTS = 340;
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const _v = new THREE.Vector3(), _m = new THREE.Matrix4();
 
@@ -103,13 +114,15 @@ export class Roles {
     this.city = city; this.map = mapName; this.sites = sites;
     this.A = G.agents; this.B = G.buildings;
     this.staff = []; this.slots = []; this.free = [];
+    SLOTS = mapName === 'cairo' ? 1150 : 340;                 // Cairo dresses nearly everyone (hijabs, galabeyas, shemaghs)
     this.far = 90; this.drawFar = 115;          // distance LOD (shrinks if the frame rate drops)
     this.fpsAvg = 60; this.lowT = 0;
     const g = geos(), mats = {};
     this.mesh = {};
     for (const k of PARTS) {
       const mat = k === 'stripe' ? new THREE.MeshBasicMaterial({ color: 0xd8dde2 }) : k === 'badge' ? new THREE.MeshStandardMaterial({ color: 0xd9b44a, metalness: 0.8, roughness: 0.3 })
-        : TINTED.has(k) ? new THREE.MeshLambertMaterial() : new THREE.MeshLambertMaterial({ color: { box: 0xb08a5a, hammer: 0x6b4a2a, broom: 0x8a6a3a, radio: 0x111111, camera: 0x1c1c1c, clipboard: 0xd8d2c4, lanyard: 0x1f55d6, bearskin: 0x0b0b0c, bobby: 0x10162a, hood: 0x0e0e10, mask: 0x0a0a0b, belt: 0xf2f2f0, rifle: 0x1c1c1e, knife: 0xd8dce0, speaker: 0x18181a, rod: 0x2a2a2a }[k] });
+        : TINTED.has(k) ? new THREE.MeshLambertMaterial() : new THREE.MeshLambertMaterial({ color: { box: 0xb08a5a, hammer: 0x6b4a2a, broom: 0x8a6a3a, radio: 0x111111, camera: 0x1c1c1c, clipboard: 0xd8d2c4, lanyard: 0x1f55d6, bearskin: 0x0b0b0c, bobby: 0x10162a, hood: 0x0e0e10, mask: 0x0a0a0b, belt: 0xf2f2f0, rifle: 0x1c1c1e, knife: 0xd8dce0, speaker: 0x18181a, rod: 0x2a2a2a, agal: 0x111111 }[k] });
+      if (k === 'shemagh') { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#f4f2ee'; x.fillRect(0, 0, 64, 64); x.fillStyle = '#c8102e'; for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) if ((i + j) % 2 === 0) x.fillRect(i * 8 + 2, j * 8 + 2, 4, 4); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 4); t.colorSpace = THREE.SRGBColorSpace; mat.map = t; mat.color = new THREE.Color(0xffffff); }
       const m = new THREE.InstancedMesh(g[k], mat, SLOTS);
       for (let i = 0; i < SLOTS; i++) m.setMatrixAt(i, ZERO);
       if (TINTED.has(k)) for (let i = 0; i < SLOTS; i++) m.setColorAt(i, new THREE.Color(1, 1, 1));
@@ -117,6 +130,7 @@ export class Roles {
       scene.add(m); this.mesh[k] = m; mats[k] = mat;
     }
     for (let i = SLOTS - 1; i >= 0; i--) this.free.push(i);
+    this.hi = {};                              // per part: the highest slot ever drawn (instances past it are skipped)
     this.props = [];                           // static dressing: vendor carts, lifeguard towers, maintenance cones
     this.deliveryT = rand(6, 14);
     this.staffMap(scene);
@@ -134,13 +148,16 @@ export class Roles {
   look(p, role, opts = {}) {
     const A = this.A, L = { ...LOOK[role], ...(opts.look || {}) }, i = p.i;
     p.role = role;
-    if (L.shirt) { const s = pick(L.shirt); this.col(A.pTorso, i, s); this.col(A.pArmL, i, s); this.col(A.pArmR, i, s); }
+    let shirtC = null;
+    if (L.shirt) { const s = pick(L.shirt); shirtC = s; this.col(A.pTorso, i, s); this.col(A.pArmL, i, s); this.col(A.pArmR, i, s); if (L.same) { this.col(A.pLegL, i, s); this.col(A.pLegR, i, s); } }
     if (L.pants) { const c = pick(L.pants); this.col(A.pLegL, i, c); this.col(A.pLegR, i, c); }
     for (const m of A.pMeshes) if (m.instanceColor) m.instanceColor.needsUpdate = true;
     if (p.slot == null) { if (!this.free.length) return; p.slot = this.free.pop(); this.slots[p.slot] = p; }
     const k = p.slot;
-    p.acc = { hat: L.hat || null, vest: !!L.vest, stripe: !!L.stripe, badge: !!L.badge, lanyard: !!L.lanyard, pack: !!L.pack, bag: !!L.bag, tool: L.tool || null, mask: !!L.mask, belt: !!L.belt };
+    p.acc = { hat: L.hat || null, vest: !!L.vest, stripe: !!L.stripe, badge: !!L.badge, lanyard: !!L.lanyard, pack: !!L.pack, bag: !!L.bag, tool: L.tool || null, mask: !!L.mask, belt: !!L.belt, robe: !!L.robe, agal: false };
     if (L.hat && L.hatC) this.col(this.mesh[L.hat], k, pick(L.hatC));
+    if (L.hat && L.hatSame && shirtC != null) this.col(this.mesh[L.hat], k, Math.random() < 0.7 ? shirtC : pick([0x0e0e10, 0xe8e0d0, 0x2a3a6a, 0xd8a8b8]));
+    if (L.robe && shirtC != null) this.col(this.mesh.robe, k, shirtC);
     if (L.vest) this.col(this.mesh.vest, k, pick(L.vest));
     if (L.pack) this.col(this.mesh.pack, k, pick(L.pack));
     if (L.bag) this.col(this.mesh.bag, k, pick(L.bag));
@@ -374,6 +391,7 @@ export class Roles {
     if (M === 'suburbs') this.staffChicago(P);
     if (M === 'tropical') this.staffPlaya(P);
     if (M === 'london') this.staffLondon(P);
+    if (M === 'cairo') this.staffCairo(P);
     if (M === 'greenland') for (const p of this.A.peds) { if (p.fisher) this.look(p, R.FISHER); else if (!p.role && !p.officer && Math.random() < 0.65) this.look(p, R.WINTER); }
   }
   // London: street vendors by the sights (roasted nuts, flags, ice cream, hot dogs, books), market stalls in Borough
@@ -390,6 +408,27 @@ export class Roles {
       else if (p.roadman) { this.look(p, R.ROADMAN); if (p.speakerHold) p.acc.tool = 'speaker'; }
     }
     this.tourists(14, { x: -60, z: 0 }, 40); this.tourists(8, { x: 40, z: -60 }, 30);
+  }
+  // Cairo: about a third of the people are women (in abayas, or modern clothes with a hijab), about a third men in
+  // galabeyas (some with a red-and-white shemagh and its black agal, a white cap or a turban), the rest in modern
+  // clothes; a few are children. Vendors at their stalls in the bazaar, tourists at the pyramids.
+  staffCairo(P) {
+    const C = this.city.cai;
+    for (const s of C.stalls || []) this.stall(P, s);
+    for (const p of this.A.peds) {
+      if (p.officer || p.role) continue;
+      const r = Math.random();
+      if (p.tourist) { this.look(p, R.TOURIST); continue; }
+      if (r < 0.2) this.look(p, R.ABAYA);
+      else if (r < 0.36) this.look(p, R.HIJABI);
+      else if (r < 0.66) {
+        this.look(p, R.GALABEYA);
+        const h = Math.random(), a = p.acc; if (!a) continue;
+        if (h < 0.3) { a.hat = 'shemagh'; a.agal = Math.random() < 0.7; } else if (h < 0.55) { a.hat = 'taqiyah'; this.col(this.mesh.taqiyah, p.slot, 0xf4f2ee); } else if (h < 0.68) { a.hat = 'turban'; this.col(this.mesh.turban, p.slot, pick([0xf4f2ee, 0xe8e2d4, 0x8a8a8a])); }
+      }
+      if (Math.random() < 0.07) p.s = rand(0.58, 0.7);                 // children
+    }
+    for (const m of Object.values(this.mesh)) if (m.instanceColor) m.instanceColor.needsUpdate = true;
   }
   // a market stall: a trestle under a striped canopy, produce or clothes on it, a stallholder behind
   stall(P, q) {
@@ -749,6 +788,8 @@ export class Roles {
     const M = this.mesh;
     if (!m || Math.hypot(p.pos.x - G.camTarget.x, p.pos.z - G.camTarget.z) > this.drawFar) { if (!p.accHidden) { this.clearSlot(k); p.accHidden = true; } return; }
     p.accHidden = false;
+    const H = this.hi, use = (n) => { if (n && !(H[n] >= k)) H[n] = k; };
+    use(a.hat); use(a.vest && 'vest'); use(a.stripe && 'stripe'); use(a.badge && 'badge'); use(a.lanyard && 'lanyard'); use(a.pack && 'pack'); use(a.mask && 'mask'); use(a.belt && 'belt'); use(a.robe && 'robe'); use(a.agal && 'agal'); use(a.bag && 'bag'); use(p.carry && 'box'); use(a.tool);
     const head = !(p.lost && p.lost.head);
     if (a.hat) M[a.hat].setMatrixAt(k, head ? m : ZERO);
     if (a.vest) M.vest.setMatrixAt(k, m);
@@ -758,13 +799,15 @@ export class Roles {
     if (a.pack) M.pack.setMatrixAt(k, m);
     if (a.mask) M.mask.setMatrixAt(k, head ? m : ZERO);
     if (a.belt) M.belt.setMatrixAt(k, m);
+    if (a.robe) M.robe.setMatrixAt(k, m);
+    if (a.agal) M.agal.setMatrixAt(k, head ? m : ZERO);
     if (a.bag) M.bag.setMatrixAt(k, p.carry ? ZERO : m);
     M.box.setMatrixAt(k, p.carry ? m : ZERO);
     if (a.shown && a.shown !== a.tool) M[a.shown].setMatrixAt(k, ZERO);
     a.shown = a.tool;
     if (a.tool) M[a.tool].setMatrixAt(k, p.carry || (p.lost && p.lost.armR) ? ZERO : arm);
   }
-  flush() { for (const m of Object.values(this.mesh)) m.instanceMatrix.needsUpdate = true; }
+  flush() { for (const [n, m] of Object.entries(this.mesh)) { m.count = (this.hi[n] ?? -1) + 1; m.instanceMatrix.needsUpdate = true; } }
 
   update(dt) {
     // performance guard: if frames get slow, pull the detail distances in; ease them back out when it recovers

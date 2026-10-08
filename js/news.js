@@ -14,7 +14,7 @@ const TAGS = {
   LOCAL: ['#f4c20d', '#10183a'], FESTIVAL: ['#8a2be2', '#fff'], SPORTS: ['#1f9d55', '#fff'], URGENT: ['#c3001a', '#fff'],
 };
 const ES_TAG = { BREAKING: 'ÚLTIMA HORA', 'TRAFFIC ALERT': 'ALERTA VIAL', WEATHER: 'CLIMA', UPDATE: 'ACTUALIZACIÓN', LOCAL: 'LOCAL', FESTIVAL: 'FESTIVAL', SPORTS: 'DEPORTES', URGENT: 'URGENTE' };
-const CHANNEL = { greenland: ['SISIMIUT', 'LIVE', 'KNR NEWS'], vegas: ['LAS VEGAS', 'LIVE', 'CHANNEL 8 NEWS'], london: ['LONDON', 'LIVE', 'LONDON NEWS 24'], downtown: ['SAN DIEGO', 'LIVE', 'CHANNEL 7 NEWS'], suburbs: ['CHICAGO', 'LIVE', 'CHANNEL 7 NEWS'], tropical: ['LA PLAYA', 'EN VIVO', 'NOTICIAS 7'] };
+const CHANNEL = { cairo: ['CAIRO', 'LIVE', 'NILE NEWS'], greenland: ['SISIMIUT', 'LIVE', 'KNR NEWS'], vegas: ['LAS VEGAS', 'LIVE', 'CHANNEL 8 NEWS'], london: ['LONDON', 'LIVE', 'LONDON NEWS 24'], downtown: ['SAN DIEGO', 'LIVE', 'CHANNEL 7 NEWS'], suburbs: ['CHICAGO', 'LIVE', 'CHANNEL 7 NEWS'], tropical: ['LA PLAYA', 'EN VIVO', 'NOTICIAS 7'] };
 
 // headline templates, English and Spanish ({w} = where)
 const T_EN = {
@@ -75,7 +75,7 @@ const R_ES = {
 };
 const W_EN = { rain: 'Rain moving into {c}', storm: 'Storm approaching {c}; lightning possible', snow: 'Snow falling across {c}; roads slick', clear: 'Skies clearing over {c}' };
 const W_ES = { rain: 'Lluvias llegan a La Playa', storm: 'Tormenta se acerca a La Playa; posibles rayos', clear: 'Cielos despejados en La Playa' };
-const CITY = { greenland: 'Sisimiut', downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London' };
+const CITY = { cairo: 'Cairo', greenland: 'Sisimiut', downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London' };
 
 // ---------- casualties: reported as they happen, in an urgent tone that grows with the toll ----------
 // {n} dead, {i} injured, {w} where, {N} the city's running toll
@@ -131,6 +131,7 @@ const STREETS = {
   downtown: { x: ['Kettner Boulevard', 'India Street', 'Columbia Street', 'Union Street', 'Front Street', 'Fourth Avenue', 'Fifth Avenue'], z: ['Ash Street', 'A Street', 'B Street', 'C Street', 'Broadway', 'Market Street', 'Harbor Drive'] },
   suburbs: { x: ['Wentworth Avenue', 'State Street', 'Michigan Avenue', 'King Drive', 'Cottage Grove Avenue'], z: ['Pershing Road', '43rd Street', '47th Street', '51st Street', 'Garfield Boulevard'] },
   vegas: { x: ['Frank Sinatra Drive', 'Las Vegas Boulevard', 'Koval Lane', 'Paradise Road'], z: ['Desert Inn Road', 'Sands Avenue', 'Flamingo Road', 'Harmon Avenue', 'Tropicana Avenue', 'Mandalay Bay Road', 'Russell Road'] },
+  cairo: { x: ['Faisal Street', 'Pyramids Road', 'Murad Street', 'the Giza Corniche', 'Corniche el-Nil', 'Talaat Harb', 'Mohamed Farid', 'Port Said Street', 'Al-Muizz Street', 'Salah Salem', 'Al-Azhar Street', 'Mohammed Ali Street'], z: ['Ramses Street', '26th of July', 'Al-Galaa', 'Abdel Khalek Tharwat', 'Qasr al-Nil', 'Tahrir Street', 'Al-Azhar Street', 'Sheikh Rihan', 'Qasr al-Aini', 'Al-Saliba', 'Sayeda Zeinab', 'Magra al-Oyoun'] },
   greenland: { x: ['Aqqusinersuaq', 'Kaalikassaap Aqq.', 'Paamaap Aqq.', 'Nikkorsuit'], z: ['Umiarsualiviup Aqq.', 'Ilulissani', 'Sanaartornermik', 'Tjalfesvej'] },
   london: { x: ['Park Lane', 'Grosvenor Place', 'Whitehall', 'Kingsway', 'Farringdon Road', 'Bishopsgate', 'Tower Hill'], z: ['Oxford Street', 'Holborn', 'The Strand', 'Victoria Embankment', 'Southwark Street', 'Borough Road'] },
   tropical: { x: ['Calle Hidalgo', 'Calle Morelos', 'Calle Juárez', 'Calle Zaragoza', 'Calle Allende', 'Calle Guerrero'], z: ['Paseo del Malecón', 'Avenida México', 'Calle Insurgentes', 'Calle Independencia'] },
