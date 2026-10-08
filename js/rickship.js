@@ -486,12 +486,12 @@ export class CartoonCharacter extends FigureRig {
     this.kind = kind;
     this.figureScale = kind === 'morty' ? 0.84 : 1;
     this.root.scale.setScalar(this.figureScale);
-    if (kind === 'rick') this.buildRick(); else this.buildMorty();
-    this.head.scale.setScalar(kind === 'rick' ? 1.38 : 1.3);
+    if (kind === 'rick') this.buildRick(); else if (kind === 'dad') this.buildDad(); else if (kind === 'guy') this.buildGuy(); else this.buildMorty();
+    this.head.scale.setScalar({ rick: 1.38, morty: 1.3, dad: 1.22, guy: 1.15 }[kind] ?? 1.3);
     const parts = [];
     this.root.traverse((o) => { if (o.isMesh && !o.userData.noOutline) parts.push(o); });
     for (const m of parts) { const o = new THREE.Mesh(m.geometry, outlineMat); o.userData.noOutline = true; o.castShadow = false; m.add(o); }
-    this.root.name = kind === 'rick' ? 'Rick' : 'Morty';
+    this.root.name = { rick: 'Rick', morty: 'Morty', dad: 'Dad', guy: 'Pilot' }[kind] || kind;
   }
   toon(color) { return new THREE.MeshToonMaterial({ color, gradientMap: ramp() }); }
   add(parent, geo, mat, x = 0, y = 0, z = 0, outline = true) {
@@ -599,6 +599,82 @@ export class CartoonCharacter extends FigureRig {
       this.add(limb.upper, cap(0.07, 0.32), jeans, 0, -0.21, 0);
       this.add(limb.mid, cap(0.062, 0.3), jeans, 0, -0.18, 0);
       this.add(limb.end, new RoundedBoxGeometry(0.13, 0.08, 0.24, 3, 0.04), shoe, 0, -0.045, -0.05);
+    }
+  }
+
+  // the paraglider pilot (from the user's reference): a tall, square-jawed dad in a plain white T-shirt tucked into
+  // blue jeans with a brown belt, a belly over the belt, square black glasses, a short brown flat-top, brown shoes
+  buildDad() {
+    const tee = this.toon(0xf4f4f2), jeans = this.toon(0x5a86c0), skin = this.toon(0xf0b98a), hairMat = this.toon(0x8a5a2e), shoe = this.toon(0x9a4f22), belt = this.toon(0x7a5232), frame = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    const cap = (r, l) => new THREE.CapsuleGeometry(r, l, 6, 14);
+    this.add(this.pelvis, new RoundedBoxGeometry(0.3, 0.2, 0.2, 3, 0.07), jeans, 0, -0.03, 0);
+    this.add(this.pelvis, new THREE.CylinderGeometry(0.155, 0.155, 0.04, 20), belt, 0, 0.07, 0);
+    this.add(this.pelvis, new RoundedBoxGeometry(0.05, 0.035, 0.02, 2, 0.006), this.toon(0xb0b0b0), 0, 0.07, -0.158);
+    this.add(this.spine, cap(0.15, 0.06), tee, 0, 0.03, 0).scale.set(1.15, 1, 1.0);
+    this.add(this.spine, new THREE.SphereGeometry(0.15, 18, 12), tee, 0, -0.02, -0.06).scale.set(1.05, 0.9, 0.95);          // the belly
+    this.add(this.chest, new RoundedBoxGeometry(0.36, 0.4, 0.22, 3, 0.08), tee, 0, 0.0, 0);
+    for (const sd of [-1, 1]) this.add(this.chest, new THREE.SphereGeometry(0.075, 14, 10), tee, sd * 0.18, 0.15, 0).scale.set(1, 0.8, 1.1);
+    this.add(this.neck, new THREE.CylinderGeometry(0.045, 0.05, 0.2, 12), skin, 0, 0.04, 0);
+    const headMesh = this.add(this.head, new RoundedBoxGeometry(0.2, 0.27, 0.2, 4, 0.08), skin, 0, 0.13, -0.01);
+    headMesh.scale.set(1, 1, 1);
+    this.add(this.head, new RoundedBoxGeometry(0.17, 0.06, 0.16, 3, 0.03), skin, 0, 0.0, -0.03);                                // the jaw
+    for (const sd of [-1, 1]) {
+      this.add(this.head, new THREE.SphereGeometry(0.018, 10, 8), new THREE.MeshBasicMaterial({ color: 0x1a1a1a }), sd * 0.045, 0.15, -0.112, false);
+      this.add(this.head, new RoundedBoxGeometry(0.075, 0.055, 0.012, 1, 0.006), frame, sd * 0.047, 0.15, -0.118, false);           // square lenses
+      this.add(this.head, new RoundedBoxGeometry(0.06, 0.04, 0.006, 1, 0.004), new THREE.MeshBasicMaterial({ color: 0xd8e2e8 }), sd * 0.047, 0.15, -0.126, false);
+      this.add(this.head, new THREE.SphereGeometry(0.03, 10, 8), skin, sd * 0.105, 0.13, 0.0).scale.set(0.5, 1, 0.8);
+    }
+    this.add(this.head, new RoundedBoxGeometry(0.03, 0.012, 0.012, 1, 0.004), frame, 0, 0.155, -0.12, false);
+    const nose = this.add(this.head, new THREE.CapsuleGeometry(0.018, 0.04, 4, 8), skin, 0, 0.1, -0.125); nose.rotation.x = 0.4;
+    this.add(this.head, new RoundedBoxGeometry(0.06, 0.01, 0.012, 1, 0.004), new THREE.MeshBasicMaterial({ color: 0x5a3020 }), 0, 0.045, -0.112, false);
+    this.add(this.head, new RoundedBoxGeometry(0.205, 0.08, 0.2, 3, 0.02), hairMat, 0, 0.29, 0.0);                             // the flat-top
+    this.add(this.head, new RoundedBoxGeometry(0.21, 0.12, 0.08, 3, 0.03), hairMat, 0, 0.22, 0.07);
+    for (const [limb, side] of [[this.armL, -1], [this.armR, 1]]) {
+      this.add(limb.upper, cap(0.07, 0.06), tee, 0, -0.06, 0);
+      this.add(limb.upper, cap(0.045, 0.2), skin, 0, -0.16, 0);
+      this.add(limb.mid, cap(0.042, 0.2), skin, 0, -0.13, 0);
+      this.hand(limb.end, skin, side, 1.15);
+    }
+    for (const limb of [this.legL, this.legR]) {
+      this.add(limb.upper, cap(0.068, 0.34), jeans, 0, -0.21, 0);
+      this.add(limb.mid, cap(0.06, 0.3), jeans, 0, -0.18, 0);
+      this.add(limb.end, new RoundedBoxGeometry(0.13, 0.09, 0.26, 3, 0.04), shoe, 0, -0.045, -0.05);
+    }
+  }
+  // the jetpack pilot (from the user's reference): a regular guy in a grey polo shirt with a collar, worn dark jeans,
+  // white sneakers, short dark hair and stubble
+  buildGuy() {
+    const polo = this.toon(0x6e7073), jeans = this.toon(0x2a2c30), skin = this.toon(0xe8b48c), hairMat = this.toon(0x2a1e18), shoe = this.toon(0xf2f2f0), sole = this.toon(0x1a1a1a), stub = this.toon(0x9a7a62);
+    const cap = (r, l) => new THREE.CapsuleGeometry(r, l, 6, 14);
+    this.add(this.pelvis, new RoundedBoxGeometry(0.29, 0.2, 0.19, 3, 0.07), jeans, 0, -0.03, 0);
+    this.add(this.spine, cap(0.13, 0.08), polo, 0, 0.03, 0).scale.set(1.15, 1, 0.85);
+    this.add(this.chest, new RoundedBoxGeometry(0.36, 0.4, 0.2, 3, 0.08), polo, 0, 0.0, 0);
+    for (const sd of [-1, 1]) {
+      this.add(this.chest, new THREE.SphereGeometry(0.075, 14, 10), polo, sd * 0.18, 0.15, 0).scale.set(1, 0.8, 1.1);
+      const col = this.add(this.chest, new RoundedBoxGeometry(0.09, 0.03, 0.06, 2, 0.01), polo, sd * 0.05, 0.2, -0.08); col.rotation.z = sd * 0.5;   // the collar
+    }
+    this.add(this.chest, new RoundedBoxGeometry(0.03, 0.1, 0.01, 1, 0.004), this.toon(0x5a5c60), 0, 0.12, -0.103);
+    this.add(this.neck, new THREE.CylinderGeometry(0.045, 0.05, 0.14, 12), skin, 0, 0.02, 0);
+    const headMesh = this.add(this.head, new THREE.SphereGeometry(0.12, 28, 20), skin, 0, 0.12, -0.01); headMesh.scale.set(0.95, 1.18, 1.0);
+    this.add(this.head, new THREE.SphereGeometry(0.105, 20, 14, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45), stub, 0, 0.1, -0.012).scale.set(0.98, 1.1, 1.02);   // stubble
+    this.face(this.head, { eyeR: 0.026, eyeX: 0.045, eyeY: 0.15, eyeZ: -0.1, skin });
+    const brow = this.add(this.head, new RoundedBoxGeometry(0.15, 0.018, 0.02, 1, 0.006), hairMat, 0, 0.185, -0.105, false); brow.rotation.x = 0.1;
+    const nose = this.add(this.head, new THREE.CapsuleGeometry(0.018, 0.035, 4, 8), skin, 0, 0.12, -0.12); nose.rotation.x = 0.5;
+    this.add(this.head, new RoundedBoxGeometry(0.05, 0.01, 0.012, 1, 0.004), new THREE.MeshBasicMaterial({ color: 0x5a3020 }), 0, 0.06, -0.112, false);
+    for (const sd of [-1, 1]) this.add(this.head, new THREE.SphereGeometry(0.03, 10, 8), skin, sd * 0.115, 0.12, 0.0).scale.set(0.5, 1, 0.8);
+    const hair = this.add(this.head, new THREE.SphereGeometry(0.126, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.42), hairMat, 0, 0.14, 0.01); hair.scale.set(1, 1.15, 1.04); hair.rotation.x = -0.25;
+    this.add(this.head, new RoundedBoxGeometry(0.16, 0.05, 0.08, 2, 0.02), hairMat, 0, 0.24, -0.05);
+    for (const [limb, side] of [[this.armL, -1], [this.armR, 1]]) {
+      this.add(limb.upper, cap(0.065, 0.07), polo, 0, -0.06, 0);
+      this.add(limb.upper, cap(0.042, 0.2), skin, 0, -0.16, 0);
+      this.add(limb.mid, cap(0.04, 0.2), skin, 0, -0.13, 0);
+      this.hand(limb.end, skin, side, 1.12);
+    }
+    for (const limb of [this.legL, this.legR]) {
+      this.add(limb.upper, cap(0.062, 0.34), jeans, 0, -0.21, 0);
+      this.add(limb.mid, cap(0.056, 0.3), jeans, 0, -0.18, 0);
+      this.add(limb.end, new RoundedBoxGeometry(0.12, 0.08, 0.25, 3, 0.04), shoe, 0, -0.04, -0.05);
+      this.add(limb.end, new RoundedBoxGeometry(0.125, 0.025, 0.26, 2, 0.01), sole, 0, -0.085, -0.05);
     }
   }
 }

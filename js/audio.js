@@ -440,6 +440,8 @@ function stopWind() {
 
 // ---------- public API ----------
 export const sfx = {
+  // for sounds made elsewhere (the vehicles' engines): the context, the effects bus, and whether the game is muted
+  get ctx() { return ctx; }, get bus() { return sfxBus; }, get muted() { return A.muted; },
   unlock() { if (init()) { if (ctx.state === 'suspended') ctx.resume(); loadShot(); } },
   get ready() { return !!ctx; },
   setVolumes(v) {

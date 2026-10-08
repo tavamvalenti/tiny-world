@@ -928,7 +928,7 @@ export class Cairo {
         P.push(tint(new THREE.CylinderGeometry(0.1, 0.17, 0.95, 8).translate(hx, 0.48, hz), robe), tint(new THREE.BoxGeometry(0.22, 0.3, 0.14).translate(hx, 1.08, hz), robe), tint(new THREE.SphereGeometry(0.075, 8, 6).translate(hx, 1.3, hz), 0xb07850), tint(new THREE.CylinderGeometry(0.09, 0.085, 0.09, 8).translate(hx, 1.38, hz), 0xf2efe6),
           seg(V(hx + 0.12, 1.15, hz), V(hx + 0.16, 0.9, hz - 0.12), 0.025, 0.022, robe), seg(V(hx + 0.16, 0.9, hz - 0.12), V(0, 1.5, 1.15), 0.008, 0.008, 0x2aa04a));
       }
-      return mergeGeometries(P);
+      return mergeGeometries(P).scale(0.56, 0.56, 0.56);              // to the people's scale (a person here is about 0.8 tall)
     };
     const routes = [[[-122, -140], [-122, 140]], [[-95, -140], [-95, 30]], [[66, -86], [66, -38]], [[116, -60], [116, 64]], [[-122, -86], [-95, -86]], [[44, 64], [142, 64]]];
     const mk = (geo, n) => { const m = new THREE.InstancedMesh(geo, this.mat, n); m.castShadow = true; m.frustumCulled = false; this.scene.add(m); return m; };

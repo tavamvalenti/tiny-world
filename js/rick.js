@@ -474,6 +474,7 @@ export class RickMode {
 
   enter() {
     if (!G.buildings) return;
+    if (G.veh && G.veh.active) G.veh.exit();                    // one thing flying at a time
     sfx.unlock(); this.audio.init();
     this.build();
     this.radio.load(); this.chatter.load();
