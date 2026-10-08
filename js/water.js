@@ -16,6 +16,7 @@ export function gatherWakes() {
   for (const b of (G.city && G.city.boats) || []) if (b.alive !== false) out.push([b.x, b.z, Math.sin(b.rot) * b.speed, Math.cos(b.rot) * b.speed]);
   for (const b of (G.harbor && G.harbor.boats) || []) out.push([b.x, b.z, Math.cos(b.a) * b.sp, Math.sin(b.a) * b.sp]);
   for (const b of (G.playa && G.playa.boats) || []) out.push([b.x, b.z, Math.sin(b.h) * 0.4, Math.cos(b.h) * 0.4]);
+  for (const b of (G.greenland && G.greenland.wakeList) || []) out.push([b.x, b.z, b.vx, b.vz]);
   for (const g of (G.vegas && G.vegas.gondolas) || []) { const d = g.t < 0.5 ? 1 : -1; out.push([g.m.position.x, g.m.position.z, 0, d * 0.9]); }
   const T = G.camTarget || { x: 0, z: 0 };
   out.sort((a, b) => Math.hypot(a[0] - T.x, a[1] - T.z) - Math.hypot(b[0] - T.x, b[1] - T.z));

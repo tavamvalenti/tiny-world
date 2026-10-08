@@ -28,6 +28,12 @@ const NAMES = {
     ['THE GEORGE', '#1a1a2a', '#e8d38a'], ['BARCLAYS', '#00aeef', '#ffffff'], ['GREGGS', '#00488d', '#fbb800'], ['THE KINGS ARMS', '#3a1f10', '#f0c674'],
     ['CHICKEN & CHIPS', '#c8102e', '#ffe14a'], ['BOOKIES', '#0e3a1e', '#f2d24a'], ['KEBAB', '#b3120f', '#ffe08a'], ['OFF LICENCE', '#123a1e', '#f5e7b8'],
   ],
+  greenland: [
+    ['PILERSUISOQ', '#c8102e', '#ffffff'], ['BRUGSEN', '#1f3f8a', '#ffffff'], ['KIOSK', '#f2c230', '#1a1a1a'], ['CAFE', '#2a1a10', '#f2d27a'],
+    ['FISH & HALIBUT', '#0e3d6b', '#ffffff'], ['POST', '#d8222a', '#ffffff'], ['HOTEL SISIMIUT', '#14243a', '#e8d38a'], ['BAKERY', '#5a3a1a', '#f5e7b8'],
+    ['SPORT & OUTDOOR', '#2a6a3a', '#ffffff'], ['PHARMACY', '#ffffff', '#1e8a3a'], ['HARDWARE', '#3a3f46', '#f2c230'], ['PIZZA', '#b3120f', '#ffe08a'],
+    ['BANK', '#0e2b4a', '#ffffff'], ['BOOKS', '#20304a', '#f1ede4'], ['KAYAK CLUB', '#e86a1a', '#ffffff'], ['GALLERY', '#f2f2ee', '#c8102e'],
+  ],
   suburbs: [
     ['SOUTH SIDE SAVINGS', '#12324f', '#e9dcb8'], ['QUIKMART', '#c8102e', '#ffffff'], ['FUELCO', '#f5c400', '#b3120f'], ['MAPLE DENTAL', '#ffffff', '#2c6b4f'],
     ['PIZZA PALACE', '#b3120f', '#fff1c1'], ['HAIR BY ANNA', '#f7e6ee', '#8a2455'], ['PRESTO CLEANERS', '#1d4e89', '#ffffff'], ['PET WORLD', '#f28c28', '#ffffff'],
@@ -37,6 +43,8 @@ const NAMES = {
 };
 // rooftop and bus-shelter ads: the shared set, and each city's own
 const ADS_BY_MAP = {
+  greenland: [['ARCTIC AIR', 'Fly to Nuuk daily', '#c8102e', '#ffffff'], ['HALIBUT CO.', 'Fresh from the bay', '#0e3d6b', '#ffffff'], ['POLAR FM', 'Radio for the north', '#111111', '#7cf0ff'], ['SNOWMOBILE HIRE', 'By the hour', '#f2c230', '#1a1a1a'],
+    ['NORTHERN LIGHTS', 'Tours tonight 22:00', '#0a1a2a', '#7aff9a'], ['KAFFEMIK', 'Coffee & cake', '#5a3a1a', '#f5e7b8'], ['QAJAQ CLUB', 'Paddle with us', '#e86a1a', '#ffffff'], ['ICEFJORD CRUISES', 'Book at the harbour', '#1f63b8', '#ffffff']],
   vegas: [['LOOSEST SLOTS', 'On the Strip', '#1a0030', '#ff3bd4'], ['MAGIC OF MARCO', 'Nightly 7 & 9:30', '#120a2a', '#ffd34a'], ['CALL BIG TONY', 'Hurt? 702-555-0142', '#0d1b3d', '#ffd200'], ['BUFFET OF THE GODS', 'All you can eat', '#fffbe6', '#7a2a00'],
     ['GOLDEN OAK', 'Kentucky whiskey', '#0a0a0a', '#e8c46a'], ['CIRQUE AURORA', 'An aerial spectacle', '#03121f', '#9fe8ff'], ['ELVIS WEDDINGS', '24/7 drive-thru', '#fbe9f2', '#c2185b'], ['WE BUY GOLD', 'Cash on the spot', '#0b2a14', '#ffd84a']],
   london: [['THE TIMES', 'Read all about it', '#f4f4f0', '#111111'], ['OYSTER CARD', 'Touch in, touch out', '#0019a8', '#ffffff'], ['WEST END TONIGHT', 'Theatre tickets', '#2a0a3a', '#ffe680'], ['EARL GREY TEA', 'Proper tea.', '#123a1e', '#f5e7b8'],
@@ -117,7 +125,7 @@ export class Signs {
     this.city = city;
     const list = NAMES[mapName];
     ADS = ADS_BY_MAP[mapName] || ADS_DEFAULT;
-    STRIP3 = { vegas: '←  FLAMINGO RD        THE STRIP  ↑        I-15  →', london: '←  WESTMINSTER        THE CITY  ↑        A4  →' }[mapName] || STRIP3_DEFAULT;
+    STRIP3 = { greenland: '←  HARBOUR        TOWN CENTRE  ↑        AIRPORT  →', vegas: '←  FLAMINGO RD        THE STRIP  ↑        I-15  →', london: '←  WESTMINSTER        THE CITY  ↑        A4  →' }[mapName] || STRIP3_DEFAULT;
     const tex = signAtlas(list);
     const shop = atlasMesh(tex, 700), post = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.5 }), 900);
     post.count = 0; post.castShadow = true;
@@ -197,7 +205,7 @@ export class Signs {
     }
 
     // ---- bus shelters + transit signs (with people waiting) ----
-    const shelters = mapName === 'suburbs' ? 3 : 10;
+    const shelters = mapName === 'suburbs' ? 3 : mapName === 'greenland' ? 0 : 10;
     const blocks = city.blocks.filter((b) => !b.closed).sort(() => Math.random() - 0.5);
     for (let i = 0; i < Math.min(shelters, blocks.length); i++) {
       const bl = blocks[i];

@@ -23,6 +23,7 @@ const LOOKS = {
   homeless: [[0x5a4a3a, 0x3a3a3a, 0x6a5a4a, 0x4a4038, 0x2f3a2a], 'torso', [0x3a3428, 0x2a2a2a, 0x4a4a52], [0x3a2a1a, 0x6a6a6a, 0x2a2018]],
   performer: [[0xff2a6a, 0x2ad4ff, 0xffd200, 0x8a2aff, 0x2aff8a, 0xff7a00], 'torso', [0x111111, 0xf2f2ee, 0x2a2a6a], [0x1a1410, 0xffd200, 0xff2a6a]],
   busker: [[0x3a3a3e, 0x6b5a45, 0x2b3445], 'torso', 0x1c1d22, null],
+  fisher: [[0xf2c21a, 0xe8601a, 0xf26a1a, 0x2a5aa8, 0xe8601a], 'torso', [0xf2c21a, 0xe8601a, 0x1c1d22], null],
   roadman: [[0x0c0c0e, 0x111214, 0x16171a, 0x1c1d20, 0x0c0c0e], 'torso', [0x0c0c0e, 0x16171a, 0x2a2b2e, 0x3a3b3e], 0x0a0a0a], commuter: [[0x1c1d22, 0x2b3445, 0x4a4a4e, 0x6b5a45], 'torso', [0x1c1d22, 0x2a3448], null],
 };
 const HAIR = [0x1a1410, 0x2e2118, 0x5a3b22, 0x8a6a3a, 0xc9a86a, 0x6b6b6b, 0x0e0e0e];
@@ -1112,6 +1113,7 @@ export class Agents {
       if (p.state === 'idle' && p.act) {
         const tt = G.time * (p.act === 'pole' ? 2.6 : 5.2) + p.phase;
         if (p.act === 'film') { o.aL = o.aR = -1.45; o.oL = o.oR = 0.28; }
+        else if (p.act === 'fish') { o.aL = o.aR = -0.95 + Math.sin(tt * 0.15) * 0.08; o.oL = o.oR = 0.12; }
         else if (p.act === 'attention') { o.aL = o.aR = 0; o.oL = o.oR = 0.02; o.lL = o.lR = 0; }
         else if (p.act === 'trick') { const j = Math.abs(Math.sin(tt * 0.6)); o.dy = j * 0.28; o.aL = -2.8 + Math.sin(tt) * 0.4; o.aR = -1.2 + Math.cos(tt) * 1.2; o.oL = o.oR = 0.9; o.lL = j * 0.9; o.lR = -j * 0.5; _q.multiply(new THREE.Quaternion().setFromAxisAngle(UP, tt * 1.4)); }
         else if (p.act === 'sit') { o.dy = -0.2; o.lL = o.lR = -1.45; o.aL = o.aR = -0.35 + Math.sin(tt * 0.1) * 0.05; o.oL = o.oR = 0.15; }

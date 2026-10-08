@@ -302,6 +302,7 @@ const PLACES = [
   { map: 'tropical', name: 'La Playa', place: 'Pacific Coast, Mexico', lat: 20.65, lon: -105.23, badge: 'assets/flag-mexico.png', color: '#16c79a' },
   { map: 'vegas', name: 'Las Vegas', place: 'Paradise, Nevada', lat: 36.114, lon: -115.173, badge: 'assets/flag-nevada.svg', color: '#d84dff' },
   { map: 'london', name: 'London', place: 'Westminster, United Kingdom', lat: 51.5, lon: -0.124, badge: 'assets/flag-uk.svg', color: '#ff4a5a' },
+  { map: 'greenland', name: 'Sisimiut', place: 'Qeqqata, Greenland', lat: 66.94, lon: -53.67, badge: 'assets/flag-greenland.svg', color: '#7fd6ff' },
 ];
 // NASA Blue Marble-based maps from the three.js examples (day, city lights, ocean mask, clouds)
 const TEX = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/';

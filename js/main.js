@@ -38,10 +38,11 @@ import { addRipples, gatherWakes, buildPools } from './water.js';
 import { Chains } from './chains.js';
 import { vegas, Vegas } from './vegas.js';
 import { london, London } from './london.js';
-MAPS.vegas = vegas; MAPS.london = london;
+import { greenland, Greenland, terrainH as glTerrainH } from './greenland.js';
+MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland;
 
 const TOUCH = document.documentElement.classList.contains('touch');   // phones and tablets (set in index.html)
-export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON' };
+export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON', greenland: 'SISIMIUT' };
 
 const $ = (s) => document.querySelector(s);
 const canvasEl = $('#game');
@@ -151,7 +152,7 @@ function load(name) {
   scene.environment = makeEnv();
   const facades = makeFacades();
   const B = new Buildings(facades);
-  G.terrainH = name === 'tropical' ? terrainH : null;       // La Playa has hills
+  G.terrainH = name === 'tropical' ? terrainH : name === 'greenland' ? glTerrainH : null;       // La Playa's hills, Sisimiut's rock
   const map = MAPS[name](B);
   const sites = pickSites(B, map.city, name);             // a few buildings are still going up
   const density = { low: 0.5, normal: 1, high: 1.5 }[settings.crowds] || 1;
@@ -178,6 +179,7 @@ function load(name) {
   G.chains = map.city.chains ? new Chains(scene, map.city) : null;           // In-N-Out (Gaslamp), Raising Cane's (Chicago)
   G.vegas = map.city.vegas ? new Vegas(scene, map.city) : null;              // the Strip's landmarks, fountains, Sphere, mountains
   G.london = map.city.london ? new London(scene, map.city) : null;           // the Thames, the landmarks, the city around them
+  G.greenland = map.city.gl ? new Greenland(scene, map.city) : null;        // Sisimiut: the rock, the sea and its ice, the boats, the pitch
   if (!map.ownBackdrop) buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
@@ -198,7 +200,7 @@ function load(name) {
   new News(name, map.city);                                 // sets G.news
   new Sky(scene, name, map.city);                           // sets G.sky
   new Director(name);                                       // sets G.director
-  worldMenu.querySelector('[data-id="w-snow"]')?.style.setProperty('display', name === 'suburbs' ? '' : 'none');   // snow is a Chicago thing
+  worldMenu.querySelector('[data-id="w-snow"]')?.style.setProperty('display', name === 'suburbs' || name === 'greenland' ? '' : 'none');   // snow: Chicago and Greenland
   // London calls its gang members roadmen, and their fights are knife fights
   for (const [id, ldn, def] of [['gang', 'Roadmen', 'Gang Member'], ['e-gang', 'Knife Fight', 'Gang Conflict']]) { const b = worldMenu.querySelector(`[data-id="${id}"]`); if (b) { b.textContent = name === 'london' ? ldn : def; b.dataset.label = b.textContent; } }
   G.weapons = new Weapons(scene, camera);
@@ -364,6 +366,7 @@ function step(dt) {
   G.chains && G.chains.update();
   G.vegas && G.vegas.update(dt);
   G.london && G.london.update(dt);
+  G.greenland && G.greenland.update(dt);
   G.construction && G.construction.update(dt);
   G.world.update(dt);
   G.director && G.director.update(dt);

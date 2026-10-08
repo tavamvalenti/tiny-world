@@ -66,7 +66,7 @@ function mk(draw) {
   const ctx = c.getContext('2d'), mc = m.getContext('2d');
   mc.fillStyle = '#000'; mc.fillRect(0, 0, S, S * 2);
   const win = (x, y, w, h, shade) => { glass(ctx, x, y, w, h, shade); mc.fillStyle = '#fff'; mc.fillRect(x, y, w, h); };
-  draw(ctx, win);
+  draw(ctx, win, mc);
   grain(ctx, 0, 0, S, S * 2, 0.18);
   return { map: tex(c), mask: tex(m, false) };
 }
@@ -257,6 +257,22 @@ export function makeFacades() {
     c.fillStyle = '#e0d4bc'; c.fillRect(0, S, S, S);
     for (const x of [18, 136]) { lancet(x, S + 50, 102, 200); }
     c.fillStyle = '#f0e8d6'; for (const x of [0, 128, 256]) c.fillRect(x - 7, S, 14, S);
+  });
+  // Greenland: painted timber houses, horizontal boards, white corner boards and chunky white window frames (the
+  // frames sit in the mask so they stay white whatever colour the house is painted)
+  F.nordic = mk((c, win, mc) => {
+    c.fillStyle = '#e6e2da'; c.fillRect(0, 0, S, S * 2);
+    for (let y = 0; y < S * 2; y += 14) { c.fillStyle = 'rgba(0,0,0,.16)'; c.fillRect(0, y, S, 2); c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(0, y + 2, S, 2); }
+    const frame = (x, y, w, h, bars) => {
+      c.fillStyle = '#f6f6f2'; c.fillRect(x - 9, y - 9, w + 18, h + 18); mc.fillStyle = '#00ff00'; mc.fillRect(x - 9, y - 9, w + 18, h + 18);
+      win(x, y, w, h, 10); c.fillStyle = '#f6f6f2'; c.fillRect(x + w / 2 - 3, y, 6, h); if (bars > 1) c.fillRect(x, y + h / 2 - 3, w, 6);
+    };
+    frame(48, 62, 64, 120, 2); frame(146, 62, 64, 120, 2);
+    c.fillStyle = '#f6f6f2'; c.fillRect(0, 0, 8, S * 2); c.fillRect(S - 8, 0, 8, S * 2); mc.fillStyle = '#00ff00'; mc.fillRect(0, 0, 8, S * 2); mc.fillRect(S - 8, 0, 8, S * 2);
+    // ground storey: a door with its small window, and a window
+    frame(150, S + 64, 64, 112, 2);
+    c.fillStyle = '#f6f6f2'; c.fillRect(30, S + 52, 84, 204); c.fillStyle = '#5a3a2a'; c.fillRect(40, S + 62, 64, 194); mc.fillStyle = '#00ff00'; mc.fillRect(30, S + 52, 84, 204);
+    win(54, S + 80, 36, 50, 10);
   });
   return F;
 }

@@ -8,7 +8,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick, clamp, blast } from './core.js';
 import { sfx } from './audio.js';
 
-const LIMIT = { downtown: 6, suburbs: 4, tropical: 2 };
+const LIMIT = { downtown: 6, suburbs: 4, tropical: 2, greenland: 0 };
 const CRANES = { downtown: 2, suburbs: 2, tropical: 1 };
 
 function tint(geo, c) {

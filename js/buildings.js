@@ -8,9 +8,9 @@ import { sfx } from './audio.js';
 // InstancedMesh; per-instance attributes drive a patched standard shader: which faces are exterior
 // (facade vs exposed interior slab), damage (broken glass, cracks), soot and heat glow.
 const HASH = 4;
-const HP = { gothic: 150, brick: 100, office: 130, concrete: 150, stucco: 85, house: 60, flat: 90, boarded: 70, garage: 55, site: 80 };
+const HP = { nordic: 70, gothic: 150, brick: 100, office: 130, concrete: 150, stucco: 85, house: 60, flat: 90, boarded: 70, garage: 55, site: 80 };
 const ROOF = {
-  gothic: new THREE.Color(0.24, 0.26, 0.27), brick: new THREE.Color(0.16, 0.15, 0.14), office: new THREE.Color(0.22, 0.23, 0.24),
+  nordic: new THREE.Color(0.12, 0.12, 0.13), gothic: new THREE.Color(0.24, 0.26, 0.27), brick: new THREE.Color(0.16, 0.15, 0.14), office: new THREE.Color(0.22, 0.23, 0.24),
   concrete: new THREE.Color(0.2, 0.19, 0.18), stucco: new THREE.Color(0.5, 0.45, 0.38), house: new THREE.Color(0.15, 0.15, 0.15),
   flat: new THREE.Color(0.13, 0.12, 0.12), boarded: new THREE.Color(0.12, 0.11, 0.1), garage: new THREE.Color(0.2, 0.19, 0.18), site: new THREE.Color(0.42, 0.41, 0.39),
 };
@@ -170,6 +170,7 @@ export class Buildings {
           vec3 texc = texture2D(map, vMapUv).rgb;
           float isWin = texture2D(maskMap, vMapUv).r;
           diffuseColor.rgb = mix(diffuseColor.rgb, texc, isWin);
+          diffuseColor.rgb = mix(diffuseColor.rgb, texc, texture2D(maskMap, vMapUv).g * (1.0 - isWin));   // painted trim (green in the mask) keeps its own colour
           float winO = isWin;
           if (vExt < 0.5) {
             isWin = 0.0; winO = 0.0;

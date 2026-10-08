@@ -19,6 +19,7 @@ const POOL = {
   suburbs: { accident: 2, jam: 1.5, fire: 2, disturbance: 2, evacuation: 0.5, gang: 1.5, weather: 1.6 },
   tropical: { accident: 2, jam: 2, fire: 1.5, disturbance: 1.5, evacuation: 0.4, weather: 1.2 },
   vegas: { accident: 3, jam: 3.5, fire: 1.5, disturbance: 3, evacuation: 0.6, weather: 0.8 },
+  greenland: { accident: 0.8, fire: 1.2, disturbance: 0.3, weather: 2.5 },
   london: { accident: 2.5, jam: 3, fire: 1.5, disturbance: 1.5, evacuation: 0.5, gang: 0.8, weather: 1.8 },
 };
 // weather each place tends toward (clear dominates)
@@ -28,6 +29,7 @@ const WEATHER = {
   tropical: { clear: 6, rain: 1.5, storm: 1 },
   vegas: { clear: 9, rain: 0.5, storm: 0.4 },
   london: { clear: 3, rain: 4.5, storm: 0.6 },
+  greenland: { clear: 2, snow: 3.5 },
 };
 const weighted = (o) => { let k = Math.random() * Object.values(o).reduce((a, b) => a + b, 0); for (const [n, w] of Object.entries(o)) if ((k -= w) <= 0) return n; return Object.keys(o)[0]; };
 
@@ -105,6 +107,7 @@ export class Director {
       downtown: [['LOCAL', 'Crane work continues on downtown construction sites'], ['LOCAL', 'Trolley running on schedule through the Gaslamp Quarter'], ...(clear ? [['LOCAL', 'Sunny afternoon brings crowds to the waterfront']] : [])],
       suburbs: [['SPORTS', 'Streetball game under way by the courts'], ['LOCAL', 'Construction crews busy on the South Side'], ...(G.concert && G.concert.phase === 'active' ? [['FESTIVAL', 'Summer Smash crowd packed in front of the main stage']] : [])],
       vegas: [['LOCAL', 'Bellagio fountains drawing crowds on the Strip'], ['LOCAL', 'Heavy traffic on Las Vegas Boulevard tonight'], ['LOCAL', 'Sphere lights up the skyline'], ['LOCAL', 'Record weekend for Strip casinos']],
+      greenland: [['LOCAL', 'Trawlers return with the halibut catch'], ['LOCAL', 'Icebergs drifting close to the harbour'], ['SPORTS', 'Football match on the town pitch draws a crowd'], ['WEATHER', 'Light snow across Sisimiut'], ['LOCAL', 'Northern lights expected tonight'], ['LOCAL', 'Supply ship arrives from Nuuk']],
       london: [['LOCAL', 'Delays on the Jubilee line'], ['LOCAL', 'Tourists queue for the London Eye'], ['LOCAL', 'Changing of the Guard at Buckingham Palace'], ['TRAFFIC ALERT', 'Congestion on Westminster Bridge'], ['WEATHER', 'Light drizzle expected across London'], ['LOCAL', 'Mounted police patrol Whitehall'], ['LOCAL', 'Market traders busy in Brixton'], ['LOCAL', 'Thames Clipper services running to time'], ['LOCAL', 'Big Ben strikes the hour over Westminster']],
       tropical: N.es ? [['LOCAL', clear ? 'Día soleado: la playa llena de turistas' : 'Pocos bañistas por el mal tiempo'], ['LOCAL', 'Salvavidas vigilan la playa'], ['LOCAL', 'Hoteles de la costa reportan alta ocupación']]
         : [['LOCAL', clear ? 'Sunny day brings crowds to the beach' : 'Beach quiet as weather turns'], ['LOCAL', 'Lifeguards on watch along the beach'], ['LOCAL', 'Beachfront hotels report a busy week']],

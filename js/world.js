@@ -285,7 +285,7 @@ export class World {
 
   // ---------- weather: clear / rain / storm / snow (snow only in Chicago), cheap particles + light changes ----------
   setWeather(kind, quiet = false) {
-    if (kind === 'snow' && G.mapName !== 'suburbs') kind = 'rain';            // no snow on the coast
+    if (kind === 'snow' && G.mapName !== 'suburbs' && G.mapName !== 'greenland') kind = 'rain';            // no snow on the warm coasts
     this.kind = kind;
     this.rainTarget = kind === 'rain' ? 0.6 : kind === 'storm' ? 1 : 0;
     this.snowTarget = kind === 'snow' ? 1 : 0;

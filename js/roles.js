@@ -18,6 +18,8 @@ export const ROLE = {
   POLICE: 'POLICE', FIREFIGHTER: 'FIREFIGHTER', PARAMEDIC: 'PARAMEDIC', BASKETBALL_PLAYER: 'BASKETBALL_PLAYER', GANG_MEMBER: 'GANG_MEMBER',
   // London: the King's Guard (bearskins, rifles), roadmen (hoods up, balaclavas, knives only when it kicks off), Met officers' helmets
   GUARD: 'GUARD', ROADMAN: 'ROADMAN', METPOL: 'METPOL',
+  // Greenland: fishermen in oilskins with rods, everyone else in a beanie
+  FISHER: 'FISHER', WINTER: 'WINTER',
 };
 const R = ROLE;
 const HIVIS = [0xf26a1a, 0xd8f23a];
@@ -42,6 +44,8 @@ const LOOK = {
   [R.GUARD]: { shirt: [0xc0141c], pants: [0x0d0d10], hat: 'bearskin', tool: 'rifle', belt: 1 },
   [R.ROADMAN]: { hat: 'hood', mask: 1 },
   [R.METPOL]: { hat: 'bobby' },
+  [R.FISHER]: { hat: 'beanie', hatC: [0x1c1d22, 0xc8102e, 0x1f3f8a, 0xe8601a], tool: 'rod' },
+  [R.WINTER]: { hat: 'beanie', hatC: [0x1c1d22, 0xc8102e, 0x1f3f8a, 0xe8e4dc, 0x2a5a3a, 0xf2c21a, 0x6a3a8a], keep: 1 },
 };
 // hotel staff on the tropical map wear the resort's teal polos and khakis
 const RESORT = { shirt: [0x2a8a8a, 0x3fb6c8], pants: [0xd8c9a0] };
@@ -74,12 +78,14 @@ function geos() {
     belt: new THREE.CylinderGeometry(0.069, 0.065, 0.025, 10, 1, true).scale(1, 1, 0.66).translate(0, 0.335, 0),
     rifle: mergeGeometries([bx(0.02, 0.44, 0.028, 0, -0.08, 0.035), bx(0.008, 0.11, 0.008, 0, 0.19, 0.035), bx(0.02, 0.06, 0.04, 0, -0.27, 0.03)]),
     knife: mergeGeometries([bx(0.012, 0.035, 0.016, 0, -0.255, 0.02), bx(0.005, 0.085, 0.014, 0, -0.32, 0.02)]),
+    beanie: mergeGeometries([new THREE.SphereGeometry(0.056, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.55).scale(1, 1.15, 1).translate(0, 0.634, -0.003), new THREE.CylinderGeometry(0.058, 0.058, 0.022, 12).translate(0, 0.638, -0.003), new THREE.SphereGeometry(0.018, 6, 4).translate(0, 0.705, -0.003)]),
+    rod: mergeGeometries([new THREE.CylinderGeometry(0.004, 0.007, 0.9, 4).rotateX(1.1).translate(0, -0.08, 0.38), bx(0.025, 0.03, 0.03, 0, -0.25, 0.03)]),
     speaker: mergeGeometries([bx(0.15, 0.075, 0.075, 0, -0.31, 0.02), bx(0.01, 0.05, 0.01, -0.05, -0.26, 0.02), bx(0.01, 0.05, 0.01, 0.05, -0.26, 0.02), bx(0.11, 0.01, 0.01, 0, -0.235, 0.02)]),
   };
 }
-const PARTS = ['hard', 'cap', 'sun', 'vest', 'stripe', 'badge', 'lanyard', 'pack', 'bag', 'box', 'hammer', 'broom', 'radio', 'camera', 'clipboard', 'bearskin', 'bobby', 'hood', 'mask', 'belt', 'rifle', 'knife', 'speaker'];
-const TOOLS = new Set(['hammer', 'broom', 'radio', 'camera', 'clipboard', 'rifle', 'knife', 'speaker']);
-const TINTED = new Set(['hard', 'cap', 'sun', 'vest', 'pack', 'bag']);
+const PARTS = ['hard', 'cap', 'sun', 'vest', 'stripe', 'badge', 'lanyard', 'pack', 'bag', 'box', 'hammer', 'broom', 'radio', 'camera', 'clipboard', 'bearskin', 'bobby', 'hood', 'mask', 'belt', 'rifle', 'knife', 'speaker', 'beanie', 'rod'];
+const TOOLS = new Set(['hammer', 'broom', 'radio', 'camera', 'clipboard', 'rifle', 'knife', 'speaker', 'rod']);
+const TINTED = new Set(['hard', 'cap', 'sun', 'vest', 'pack', 'bag', 'beanie']);
 const SLOTS = 340;
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const _v = new THREE.Vector3(), _m = new THREE.Matrix4();
@@ -103,7 +109,7 @@ export class Roles {
     this.mesh = {};
     for (const k of PARTS) {
       const mat = k === 'stripe' ? new THREE.MeshBasicMaterial({ color: 0xd8dde2 }) : k === 'badge' ? new THREE.MeshStandardMaterial({ color: 0xd9b44a, metalness: 0.8, roughness: 0.3 })
-        : TINTED.has(k) ? new THREE.MeshLambertMaterial() : new THREE.MeshLambertMaterial({ color: { box: 0xb08a5a, hammer: 0x6b4a2a, broom: 0x8a6a3a, radio: 0x111111, camera: 0x1c1c1c, clipboard: 0xd8d2c4, lanyard: 0x1f55d6, bearskin: 0x0b0b0c, bobby: 0x10162a, hood: 0x0e0e10, mask: 0x0a0a0b, belt: 0xf2f2f0, rifle: 0x1c1c1e, knife: 0xd8dce0, speaker: 0x18181a }[k] });
+        : TINTED.has(k) ? new THREE.MeshLambertMaterial() : new THREE.MeshLambertMaterial({ color: { box: 0xb08a5a, hammer: 0x6b4a2a, broom: 0x8a6a3a, radio: 0x111111, camera: 0x1c1c1c, clipboard: 0xd8d2c4, lanyard: 0x1f55d6, bearskin: 0x0b0b0c, bobby: 0x10162a, hood: 0x0e0e10, mask: 0x0a0a0b, belt: 0xf2f2f0, rifle: 0x1c1c1e, knife: 0xd8dce0, speaker: 0x18181a, rod: 0x2a2a2a }[k] });
       const m = new THREE.InstancedMesh(g[k], mat, SLOTS);
       for (let i = 0; i < SLOTS; i++) m.setMatrixAt(i, ZERO);
       if (TINTED.has(k)) for (let i = 0; i < SLOTS; i++) m.setColorAt(i, new THREE.Color(1, 1, 1));
@@ -368,6 +374,7 @@ export class Roles {
     if (M === 'suburbs') this.staffChicago(P);
     if (M === 'tropical') this.staffPlaya(P);
     if (M === 'london') this.staffLondon(P);
+    if (M === 'greenland') for (const p of this.A.peds) { if (p.fisher) this.look(p, R.FISHER); else if (!p.role && !p.officer && Math.random() < 0.65) this.look(p, R.WINTER); }
   }
   // London: street vendors by the sights (roasted nuts, flags, ice cream, hot dogs, books), market stalls in Borough
   // and Brixton, the King's Guard in bearskins, Met officers in their helmets, roadmen with their hoods up
