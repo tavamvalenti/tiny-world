@@ -300,7 +300,7 @@ const PLACES = [
   { map: 'downtown', name: 'Gaslamp District', place: 'San Diego, California', lat: 32.711, lon: -117.161, badge: 'assets/flag-california.png', color: '#ff8a3d' },
   { map: 'suburbs', name: 'Chicago', place: 'Chicago, Illinois', lat: 41.878, lon: -87.63, badge: 'assets/flag-illinois.png', color: '#3d9bff' },
   { map: 'tropical', name: 'La Playa', place: 'Pacific Coast, Mexico', lat: 20.65, lon: -105.23, badge: 'assets/flag-mexico.png', color: '#16c79a' },
-  { map: 'vegas', name: 'Las Vegas', place: 'The Strip, Nevada', lat: 36.114, lon: -115.173, badge: 'assets/flag-nevada.svg', color: '#d84dff' },
+  { map: 'vegas', name: 'Las Vegas', place: 'Paradise, Nevada', lat: 36.114, lon: -115.173, badge: 'assets/flag-nevada.svg', color: '#d84dff' },
   { map: 'london', name: 'London', place: 'Westminster, United Kingdom', lat: 51.5, lon: -0.124, badge: 'assets/flag-uk.svg', color: '#ff4a5a' },
 ];
 // NASA Blue Marble-based maps from the three.js examples (day, city lights, ocean mask, clouds)
