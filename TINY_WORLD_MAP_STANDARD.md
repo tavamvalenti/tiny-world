@@ -239,7 +239,7 @@ Every new map must be added to all of these:
 | File | What to add |
 |---|---|
 | `js/main.js` | Import, `MAPS.<id>`, `MAP_NAMES`, construct the class as `G.<id>`, call `update(dt)` in `step`, `G.terrainH` if the map has terrain, and World menu label overrides |
-| `js/menu.js` | A `PLACES` entry: lat, lon, flag badge (`assets/flag-*.svg`), color |
+| `js/menu.js` | A `PLACES` entry: lat, lon, flag badge (`assets/flag-*.svg`), color. The menu lists places west to east by longitude (San Diego first); the list sorts itself, so give the real longitude |
 | `index.html` | A menu button with region and flag |
 | `js/core.js` | `G.<id> && G.<id>.onBlast(...)` in `blast()` |
 | `js/news.js` | `CHANNEL`, `CITY`, `STREETS` (one name per grid line), plus local incident wording if needed |

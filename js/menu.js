@@ -304,7 +304,7 @@ const PLACES = [
   { map: 'london', name: 'London', place: 'Westminster, United Kingdom', lat: 51.5, lon: -0.124, badge: 'assets/flag-uk.svg', color: '#ff4a5a' },
   { map: 'cairo', name: 'Cairo', place: 'Giza & the Nile, Egypt', lat: 30.04, lon: 31.24, badge: 'assets/flag-egypt.svg', color: '#f2c14e' },
   { map: 'greenland', name: 'Sisimiut', place: 'Qeqqata, Greenland', lat: 66.94, lon: -53.67, badge: 'assets/flag-greenland.svg', color: '#7fd6ff' },
-];
+].sort((a, b) => a.lon - b.lon);   // the list always runs west to east (San Diego first); new maps slot in by longitude
 // NASA Blue Marble-based maps from the three.js examples (day, city lights, ocean mask, clouds)
 const TEX = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/';
 // lat/lon -> unit vector, matching SphereGeometry's uv layout (u = 0 at 180° W)
