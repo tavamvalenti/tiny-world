@@ -35,13 +35,23 @@ const NAMES = {
     ['FLOWER BOX', '#f5f0e6', '#c43b6a'], ['TAE KWON DO', '#101010', '#ff3b30'], ['YOGURT BAR', '#b6e3f5', '#1b4f72'], ['POST OFFICE', '#223a70', '#ffffff'],
   ],
 };
-const ADS = [
+// rooftop and bus-shelter ads: the shared set, and each city's own
+const ADS_BY_MAP = {
+  vegas: [['LOOSEST SLOTS', 'On the Strip', '#1a0030', '#ff3bd4'], ['MAGIC OF MARCO', 'Nightly 7 & 9:30', '#120a2a', '#ffd34a'], ['CALL BIG TONY', 'Hurt? 702-555-0142', '#0d1b3d', '#ffd200'], ['BUFFET OF THE GODS', 'All you can eat', '#fffbe6', '#7a2a00'],
+    ['GOLDEN OAK', 'Kentucky whiskey', '#0a0a0a', '#e8c46a'], ['CIRQUE AURORA', 'An aerial spectacle', '#03121f', '#9fe8ff'], ['ELVIS WEDDINGS', '24/7 drive-thru', '#fbe9f2', '#c2185b'], ['WE BUY GOLD', 'Cash on the spot', '#0b2a14', '#ffd84a']],
+  london: [['THE TIMES', 'Read all about it', '#f4f4f0', '#111111'], ['OYSTER CARD', 'Touch in, touch out', '#0019a8', '#ffffff'], ['WEST END TONIGHT', 'Theatre tickets', '#2a0a3a', '#ffe680'], ['EARL GREY TEA', 'Proper tea.', '#123a1e', '#f5e7b8'],
+    ['LONDON EYE', 'Book your flight', '#0e2b4a', '#ffffff'], ['FISH & CHIPS', 'Fresh every day', '#0e3d6b', '#ffd34a'], ['PREMIER FOOTBALL', 'Saturday 3pm', '#3a0a5a', '#7cf0ff'], ['BLACK CAB', 'Hail one anytime', '#101012', '#f2d27a']],
+};
+let ADS = [];
+const ADS_DEFAULT = [
   ['SUNNY COLA', 'Taste the sun.', '#d7261e', '#ffffff'], ['VOLTA MOTORS', 'The electric city car.', '#101820', '#5ce1e6'],
   ['FLY PACIFICA', 'Daily flights to paradise', '#0b62a4', '#ffffff'], ['SOUTH SIDE SAVINGS', 'Your neighborhood bank', '#12324f', '#f2d27a'],
   ['KOAST 98.1 FM', 'Surf rock all day', '#f28c28', '#1a1a1a'], ['NOVA PHONE X', 'See more.', '#f4f4f4', '#111111'],
   ['MIDNIGHT BURGER', 'Open late', '#1c1c1c', '#ffcc00'], ['PADRES BASEBALL', 'Tonight 7:10 · Petco Park', '#2f241d', '#ffc425'],
 ];
 
+const STRIP3_DEFAULT = '←  HARBOR DR        CITY CENTER  ↑        I-5 NORTH  →';
+let STRIP3 = STRIP3_DEFAULT;
 function signAtlas(list) {
   const W = 1024, H = 1024, c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d');
@@ -66,7 +76,7 @@ function signAtlas(list) {
     x.beginPath(); x.arc(cx + 452, cy + 64, 36, 0, 6.283); x.fillStyle = shade(fg, 0); x.globalAlpha = 0.25; x.fill(); x.globalAlpha = 1;
   });
   // landmark + directional sign strips (row at y=768, 1024x64 each)
-  const strips = [['GASLAMP DISTRICT', '#0e2a1c', '#f2d27a'], ['WELCOME TO LA PLAYA', '#0e6f7c', '#fff4d6'], ['CHICAGO  ·  EST. 1837', '#3b2a1a', '#f2e2b0'], ['←  HARBOR DR        CITY CENTER  ↑        I-5 NORTH  →', '#0f5a2e', '#ffffff']];
+  const strips = [['GASLAMP DISTRICT', '#0e2a1c', '#f2d27a'], ['WELCOME TO LA PLAYA', '#0e6f7c', '#fff4d6'], ['CHICAGO  ·  EST. 1837', '#3b2a1a', '#f2e2b0'], [STRIP3, '#0f5a2e', '#ffffff']];
   strips.forEach(([t, bg, fg], i) => {
     const cy = 768 + i * 64;
     x.fillStyle = bg; x.fillRect(0, cy, 1024, 64);
@@ -106,6 +116,8 @@ export class Signs {
   constructor(scene, mapName, B, city) {
     this.city = city;
     const list = NAMES[mapName];
+    ADS = ADS_BY_MAP[mapName] || ADS_DEFAULT;
+    STRIP3 = { vegas: '←  FLAMINGO RD        THE STRIP  ↑        I-15  →', london: '←  WESTMINSTER        THE CITY  ↑        A4  →' }[mapName] || STRIP3_DEFAULT;
     const tex = signAtlas(list);
     const shop = atlasMesh(tex, 700), post = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.5 }), 900);
     post.count = 0; post.castShadow = true;
@@ -214,7 +226,7 @@ export class Signs {
       const x = 0, z = -13 + city.roadW / 2 + 0.3, span = 7;
       box(x - span / 2, 1.8, z, 0.3, 3.6, 0.3); box(x + span / 2, 1.8, z, 0.3, 3.6, 0.3);
       add(shop, x, 3.4, z, 0, span, span / 16 * 1.5, stripUV(1));
-    } else {
+    } else if (mapName === 'suburbs') {
       const x = B0.x0 + 2.5, z = B0.z1 - 1.2;
       box(x, 0.3, z, 3.6, 0.6, 0.5);
       add(shop, x, 0.95, z + 0.01, 0, 3.4, 0.45, stripUV(2));

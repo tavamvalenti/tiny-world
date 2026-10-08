@@ -176,7 +176,7 @@ export function vegas(B) {
     const towers = [R(B, { x: -50, z: 67.6, w: 28, d: 3.6, floors: 28, style: 'stucco', tint: white, cell: 1.75 }), R(B, { x: -50, z: 76.4, w: 28, d: 3.6, floors: 28, style: 'stucco', tint: white, cell: 1.75 })];
     const castle = R(B, { x: -23, z: 72, w: 20, d: 8.4, floors: 4, style: 'stucco', tint: hsl(0.1, 0.08, 0.92), cell: 2.1, gh: 2 });
     V.resorts.excalibur = { towers, castle };
-    pylon(-9.6, 67.6, 'EXCALIBUR', '#fff0c0', '#ff6a2a', 9);
+    pylon(-9.6, 72.5, 'EXCALIBUR', '#fff0c0', '#ff6a2a', 9);
     clear(-34, -8, 65.4, 78.5);
     name('Excalibur', 'the Excalibur', W0, W1, 65.4, 78.5);
   }
@@ -188,10 +188,10 @@ export function vegas(B) {
     const chrysler = R(B, { x: -40, z: 40.5, w: 4.2, d: 4.2, floors: 40, style: 'concrete', tint: hsl(0.1, 0.18, 0.84), cell: 1.4, setbacks: [{ f: 30, n: 1 }] });
     const rest = [T(-43, 50, 4.4, 4.6, 30, hsl(0.04, 0.55, 0.42)), T(-36, 50.8, 4, 3.6, 34, hsl(0.07, 0.55, 0.6)), T(-24, 50.6, 4.4, 4, 25, hsl(0.42, 0.3, 0.3), [{ f: 20, n: 1 }], 'office'),
       T(-46, 41, 3.6, 4, 27, hsl(0.07, 0.6, 0.55)), T(-24, 39, 4, 4.4, 31, hsl(0.09, 0.45, 0.66), [{ f: 24, n: 1 }]), T(-34.4, 37.6, 3.4, 3.4, 22, hsl(0.58, 0.25, 0.35), null, 'office')];
-    const street = R(B, { x: -15.5, z: 43, w: 6, d: 14, floors: 3, style: 'brick', tint: hsl(0.06, 0.35, 0.62), cell: 1.6, gh: 1.6, storefront: true });
-    V.resorts.nyny = { esb, chrysler, rest, street, liberty: { x: -11, z: 52.5 }, bridge: { x: -10.2, z0: 36, z1: 47 } };
-    clear(-14, -8, 49, 55);
-    city.crowds.push({ x: -9.2, z: 50.5, r: 1, n: 5, look: 'tourist', act: 'film', face: { x: -11, z: 52.5 } });
+    const street = R(B, { x: -15.5, z: 42.5, w: 6, d: 11, floors: 3, style: 'brick', tint: hsl(0.06, 0.35, 0.62), cell: 1.6, gh: 1.6, storefront: true });
+    V.resorts.nyny = { esb, chrysler, rest, street, liberty: { x: -12, z: 50.6 }, bridge: { x: -10.2, z0: 36, z1: 47 } };
+    clear(-14, -8, 48, 57);
+    city.crowds.push({ x: -9.2, z: 49, r: 1, n: 5, look: 'tourist', act: 'film', face: { x: -12, z: 50.6 } });
     pylon(-9.6, 36.2, 'NEW YORK-NEW YORK', '#ffffff', '#ff4a3a', 9);
     name('New York-New York', 'New York-New York', W0, W1, 35, 54.6);
   }
@@ -241,7 +241,7 @@ export function vegas(B) {
     clear(-19, -8, -63, -29.4); clear(-33, -21, -43, -31);
     pool(-56, -42, -48, -34);
     city.crowds.push({ x: -9.2, z: -40, r: 0.7, n: 3, look: 'showgirl', act: 'dance', stay: true }, { x: -9.2, z: -53, r: 0.6, n: 2, look: 'elvis' }, { x: -10, z: -46, r: 1, n: 5, look: 'tourist', act: 'film', face: { x: -13.5, z: -45 } });
-    pylon(-9.6, -31, 'CAESARS PALACE', '#fff2d0', '#ff4a3a', 10);
+    pylon(-9.6, -36, 'CAESARS PALACE', '#fff2d0', '#ff4a3a', 10);
     name('Caesars Palace', 'Caesars Palace', W0, W1, -63, -29.4);
   }
   // Treasure Island: the curved red tower and its lagoon with the pirate ship; the giant round LED screen on the corner
@@ -249,7 +249,7 @@ export function vegas(B) {
     lot(W0, -80.6, W1, -64, '#ada38f');
     V.resorts.ti = [R(B, { x: -40, z: -73, w: 14, d: 4.4, floors: 36, style: 'concrete', tint: hsl(0.02, 0.45, 0.45), cell: 1.7 }), R(B, { x: -30, z: -69, w: 4.4, d: 8, floors: 34, style: 'concrete', tint: hsl(0.02, 0.45, 0.45), cell: 1.7 })];
     g.rect(-22, -74, -9.2, -66, '#2d7f8e'); V.lagoon = { x: -15.5, z: -70 };
-    V.exhibit = { x: -13.2, z: -77.8, r: 3.2 };
+    V.exhibit = { x: -13.2, z: -76.4, r: 3.0 };
     clear(-23, -8, -80.6, -65);
     name('Treasure Island', 'Treasure Island', W0, W1, -80.6, -64);
   }
@@ -279,6 +279,12 @@ export function vegas(B) {
     for (let x = E0 + 0.5; x < E1; x += 1) { city.addProp('chainlink', x, 65.8, 0); city.addProp('chainlink', x, 96.2, 0); }
     for (let k = 0; k < 4; k++) city.parked.push({ x: rand(E0 + 6, E1 - 6), z: rand(70, 92), rot: rand(0, 6) });
     V.site = { x0: E0, x1: E1, z0: 65.4, z1: 96.6 }; clear(E0, E1, 65.4, 96.6);
+    // the stadium's concrete going up: a horseshoe of decks at different stages round the field
+    V.siteParts = [];
+    for (let k = 0; k < 9; k++) {
+      const a = Math.PI * 0.15 + k * (Math.PI * 1.7 / 8), r = 12.5, x = 29 + Math.cos(a) * r, z = 81 + Math.sin(a) * r * 0.9;
+      const sp = B.add({ x, z, w: 5.6, d: 5.6, floors: [2, 3, 4, 4, 3, 4, 2, 3, 1][k], style: 'site', tint: hsl(0.1, 0.04, 0.72), cell: 1.9, gh: 1.6, fh: 1.2 }); sp.noSigns = true; sp.landmark = true; V.siteParts.push(sp);
+    }
     name('The ballpark site', 'the ballpark construction site', E0, E1, 65.4, 96.6);
     lot(E0, 107.4, E1, 134.6, '#bcae95');
   }
@@ -288,12 +294,12 @@ export function vegas(B) {
     const em = hsl(0.42, 0.6, 0.36);
     const wings = [R(B, { x: 33.5, z: 41, w: 5.4, d: 25, floors: 30, style: 'office', tint: em, cell: 1.8 }),
       R(B, { x: 24.5, z: 41, w: 12.6, d: 5, floors: 30, style: 'office', tint: em, cell: 1.8 }), R(B, { x: 42.4, z: 41, w: 12.4, d: 5, floors: 30, style: 'office', tint: em, cell: 1.8 })];
-    const pod = R(B, { x: 18.5, z: 50.4, w: 11, d: 7.2, floors: 4, style: 'office', tint: hsl(0.42, 0.3, 0.45), cell: 2, gh: 2 });
+    const pod = R(B, { x: 19.5, z: 50.4, w: 11, d: 7.2, floors: 4, style: 'office', tint: hsl(0.42, 0.3, 0.45), cell: 2, gh: 2 });
     R(B, { x: 44, z: 50, w: 8, d: 8, floors: 5, style: 'concrete', tint: hsl(0.1, 0.08, 0.8), cell: 2.6, gh: 2 });
-    V.resorts.mgm = { wings, pod, lion: { x: 10.8, z: 51.4 } };
+    V.resorts.mgm = { wings, pod, lion: { x: 11.5, z: 49.4 } };
     V.roofs.push({ b: pod, kind: 'pool' });
-    clear(8, 13.5, 47, 55);
-    city.crowds.push({ x: 10, z: 47.5, r: 1, n: 4, look: 'tourist', act: 'film', face: { x: 10.8, z: 51.4 } });
+    clear(8, 14, 46, 57);
+    city.crowds.push({ x: 9.4, z: 45.6, r: 1, n: 4, look: 'tourist', act: 'film', face: { x: 11.5, z: 49.4 } });
     driveway(1, 33);
     pylon(9.6, 29.6, 'MGM GRAND', '#f2e2a0', '#5aff8a', 10);
     name('MGM Grand', 'the MGM Grand', E0, E1, 27.6, 54.6);
@@ -329,7 +335,7 @@ export function vegas(B) {
     const fl = [R(B, { x: 33, z: -34, w: 20, d: 4.4, floors: 28, style: 'stucco', tint: hsl(0.97, 0.35, 0.86), cell: 1.7 }), R(B, { x: 17, z: -33.6, w: 9, d: 7, floors: 4, style: 'stucco', tint: hsl(0.96, 0.45, 0.78), cell: 2 })];
     V.resorts.flamingo = fl; V.roofs.push({ b: fl[1], kind: 'pool' });
     city.crowds.push({ x: 9.4, z: -32, r: 0.7, n: 3, look: 'showgirl', act: 'dance', stay: true });
-    pylon(9.6, -30.6, 'FLAMINGO', '#ff6ab0', '#ff3b8a', 9);
+    pylon(9.6, -35, 'FLAMINGO', '#ff6ab0', '#ff3b8a', 9);
     name('Flamingo', 'the Flamingo', E0, E1, -38, -29.4);
     lot(E0, -46, E1, -39);
     V.resorts.linq = R(B, { x: 33, z: -42.5, w: 20, d: 4.4, floors: 30, style: 'office', tint: hsl(0.08, 0.15, 0.7), cell: 1.7 });
@@ -366,7 +372,7 @@ export function vegas(B) {
     V.resorts.wynn = arcSlab(B, [[26, -93.5], [29.5, -97.5], [31.5, -101], [29.5, -104.5], [26, -108.5]], 6, 4.4, [42, 45, 45, 45, 42], 'office', bronze);
     const pod = R(B, { x: 15, z: -101, w: 8, d: 16, floors: 3, style: 'stucco', tint: hsl(0.07, 0.35, 0.78), cell: 2.2, gh: 2 });
     V.roofs.push({ b: pod, kind: 'club', name: 'XS' });
-    pylon(9.6, -92.6, 'Wynn', '#f6e4b8', '#ffcf80', 10);
+    pylon(9.6, -97, 'Wynn', '#f6e4b8', '#ffcf80', 10);
     name('Wynn Las Vegas', 'Wynn Las Vegas', E0, E1, -110.5, -91.4);
     lot(E0, -132.6, E1, -111.5);
     V.resorts.encore = arcSlab(B, [[26, -114.5], [29.5, -118.5], [31.5, -122], [29.5, -125.5], [26, -129.5]], 5.6, 4.2, [45, 48, 48, 48, 45], 'office', bronze);
@@ -521,6 +527,8 @@ export function vegas(B) {
     city.crowds.push({ x: 107.2, z: -37, r: 0.5, n: 2, look: 'lvmpd' });
     name('East Las Vegas', 'east Las Vegas', 104, 175, -175, 60);
   }
+  for (const nz of [60, -24]) for (const sx of [-1, 1]) for (const sz of [-1, 1]) clear(sx < 0 ? -12 : 8, sx < 0 ? -8 : 12, nz + sz * 3 - (sz < 0 ? 4.6 : 0), nz + sz * 3 + (sz > 0 ? 4.6 : 0));
+  for (const z of [-81.5, -91.8]) clear(-12, 12, z - 2.4, z + 2.4);
   // ---- packing the Strip: casinos, shops and LED walls fill every gap along both frontages; garages and towers behind
   const overlaps = (x0, x1, z0, z1) => B.list.some((b) => x0 < b.x + b.w / 2 + 0.4 && x1 > b.x - b.w / 2 - 0.4 && z0 < b.z + b.d / 2 + 0.4 && z1 > b.z - b.d / 2 - 0.4) || keep.some((k) => x0 < k.x1 && x1 > k.x0 && z0 < k.z1 && z1 > k.z0);
   const fillers = ['casino', 'shops', 'casino', 'show', 'shops'];
@@ -560,7 +568,7 @@ export function vegas(B) {
     const top = r.b.cells.filter((c) => c.f === r.b.floors - 1); if (!top.length) continue;
     const y = top[0].y + top[0].hy, x = r.b.x, z = r.b.z;
     r.y = y;
-    if (r.kind === 'club') { city.crowds.push({ x, z, r: Math.min(r.b.w, r.b.d) * 0.3, n: Math.round(Math.min(14, r.b.w * r.b.d * 0.12)), y, look: 'nightlife', act: 'dance', stay: true }); city.crowds.push({ x: x + r.b.w * 0.3, z: z - r.b.d * 0.3, r: 0.3, n: 1, y, look: 'showgirl', act: 'pole', stay: true }); }
+    if (r.kind === 'club') { city.crowds.push({ x, z, r: Math.min(r.b.w, r.b.d) * 0.36, n: Math.round(Math.min(34, r.b.w * r.b.d * 0.3)), y, look: 'nightlife', act: 'dance', stay: true }); city.crowds.push({ x: x + r.b.w * 0.3, z: z - r.b.d * 0.3, r: 0.3, n: 1, y, look: 'showgirl', act: 'pole', stay: true }); }
     else city.crowds.push({ x, z: z + r.b.d * 0.25, r: Math.min(r.b.w, r.b.d) * 0.25, n: Math.round(Math.min(9, r.b.w * r.b.d * 0.08)), y, look: 'swim', act: Math.random() < 0.5 ? 'dance' : null, stay: true });
   }
   city.hotspot = { x: 0, z: -10, r: 70 };
@@ -589,7 +597,7 @@ export class Vegas {
     this.venice(R.venetian, R.palazzo, V.venice); this.wynn(R.wynn, R.encore); this.rw(R.rw); this.flamingo(R.flamingo, R.linq, R.harrahs);
     this.ph(R.ph); this.ti(R.ti, V.lagoon, V.exhibit); this.cloud(V.cloud); this.sphere(V.sphere); this.wheel(V.wheel); this.bridges(); this.welcome();
     this.clubs(V.clubs || [], V.chapel); this.site(V.site); this.crowns(R); this.saharaSign(V.sahara);
-    this.dark(V.dark); this.bikes(V.bikeRows || []);
+    this.dark(V.dark); this.bikes(V.bikeRows || []); this.girls(V); this.bigSigns(V);
     this.pylons(V.pylons); this.screens(V.screens); this.neonEdges(V.neon); this.rooftops(V.roofs); this.crownLights(V.crownLit || []);
     this.world(scene);
   }
@@ -980,35 +988,91 @@ export class Vegas {
     this.add([tint(new THREE.CylinderGeometry(0.35, 0.6, w.r + 3.5, 8).translate(0, (w.r + 3.5) / 2, 0).rotateX(0.18).translate(w.x, 0, w.z + 1.2), 0xe8e8e6), tint(new THREE.CylinderGeometry(0.35, 0.6, w.r + 3.5, 8).translate(0, (w.r + 3.5) / 2, 0).rotateX(-0.18).translate(w.x, 0, w.z - 1.2), 0xe8e8e6)]);
   }
   bridges() {
-    // the pedestrian bridges: open decks with glass sides, escalators and stairs down to the sidewalks, a lift
-    const P = [], G2 = [], dk = 4.6, w = 2.6;
-    const span = (x0, z0, x1, z1) => {
+    // the pedestrian bridges: open decks with glass sides; at each corner a landing with two escalators (up and down)
+    // and a stair between them, running down onto the plaza; people riding them, crossing, stopping to look
+    const P = [], Gl = [], S = [], dk = 4.6, w = 2.6, deckTop = dk + 0.3;
+    this.bridgePaths = [];
+    const deck = (x0, z0, x1, z1) => {
       const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, L = Math.hypot(x1 - x0, z1 - z0), alX = z0 === z1;
-      P.push(alX ? box(L + 2, 0.6, w, cx, dk, cz, 0xe2dcd0) : box(w, 0.6, L + 2, cx, dk, cz, 0xe2dcd0));
+      P.push(alX ? box(L, 0.6, w, cx, dk, cz, 0xdcd6ca) : box(w, 0.6, L, cx, dk, cz, 0xdcd6ca));
       for (const s of [-1, 1]) {
-        G2.push(alX ? box(L + 2, 1.2, 0.05, cx, dk + 0.9, cz + s * w / 2, 0x9fd0e8) : box(0.05, 1.2, L + 2, cx + s * w / 2, dk + 0.9, cz, 0x9fd0e8));
-        P.push(alX ? box(L + 2, 0.08, 0.1, cx, dk + 1.52, cz + s * w / 2, 0xd8d8d8) : box(0.1, 0.08, L + 2, cx + s * w / 2, dk + 1.52, cz, 0xd8d8d8));
+        Gl.push(alX ? box(L, 1.1, 0.04, cx, deckTop + 0.55, cz + s * w / 2, 0xbfe6ff) : box(0.04, 1.1, L, cx + s * w / 2, deckTop + 0.55, cz, 0xbfe6ff));
+        S.push(alX ? box(L, 0.07, 0.09, cx, deckTop + 1.12, cz + s * w / 2, 0xd8dcdf) : box(0.09, 0.07, L, cx + s * w / 2, deckTop + 1.12, cz, 0xd8dcdf));
+        S.push(alX ? box(L, 0.05, 0.05, cx, deckTop + 0.12, cz + s * (w / 2 - 0.05), 0xffffff) : box(0.05, 0.05, L, cx + s * (w / 2 - 0.05), deckTop + 0.12, cz, 0xffffff));
       }
-      // at each end: escalators down along the sidewalk, a stair beside them, a column under the deck
-      for (const [ex, ez, dir] of [[x0, z0, -1], [x1, z1, 1]]) {
-        P.push(box(0.8, dk, 0.8, ex, dk / 2, ez, 0xd8d0c0));
-        const run = 6.5, ang = Math.atan2(dk, run);
-        for (const [o, col] of [[-0.6, 0x9a9a9e], [0.6, 0x5a5a60]]) {
-          const g3 = new THREE.BoxGeometry(alX ? 1 : run / Math.cos(ang), 0.3, alX ? run / Math.cos(ang) : 1);
-          if (alX) g3.rotateX(dir * ang * (ez > 0 ? 1 : 1)); else g3.rotateZ(-ang);
-          const ox = alX ? ex + o : ex + dir * 0, oz = alX ? ez + (ez > cz ? 1 : -1) * 0 : ez + o;
-          g3.translate(alX ? ox : ex + Math.sign(ex - cx) * 0 + (ex > cx ? 1 : -1) * 0, dk / 2, alX ? ez : oz);
-          P.push(tint(g3, col));
-        }
-        P.push(box(1.2, dk + 2, 1.2, ex + (alX ? (ex > cx ? 1.6 : -1.6) : 0), (dk + 2) / 2, ez + (alX ? 0 : (ez > cz ? 1.6 : -1.6)), 0xc9c4ba));
-      }
+      // people stopping on the bridge to look down the Strip
+      this.city.crowds.push({ x: cx + (alX ? rand(-L / 4, L / 4) : 0), z: cz + (alX ? 0 : rand(-L / 4, L / 4)), r: 0.6, n: Math.round(rand(3, 6)), y: deckTop, look: 'tourist', act: 'spect', stay: true });
     };
-    for (const [nx, nz] of [[0, 60], [0, -24]]) {
-      span(-9.7, nz - 5.8, 9.7, nz - 5.8); span(-9.7, nz + 5.8, 9.7, nz + 5.8);
-      span(-9.7, nz - 5.8, -9.7, nz + 5.8); span(9.7, nz - 5.8, 9.7, nz + 5.8);
+    // an escalator from the deck (at x = ax) down to the ground, running along x in direction dir
+    const RUN = 7, ang = Math.atan2(dk, RUN), SL = Math.hypot(RUN, dk);
+    const escalator = (ax, z, dir) => {
+      const cx = ax + dir * RUN / 2, rot = (g3) => g3.rotateZ(dir > 0 ? -ang : ang);
+      // the stainless truss under the steps, and the steps themselves
+      P.push(tint(rot(new THREE.BoxGeometry(SL, 0.5, 0.86)).translate(cx, dk / 2 - 0.3, z), 0xc8ccd2));
+      const N = 22;
+      for (let k = 0; k < N; k++) { const u = (k + 0.5) / N, y = dk * (1 - u); P.push(box(RUN / N + 0.01, 0.1, 0.7, ax + dir * RUN * u, y - 0.04, z, k % 2 ? 0x55585e : 0x6a6d72)); }
+      // glass balustrades both sides, the black handrails, the comb plates at top and bottom
+      for (const s of [-1, 1]) {
+        Gl.push(tint(rot(new THREE.BoxGeometry(SL, 0.75, 0.03)).translate(cx, dk / 2 + 0.42, z + s * 0.4), 0xbfe6ff));
+        S.push(tint(rot(new THREE.BoxGeometry(SL + 0.3, 0.06, 0.07)).translate(cx, dk / 2 + 0.8, z + s * 0.4), 0x111111));
+        S.push(tint(rot(new THREE.BoxGeometry(SL, 0.04, 0.04)).translate(cx, dk / 2 + 0.08, z + s * 0.36), 0xffffff));
+      }
+      P.push(box(1.1, 0.08, 0.9, ax + dir * (RUN + 0.5), 0.04, z, 0x9a9da2));
+    };
+    // a corner landing; the two escalators run outward along the cross street's sidewalk (lanes nearest the road)
+    const corner = (x, z, dir, nz) => {
+      const sg = Math.sign(z - nz), lanes = [nz + sg * 3.7, nz + sg * 4.6], lz = nz + sg * 5.2;
+      P.push(box(2.8, 0.6, 4, x, dk, lz, 0xdcd6ca), box(0.9, dk, 0.9, x, dk / 2, z, 0xd8d0c0));
+      for (const l of lanes) escalator(x + dir * 1.4, l, dir);
+      return lanes;
+    };
+    const paths = [];
+    for (const nz of [60, -24]) {
+      const cs = [[-9.7, nz - 5.8], [9.7, nz - 5.8], [9.7, nz + 5.8], [-9.7, nz + 5.8]];
+      deck(-9.7, nz - 5.8, 9.7, nz - 5.8); deck(-9.7, nz + 5.8, 9.7, nz + 5.8); deck(-9.7, nz - 5.8, -9.7, nz + 5.8); deck(9.7, nz - 5.8, 9.7, nz + 5.8);
+      const ln = cs.map(([x, z]) => corner(x, z, Math.sign(x), nz));
+      paths.push([cs[0], cs[1], ln[0], ln[1]], [cs[3], cs[2], ln[3], ln[2]]);
     }
-    span(-9.7, -81.5, 9.7, -81.5); span(-9.7, -91.8, 9.7, -91.8);
-    this.add(P); this.add(G2, this.clearGlass, false);
+    for (const z of [-81.5, -91.8]) { deck(-9.7, z, 9.7, z); const a2 = corner(-9.7, z, -1, -86), b2 = corner(9.7, z, 1, -86); paths.push([[-9.7, z], [9.7, z], a2, b2]); }
+    this.add(P); this.add(S, this.metal); this.add(Gl, this.clearGlass, false);
+    // the riders: up an escalator, across, down the far one (and back), at walking pace on the deck
+    for (const [[ax, az], [bx, bz], la, lb] of paths) {
+      const sa = Math.sign(ax), sb = Math.sign(bx);
+      this.bridgePaths.push([[ax + sa * (1.4 + RUN + 0.6), 0, la[0]], [ax + sa * 1.4, deckTop, la[0]], [ax, deckTop, az], [bx, deckTop, bz], [bx + sb * 1.4, deckTop, lb[1]], [bx + sb * (1.4 + RUN + 0.6), 0, lb[1]]]);
+    }
+    this.riders();
+  }
+  // people riding the escalators and crossing the bridges: simple figures following the bridge paths
+  riders() {
+    const body = mergeGeometries([tint(new THREE.CylinderGeometry(0.066, 0.056, 0.24, 7).scale(1, 1, 0.62).translate(0, 0.43, 0), 0xffffff), tint(new THREE.CylinderGeometry(0.024, 0.02, 0.31, 5).translate(0.034, 0.155, 0), 0x2a3448), tint(new THREE.CylinderGeometry(0.024, 0.02, 0.31, 5).translate(-0.034, 0.155, 0), 0x2a3448), tint(new THREE.CylinderGeometry(0.018, 0.014, 0.24, 5).translate(0.084, 0.42, 0), 0xffffff), tint(new THREE.CylinderGeometry(0.018, 0.014, 0.24, 5).translate(-0.084, 0.42, 0), 0xffffff)]);
+    const head = mergeGeometries([tint(new THREE.SphereGeometry(0.048, 8, 6).translate(0, 0.625, 0), 0xffffff), tint(new THREE.SphereGeometry(0.052, 8, 4, 0, 6.28, 0, 1.6).translate(0, 0.632, -0.005), 0x2a2018)]);
+    const n = this.bridgePaths.length * 9;
+    this.rB = new THREE.InstancedMesh(body, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }), n);
+    this.rH = new THREE.InstancedMesh(head, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), n);
+    for (const m of [this.rB, this.rH]) { m.frustumCulled = false; m.castShadow = true; this.scene.add(m); }
+    this.rList = [];
+    const SH = [0xffffff, 0x0e0e10, 0xff8fa3, 0x4fc3f7, 0xfff176, 0xb3141c, 0x81c784, 0xf28c28, 0xba68c8], SK = [0xe8c4a8, 0xc99b78, 0x9a6b4c, 0x6b4630, 0xf0d6c0];
+    for (let i = 0; i < n; i++) {
+      this.rB.setColorAt(i, new THREE.Color(pick(SH))); this.rH.setColorAt(i, new THREE.Color(pick(SK)));
+      this.rList.push({ path: this.bridgePaths[i % this.bridgePaths.length], u: Math.random(), dir: Math.random() < 0.5 ? 1 : -1, v: rand(0.04, 0.07), ph: rand(0, 6), side: rand(-0.35, 0.35) });
+    }
+  }
+  updateRiders(dt) {
+    if (!this.rList) return;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
+    this.rList.forEach((r, i) => {
+      r.u += r.dir * r.v * dt;
+      if (r.u > 1) { r.u = 1; r.dir = -1; } else if (r.u < 0) { r.u = 0; r.dir = 1; }
+      const W = r.path, segs = W.length - 1, f = r.u * segs, k = Math.min(segs - 1, Math.floor(f)), t = f - k, a = W[k], b = W[k + 1];
+      const onEsc = k === 0 || k === segs - 1;
+      p.set(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
+      const dx = (b[0] - a[0]) * r.dir, dz = (b[2] - a[2]) * r.dir;
+      if (!onEsc) p.z += r.side * (Math.abs(b[0] - a[0]) > 0.5 ? 1 : 0), p.x += r.side * (Math.abs(b[2] - a[2]) > 0.5 ? 1 : 0);
+      p.y += onEsc ? 0 : Math.abs(Math.sin(G.time * 7 + r.ph)) * 0.02;
+      q.setFromAxisAngle(up, Math.atan2(dx, dz));
+      m4.compose(p, q, one); this.rB.setMatrixAt(i, m4); this.rH.setMatrixAt(i, m4);
+    });
+    this.rB.instanceMatrix.needsUpdate = true; this.rH.instanceMatrix.needsUpdate = true;
   }
   welcome() {
     const z = 152;
@@ -1144,6 +1208,98 @@ export class Vegas {
     if (L.length) { const m = this.add(L, this.neon, false); this.darkBulbs = m; }
     // a couple of failing streetlights
     this.flicker = this.city.lamps.filter((l) => l.x > 104).filter(() => Math.random() < 0.15);
+  }
+  // women working the clubs and the corners: bikinis and heels, curvy but in proportion; they shift their weight and sway
+  girls(V) {
+    const spots = [];
+    const D = V.dark || { lots: [] };
+    for (const l of D.lots) if (l.kind === 'club' && l.front != null) for (const dz of [-1.2, 1.2]) spots.push({ x: l.front + l.dir * -0.7, z: l.z + dz, h: l.dir > 0 ? -Math.PI / 2 : Math.PI / 2 });
+    for (const c of V.clubs || []) for (const dz of [-1.6, 1.6]) spots.push({ x: c.x + Math.sin(c.face) * 1.6, z: c.z + Math.cos(c.face) * 1.6 + dz, h: c.face });
+    for (const a2 of D.alleys || []) for (let k = 0; k < 2; k++) spots.push({ x: a2.x + rand(-6, -3.5), z: rand(a2.z0 + 4, a2.z1 - 4), h: rand(0, 6.28) });     // on the corners at the alley mouths
+    for (const z of [-60, -36, -6, 26, 44, 70, 100, -110]) spots.push({ x: (z % 20 ? -1 : 1) * 8.3, z: z + rand(-1, 1), h: (z % 20 ? 1 : -1) * Math.PI / 2 });   // on the Strip, near the photo-posing showgirls
+    for (const r of V.roofs) if (r.kind === 'club' && r.y != null) { const t = topOf(r.b); spots.push({ x: t.cx - t.w * 0.25, z: t.cz - t.d * 0.25, y: r.y, h: rand(0, 6.28), stage: true }, { x: t.cx + t.w * 0.2, z: t.cz - t.d * 0.25, y: r.y, h: rand(0, 6.28), stage: true }); }
+    if (!spots.length) return;
+    const SKIN = [0xe8c4a8, 0xd8a888, 0xc99b78, 0x9a6b4c, 0x6b4630, 0xf0d6c0], BIK = [0x111111, 0xd8222a, 0xff3b9a, 0xf2f2f0, 0x7a2aff, 0xffd200, 0x1a8ad8], HAIR = [0x1a1410, 0x3a2418, 0xc9a86a, 0xe8d0a0, 0x8a2a2a, 0x111111];
+    // one body, built round the origin, front = +z, ~0.74 tall (ped scale)
+    const body = (skin, bik, hair, shoe) => {
+      const P = [];
+      const C = (r0, r1, h, x, y, z, c, rx = 0, rz = 0) => tint(new THREE.CylinderGeometry(r0, r1, h, 8).rotateX(rx).rotateZ(rz).translate(x, y, z), c);
+      const E = (r, sx, sy, sz, x, y, z, c, ws = 10, hs = 8) => tint(new THREE.SphereGeometry(r, ws, hs).scale(sx, sy, sz).translate(x, y, z), c);
+      for (const sx of [-1, 1]) {
+        P.push(C(0.043, 0.03, 0.19, sx * 0.036, 0.29, 0, skin, 0, sx * 0.04));                  // thigh
+        P.push(C(0.028, 0.019, 0.19, sx * 0.04, 0.11, -0.004, skin));                           // calf
+        P.push(tint(new THREE.BoxGeometry(0.03, 0.045, 0.07).translate(sx * 0.04, 0.022, 0.012), shoe), C(0.006, 0.006, 0.04, sx * 0.04, 0.02, -0.02, shoe));   // heels
+        P.push(C(0.016, 0.012, 0.22, sx * 0.09, 0.49, 0, skin, 0, sx * 0.18));                  // arms, a little out
+        P.push(E(0.034, 1, 1, 0.95, sx * 0.027, 0.548, 0.032, bik, 8, 6));                       // bikini top
+        P.push(C(0.003, 0.003, 0.08, sx * 0.022, 0.6, 0.02, bik, 0.3));                          // straps
+      }
+      P.push(E(0.078, 1.22, 0.78, 1.12, 0, 0.385, -0.014, skin));                                  // hips and seat
+      P.push(tint(new THREE.SphereGeometry(0.0795, 12, 8, 0, Math.PI * 2, Math.PI * 0.42, Math.PI * 0.3).scale(1.23, 0.78, 1.13).translate(0, 0.385, -0.014), bik));   // bikini bottom
+      P.push(C(0.044, 0.05, 0.1, 0, 0.46, 0, skin));                                               // waist
+      P.push(C(0.052, 0.044, 0.1, 0, 0.55, 0, skin));                                              // ribs
+      P.push(C(0.017, 0.02, 0.05, 0, 0.615, 0, skin), E(0.046, 0.92, 1.08, 0.98, 0, 0.665, 0.004, skin));   // neck, head
+      P.push(E(0.05, 1, 1, 1, 0, 0.675, -0.008, hair, 10, 6), tint(new THREE.BoxGeometry(0.085, 0.14, 0.03).translate(0, 0.6, -0.04), hair));   // long hair
+      return mergeGeometries(P);
+    };
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
+    const V2 = [];
+    for (let k = 0; k < 8; k++) V2.push(body(SKIN[k % SKIN.length], BIK[(k * 3) % BIK.length], HAIR[(k * 5) % HAIR.length], k % 3 ? 0xf2f2f0 : 0x111111));
+    this.girlSets = V2.map((geo) => { const m = new THREE.InstancedMesh(geo, mat, spots.length); m.count = 0; m.frustumCulled = false; m.castShadow = true; this.scene.add(m); return m; });
+    this.girlList = spots.map((sp, i) => { const m = this.girlSets[i % V2.length]; const idx = m.count++; return { ...sp, m, idx, ph: rand(0, 6), y: sp.y || 0 }; });
+    this.updateGirls();
+  }
+  updateGirls() {
+    if (!this.girlList) return;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), t = G.time;
+    for (const g2 of this.girlList) {
+      const sway = g2.stage ? Math.sin(t * 2.6 + g2.ph) * 0.5 : Math.sin(t * 0.7 + g2.ph) * 0.15;
+      q.setFromAxisAngle(up, g2.h + sway).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.sin(t * (g2.stage ? 2.6 : 0.9) + g2.ph) * 0.05));
+      p.set(g2.x, g2.y + (g2.stage ? Math.abs(Math.sin(t * 2.6 + g2.ph)) * 0.02 : 0), g2.z);
+      m4.compose(p, q, sc); g2.m.setMatrixAt(g2.idx, m4);
+    }
+    for (const m of this.girlSets) m.instanceMatrix.needsUpdate = true;
+  }
+  // the big signs: LED "CASINO" ovals, neon "STRIP CLUB" with its reclining figure, "GIRLS" with dancers and an arrow
+  bigSigns(V) {
+    const casinoTex = canvasTex(512, 256, (c, w, h) => {
+      c.fillStyle = '#060606'; c.beginPath(); c.ellipse(w / 2, h / 2, w / 2 - 4, h / 2 - 4, 0, 0, 6.28); c.fill();
+      for (let a = 0; a < 6.28; a += 0.075) { c.fillStyle = '#3aff5a'; c.beginPath(); c.arc(w / 2 + Math.cos(a) * (w / 2 - 16), h / 2 + Math.sin(a) * (h / 2 - 14), 5, 0, 6.28); c.fill(); }
+      const o = document.createElement('canvas'); o.width = w; o.height = h; const ox = o.getContext('2d'); ox.font = `900 ${h * 0.46}px Arial`; ox.textAlign = 'center'; ox.textBaseline = 'middle'; ox.fillStyle = '#fff'; ox.fillText('CASINO', w / 2, h / 2 + 4);
+      const d = ox.getImageData(0, 0, w, h).data; c.fillStyle = '#ff2a2a';
+      for (let y = 6; y < h; y += 11) for (let x = 6; x < w; x += 11) if (d[(y * w + x) * 4 + 3] > 128) { c.beginPath(); c.arc(x, y, 4.2, 0, 6.28); c.fill(); }
+    });
+    const neon = (c, col, blur, lw) => { c.strokeStyle = col; c.shadowColor = col; c.shadowBlur = blur; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round'; };
+    const clubTex = canvasTex(512, 384, (c, w, h) => {
+      const g2 = c.createLinearGradient(0, 0, w, h); g2.addColorStop(0, '#16083a'); g2.addColorStop(1, '#3a0a5a'); c.fillStyle = g2; c.fillRect(0, 0, w, h);
+      neon(c, '#ffc02a', 18, 7); c.beginPath(); c.moveTo(70, 70); c.lineTo(70, 270); c.lineTo(440, 270); c.stroke(); c.beginPath(); c.moveTo(440, 256); c.lineTo(462, 270); c.lineTo(440, 284); c.stroke();
+      c.beginPath(); c.moveTo(70, 66); c.bezierCurveTo(46, 40, 54, 22, 70, 40); c.bezierCurveTo(86, 22, 94, 40, 70, 66); c.stroke();
+      // the reclining figure: a single neon line (head and hair, back, hip, the legs drawn up)
+      neon(c, '#ff3bd4', 20, 6); c.beginPath();
+      c.moveTo(118, 130); c.bezierCurveTo(112, 104, 140, 92, 150, 110); c.bezierCurveTo(160, 140, 170, 180, 200, 200); c.bezierCurveTo(232, 220, 246, 170, 270, 168); c.bezierCurveTo(300, 166, 312, 210, 360, 236); c.lineTo(420, 250); c.stroke();
+      c.beginPath(); c.moveTo(150, 120); c.bezierCurveTo(140, 160, 120, 200, 104, 230); c.stroke(); c.beginPath(); c.moveTo(200, 210); c.bezierCurveTo(240, 236, 300, 244, 400, 252); c.stroke();
+      c.shadowBlur = 22; c.fillStyle = '#3a6aff'; c.shadowColor = '#3a6aff'; c.font = '600 64px Arial'; c.textAlign = 'center'; c.fillText('STRIP CLUB', w / 2 + 10, 344);
+    });
+    const girlsTex = canvasTex(512, 384, (c, w, h) => {
+      const g2 = c.createLinearGradient(0, 0, w, h); g2.addColorStop(0, '#2a1a8a'); g2.addColorStop(0.5, '#7a2ac8'); g2.addColorStop(1, '#2a0a3a'); c.fillStyle = g2; c.fillRect(0, 0, w, h);
+      neon(c, '#ff6ad8', 16, 4); c.strokeRect(60, 30, 300, 190);
+      for (const x0 of [110, 200, 290]) { c.beginPath(); c.arc(x0, 70, 14, 0, 6.28); c.stroke(); c.beginPath(); c.moveTo(x0 - 6, 84); c.bezierCurveTo(x0 - 22, 120, x0 + 10, 130, x0 - 14, 160); c.lineTo(x0 - 22, 212); c.moveTo(x0 + 6, 84); c.bezierCurveTo(x0 + 22, 118, x0 + 4, 134, x0 + 18, 160); c.lineTo(x0 + 24, 212); c.moveTo(x0 - 8, 92); c.lineTo(x0 - 30, 60); c.moveTo(x0 + 8, 92); c.lineTo(x0 + 26, 64); c.stroke(); }
+      neon(c, '#ff2a6a', 20, 6); c.beginPath(); c.moveTo(60, 250); c.lineTo(370, 250); c.lineTo(370, 228); c.lineTo(470, 290); c.lineTo(370, 352); c.lineTo(370, 330); c.lineTo(60, 330); c.closePath(); c.stroke();
+      c.shadowBlur = 18; c.fillStyle = '#ff6ad8'; c.font = 'italic 900 70px Arial'; c.textAlign = 'center'; c.fillText('GIRLS', 220, 314);
+    });
+    const mats = [casinoTex, clubTex, girlsTex].map((t) => { const m = new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.6, transparent: true, alphaTest: 0.05, roughness: 0.5 }); this.signs.push(m); return m; });
+    const P = [];
+    const put = (b, kind, faceX) => {
+      const t = topOf(b), w = kind === 0 ? 6 : 5.4, h = kind === 0 ? 3 : 4, y = t.y + h / 2 + 0.5;
+      const x = faceX < 0 ? t.ax + 0.6 : t.bx - 0.6, ry = faceX < 0 ? -Math.PI / 2 : Math.PI / 2;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mats[kind]); m.position.set(x, y, t.cz); m.rotation.y = ry; this.scene.add(m);
+      P.push(box(0.15, h * 0.6 + 0.5, 0.15, x - faceX * 0.3, t.y + (h * 0.6 + 0.5) / 2, t.cz - w * 0.3, 0x2a2a2e), box(0.15, h * 0.6 + 0.5, 0.15, x - faceX * 0.3, t.y + (h * 0.6 + 0.5) / 2, t.cz + w * 0.3, 0x2a2a2e));
+      hangOn(b, [m], b.floors - 1);
+    };
+    // casinos along the Strip (every few fillers), the east end's casinos and clubs, the clubs on Industrial Road
+    V.neon.forEach((n, i) => { if (Math.abs(n.b.x) < 30 && n.b.floors <= 4 && i % 3 === 0) put(n.b, Math.random() < 0.7 ? 0 : 2, n.side < 0 ? 1 : -1); });
+    for (const l of (V.dark || { lots: [] }).lots) if (l.b && (l.kind === 'club' || l.kind === 'casino')) put(l.b, l.kind === 'casino' ? 0 : Math.random() < 0.5 ? 1 : 2, -l.dir);
+    for (const c of V.clubs || []) if (c.b) put(c.b, Math.random() < 0.5 ? 1 : 2, Math.sin(c.face) > 0 ? 1 : -1);
+    if (P.length) this.add(P);
   }
   // people out on bikes in the suburb, riding up and down its streets
   bikes(rows) {
@@ -1377,7 +1533,7 @@ export class Vegas {
     for (const m of this.neonMeshes || []) m.material.color.copy(m.userData.base).multiplyScalar(0.45 + n * 1.6);
     for (const m of this.arcades || []) m.emissiveIntensity = n * 1.3;
     if (this.eiffelMat) this.eiffelMat.emissiveIntensity = n * 0.9 + (n > 0.5 && (t % 3600) < 5 ? Math.random() * 1.5 : 0);
-    if (this.beam) { this.beam.material.opacity = n * 0.5; this.beamCore.material.opacity = n * 0.9; this.beamGlow.material.opacity = n * 0.8; }
+    if (this.beam) { const k = Math.pow(Math.max(0, (n - 0.45) / 0.55), 2); this.beam.material.opacity = k * 0.18; this.beamCore.material.opacity = k * 0.35; this.beamGlow.material.opacity = k * 0.35; }
     if (this.stratTop) this.stratTop.visible = Math.sin(t * 2.4) > 0;
     if (this.torch) this.torch.material.color.setScalar(0.8 + n);
     if (this.cabMat) this.cabMat.emissiveIntensity = n * 1.2;
@@ -1390,6 +1546,8 @@ export class Vegas {
     // the ad reels: each screen changes ad every few seconds
     for (const r of this.reels) if (t > r.next) { r.next = t + 6 + Math.random() * 3; r.i++; this.drawReel(r); }
     this.updateHighway(dt);
+    this.updateRiders(dt);
+    this.updateGirls();
     for (const b of this.bikers || []) { b.x += b.dir * b.v * dt; if (b.x > 171 || b.x < 111) { b.dir *= -1; b.x = Math.max(111, Math.min(171, b.x)); } b.g.position.set(b.x, 0, b.row + (b.dir > 0 ? 0.8 : -0.8)); b.g.rotation.y = b.dir > 0 ? Math.PI / 2 : -Math.PI / 2; b.ph += dt * b.v * 3; b.legs[0].rotation.x = Math.sin(b.ph) * 0.7; b.legs[1].rotation.x = -Math.sin(b.ph) * 0.7; }
     if (this.flicker && G.city && (this._fl = (this._fl || 0) - dt) <= 0) { this._fl = rand(0.05, 0.4); for (const l of this.flicker) { l.flick = Math.random() < 0.4 ? 1 : 0; } }
     if (this.flashSprite && (this.flashT -= dt) <= 0) this.flashSprite.visible = false;
@@ -1428,7 +1586,7 @@ export class Vegas {
     const A = G.agents; if (!A) return;
     const near = (f) => { const c = []; for (const p of A.peds) if (p.state === 'idle' && f(p) && Math.hypot(p.pos.x - T.x, p.pos.z - T.z) < 30) { c.push(p); if (c.length > 30) break; } return c.length ? pick(c) : null; };
     if ((this._shot = (this._shot ?? 2) - dt) <= 0) {
-      this._shot = rand(2.5, 6);
+      this._shot = rand(10, 20);
       const p = near((q) => q.act === 'film');
       if (p) { sfx.once('shutter', p.pos.x, p.pos.z, 0.5, rand(0.95, 1.08)); this.flash(p.pos.x + Math.sin(p.heading) * 0.15, p.pos.y + 0.62, p.pos.z + Math.cos(p.heading) * 0.15); }
     }
