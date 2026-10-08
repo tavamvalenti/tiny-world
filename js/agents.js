@@ -20,6 +20,7 @@ const LOOKS = {
   lvmpd: [0xb9a47a, 'torso', 0x2c3a2a, null, 1], tourist: [[0xff8fa3, 0x4fc3f7, 0xfff176, 0xffffff, 0x81c784, 0xff7043, 0xba68c8], 'skin', [0x7b8794, 0xb8ad96, 0x2a3448, 'skin'], null],
   metpolice: [0xd8ea3c, 0x101826, 0x101826, 0x0b0f1a, 1], guard: [0xc0141c, 'torso', 0x0d0d10, 0x070708], beefeater: [0x7a0d18, 'torso', 0x7a0d18, 0x1a1414],
   swim: ['skin', 'skin', [0x1f63b8, 0xd8262c, 0x111111, 0xf2c230, 0x2a9d8f, 0xff7ab0], null],
+  homeless: [[0x5a4a3a, 0x3a3a3a, 0x6a5a4a, 0x4a4038, 0x2f3a2a], 'torso', [0x3a3428, 0x2a2a2a, 0x4a4a52], [0x3a2a1a, 0x6a6a6a, 0x2a2018]],
   busker: [[0x3a3a3e, 0x6b5a45, 0x2b3445], 'torso', 0x1c1d22, null], commuter: [[0x1c1d22, 0x2b3445, 0x4a4a4e, 0x6b5a45], 'torso', [0x1c1d22, 0x2a3448], null],
 };
 const HAIR = [0x1a1410, 0x2e2118, 0x5a3b22, 0x8a6a3a, 0xc9a86a, 0x6b6b6b, 0x0e0e0e];
@@ -1107,6 +1108,7 @@ export class Agents {
       if (p.state === 'idle' && p.act) {
         const tt = G.time * (p.act === 'pole' ? 2.6 : 5.2) + p.phase;
         if (p.act === 'film') { o.aL = o.aR = -1.45; o.oL = o.oR = 0.28; }
+        else if (p.act === 'sit') { o.dy = -0.2; o.lL = o.lR = -1.45; o.aL = o.aR = -0.35 + Math.sin(tt * 0.1) * 0.05; o.oL = o.oR = 0.15; }
         else { o.aL = -2.5 + Math.sin(tt) * 0.5; o.aR = -2.5 + Math.cos(tt * 1.1) * 0.5; o.oL = o.oR = 0.35; o.lL = Math.sin(tt) * 0.25; o.lR = -o.lL; o.dy = Math.abs(Math.sin(tt)) * (p.act === 'pole' ? 0.02 : 0.05); _q.multiply(new THREE.Quaternion().setFromAxisAngle(UP, Math.sin(tt * 0.5) * 0.6)); }
       }
       _p.set(p.pos.x, p.pos.y + bob + o.dy + (p.state === 'down' ? 0.06 : 0) + (TH ? TH(p.pos.x, p.pos.z) : 0), p.pos.z);   // on the hills, stand on the slope
