@@ -50,7 +50,7 @@ function rawH(x, z) {
   } else {
     const rise = Math.min(1, d / 4);
     h = 0.12 + rise * (Math.max(0, n - 0.32) * 8 + r * 1.1);               // bare rock knolls
-    h += sm(60, 200, x) * 9 * (0.6 + n * 0.8) + sm(66, 200, Math.abs(z)) * 6 * (0.5 + n);   // the land rises gently away from the town
+    h += sm(60, 220, x) * 5 * (0.6 + n * 0.8) + sm(66, 220, Math.abs(z)) * 3.5 * (0.5 + n);   // the land rises gently away from the town
   }
   const f = flat(x, z);
   return f > 0 ? h * (1 - f) + 0.03 * f : h;
@@ -58,11 +58,13 @@ function rawH(x, z) {
 // far away: islands with peaks out at sea, coastal mountains and glaciers north and south, the inland ranges east
 function farH(x, z) {
   let h = rawH(x, z);
-  const R = Math.max(Math.abs(x), Math.abs(z)), w = sm(160, 420, R);
+  const R = Math.max(Math.abs(x), Math.abs(z)), w = sm(200, 520, R);
   if (w <= 0) return h;
-  const rg = 1 - Math.abs(2 * fbm(x * 0.004 + 40, z * 0.004 + 11, 5) - 1), d = x - coast(z), far = sm(350, 1100, R);
-  if (d > 0) h += w * (12 * fbm(x * 0.012, z * 0.012, 3) + far * rg * rg * 230 + sm(200, 600, R) * rg * 40);
-  else { const isl = fbm(x * 0.0035 + 5, z * 0.0035 + 9, 4); if (isl > 0.52) h = Math.max(h, w * ((isl - 0.52) * 520 * (0.6 + rg * 0.6) - 4)); }
+  // low rolling ground with broad flat stretches; real mountains only far off, and not too tall
+  const d = x - coast(z), flatA = sm(0.42, 0.58, fbm(x * 0.0025 + 3, z * 0.0025 + 7, 3));
+  const rg = 1 - Math.abs(2 * fbm(x * 0.004 + 40, z * 0.004 + 11, 5) - 1);
+  if (d > 0) h += w * (5 * fbm(x * 0.012, z * 0.012, 3) * (1 - flatA * 0.7) + sm(520, 1300, R) * rg * rg * 70 * (1 - flatA * 0.85));
+  else { const isl = fbm(x * 0.0035 + 5, z * 0.0035 + 9, 4); if (isl > 0.54) h = Math.max(h, w * Math.min(40, (isl - 0.54) * 260 * (0.5 + rg * 0.5) - 3)); }
   return h;
 }
 // a cached grid over the map (the height is asked for a lot: every person, every frame)
@@ -230,21 +232,23 @@ export class Greenland {
   }
   // everything past the map: islands and peaks out at sea, coastal mountains and glaciers, inland rock and snow
   far() {
-    const N = 220, SZ = 3400, geo = new THREE.PlaneGeometry(SZ, SZ, N, N).rotateX(-Math.PI / 2), p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
+    const N = 280, SZ = 3400, geo = new THREE.PlaneGeometry(SZ, SZ, N, N).rotateX(-Math.PI / 2), p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i);
       let h = farH(x, z);
-      if (Math.abs(x) < E - 4 && Math.abs(z) < E - 4) h = Math.min(h, -12);                  // under the map's own terrain
+      if (Math.abs(x) < E - 14 && Math.abs(z) < E - 14) h = -12;                              // well under the map's own terrain
+      else if (Math.abs(x) < E && Math.abs(z) < E) h -= 0.3;                                  // the last ring meets it at the edge
       p.setY(i, h);
     }
     geo.computeVertexNormals();
     const nrm = geo.attributes.normal;
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i), h = p.getY(i), steep = 1 - nrm.getY(i), n = fbm(x * 0.02, z * 0.02, 3), d = x - coast(z);
+      // the same mix as the painted ground: snow lying wherever it can, grey-brown rock on the steep bits
+      const n1 = fbm(x * 0.35, z * 0.35, 3), snow = sm(0.36, 0.62, n1 + 0.36 - steep * 2.2 - (d > 0 && d < 3 ? (3 - d) * 0.12 : 0));
       if (h < SEA) c.setRGB(0.16, 0.22, 0.26);
-      else if (steep > 0.55 + n * 0.25) c.setHSL(0.08, 0.06, 0.3 + n * 0.12, THREE.SRGBColorSpace);           // bare rock on the cliffs
-      else if (h < 40 && d < 0 && n > 0.45) c.setHSL(0.55, 0.45, 0.86 + n * 0.08, THREE.SRGBColorSpace);      // glacier ice flowing to the sea
-      else c.setHSL(0.58, 0.2, 0.9 + n * 0.07, THREE.SRGBColorSpace);                                           // snow
+      else if (h < 30 && d < 0 && n > 0.5) c.setHSL(0.55, 0.4, 0.88 + n * 0.06, THREE.SRGBColorSpace);         // glacier ice on the islands
+      else { const rk = (78 + n * 40) / 255; c.setRGB(rk * 1.02, rk * 0.97, rk * 0.92).lerp(new THREE.Color(0.9, 0.92, 0.96), snow); c.convertSRGBToLinear(); }
       c.toArray(col, i * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -285,8 +289,10 @@ export class Greenland {
       const g2 = new THREE.Group(), m = new THREE.Mesh(geoFor(b.kind, b.R, b.H, i * 3.7), iceMat); m.castShadow = true; m.receiveShadow = true; m.position.y = -b.H * 0.12; g2.add(m);
       const glow = new THREE.Mesh(new THREE.CircleGeometry(b.R * 1.2, 24).rotateX(-Math.PI / 2), glowMat); glow.position.y = 0.04; glow.renderOrder = 2; g2.add(glow);
       g2.position.set(b.x, SEA, b.z); g2.rotation.y = r() * 6.28; this.scene.add(g2);
-      return { ...b, g: g2, m, ph: r() * 6, vx: (r() - 0.5) * 0.06, vz: (r() - 0.5) * 0.06, s: 1 };
+      return { ...b, g: g2, m, ph: r() * 6, vx: Math.hypot(b.x, b.z) > 200 ? (r() - 0.5) * 0.06 : 0, vz: Math.hypot(b.x, b.z) > 200 ? (r() - 0.5) * 0.06 : 0, s: 1, hp: 6 + b.R * b.H * 0.5 };
     });
+    // weapons aim at the ice (and at the sea's surface rather than the sea bed)
+    G.rayExtra = (p) => this.rayHit(p);
   }
   // pack ice: little floes knocking about the shore and round the bergs
   floes() {
@@ -380,6 +386,20 @@ export class Greenland {
   // the little football pitch: goals, a low fence, two floodlights; a five-a-side game on
   pitch() {
     const P = [], { x, z, w, d } = PITCH, y = 0.03;
+    // the artificial turf on its own sharp texture: mown stripes, crisp white lines
+    const tex = canvasTex(1024, Math.round(1024 * (d + 2) / (w + 2)), (c, W, H) => {
+      const k = W / (w + 2), X = (v) => (v + w / 2 + 1) * k, Z = (v) => (v + d / 2 + 1) * k;
+      c.fillStyle = '#3a7a36'; c.fillRect(0, 0, W, H);
+      for (let i = 0; i < 10; i++) { c.fillStyle = i % 2 ? '#3f8239' : '#36722f'; c.fillRect(X(-w / 2 + i * w / 10), Z(-d / 2), w / 10 * k, d * k); }
+      for (let i = 0; i < 6000; i++) { c.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},.05)`; c.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
+      c.strokeStyle = '#f4f4ef'; c.lineWidth = 0.12 * k;
+      c.strokeRect(X(-w / 2), Z(-d / 2), w * k, d * k); c.beginPath(); c.moveTo(X(0), Z(-d / 2)); c.lineTo(X(0), Z(d / 2)); c.stroke();
+      c.beginPath(); c.arc(X(0), Z(0), 1.6 * k, 0, 6.283); c.stroke(); c.fillStyle = '#f4f4ef'; c.beginPath(); c.arc(X(0), Z(0), 0.12 * k, 0, 6.283); c.fill();
+      for (const s2 of [-1, 1]) { c.strokeRect(X(s2 > 0 ? w / 2 - 2.6 : -w / 2), Z(-2.8), 2.6 * k, 5.6 * k); c.strokeRect(X(s2 > 0 ? w / 2 - 1 : -w / 2), Z(-1.6), 1 * k, 3.2 * k); c.beginPath(); c.arc(X(s2 * (w / 2 - 1.9)), Z(0), 0.1 * k, 0, 6.283); c.fill(); }
+    });
+    tex.anisotropy = 16;
+    const turf = new THREE.Mesh(new THREE.PlaneGeometry(w + 2, d + 2).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
+    turf.position.set(x, terrainH(x, z) + 0.035, z); turf.receiveShadow = true; this.scene.add(turf);
     for (const s of [-1, 1]) { const gx = x + s * w / 2; P.push(box(0.08, 1.1, 0.08, gx, y + 0.55, z - 1.6, 0xf6f6f2), box(0.08, 1.1, 0.08, gx, y + 0.55, z + 1.6, 0xf6f6f2), box(0.08, 0.08, 3.28, gx, y + 1.1, z, 0xf6f6f2), tint(new THREE.BoxGeometry(0.8, 1.1, 3.2).translate(gx + s * 0.4, y + 0.55, z), 0xdddddd)); }
     for (let a = -w / 2 - 1; a <= w / 2 + 1; a += 1.5) for (const s of [-1, 1]) P.push(box(0.05, 0.6, 0.05, x + a, y + 0.3, z + s * (d / 2 + 1), 0x2a2a2a));
     for (const s of [-1, 1]) P.push(box(w + 2, 0.04, 0.04, x, y + 0.6, z + s * (d / 2 + 1), 0x2a2a2a));
@@ -446,7 +466,11 @@ export class Greenland {
     const d = this.GL.dock, mouth = { x: d.x0 - 8, z: d.z };
     for (let k = 0; k < 7; k++) {
       const kind = k < 2 ? 'trawler' : 'dinghy', m = new THREE.Mesh(geo(kind), this.mat); m.castShadow = true; this.scene.add(m);
-      const spot = { x: mouth.x - 30 - Math.random() * 110, z: -120 + Math.random() * 240 };
+      // a fishing ground the boat can reach in a straight line without running into ice
+      const segD = (b, a, c) => { const ux = c.x - a.x, uz = c.z - a.z, l2 = ux * ux + uz * uz, t = Math.max(0, Math.min(1, ((b.x - a.x) * ux + (b.z - a.z) * uz) / l2)); return Math.hypot(a.x + ux * t - b.x, a.z + uz * t - b.z); };
+      let spot = null;
+      for (let tr = 0; tr < 60 && !spot; tr++) { const c = { x: mouth.x - 30 - Math.random() * 110, z: -120 + Math.random() * 240 }, a = { x: mouth.x - 4, z: d.z + (k % 2 ? 7 : -7) }; if (this.bergs.every((b) => segD(b, a, c) > b.R * 1.4 + 3) && terrainH(c.x, c.z) < SEA - 1) spot = c; }
+      spot ||= { x: mouth.x - 20, z: d.z + (k % 2 ? 20 : -20) };
       this.boatList.push({ m, kind, a: { x: mouth.x - 4, z: d.z + (k % 2 ? 7 : -7) }, b: spot, u: Math.random(), dir: 1, wait: rand(0, 20), v: kind === 'trawler' ? 2.2 : 3.2, x: mouth.x, z: mouth.z, h: 0 });
     }
     this.ship = { m: new THREE.Mesh(geo('ship'), this.mat), z: -500, x: -230 };
@@ -500,15 +524,44 @@ export class Greenland {
       const m = new THREE.Mesh(geo, mat); m.renderOrder = 3; m.frustumCulled = false; this.scene.add(m);
     }
   }
-  // blasts break chunks off icebergs; small ones break up and sink
+  rayHit(p) {
+    for (const b of this.bergs) {
+      if (b.gone || Math.abs(p.x - b.x) > b.R * 1.3 || Math.abs(p.z - b.z) > b.R * 1.3) continue;
+      const t = (p.y - SEA) / b.H; if (t < 0 || t > 0.95 * (b.dent || 1)) continue;
+      const rad = b.R * 0.9 * (b.kind === 'pin' ? 1 - t * 0.7 : b.kind === 'dome' ? Math.sqrt(Math.max(0.05, 1 - t * t)) : 1);
+      if (Math.hypot(p.x - b.x, p.z - b.z) < rad) return { point: p.clone(), normal: new THREE.Vector3(p.x - b.x, 0.3, p.z - b.z).normalize(), cell: null, berg: b };
+    }
+    if (p.y <= SEA && terrainH(p.x, p.z) < SEA) return { point: new THREE.Vector3(p.x, SEA, p.z), normal: new THREE.Vector3(0, 1, 0), cell: null };
+    return null;
+  }
+  // blasts blow craters in the ice and throw chunks; enough of a pounding and the berg breaks up and sinks
   onBlast(x, y, z, r, power) {
+    const ice = new THREE.Color(0.86, 0.94, 1), FX = G.fx;
     for (const b of this.bergs || []) {
-      if (b.gone) continue;
-      const d = Math.hypot(b.x - x, b.z - z) - b.R;
-      if (d > r * 0.6 || power < 1) continue;
-      b.s = Math.max(0, b.s - (0.25 + power * 0.05));
-      for (let k = 0; k < 10; k++) G.fx && G.fx.debris.spawn(b.x + rand(-b.R, b.R) * 0.6, SEA + b.H * 0.5 * b.s, b.z + rand(-b.R, b.R) * 0.6, new THREE.Vector3(rand(-3, 3), rand(1, 5), rand(-3, 3)), rand(0.3, 1), rand(0.3, 1), rand(0.3, 1), new THREE.Color(0.86, 0.94, 1));
-      if (b.s < 0.25) b.gone = true;
+      if (b.gone || power < 0.5) continue;
+      const dh = Math.hypot(b.x - x, b.z - z) - b.R;
+      if (dh > r * 0.7) continue;
+      // the crater: pull the ice in toward the berg's middle and down, around the point of impact
+      const ca = Math.cos(-b.g.rotation.y), sa = Math.sin(-b.g.rotation.y), lx0 = x - b.x, lz0 = z - b.z;
+      const lx = lx0 * ca + lz0 * sa, lz = -lx0 * sa + lz0 * ca, ly = y - SEA - b.m.position.y, R2 = Math.max(1.2, r * 0.9);
+      const pos = b.m.geometry.attributes.position;
+      let moved = 0;
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i), vy = pos.getY(i), vz = pos.getZ(i), d = Math.hypot(vx - lx, vy - ly, vz - lz);
+        if (d > R2) continue;
+        const f = (1 - d / R2) * Math.min(1, 0.35 + power * 0.12);
+        pos.setXYZ(i, vx * (1 - 0.55 * f), Math.max(b.H * 0.02, vy - f * R2 * 0.55), vz * (1 - 0.55 * f)); moved++;
+      }
+      if (moved) { pos.needsUpdate = true; b.m.geometry.computeVertexNormals(); b.dent = Math.max(0.3, (b.dent || 1) - 0.05); }
+      b.hp -= power * (1 + r * 0.25);
+      const n = Math.min(14, 4 + Math.round(power * 2));
+      for (let k = 0; k < n && FX; k++) FX.debris.spawn(x + rand(-1, 1), Math.max(SEA + 0.3, y), z + rand(-1, 1), new THREE.Vector3(rand(-4, 4), rand(2, 6), rand(-4, 4)), rand(0.2, 0.8), rand(0.2, 0.7), rand(0.2, 0.8), ice);
+      if (b.hp <= 0) {
+        // it breaks up: a burst of ice, white water, and what's left rolls over and sinks
+        b.gone = true;
+        for (let k = 0; k < 26 && FX; k++) FX.debris.spawn(b.x + rand(-b.R, b.R) * 0.7, SEA + rand(0.5, b.H * 0.7), b.z + rand(-b.R, b.R) * 0.7, new THREE.Vector3(rand(-3, 3), rand(1, 4), rand(-3, 3)), rand(0.4, 1.6), rand(0.4, 1.4), rand(0.4, 1.6), ice);
+        for (let k = 0; k < 40 && FX; k++) FX.bits.emit(b.x + rand(-b.R, b.R), SEA + 0.1, b.z + rand(-b.R, b.R), rand(-1.5, 1.5), rand(1, 4), rand(-1.5, 1.5), 0.3, 1.6, 0.95, 0.98, 1, 1);
+      }
     }
   }
   update(dt) {
@@ -518,8 +571,7 @@ export class Greenland {
     // icebergs drift and bob; a hit one shrinks (and a broken one sinks away)
     for (const b of this.bergs || []) {
       b.x += b.vx * dt; b.z += b.vz * dt;
-      const sc = b.gone ? Math.max(0, b.g.scale.x - dt * 0.4) : b.g.scale.x + (b.s - b.g.scale.x) * Math.min(1, dt * 3);
-      b.g.scale.set(sc, sc, sc); b.g.visible = sc > 0.01;
+      if (b.gone) { b.sink = (b.sink || 0) + dt; b.g.rotation.z = Math.min(1.2, b.sink * 0.5); b.g.visible = b.sink < 9; b.g.position.set(b.x, SEA - b.sink * b.sink * 0.25 * Math.max(1, b.H / 4), b.z); b.g.children[1].visible = false; continue; }
       b.g.position.set(b.x, SEA + Math.sin(t * 0.5 + b.ph) * 0.05 * b.R / 4, b.z); b.g.rotation.z = Math.sin(t * 0.3 + b.ph) * 0.01;
     }
     this.updateBoats(dt); this.updateFootball(dt);

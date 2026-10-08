@@ -391,6 +391,7 @@ export class World {
     if (!this.snowPts) this.initSnow();
     // snow settles over a couple of minutes and melts slowly once it stops
     this.cover = Math.max(0, Math.min(1, this.cover + (s > 0.3 ? dt / 90 * s : -dt / 240)));
+    if (G.mapName === 'greenland') this.cover = 0;                         // already white all year; and the sea must stay blue
     this.snowCover.visible = this.cover > 0.001; this.snowCover.material.opacity = this.cover * 0.92;
     G.snowCover = this.cover;
     if (G.snowU) G.snowU.value = this.cover;

@@ -333,6 +333,7 @@ export class Buildings {
     const step = 0.2;
     for (; t < maxDist; t += step) {
       p.copy(d).multiplyScalar(t).add(o);
+      if (G.rayExtra && p.y < 40) { const hx = G.rayExtra(p); if (hx) return hx; }   // things that aren't buildings or ground (Greenland's icebergs, the sea)
       const gh = G.terrainH ? G.terrainH(p.x, p.z) : 0;
       if (p.y <= gh) {
         if (!gh) { const tg = o.y / -d.y; p.copy(d).multiplyScalar(tg).add(o); }
