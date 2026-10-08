@@ -17,7 +17,7 @@ const S = 0.42;                                     // the characters' scale (as
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _z = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0);
 
 const KINDS = {
-  drone: { name: 'Armed Drone', sub: 'Machine gun · explodes on contact', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'boost'], ['Click', 'machine gun'], ['V', 'camera'], ['Esc', 'leave']] },
+  drone: { name: 'Armed Drone', sub: 'Machine gun · grenades · explodes if rammed', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'boost'], ['Click', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
   glider: { name: 'Paraglider', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['A D', 'bank / turn'], ['W', 'throttle'], ['Space', 'climb'], ['S', 'idle'], ['Shift', 'speed bar'], ['Click', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
   jetpack: { name: 'Jetpack', sub: 'Machine gun · grenade launcher', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'thrust burst'], ['Click', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
 };
@@ -211,7 +211,6 @@ export class VehicleMode {
     document.body.classList.add('veh-on'); this.btn.classList.add('on');
     this.hud.querySelector('.vh-keys').innerHTML = `<div class="vh-title">${KINDS[kind].name.toUpperCase()}</div>` + KINDS[kind].keys.map(([k, t]) => `<span>${k.split(' / ').map((x) => `<b class="key">${x}</b>`).join('')}${t}</span>`).join('');
     this.btn.querySelectorAll('.vh-item').forEach((el) => el.classList.toggle('on', el.dataset.k === kind));
-    this.cdEl.style.display = kind === 'drone' ? 'none' : '';
     this.ret.className = 'vh-ret ' + kind;
     this.tip.style.opacity = 1;
     this.lock();
@@ -264,6 +263,7 @@ export class VehicleMode {
   // ---------------- per frame (before Tiny World's camera update)
   update(dt) {
     if (!this.active) return;
+    this.lastDt = dt;
     this.safeT = Math.max(0, this.safeT - dt);
     const turn = this.look; this.look = 0;
     if (this.dead) this.updateDead(dt);
@@ -294,13 +294,22 @@ export class VehicleMode {
     const B = G.buildings;
     for (const [x, y, z] of points) {
       const w = _v.set(x, y, z).applyAxisAngle(UP, this.yaw).add(this.pos);
-      const floor = B.surfaceAt(w.x, w.z, w.y + 0.3).y;
-      if (w.y < floor) return { w: w.clone(), pen: floor - w.y, n: new THREE.Vector3(0, 1, 0), ground: true };
       const cell = B.inside(w);
       if (cell) {
-        const dx = w.x - cell.x, dy = w.y - cell.y, dz = w.z - cell.z, px = cell.hx - Math.abs(dx), py = cell.hy - Math.abs(dy), pz = cell.hz - Math.abs(dz), m = Math.min(px, py, pz);
-        return { w: w.clone(), pen: m, cell, n: px === m ? new THREE.Vector3(Math.sign(dx), 0, 0) : py === m ? new THREE.Vector3(0, Math.sign(dy), 0) : new THREE.Vector3(0, 0, Math.sign(dz)) };
+        const dx = w.x - cell.x, dy = w.y - cell.y, dz = w.z - cell.z, px = cell.hx - Math.abs(dx), py = cell.hy - Math.abs(dy), pz = cell.hz - Math.abs(dz);
+        // the face it came in through: the axis on which the point was still outside the block a frame ago
+        // (the shallowest axis is wrong for flat, wide blocks: it would call a wall hit a landing on the roof)
+        const dt = this.lastDt || 1 / 60, ox = w.x - this.vel.x * dt - cell.x, oy = w.y - this.vel.y * dt - cell.y, oz = w.z - this.vel.z * dt - cell.z;
+        const outX = Math.abs(ox) >= cell.hx, outY = Math.abs(oy) >= cell.hy, outZ = Math.abs(oz) >= cell.hz;
+        let ax = outX ? 'x' : outY ? 'y' : outZ ? 'z' : null;
+        if (outX + outY + outZ > 1) ax = [['x', outX, px], ['y', outY, py], ['z', outZ, pz]].filter((q) => q[1]).sort((a2, b2) => a2[2] - b2[2])[0][0];
+        if (!ax) { const m = Math.min(px, py, pz); ax = px === m ? 'x' : py === m ? 'y' : 'z'; }
+        const n = ax === 'x' ? new THREE.Vector3(Math.sign(dx) || 1, 0, 0) : ax === 'y' ? new THREE.Vector3(0, Math.sign(dy) || 1, 0) : new THREE.Vector3(0, 0, Math.sign(dz) || 1);
+        return { w: w.clone(), pen: ax === 'x' ? px : ax === 'y' ? py : pz, cell, n, ground: ax === 'y' && n.y > 0 };
       }
+      // the bare ground (terrain), once no block is involved
+      const gy = G.terrainH ? G.terrainH(w.x, w.z) : 0;
+      if (w.y < gy) return { w: w.clone(), pen: gy - w.y, n: new THREE.Vector3(0, 1, 0), ground: true };
     }
     return null;
   }
@@ -324,10 +333,24 @@ export class VehicleMode {
     const lf = this.vel.dot(fw) / 24, ls = this.vel.dot(rt) / 24;
     this.model.tilt(-lf * 0.45, -ls * 0.45, this.yaw, this.aim);
     this.engine.set(1, clamp(this.vel.length() / 24 + Math.abs(u) * 0.2, 0, 1));
-    // contact: a building, the ground, a roof, a car -> boom
+    // contact: rammed hard into a building, the ground, a roof or a car -> boom; a bump or a scrape just knocks it back
     if (this.safeT > 0) return;
+    const RAM = 7.5;                                         // closing speed that counts as ramming
     const hit = this.touching([[0, -0.35, 0], [0.55, 0, 0.55], [-0.55, 0, 0.55], [0.55, 0, -0.55], [-0.55, 0, -0.55], [0, 0.05, -0.75], [0, -0.45, -0.3]]);
-    if (hit || this.carNear(1.1, 0.9)) this.explodeDrone();
+    if (hit) {
+      const vn = this.vel.dot(hit.n);
+      if (-vn > RAM) { this.explodeDrone(); return; }
+      this.pos.addScaledVector(hit.n, hit.pen + 0.03);
+      if (vn < 0) this.vel.addScaledVector(hit.n, -vn * 1.4);
+      this.vel.multiplyScalar(0.8);
+      if (-vn > 2 && (this.bumpT || 0) <= G.time) { this.bumpT = G.time + 0.25; this.shake = Math.max(this.shake, 0.3); sfx.crash(hit.w.x, hit.w.z, 0.25); }
+    }
+    const car = this.carNear(1.1, 0.9);
+    if (car) {
+      const away = new THREE.Vector3(this.pos.x - car.pos.x, 0, this.pos.z - car.pos.z).normalize(), closing = -this.vel.dot(away) + (this.vel.y < 0 ? -this.vel.y * 0.5 : 0);
+      if (closing > RAM) { this.explodeDrone(); return; }
+      this.vel.addScaledVector(away, Math.max(0, closing) * 1.4 + 1).multiplyScalar(0.85); this.pos.y += 0.05;
+    }
   }
   explodeDrone() {
     if (this.dead) return;                                  // one crash, one explosion, one respawn
@@ -383,8 +406,11 @@ export class VehicleMode {
     // collapses for a moment and he drops, then it reinflates. Never blown up.
     const hit = this.touching([[0, 0.25, -0.7], [0, 0.25, 0.6], [0.5, 0.25, 0], [-0.5, 0.25, 0], [0, 3.7, 0], [2.8, 1.9, 0], [-2.8, 1.9, 0]]);
     if (hit && !hit.ground) {
-      this.pos.addScaledVector(hit.n, hit.pen + 0.05);
-      if (hit.n.y < 0.5) { this.yaw += Math.PI * 0.6 * (Math.random() < 0.5 ? 1 : -1); this.airspeed *= 0.4; }
+      // always pushed out sideways (the wing poking into a building from below shouldn't drive him into the ground)
+      let n = hit.n, pen = hit.pen;
+      if (Math.abs(n.y) > 0.5 && hit.cell) { const c = hit.cell, dx = hit.w.x - c.x, dz = hit.w.z - c.z; if (Math.abs(dx) / c.hx > Math.abs(dz) / c.hz) { n = new THREE.Vector3(Math.sign(dx) || 1, 0, 0); pen = c.hx - Math.abs(dx); } else { n = new THREE.Vector3(0, 0, Math.sign(dz) || 1); pen = c.hz - Math.abs(dz); } }
+      this.pos.addScaledVector(n, pen + 0.08);
+      if (this.lost <= 0) { this.yaw = Math.atan2(-n.x, -n.z) + rand(-0.5, 0.5); this.airspeed *= 0.5; }   // turned away from the wall, once per knock
       if (this.lost <= 0) { this.lost = 1.1; this.shake = 0.8; sfx.crash(hit.w.x, hit.w.z, 0.4); if (hit.cell && this.airspeed > 6) B.damageSphere(hit.w.x, hit.w.y, hit.w.z, 0.8, 50, 0, 0, this.pos); }
     }
   }
@@ -440,7 +466,7 @@ export class VehicleMode {
     this.fireCd -= dt; this.secCd -= dt;
     const k = this.keys, firing = k.Mouse0, second = k.Mouse2 || k.KeyG;
     if (firing && this.fireCd <= 0) this.firePrimary();
-    if (second && this.secCd <= 0 && this.kind !== 'drone') this.fireSecondary();
+    if (second && this.secCd <= 0) this.fireSecondary();
   }
   firePrimary() {
     const mz = this.model.muzzle(), target = this.aimPoint(), dir = target.clone().sub(mz).normalize();
@@ -661,6 +687,9 @@ export class VehicleMode {
     const barrel = add(gimbal, new THREE.CylinderGeometry(0.022, 0.022, 0.5, 8).rotateX(Math.PI / 2), gun, 0, -0.05, -0.47);
     add(gimbal, new THREE.CylinderGeometry(0.035, 0.03, 0.09, 8).rotateX(Math.PI / 2), gun, 0, -0.05, -0.74);
     add(gimbal, new THREE.BoxGeometry(0.12, 0.12, 0.14), new THREE.MeshStandardMaterial({ color: 0x3a3f2a, roughness: 0.6 }), 0.12, -0.06, 0.02);
+    // the grenade launcher beside it: a fat olive tube with a rear breech
+    add(gimbal, new THREE.CylinderGeometry(0.045, 0.045, 0.42, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x4a5a2a, roughness: 0.6 }), -0.11, -0.07, -0.3);
+    add(gimbal, new THREE.CylinderGeometry(0.055, 0.055, 0.06, 10).rotateX(Math.PI / 2), gun, -0.11, -0.07, -0.06);
     for (let i = 0; i < 5; i++) add(gimbal, new THREE.BoxGeometry(0.02, 0.025, 0.04), new THREE.MeshStandardMaterial({ color: 0xc8a040, metalness: 0.8, roughness: 0.3 }), 0.06 - i * 0.012, -0.02, -0.04 + i * 0.01);
     root.scale.setScalar(1.25);
     const self = this;
@@ -668,7 +697,7 @@ export class VehicleMode {
       root, recoil: 0,
       tilt(p, r, yaw, aim) { root.rotation.set(0, 0, 0); root.rotateY(yaw); body.rotation.set(p, 0, r); gimbal.rotation.x = clamp(aim + 0.35, -1.2, 0.5) - p; },
       update(dt) { for (const pr of props) pr.rotation.y += dt * 60; root.position.copy(self.pos); this.recoil = Math.max(0, this.recoil - dt * 12); barrel.position.z = -0.47 + this.recoil * 0.04; led.visible = (performance.now() / 400) % 1 < 0.5; },
-      muzzle() { root.updateMatrixWorld(true); return new THREE.Vector3(0, -0.05, -0.8).applyMatrix4(gimbal.matrixWorld); },
+      muzzle(second) { root.updateMatrixWorld(true); return (second ? new THREE.Vector3(-0.11, -0.07, -0.55) : new THREE.Vector3(0, -0.05, -0.8)).applyMatrix4(gimbal.matrixWorld); },
     };
   }
 
