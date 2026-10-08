@@ -52,4 +52,5 @@ export function blast(x, y, z, radius, power, kind = 'explosion') {
   G.construction && G.construction.onBlast(x, y, z, radius, power, kind);
   G.director && G.director.onBlast(x, y, z, radius, power, kind);
   G.news && G.news.onBlast(x, y, z, radius, power, kind);
+  G.london && G.london.onBlast(x, y, z, radius, power, kind);
 }

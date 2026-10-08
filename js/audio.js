@@ -230,14 +230,14 @@ function buildVoices() {
 // Each file is a strip of short clips cut from a longer recording (silence-split, levelled, faded); CLIPS holds
 // [start, length] in seconds. They're used sparingly: a few voices at once at most, cooldowns between them, and
 // each kind drawn from a shuffled bag so the same clip doesn't come round again soon.
-const CLIPS = {"scream":[[0.0,2.38],[2.5,1.36],[3.98,1.58],[5.68,1.26],[7.06,1.32],[8.5,1.68],[10.3,1.72],[12.14,1.16],[13.42,1.34],[14.88,3.0],[18.0,1.06],[19.18,1.26],[20.56,1.38],[22.06,2.22],[24.4001,1.94],[26.4601,1.8],[28.3801,1.56],[30.0601,0.98],[31.1601,1.74],[33.0201,2.84],[35.9801,1.36],[37.4601,1.12],[38.7001,1.54],[40.3602,1.58],[42.0602,1.56],[43.7402,1.0],[44.8602,1.38],[46.3602,0.96],[47.4402,1.12]],"yelp":[[48.6802,0.54],[49.3402,0.54],[50.0002,0.56],[50.6802,0.82],[51.6202,0.54],[52.2803,0.52],[52.9203,0.92],[53.9603,0.72],[54.8003,0.5],[55.4203,0.56],[56.1003,0.6],[56.8203,0.5],[57.4403,0.76],[58.3203,0.58]],"talk":[[0.0,1.1],[1.22,1.66],[3.0,1.52],[4.64,1.08],[5.84,4.48],[10.44,1.98],[12.54,1.76],[14.42,1.56],[16.1,1.78],[18.0,2.84],[20.9601,1.12],[22.2001,1.84],[24.1601,1.94],[26.2201,2.34],[28.6801,1.38],[30.1801,2.16],[32.4601,2.24],[34.8201,2.92],[37.8601,1.16],[39.1401,1.5],[40.7601,4.82],[45.7001,1.34],[47.16,1.26],[48.54,1.1],[49.76,1.54],[51.42,1.0],[52.54,1.64],[54.3,2.3],[56.72,1.18],[58.02,1.28],[59.42,1.68],[61.22,1.44],[62.78,1.8],[64.7,2.58],[67.4,1.24],[68.76,1.18],[70.0599,1.66],[71.8399,1.0],[72.9599,2.66],[75.7399,2.72],[78.5799,2.54],[81.2399,2.04],[83.3999,1.0],[84.5199,3.92],[88.5599,2.42],[91.0999,2.18],[93.3998,2.9],[96.4198,4.4],[100.9397,4.1]]};
+const CLIPS = {"brit":[[0.1,0.662],[0.862,0.755],[1.716,0.875],[2.691,0.483],[3.274,0.598]],"scream":[[0.0,2.38],[2.5,1.36],[3.98,1.58],[5.68,1.26],[7.06,1.32],[8.5,1.68],[10.3,1.72],[12.14,1.16],[13.42,1.34],[14.88,3.0],[18.0,1.06],[19.18,1.26],[20.56,1.38],[22.06,2.22],[24.4001,1.94],[26.4601,1.8],[28.3801,1.56],[30.0601,0.98],[31.1601,1.74],[33.0201,2.84],[35.9801,1.36],[37.4601,1.12],[38.7001,1.54],[40.3602,1.58],[42.0602,1.56],[43.7402,1.0],[44.8602,1.38],[46.3602,0.96],[47.4402,1.12]],"yelp":[[48.6802,0.54],[49.3402,0.54],[50.0002,0.56],[50.6802,0.82],[51.6202,0.54],[52.2803,0.52],[52.9203,0.92],[53.9603,0.72],[54.8003,0.5],[55.4203,0.56],[56.1003,0.6],[56.8203,0.5],[57.4403,0.76],[58.3203,0.58]],"talk":[[0.0,1.1],[1.22,1.66],[3.0,1.52],[4.64,1.08],[5.84,4.48],[10.44,1.98],[12.54,1.76],[14.42,1.56],[16.1,1.78],[18.0,2.84],[20.9601,1.12],[22.2001,1.84],[24.1601,1.94],[26.2201,2.34],[28.6801,1.38],[30.1801,2.16],[32.4601,2.24],[34.8201,2.92],[37.8601,1.16],[39.1401,1.5],[40.7601,4.82],[45.7001,1.34],[47.16,1.26],[48.54,1.1],[49.76,1.54],[51.42,1.0],[52.54,1.64],[54.3,2.3],[56.72,1.18],[58.02,1.28],[59.42,1.68],[61.22,1.44],[62.78,1.8],[64.7,2.58],[67.4,1.24],[68.76,1.18],[70.0599,1.66],[71.8399,1.0],[72.9599,2.66],[75.7399,2.72],[78.5799,2.54],[81.2399,2.04],[83.3999,1.0],[84.5199,3.92],[88.5599,2.42],[91.0999,2.18],[93.3998,2.9],[96.4198,4.4],[100.9397,4.1]]};
 const REC = { buf: {}, bag: {}, playing: { scream: 0, yelp: 0, talk: 0 }, last: { scream: -9, yelp: -9, talk: -9 } };
 const REC_MAX = { scream: 2, yelp: 1, talk: 1 };            // at most this many of each sounding at once
 const REC_GAP = { scream: 0.4, yelp: 0.8, talk: 3 };         // and at least this long between starts
 function loadRecorded() {
   // decoded at 22 kHz mono (the clips' own rate) to keep memory small
   const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
-  for (const [key, url] of [['screams', 'assets/npc-screams.mp4'], ['talk', 'assets/npc-talk.mp4']]) {
+  for (const [key, url] of [['screams', 'assets/npc-screams.mp4'], ['talk', 'assets/npc-talk.mp4'], ['brit', 'assets/npc-brit.mp4']]) {
     fetch(url).then((r) => r.arrayBuffer()).then((ab) => dec.decodeAudioData(ab)).then((b) => { REC.buf[key] = b; }).catch((e) => console.warn('npc voices unavailable', url, e));
   }
 }
@@ -252,11 +252,13 @@ function recClip(kind) {
 }
 // play one recorded clip at a spot in the world; returns false if it's too busy (the caller just stays quiet)
 function recorded(kind, x, z, vol = 1) {
-  const buf = REC.buf[kind === 'talk' ? 'talk' : 'screams'];
+  // in London most of what you overhear is British (the recorded lines), mixed with the usual chatter
+  const brit = kind === 'talk' && G.mapName === 'london' && REC.buf.brit && Math.random() < 0.65;
+  const buf = brit ? REC.buf.brit : REC.buf[kind === 'talk' ? 'talk' : 'screams'];
   if (!buf || A.muted) return false;
   const t = now();
   if (REC.playing[kind] >= REC_MAX[kind] || t - REC.last[kind] < REC_GAP[kind]) return false;
-  const [start, len] = recClip(kind);
+  const [start, len] = recClip(brit ? 'brit' : kind);
   REC.playing[kind]++; REC.last[kind] = t;
   const ch = chain(x, z, { vol, bus: voiceBus });
   const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = R(0.96, 1.04);
@@ -274,7 +276,9 @@ function recorded(kind, x, z, vol = 1) {
 const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fire: 'assets/sfx-fire.mp4', cars: 'assets/sfx-cars.mp4', fireSiren: 'assets/sfx-firetruck.mp4', policeSiren: 'assets/sfx-police.mp4', crash: 'assets/sfx-crash.mp4',
   bell: 'assets/sfx-bell.mp4', dog: 'assets/sfx-dog.mp4', gull: 'assets/sfx-gull.mp4', whistle: 'assets/sfx-whistle.mp4', collapse: 'assets/sfx-collapse.mp4', boom: 'assets/sfx-boom.mp4', pyro: 'assets/sfx-pyro.mp4', glass: 'assets/sfx-glass.mp4', dunk: 'assets/sfx-dunk.mp4', net: 'assets/sfx-net.mp4', horn: 'assets/sfx-horn.mp4', thunder: 'assets/sfx-thunder.mp4', rain: 'assets/sfx-rain.mp4', mower: 'assets/sfx-mower.mp4',
   // Las Vegas: the casino floor through the doors, a club crowd, neon hum, a phone camera, laughter, dice
-  casino: 'assets/amb-casino.mp4', clubCrowd: 'assets/amb-club-crowd.mp4', neon: 'assets/amb-neon.mp4', shutter: 'assets/sfx-shutter.mp4', laughW: 'assets/sfx-laugh-women.mp4', laughM: 'assets/sfx-laugh-man.mp4', dice: 'assets/sfx-dice.mp4', fountain: 'assets/amb-fountain.mp4' };
+  casino: 'assets/amb-casino.mp4', clubCrowd: 'assets/amb-club-crowd.mp4', neon: 'assets/amb-neon.mp4', shutter: 'assets/sfx-shutter.mp4', laughW: 'assets/sfx-laugh-women.mp4', laughM: 'assets/sfx-laugh-man.mp4', dice: 'assets/sfx-dice.mp4', fountain: 'assets/amb-fountain.mp4',
+  // London: the band playing the national anthem at the palace for the Changing of the Guard
+  anthem: 'assets/anthem.mp4' };
 // where each take sits inside its (trimmed, compressed) file: [offset, duration] in seconds, grouped by kind
 const SL = {"bell":{"bell":[[0.1,2.6]]},"dog":{"bark":[[0.1,0.58],[0.8,0.6]]},"gull":{"call":[[0.1,0.6],[0.82,0.75],[1.69,0.35],[2.16,0.37],[2.65,0.65],[3.42,0.9],[4.44,0.7]],"flock":[[5.26,2.05],[7.43,2.0],[9.55,2.2],[11.87,2.1]]},"whistle":{"fall":[[0.1,3.95]]},"collapse":{"collapse":[[0.1,5.5],[5.72,5.5],[11.34,5.5],[16.96,5.5],[22.58,5.5]]},"boom":{"boom":[[0.1,4.4],[4.62,4.9]]},"pyro":{"burst":[[0.1,2.9]]},"glass":{"break":[[0.1,0.75],[0.97,0.92],[2.01,0.9],[3.03,1.03],[4.18,0.97],[5.27,0.9],[6.29,0.9],[7.31,0.77],[8.2,1.0],[9.32,0.87]]},"dunk":{"dunk":[[0.1,0.95],[1.17,0.95],[2.24,1.15]],"bounce":[[3.51,0.32],[3.95,0.27],[4.34,0.32],[4.78,0.24],[5.14,0.28],[5.54,0.25]]},"net":{"swish":[[0.1,0.55],[0.77,0.77],[1.66,0.47],[2.25,0.53],[2.9,0.5],[3.52,0.66],[4.3,0.63],[5.05,0.65],[5.82,0.85],[6.79,0.43]]},"horn":{"honk":[[0.1,0.85],[1.07,0.62],[1.81,0.53],[2.46,0.88],[3.46,1.06],[4.64,0.85],[5.61,1.03]],"long":[[6.76,4.11]]},"thunder":{"roll":[[0.1,12.5]]}};
 const SMP = {};

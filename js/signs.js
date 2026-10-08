@@ -24,9 +24,9 @@ const NAMES = {
   ],
   london: [
     ['THE RED LION', '#5a1414', '#f2d27a'], ['TESCO EXPRESS', '#ffffff', '#00539f'], ['PRET', '#7a0019', '#ffffff'], ['BOOTS', '#05509e', '#ffffff'],
-    ['THE CROWN', '#0f2a1d', '#e8c060'], ['FISH & CHIPS', '#0e3d6b', '#ffffff'], ['NEWSAGENT', '#1d1d1d', '#f2e6c8'], ['CAFFE NERO', '#0e2b4a', '#ffffff'],
+    ['THE CROWN', '#0f2a1d', '#e8c060'], ['FISH & CHIPS', '#0e3d6b', '#ffffff'], ['PHONE REPAIRS', '#1d1d1d', '#5ce1e6'], ['CAFFE NERO', '#0e2b4a', '#ffffff'],
     ['THE GEORGE', '#1a1a2a', '#e8d38a'], ['BARCLAYS', '#00aeef', '#ffffff'], ['GREGGS', '#00488d', '#fbb800'], ['THE KINGS ARMS', '#3a1f10', '#f0c674'],
-    ['WH SMITH', '#003b5c', '#ffffff'], ['BOOKSHOP', '#20304a', '#f1ede4'], ['KEBAB', '#b3120f', '#ffe08a'], ['OFF LICENCE', '#123a1e', '#f5e7b8'],
+    ['CHICKEN & CHIPS', '#c8102e', '#ffe14a'], ['BOOKIES', '#0e3a1e', '#f2d24a'], ['KEBAB', '#b3120f', '#ffe08a'], ['OFF LICENCE', '#123a1e', '#f5e7b8'],
   ],
   suburbs: [
     ['SOUTH SIDE SAVINGS', '#12324f', '#e9dcb8'], ['QUIKMART', '#c8102e', '#ffffff'], ['FUELCO', '#f5c400', '#b3120f'], ['MAPLE DENTAL', '#ffffff', '#2c6b4f'],

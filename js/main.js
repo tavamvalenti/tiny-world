@@ -195,6 +195,8 @@ function load(name) {
   new Sky(scene, name, map.city);                           // sets G.sky
   new Director(name);                                       // sets G.director
   worldMenu.querySelector('[data-id="w-snow"]')?.style.setProperty('display', name === 'suburbs' ? '' : 'none');   // snow is a Chicago thing
+  // London calls its gang members roadmen, and their fights are knife fights
+  for (const [id, ldn, def] of [['gang', 'Roadmen', 'Gang Member'], ['e-gang', 'Knife Fight', 'Gang Conflict']]) { const b = worldMenu.querySelector(`[data-id="${id}"]`); if (b) { b.textContent = name === 'london' ? ldn : def; b.dataset.label = b.textContent; } }
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
   cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half; cam.zMax = map.zMax ?? map.city.half;

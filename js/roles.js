@@ -16,6 +16,8 @@ export const ROLE = {
   LIFEGUARD: 'LIFEGUARD', BEACH_WORKER: 'BEACH_WORKER', HARBOR_WORKER: 'HARBOR_WORKER', STADIUM_WORKER: 'STADIUM_WORKER',
   // these already have their own systems; officers standing at posts and crew members are tagged so they read the same
   POLICE: 'POLICE', FIREFIGHTER: 'FIREFIGHTER', PARAMEDIC: 'PARAMEDIC', BASKETBALL_PLAYER: 'BASKETBALL_PLAYER', GANG_MEMBER: 'GANG_MEMBER',
+  // London: the King's Guard (bearskins, rifles), roadmen (hoods up, balaclavas, knives only when it kicks off), Met officers' helmets
+  GUARD: 'GUARD', ROADMAN: 'ROADMAN', METPOL: 'METPOL',
 };
 const R = ROLE;
 const HIVIS = [0xf26a1a, 0xd8f23a];
@@ -37,6 +39,9 @@ const LOOK = {
   [R.TOURIST]: { shirt: [0xf0f0f0, 0x6fb3c9, 0xe0b640, 0xc94f7c, 0xf28c8c, 0x9ad0a0], pants: [0xb8ad96, 0x7b8794, 0xe8e4dc], hat: 'sun', hatC: [0xe8dcb0, 0xf2f2ee, 0x6fb3c9], pack: [0x2a5aa0, 0xc8361f, 0x3c4a3a, 0x1c1c1c], tool: 'camera', keep: 1 },
   [R.SHOPPER]: { bag: [0xf2f2ee, 0xc94f7c, 0xe0b640, 0x8a6a3a, 0x1c1c1c], keep: 1 },
   [R.WORKER]: { shirt: [0xe8e4dc, 0xcfe0f0, 0x8a9096], pants: [0x1f1f22, 0x2a3448, 0x3a3f46], bag: [0x1c1c1c, 0x3a2a1c] },
+  [R.GUARD]: { shirt: [0xc0141c], pants: [0x0d0d10], hat: 'bearskin', tool: 'rifle', belt: 1 },
+  [R.ROADMAN]: { hat: 'hood', mask: 1 },
+  [R.METPOL]: { hat: 'bobby' },
 };
 // hotel staff on the tropical map wear the resort's teal polos and khakis
 const RESORT = { shirt: [0x2a8a8a, 0x3fb6c8], pants: [0xd8c9a0] };
@@ -62,12 +67,20 @@ function geos() {
     radio: bx(0.02, 0.05, 0.016, 0, -0.25, 0.012),
     camera: bx(0.05, 0.03, 0.025, 0.03, -0.25, 0.02),
     clipboard: bx(0.06, 0.08, 0.006, 0, -0.25, 0.03),
+    bearskin: mergeGeometries([new THREE.CylinderGeometry(0.062, 0.058, 0.16, 12).translate(0, 0.7, 0), new THREE.SphereGeometry(0.062, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.7, 1).translate(0, 0.78, 0)]),
+    bobby: mergeGeometries([new THREE.SphereGeometry(0.056, 12, 8).scale(1, 1.45, 1.05).translate(0, 0.665, -0.004), new THREE.CylinderGeometry(0.066, 0.066, 0.008, 14).translate(0, 0.63, 0), new THREE.SphereGeometry(0.012, 6, 4).translate(0, 0.745, 0)]),
+    hood: new THREE.SphereGeometry(0.06, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62).rotateX(-0.35).translate(0, 0.632, -0.012),
+    mask: bx(0.074, 0.04, 0.03, 0, 0.604, 0.034),
+    belt: new THREE.CylinderGeometry(0.069, 0.065, 0.025, 10, 1, true).scale(1, 1, 0.66).translate(0, 0.335, 0),
+    rifle: mergeGeometries([bx(0.02, 0.44, 0.028, 0, -0.08, 0.035), bx(0.008, 0.11, 0.008, 0, 0.19, 0.035), bx(0.02, 0.06, 0.04, 0, -0.27, 0.03)]),
+    knife: mergeGeometries([bx(0.012, 0.035, 0.016, 0, -0.255, 0.02), bx(0.005, 0.085, 0.014, 0, -0.32, 0.02)]),
+    speaker: mergeGeometries([bx(0.15, 0.075, 0.075, 0, -0.31, 0.02), bx(0.01, 0.05, 0.01, -0.05, -0.26, 0.02), bx(0.01, 0.05, 0.01, 0.05, -0.26, 0.02), bx(0.11, 0.01, 0.01, 0, -0.235, 0.02)]),
   };
 }
-const PARTS = ['hard', 'cap', 'sun', 'vest', 'stripe', 'badge', 'lanyard', 'pack', 'bag', 'box', 'hammer', 'broom', 'radio', 'camera', 'clipboard'];
-const TOOLS = new Set(['hammer', 'broom', 'radio', 'camera', 'clipboard']);
+const PARTS = ['hard', 'cap', 'sun', 'vest', 'stripe', 'badge', 'lanyard', 'pack', 'bag', 'box', 'hammer', 'broom', 'radio', 'camera', 'clipboard', 'bearskin', 'bobby', 'hood', 'mask', 'belt', 'rifle', 'knife', 'speaker'];
+const TOOLS = new Set(['hammer', 'broom', 'radio', 'camera', 'clipboard', 'rifle', 'knife', 'speaker']);
 const TINTED = new Set(['hard', 'cap', 'sun', 'vest', 'pack', 'bag']);
-const SLOTS = 190;
+const SLOTS = 340;
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const _v = new THREE.Vector3(), _m = new THREE.Matrix4();
 
@@ -90,7 +103,7 @@ export class Roles {
     this.mesh = {};
     for (const k of PARTS) {
       const mat = k === 'stripe' ? new THREE.MeshBasicMaterial({ color: 0xd8dde2 }) : k === 'badge' ? new THREE.MeshStandardMaterial({ color: 0xd9b44a, metalness: 0.8, roughness: 0.3 })
-        : TINTED.has(k) ? new THREE.MeshLambertMaterial() : new THREE.MeshLambertMaterial({ color: { box: 0xb08a5a, hammer: 0x6b4a2a, broom: 0x8a6a3a, radio: 0x111111, camera: 0x1c1c1c, clipboard: 0xd8d2c4, lanyard: 0x1f55d6 }[k] });
+        : TINTED.has(k) ? new THREE.MeshLambertMaterial() : new THREE.MeshLambertMaterial({ color: { box: 0xb08a5a, hammer: 0x6b4a2a, broom: 0x8a6a3a, radio: 0x111111, camera: 0x1c1c1c, clipboard: 0xd8d2c4, lanyard: 0x1f55d6, bearskin: 0x0b0b0c, bobby: 0x10162a, hood: 0x0e0e10, mask: 0x0a0a0b, belt: 0xf2f2f0, rifle: 0x1c1c1e, knife: 0xd8dce0, speaker: 0x18181a }[k] });
       const m = new THREE.InstancedMesh(g[k], mat, SLOTS);
       for (let i = 0; i < SLOTS; i++) m.setMatrixAt(i, ZERO);
       if (TINTED.has(k)) for (let i = 0; i < SLOTS; i++) m.setColorAt(i, new THREE.Color(1, 1, 1));
@@ -120,8 +133,8 @@ export class Roles {
     for (const m of A.pMeshes) if (m.instanceColor) m.instanceColor.needsUpdate = true;
     if (p.slot == null) { if (!this.free.length) return; p.slot = this.free.pop(); this.slots[p.slot] = p; }
     const k = p.slot;
-    p.acc = { hat: L.hat || null, vest: !!L.vest, stripe: !!L.stripe, badge: !!L.badge, lanyard: !!L.lanyard, pack: !!L.pack, bag: !!L.bag, tool: L.tool || null };
-    if (L.hat) this.col(this.mesh[L.hat], k, pick(L.hatC));
+    p.acc = { hat: L.hat || null, vest: !!L.vest, stripe: !!L.stripe, badge: !!L.badge, lanyard: !!L.lanyard, pack: !!L.pack, bag: !!L.bag, tool: L.tool || null, mask: !!L.mask, belt: !!L.belt };
+    if (L.hat && L.hatC) this.col(this.mesh[L.hat], k, pick(L.hatC));
     if (L.vest) this.col(this.mesh.vest, k, pick(L.vest));
     if (L.pack) this.col(this.mesh.pack, k, pick(L.pack));
     if (L.bag) this.col(this.mesh.bag, k, pick(L.bag));
@@ -354,6 +367,33 @@ export class Roles {
     if (M === 'downtown') this.staffDowntown(P);
     if (M === 'suburbs') this.staffChicago(P);
     if (M === 'tropical') this.staffPlaya(P);
+    if (M === 'london') this.staffLondon(P);
+  }
+  // London: street vendors by the sights (roasted nuts, flags, ice cream, hot dogs, books), market stalls in Borough
+  // and Brixton, the King's Guard in bearskins, Met officers in their helmets, roadmen with their hoods up
+  staffLondon(P) {
+    const C = this.city, L = C.london;
+    for (const v of L.vendors) {
+      if (v.kind === 'stall') this.stall(P, v);
+      else this.vendor(P, this.clear(v.x, v.z, 1.5), v.kind);
+    }
+    for (const p of this.A.peds) {
+      if (p.guard) this.look(p, R.GUARD);
+      else if (p.met) this.look(p, R.METPOL);
+      else if (p.roadman) { this.look(p, R.ROADMAN); if (p.speakerHold) p.acc.tool = 'speaker'; }
+    }
+    this.tourists(14, { x: -60, z: 0 }, 40); this.tourists(8, { x: 40, z: -60 }, 30);
+  }
+  // a market stall: a trestle under a striped canopy, produce or clothes on it, a stallholder behind
+  stall(P, q) {
+    const box = (w, h, d, x, y, z, col) => tint(new THREE.BoxGeometry(w, h, d).translate(q.x + x, y, q.z + z), col);
+    const top = pick([0xc8361f, 0x2a6ad8, 0x2a8a4a, 0xf2c21a, 0xe8e4dc]);
+    P.push(box(1.6, 0.06, 0.8, 0, 0.5, 0, 0x8a6a4a), box(1.7, 0.04, 1.0, 0, 1.25, 0, top), box(1.7, 0.18, 0.04, 0, 1.15, 0.5, top));
+    for (const [x, z] of [[-0.78, -0.38], [0.78, -0.38], [-0.78, 0.38], [0.78, 0.38]]) P.push(box(0.04, 1.25, 0.04, x, 0.62, z, 0x6b6f76));
+    for (let k = 0; k < 6; k++) P.push(box(0.22, 0.12, 0.22, -0.6 + k * 0.24, 0.6, rand(-0.2, 0.2), pick([0xe02a2a, 0xf2c21a, 0x3a9a3a, 0xf28c1c, 0x7a3a8a, 0xe8e4dc, 0x2a2a2a])));
+    this.city.obstacles && this.city.obstacles.push({ x: q.x, z: q.z, r: 0.8 });
+    const stand = this.clear(q.x, q.z - 0.8, 1) || { x: q.x, z: q.z - 0.8 };
+    this.hire(R.VENDOR, stand, this.planVendor(stand, { x: q.x, z: q.z }), { look: { shirt: [0x2b3445, 0x1c1d22, 0x6b5a45, 0x3a4a3a], vest: [0x1c1d22] } });
   }
   staffDowntown(P) {
     const C = this.city;
@@ -512,7 +552,7 @@ export class Roles {
   vendor(P, q, kind) {
     if (!q) return;
     const box = (w, h, d, x, y, z, col) => tint(new THREE.BoxGeometry(w, h, d).translate(q.x + x, y, q.z + z), col);
-    const top = kind === 'coco' ? 0x2a8a8a : kind === 'hot dogs' ? 0xf2c21a : 0xc8361f;
+    const top = kind === 'coco' ? 0x2a8a8a : kind === 'hot dogs' ? 0xf2c21a : kind === 'nuts' ? 0x8a2a1a : kind === 'flags' ? 0x012169 : kind === 'ice' ? 0xf2a8c8 : kind === 'books' ? 0x1f5130 : 0xc8361f;
     P.push(box(0.9, 0.42, 0.45, 0, 0.36, 0, 0xe8e4dc), box(0.92, 0.06, 0.47, 0, 0.6, 0, top), box(0.05, 0.9, 0.05, 0.4, 0.95, 0, 0x6b6f76));
     P.push(tint(new THREE.ConeGeometry(0.7, 0.28, 10).translate(q.x + 0.4, 1.46, q.z), top));
     for (const sx of [-0.35, 0.35]) P.push(tint(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 10).rotateX(Math.PI / 2).rotateY(Math.PI / 2).translate(q.x + sx, 0.12, q.z + 0.24), 0x1c1c1c));
@@ -668,6 +708,8 @@ export class Roles {
   // ---------- poses (agents.update asks, for anyone with a role) ----------
   // o = { aL, aR, oL, oR, lL, lR, dy } arm/leg swing angles (negative = forward), arm spread, body drop
   pose(p, o, moving) {
+    // the King's Guard carry their rifles at the shoulder: the right arm stays put, marching or standing
+    if (p.role === R.GUARD) { o.aR = -0.1; o.oR = 0.04; if (!moving) { o.aL = 0; o.oL = 0.03; } }
     if (p.state !== 'job' && p.state !== 'idle' && p.state !== 'wander') return;
     const t = G.time + p.phase;
     if (p.carry) { o.aL = o.aR = -1.15; o.oL = o.oR = -0.12; return; }
@@ -688,6 +730,8 @@ export class Roles {
       case 'talk': o.aL = Math.min(0, -Math.max(0, Math.sin(t * 1.6)) * 0.8); o.aR = -Math.max(0, Math.sin(t * 1.3 + 1)) * 0.6; break;
       case 'hands': o.aL = o.aR = -0.35; o.oL = o.oR = -0.35; break;
       case 'wave': o.aR = -2.6 + Math.sin(t * 9) * 0.3; o.oR = 0.3; break;
+      case 'attention': o.aL = 0; o.oL = 0.03; o.lL = o.lR = 0; break;
+      case 'stab': o.aR = -1.3 + Math.max(0, Math.sin(t * 11)) * -0.5; o.oR = -0.1; o.aL = -0.7; o.lL = 0.3; o.lR = -0.2; break;
       case 'look': case 'wait': default: break;
     }
   }
@@ -705,8 +749,12 @@ export class Roles {
     if (a.badge) M.badge.setMatrixAt(k, m);
     if (a.lanyard) M.lanyard.setMatrixAt(k, m);
     if (a.pack) M.pack.setMatrixAt(k, m);
+    if (a.mask) M.mask.setMatrixAt(k, head ? m : ZERO);
+    if (a.belt) M.belt.setMatrixAt(k, m);
     if (a.bag) M.bag.setMatrixAt(k, p.carry ? ZERO : m);
     M.box.setMatrixAt(k, p.carry ? m : ZERO);
+    if (a.shown && a.shown !== a.tool) M[a.shown].setMatrixAt(k, ZERO);
+    a.shown = a.tool;
     if (a.tool) M[a.tool].setMatrixAt(k, p.carry || (p.lost && p.lost.armR) ? ZERO : arm);
   }
   flush() { for (const m of Object.values(this.mesh)) m.instanceMatrix.needsUpdate = true; }

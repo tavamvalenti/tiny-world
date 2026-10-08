@@ -246,7 +246,8 @@ function starfield(menu, after) {
     for (let i = meteors.length - 1; i >= 0; i--) {
       const m = meteors[i], age = (t - m.t0) / 1000, k = age / m.life;
       if (k >= 1) { meteors.splice(i, 1); continue; }
-      const hx = m.x + m.vx * age, hy = m.y + m.vy * age, sp = Math.hypot(m.vx, m.vy);
+      const hx = m.x + m.vx * age, hy = m.y + m.vy * age, sp = Math.hypot(m.vx, m.vy) || 1;
+      if (!Number.isFinite(hx + hy + m.len)) { meteors.splice(i, 1); continue; }
       const tl = m.len * Math.min(1, k * 4), tx = hx - m.vx / sp * tl, ty = hy - m.vy / sp * tl;
       const fade = Math.sin(Math.PI * Math.min(1, k * 1.15));             // swells in, burns out
       const g = cx.createLinearGradient(tx, ty, hx, hy);

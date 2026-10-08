@@ -19,7 +19,7 @@ const POOL = {
   suburbs: { accident: 2, jam: 1.5, fire: 2, disturbance: 2, evacuation: 0.5, gang: 1.5, weather: 1.6 },
   tropical: { accident: 2, jam: 2, fire: 1.5, disturbance: 1.5, evacuation: 0.4, weather: 1.2 },
   vegas: { accident: 3, jam: 3.5, fire: 1.5, disturbance: 3, evacuation: 0.6, weather: 0.8 },
-  london: { accident: 2.5, jam: 3, fire: 1.5, disturbance: 1.5, evacuation: 0.5, weather: 1.8 },
+  london: { accident: 2.5, jam: 3, fire: 1.5, disturbance: 1.5, evacuation: 0.5, gang: 0.8, weather: 1.8 },
 };
 // weather each place tends toward (clear dominates)
 const WEATHER = {
@@ -76,7 +76,7 @@ export class Director {
       case 'fire': return G.chaos.fire();
       case 'jam': return !!W.jam();
       case 'weather': this.weatherT = 0; return true;
-      case 'gang': if (!G.gangs || !this.allow('GANG_CONFLICT')) return false; G.gangs.startFight(); return true;
+      case 'gang': if (!this.allow('GANG_CONFLICT')) return false; if (G.london) return this.londonFight(); if (!G.gangs) return false; G.gangs.startFight(); return true;
       case 'disturbance': {
         const p = G.chaos.crowded(G.agents.peds.filter((q) => q.state === 'walk' && !q.role && G.chaos.safe(q)), 45);
         if (!p) return false;
@@ -92,6 +92,12 @@ export class Director {
     }
     return false;
   }
+  // London: a crew of roadmen in view squares up to another (knives, no guns)
+  londonFight() {
+    const T = G.camTarget, crews = G.agents.peds.filter((p) => p.roadman && p.state === 'idle' && Math.hypot(p.pos.x - T.x, p.pos.z - T.z) < 55);
+    const p = pick(crews);
+    return p ? G.london.knifeFight(p.pos.x, p.pos.z) : false;
+  }
   story() {
     const N = G.news, clear = !G.world.kind || G.world.kind === 'clear';
     if (!N) return;
@@ -99,7 +105,7 @@ export class Director {
       downtown: [['LOCAL', 'Crane work continues on downtown construction sites'], ['LOCAL', 'Trolley running on schedule through the Gaslamp Quarter'], ...(clear ? [['LOCAL', 'Sunny afternoon brings crowds to the waterfront']] : [])],
       suburbs: [['SPORTS', 'Streetball game under way by the courts'], ['LOCAL', 'Construction crews busy on the South Side'], ...(G.concert && G.concert.phase === 'active' ? [['FESTIVAL', 'Summer Smash crowd packed in front of the main stage']] : [])],
       vegas: [['LOCAL', 'Bellagio fountains drawing crowds on the Strip'], ['LOCAL', 'Heavy traffic on Las Vegas Boulevard tonight'], ['LOCAL', 'Sphere lights up the skyline'], ['LOCAL', 'Record weekend for Strip casinos']],
-      london: [['LOCAL', 'Delays on the Jubilee line'], ['LOCAL', 'Tourists queue for the London Eye'], ['LOCAL', 'Changing of the Guard at Buckingham Palace'], ['TRAFFIC ALERT', 'Congestion on Westminster Bridge'], ['WEATHER', 'Light drizzle expected across London']],
+      london: [['LOCAL', 'Delays on the Jubilee line'], ['LOCAL', 'Tourists queue for the London Eye'], ['LOCAL', 'Changing of the Guard at Buckingham Palace'], ['TRAFFIC ALERT', 'Congestion on Westminster Bridge'], ['WEATHER', 'Light drizzle expected across London'], ['LOCAL', 'Mounted police patrol Whitehall'], ['LOCAL', 'Market traders busy in Brixton'], ['LOCAL', 'Thames Clipper services running to time'], ['LOCAL', 'Big Ben strikes the hour over Westminster']],
       tropical: N.es ? [['LOCAL', clear ? 'Día soleado: la playa llena de turistas' : 'Pocos bañistas por el mal tiempo'], ['LOCAL', 'Salvavidas vigilan la playa'], ['LOCAL', 'Hoteles de la costa reportan alta ocupación']]
         : [['LOCAL', clear ? 'Sunny day brings crowds to the beach' : 'Beach quiet as weather turns'], ['LOCAL', 'Lifeguards on watch along the beach'], ['LOCAL', 'Beachfront hotels report a busy week']],
     }[this.map];

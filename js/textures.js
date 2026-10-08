@@ -240,6 +240,24 @@ export function makeFacades() {
     if (Math.random() < 0.7) { c.strokeStyle = pickTag(); c.lineWidth = 8; c.lineCap = 'round'; c.beginPath(); c.moveTo(50, S + 150); c.bezierCurveTo(90, S + 100, 130, S + 200, 200, S + 130); c.stroke(); }
   });
 
+  // Gothic Revival stone (the Palace of Westminster, the Abbey, Tower Bridge): buttress ribs, panel tracery, two tall
+  // pointed lancets per bay; pointed arches on the ground storey
+  F.gothic = mk((c, win) => {
+    c.fillStyle = '#e6dcc6'; c.fillRect(0, 0, S, S * 2);
+    for (let y = 0; y < S * 2; y += 14) { c.fillStyle = 'rgba(0,0,0,.05)'; c.fillRect(0, y, S, 2); }
+    const lancet = (x, y, w, h) => {
+      c.fillStyle = '#2a2622'; c.beginPath(); c.moveTo(x, y + h); c.lineTo(x, y + w * 0.6); c.quadraticCurveTo(x, y, x + w / 2, y - w * 0.15); c.quadraticCurveTo(x + w, y, x + w, y + w * 0.6); c.lineTo(x + w, y + h); c.closePath(); c.fill();
+      win(x + 4, y + w * 0.5, w - 8, h - w * 0.5 - 4, 0); c.fillStyle = '#d8ccb2'; c.fillRect(x + w / 2 - 2, y + w * 0.4, 4, h - w * 0.4); c.fillRect(x, y + h * 0.55, w, 4);
+    };
+    for (const x of [26, 140]) lancet(x, 34, 90, 196);
+    c.fillStyle = '#f0e8d6'; for (const x of [0, 120, 252]) c.fillRect(x - 6, 0, 12, S);           // buttress ribs
+    c.fillStyle = 'rgba(60,50,40,.35)'; for (const x of [6, 126, 246]) c.fillRect(x, 0, 2, S);
+    c.fillStyle = '#d8ccb2'; c.fillRect(0, 236, S, 12); for (let x = 8; x < S; x += 32) { c.fillStyle = '#c8baa0'; c.beginPath(); c.arc(x + 8, 242, 5, 0, 6.28); c.fill(); }
+    // ground storey: an arcade of pointed arches
+    c.fillStyle = '#e0d4bc'; c.fillRect(0, S, S, S);
+    for (const x of [18, 136]) { lancet(x, S + 50, 102, 200); }
+    c.fillStyle = '#f0e8d6'; for (const x of [0, 128, 256]) c.fillRect(x - 7, S, 14, S);
+  });
   return F;
 }
 

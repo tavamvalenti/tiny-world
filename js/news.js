@@ -58,6 +58,11 @@ const B_ES = {
   collapse: ['Se derrumba un edificio {w}', 'Derrumbe reportado {w}'],
   damage: ['Aumentan los daños {w}: {n} secciones destruidas', 'Autoridades evalúan la destrucción {w}: {n} secciones'],
 };
+// London has knives on the street, not guns
+const LDN = {
+  SHOOTING: ['Stabbing {w}; police and paramedics on scene', 'Man stabbed {w}; Met officers responding'],
+  GANG_CONFLICT: ['Knife fight between rival groups {w}; Met officers responding', 'Roadmen clash {w}: stabbings reported, police on scene'],
+};
 const R_EN = {
   FIRE: 'Fire {w} is out; crews clearing the scene', TRAFFIC_ACCIDENT: 'Road reopened {w} after earlier crash', SHOOTING: 'Police have secured the area {w}',
   GANG_CONFLICT: 'Police have secured the area after the earlier gunfire', RIOT: 'Calm returning {w}', DISTURBANCE: 'Disturbance {w} broken up; no injuries reported',
@@ -83,7 +88,7 @@ const K_EN = {
   hurt: ['{i} people injured {w}; ambulances on the way', 'Multiple injuries reported {w}: at least {i} hurt'],
   total: ['Death toll across {c} climbs to {N}', '{c} reeling: {N} dead so far', 'Officials confirm {N} deaths across {c}; residents told to shelter'],
   explosion: ['Explosion kills {n} {w}', 'Deadly blast {w}: {n} dead'], meteor: ['Meteor strike kills {n} {w}', 'Sky falls {w}: {n} killed'],
-  laser: ['Mysterious beam kills {n} {w}'], rick: ['Rick and Morty rampage {w}: {n} dead', '{n} killed {w} as Rick and Morty strike again', 'Rick and Morty attack leaves {n} dead {w}'], wind: ['Freak winds leave {n} dead {w}'], shooting: ['Deadly shooting {w}: {n} killed', 'Gunfire {w} leaves {n} dead'],
+  laser: ['Mysterious beam kills {n} {w}'], rick: ['Rick and Morty rampage {w}: {n} dead', '{n} killed {w} as Rick and Morty strike again', 'Rick and Morty attack leaves {n} dead {w}'], wind: ['Freak winds leave {n} dead {w}'], shooting: ['Deadly shooting {w}: {n} killed', 'Gunfire {w} leaves {n} dead'], stabbing: ['Fatal stabbing {w}: {n} dead', 'Knife attack {w} leaves {n} dead'],
 };
 const K_ES = {
   one: ['Muere una persona {w}', 'Reportan una persona sin vida {w}', 'Confirman un fallecido {w}'],
@@ -326,17 +331,18 @@ export class News {
   }
   // a world event was raised
   event(ev) {
-    if (ev.type === 'SHOOTING' || ev.type === 'GANG_CONFLICT') this.cause = { kind: 'shooting', x: ev.x, z: ev.z, t: G.time };
+    const ldn = this.map === 'london';
+    if (ev.type === 'SHOOTING' || ev.type === 'GANG_CONFLICT') this.cause = { kind: ldn ? 'stabbing' : 'shooting', x: ev.x, z: ev.z, t: G.time };
     const T = ev.type, fill = (s) => s.replace('{w}', this.where(ev.x, ev.z)).replace('{c}', CITY[this.map]);
     let tag, text;
     if (T === 'WEATHER_EVENT') { tag = 'WEATHER'; const t = (this.es ? W_ES : W_EN)[ev.news]; text = t && fill(t); }
     else if (T === 'FESTIVAL_EVENT') { tag = ev.tag || 'FESTIVAL'; text = ev.news; }
     else {
-      const t = (this.es ? T_ES : T_EN)[T];
+      const t = ldn && LDN[T] ? LDN[T] : (this.es ? T_ES : T_EN)[T];
       if (!t) return;
       tag = { TRAFFIC_ACCIDENT: 'TRAFFIC ALERT', TRAFFIC_JAM: 'TRAFFIC ALERT', DISTURBANCE: 'LOCAL' }[T] || 'BREAKING';
       // named when it's at a landmark ("OXXO catches fire") or a building ("Fire tears through a two-flat on 47th Street")
-      text = (['FIRE', 'SHOOTING', 'EVACUATION', 'INCIDENT'].includes(T) && this.placeHeadline(T, ev.x, ev.z)) || fill(pick(t));
+      text = (['FIRE', 'SHOOTING', 'EVACUATION', 'INCIDENT'].includes(T) && !(ldn && T === 'SHOOTING') && this.placeHeadline(T, ev.x, ev.z)) || fill(pick(t));
     }
     if (!text) return;
     this.post(tag, text, ['WEATHER_EVENT', 'FESTIVAL_EVENT', 'DISTURBANCE', 'TRAFFIC_JAM'].includes(T) ? 1.5 : 2, T);
@@ -368,7 +374,7 @@ export class News {
   // ...and wrapped up (usually: most scenes get a follow-up)
   resolved(ev) {
     if (Math.random() > 0.75) return;
-    const t = (this.es ? R_ES : R_EN)[ev.type];
+    const t = this.map === 'london' && ev.type === 'GANG_CONFLICT' ? 'Police have secured the area after the earlier knife fight' : (this.es ? R_ES : R_EN)[ev.type];
     if (t) this.post('UPDATE', t.replace('{w}', this.where(ev.x, ev.z)), 1.2, 'up-' + ev.type);
   }
   // ---------- casualties ----------

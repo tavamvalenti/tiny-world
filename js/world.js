@@ -131,6 +131,8 @@ export class World {
       case 'worker': return person([pick([0xf28c1c, 0xd8e03a]), 0x2a3448, 0xf2c230], (p) => { if (G.roles) return G.roles.hireAt(p, 'worker', x, z); hangAround(p, 3, false); p.state = 'wander'; p.target = { x: x + rand(-3, 3), z: z + rand(-3, 3) }; p.worker = true; });
       case 'security': return person([0x141414, 0x141414, 0x141414], (p) => { if (G.roles) return G.roles.hireAt(p, 'security', x, z); hangAround(p, 4, false); p.state = 'wander'; p.target = { x: x + rand(-4, 4), z: z + rand(-4, 4) }; });   // walks their post
       case 'gang': {
+        // London: roadmen, all in black (puffers, Nike Tech, balaclavas); knives, never guns
+        if (G.london) { for (let k = 0; k < 4; k++) person(null, (p) => { hangAround(p, 1, true); G.london.dressRoadman(p); p.gangSide = 'roadmen'; }); return true; }
         // a few colour-wearing members loitering together (blue or red by which side of town they're on)
         const Z = G.gangs && G.gangs.zones, side = Z ? (Math.abs(z - Z.red.z0) < Math.abs(z - Z.blue.z1) ? 'red' : 'blue') : pick(['red', 'blue']);
         const c = side === 'red' ? 0xcc1f2a : 0x1f55d6;
@@ -179,6 +181,7 @@ export class World {
       case 'e-jam': return this.jam(x, z);
       case 'e-evac': return this.evacuate(x, z);
       case 'e-gang': {
+        if (G.london) return G.london.knifeFight(x, z);         // London: two crews of roadmen with knives
         const Gs = G.gangs;
         if (Gs && Math.abs(z - Gs.border.z) < 40 && x > Gs.border.x0 - 20 && x < Gs.border.x1 + 20) { Gs.startFight(null, Math.max(Gs.border.x0 + 3, Math.min(Gs.border.x1 - 3, x))); return this.raise(EV.GANG_CONFLICT, x, Gs.border.z, { severity: 1.4 }); }
         return G.chaos.shooting({ x, z }, EV.GANG_CONFLICT);
