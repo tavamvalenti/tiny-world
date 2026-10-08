@@ -207,7 +207,7 @@ export class Greenland {
     this.signs = [];
     this.terrain(); this.sea(); this.far(); this.icebergs(); this.floes();
     this.houses(GL.houses); this.church(GL.church); this.townHall(GL.hall); this.harbour(GL.dock, GL.factory, GL.store);
-    this.pitch(); this.snowmobiles(GL.snowmobiles); this.boats(); this.aurora(); this.flagpoles(GL.flags);
+    this.pitch(); this.snowmobiles(GL.snowmobiles); this.boats(); this.aurora(); this.flagpoles(GL.flags); this.smoke();
     this.snowStarted = false;
   }
   add(geos, mat = this.mat, shadow = true) { return merged(geos, mat, this.scene, shadow); }
@@ -311,6 +311,33 @@ export class Greenland {
       im.receiveShadow = true; this.scene.add(im); return im; });
     this.floeList = list;
   }
+  // smoke from the chimneys: soft grey puffs rising, drifting downwind and spreading out, six per chimney on a loop
+  smoke() {
+    const L = this.chims || []; if (!L.length) return;
+    const n = L.length * 6, geo = new THREE.InstancedBufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3)); geo.setIndex([0, 1, 2, 0, 2, 3]);
+    const o = new Float32Array(n * 3), ph = new Float32Array(n), rt = new Float32Array(n), al = new Float32Array(n).fill(1);
+    L.forEach((c, i) => { const r0 = rand(0.11, 0.17), p0 = Math.random(); for (let k = 0; k < 6; k++) { const j = i * 6 + k; o[j * 3] = c.x; o[j * 3 + 1] = c.y; o[j * 3 + 2] = c.z; ph[j] = p0 + k / 6; rt[j] = r0; } });
+    geo.setAttribute('aO', new THREE.InstancedBufferAttribute(o, 3)); geo.setAttribute('aPh', new THREE.InstancedBufferAttribute(ph, 1)); geo.setAttribute('aRt', new THREE.InstancedBufferAttribute(rt, 1));
+    this.smokeAlive = new THREE.InstancedBufferAttribute(al, 1); geo.setAttribute('aOn', this.smokeAlive);
+    geo.instanceCount = n;
+    this.smokeMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uWind: { value: new THREE.Vector2(0.6, -0.25) } }, transparent: true, depthWrite: false,
+      vertexShader: `attribute vec3 aO; attribute float aPh; attribute float aRt; attribute float aOn; varying vec2 vUv; varying float vA; uniform float uTime; uniform vec2 uWind;
+        void main(){
+          float a = fract(uTime * aRt + aPh);
+          vec3 c = aO + vec3(uWind.x * a * 2.6 + sin(aPh * 37.0 + a * 3.0) * 0.2, a * 3.4, uWind.y * a * 2.6 + cos(aPh * 23.0 + a * 2.5) * 0.2);
+          float sz = (0.75 + a * 1.6) * aOn;
+          vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]), up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+          vec3 p = c + (right * position.x + up * position.y) * sz;
+          vUv = position.xy + 0.5; vA = smoothstep(0.0, 0.1, a) * (1.0 - smoothstep(0.35, 1.0, a)) * 0.95;
+          gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+        }`,
+      fragmentShader: `varying vec2 vUv; varying float vA;
+        void main(){ float d = length(vUv - 0.5) * 2.0; float m = 1.0 - smoothstep(0.0, 1.0, d); if (m * vA < 0.003) discard; gl_FragColor = vec4(vec3(0.3, 0.31, 0.33), min(0.8, m * vA)); }`,
+    });
+    const mesh = new THREE.Mesh(geo, this.smokeMat); mesh.frustumCulled = false; mesh.renderOrder = 4; this.scene.add(mesh);
+  }
   // the houses' feet: timber posts down to the rock on the low side, steps up to the door, a deck with a rail; a stove pipe
   houses(list) {
     for (const b of list) {
@@ -335,10 +362,20 @@ export class Greenland {
       }
       const cell = b.cells.find((c) => c.f === 0) || b.cells[0];
       if (P.length) { const m = this.add(P); (cell.props ||= []).push({ obj: [m], x: cell.x, y: cell.y, z: cell.z }); }
-      // a black stove pipe on the roof
+      // on the roof: most houses have a chimney stack (white render or brick, a dark cap) with smoke coming out;
+      // the rest a black stove pipe
       const t = topOf(b), along = b.w >= b.d, rh = Math.min(b.w, b.d) * 0.42;
-      const pipe = this.add([cyl(0.09, 0.09, rh * 0.8 + 0.8, b.x + (along ? b.w * 0.25 : 0), t.y + rh * 0.5 + 0.2, b.z + (along ? 0 : b.d * 0.25), 0x1a1a1a, 8)], this.metal);
-      hangOn(b, [pipe], b.floors - 1);
+      const cx = b.x + (along ? b.w * (Math.random() < 0.5 ? 0.22 : -0.22) : 0), cz = b.z + (along ? 0 : b.d * (Math.random() < 0.5 ? 0.22 : -0.22));
+      let top;
+      if (b.kind !== 'factory' && Math.random() < 0.8) {
+        const col = pick([0xe8e6e0, 0xe8e6e0, 0x8a3a2a, 0x6a6a6a]), hgt = rh * 0.75 + 0.9;
+        hangOn(b, [this.add([box(0.5, hgt, 0.5, cx, t.y + rh * 0.35 + hgt / 2 - 0.2, cz, col), box(0.62, 0.1, 0.62, cx, t.y + rh * 0.35 + hgt - 0.2, cz, 0x2a2a2a), cyl(0.09, 0.09, 0.22, cx, t.y + rh * 0.35 + hgt, cz, 0x3a3a3a, 6)])], b.floors - 1);
+        top = { x: cx, y: t.y + rh * 0.35 + hgt + 0.1, z: cz };
+      } else {
+        hangOn(b, [this.add([cyl(0.09, 0.09, rh * 0.8 + 0.8, cx, t.y + rh * 0.5 + 0.2, cz, 0x1a1a1a, 8)], this.metal)], b.floors - 1);
+        top = { x: cx, y: t.y + rh * 0.9 + 0.65, z: cz };
+      }
+      if (b.kind === 'house' || b.kind === 'flats' || b.kind === 'hall' || b.kind === 'school' || Math.random() < 0.5) (this.chims ||= []).push({ ...top, b, t: Math.random() * 2, rate: rand(1.1, 1.9) });
     }
   }
   church(c) {
@@ -575,6 +612,15 @@ export class Greenland {
       b.g.position.set(b.x, SEA + Math.sin(t * 0.5 + b.ph) * 0.05 * b.R / 4, b.z); b.g.rotation.z = Math.sin(t * 0.3 + b.ph) * 0.01;
     }
     this.updateBoats(dt); this.updateFootball(dt);
+    // chimney smoke: the puffs move in the shader; here we only switch off the ones whose roof has gone
+    if (this.smokeMat) {
+      this.smokeMat.uniforms.uTime.value = t; this.smokeMat.uniforms.uWind.value.set(G.wind.x, G.wind.z);
+      if ((this._smk = (this._smk || 0) - dt) <= 0) {
+        this._smk = 0.5; const A = this.smokeAlive; let ch = false;
+        this.chims.forEach((c, i) => { const on = c.b.cells.some((q) => q.f === c.b.floors - 1 && q.alive && !q.falling) ? 1 : 0; for (let k = 0; k < 6; k++) if (A.array[i * 6 + k] !== on) { A.array[i * 6 + k] = on; ch = true; } });
+        if (ch) A.needsUpdate = true;
+      }
+    }
     // snow falling now and then from the start (the ground is always white)
     if (!this.snowStarted && G.world) { this.snowStarted = true; if (Math.random() < 0.6) G.world.setWeather('snow'); }
   }
