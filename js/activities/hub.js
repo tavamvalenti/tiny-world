@@ -41,6 +41,8 @@ body.act-on #progChip{opacity:.5}
   font:800 10px Inter;letter-spacing:.2em;color:#eafff7;background:rgba(8,30,26,.78);border:1px solid rgba(90,240,190,.6);box-shadow:0 0 18px -4px rgba(60,230,170,.9);backdrop-filter:blur(6px);transition:transform .2s,filter .2s}
 .act-tag:hover{filter:brightness(1.2);transform:translate(-50%,-100%) translateY(-3px)}
 .act-tag .em{font-size:15px} .act-tag small{display:block;font:600 8px Inter;letter-spacing:.18em;color:rgba(170,255,225,.7)}
+.act-tag .arr{display:none;font-style:normal;font-size:13px;color:#7ff0c8;margin-left:2px}
+.act-tag.edge{transform:translate(-50%,-50%)} .act-tag.edge:hover{transform:translate(-50%,-50%) scale(1.05)} .act-tag.edge .arr{display:inline-block} .act-tag.edge:after{display:none}
 .act-tag:after{content:'';position:absolute;left:50%;bottom:-7px;margin-left:-1px;width:2px;height:7px;background:rgba(90,240,190,.8)}
 /* the activity card and the results card */
 #actCard,#actRes{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:16px;font-family:Inter,system-ui,sans-serif;color:#eef6f3}
@@ -151,10 +153,10 @@ export class ActivityHub {
       ring.position.y = 0.06;
       const col = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.15, 14, 24, 1, true).translate(0, 7, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.25, 1.4, 1), transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
       g.add(ring, col); this.scene.add(g);
-      const tag = document.createElement('div'); tag.className = 'act-tag'; tag.innerHTML = `<span class="em">${d.icon}</span><span>${d.name.toUpperCase()}<small>CLICK TO PLAY</small></span>`;
+      const tag = document.createElement('div'); tag.className = 'act-tag'; tag.innerHTML = `<span class="em">${d.icon}</span><span>${d.name.toUpperCase()}<small>CLICK TO PLAY</small></span><i class="arr">➜</i>`;
       tag.addEventListener('click', (e) => { e.stopPropagation(); sfx.unlock(); this.openCard(d.id); });
       document.getElementById('hud').appendChild(tag);
-      this.beacons.push({ d, g, ring, col, tag, p: new THREE.Vector3(at.x, y + (at.tagH ?? 6), at.z) });
+      this.beacons.push({ d, g, ring, col, tag, arrow: tag.querySelector('.arr'), p: new THREE.Vector3(at.x, y + (at.tagH ?? 6), at.z) });
     }
   }
   // the labels follow their beacons on screen (god view only)
@@ -166,11 +168,16 @@ export class ActivityHub {
       b.ring.material.opacity = 0.55 + Math.sin(G.time * 3) * 0.3;
       if (!show) { b.tag.style.display = 'none'; continue; }
       v.copy(b.p).project(cam);
-      const d = cam.position.distanceTo(b.p);
-      if (v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1 || d > 420) { b.tag.style.display = 'none'; continue; }
+      const d = cam.position.distanceTo(b.p), behind = v.z > 1;
+      if (behind) { v.x = -v.x; v.y = -v.y; }
+      const off = behind || v.x < -0.92 || v.x > 0.92 || v.y < -0.8 || v.y > 0.9;
+      // out of view: pinned to the edge of the screen, an arrow pointing the way
+      if (off) { const k = 1 / Math.max(Math.abs(v.x) / 0.86, Math.abs(v.y) / 0.72, 1e-3); v.x *= k; v.y *= k; }
+      b.tag.classList.toggle('edge', off);
+      if (off) b.arrow.style.transform = `rotate(${Math.atan2(-v.y, v.x)}rad)`;
       b.tag.style.display = 'flex';
       b.tag.style.left = `${((v.x + 1) / 2) * w}px`; b.tag.style.top = `${((1 - v.y) / 2) * h}px`;
-      b.tag.style.opacity = clamp(1.4 - d / 300, 0.35, 1);
+      b.tag.style.opacity = off ? 0.92 : clamp(1.4 - d / 300, 0.45, 1);
     }
   }
 

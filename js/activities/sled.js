@@ -144,7 +144,7 @@ class Course {
         }
       }
       const rows = br.closed ? N : N - 1, W = offs.length;
-      for (let i = 0; i < rows; i++) { const j = (i + 1) % N; for (let k = 0; k < W - 1; k++) { const a = i * W + k, b = j * W + k; I.push(a, b, a + 1, a + 1, b, b + 1); } }
+      for (let i = 0; i < rows; i++) { const j = (i + 1) % N; for (let k = 0; k < W - 1; k++) { const a = i * W + k, b = j * W + k; I.push(a, a + 1, b, a + 1, b + 1, b); } }
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(V, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); geo.setIndex(I); geo.computeVertexNormals();
       const mesh = new THREE.Mesh(geo, snow); mesh.receiveShadow = true; scene.add(mesh); objs.push(mesh);
     }
