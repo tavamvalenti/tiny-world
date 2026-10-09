@@ -36,7 +36,8 @@ import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 import { RickMode } from './rick.js';
 import { VehicleMode } from './vehicles.js';
 import { boatsOnBlast, updateWrecks } from './boats.js';
-G.boatsOnBlast = boatsOnBlast;
+import { solidHit, clearSolids } from './solids.js';
+G.boatsOnBlast = boatsOnBlast; G.solidHit = solidHit;
 import { addRipples, gatherWakes, buildPools } from './water.js';
 import { Chains } from './chains.js';
 import { vegas, Vegas } from './vegas.js';
@@ -158,7 +159,7 @@ function load(name) {
   const facades = makeFacades();
   const B = new Buildings(facades);
   G.terrainH = name === 'tropical' ? terrainH : name === 'greenland' ? glTerrainH : name === 'cairo' ? caTerrainH : null;       // La Playa's hills, Sisimiut's rock
-  G.rayExtra = null;                                       // a map can add its own things to aim at (Greenland's icebergs)
+  clearSolids(); G.rayExtra = null;                                       // a map can add its own things to aim at (Greenland's icebergs)
   const map = MAPS[name](B);
   const sites = pickSites(B, map.city, name);             // a few buildings are still going up
   const density = { low: 0.5, normal: 1, high: 1.5 }[settings.crowds] || 1;

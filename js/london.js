@@ -13,10 +13,11 @@
 // Distances are compressed to fit (the order, banks and alignments are kept).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { G, rand, pick } from './core.js';
+import { G, rand, pick, blast } from './core.js';
 import { policeHQ } from './maps.js';
 import { sfx, beachRadio } from './audio.js';
-import { hsl, tint, box, cyl, cone, sph, canvasTex, hipRoof, merged, netCtx, paintNetwork, topOf, hangOn, rnd, skinOn, pyramidTris } from './mapkit.js';
+import { hsl, tint, box, cyl, cone, sph, canvasTex, hipRoof, merged, netCtx, paintNetwork, topOf, hangOn, rnd, skinOn, pyramidTris, cutoutOn } from './mapkit.js';
+import { solids, capsuleTest } from './solids.js';
 import { makeShingles } from './textures.js';
 
 const XS = [-110, -90, -72, -10, 25, 55, 80, 105, 135], ZS = [-96, -68, -46, 8, 42, 78, 114];
@@ -214,7 +215,13 @@ export function london(B) {
     const inner = M({ x: -66.4, z: 30.2, w: 3, d: 8, floors: 4, style: 'gothic', tint: gold, cell: 1.5, gh: 1.6, fh: 1.25 });
     const central = M({ x: -63.4, z: 25, w: 3.2, d: 3.2, floors: 9, style: 'gothic', tint: gold, cell: 1.6, gh: 1.6, fh: 1.25 });
     const victoria = M({ x: -62.4, z: 35.2, w: 6, d: 5.2, floors: 18, style: 'gothic', tint: gold, cell: 1.5, gh: 1.6, fh: 1.18 });
-    L.parliament = { big, front, hall, inner, central, victoria };
+    // Elizabeth Tower's top in stone: the clock stage, the belfry, the iron roof, the lantern and the spire in stages,
+    // each standing on the one below (shoot any of it away; it comes down with the tower)
+    const bt = topOf(big).y, BT = (o) => M({ x: -60.6, z: 14.6, d: o.w, floors: 1, style: 'gothic', tint: hsl(0.105, 0.42, 0.6), ...o });
+    const bigTop = [BT({ w: 5.0, floors: 4, cell: 1.25, gh: 1.35, fh: 1.35, base: bt }), BT({ w: 4.4, floors: 2, cell: 1.1, gh: 1.6, fh: 1.6, base: bt + 5.7 }), BT({ w: 3.4, floors: 2, cell: 1.13, gh: 1.3, fh: 1.3, base: bt + 9 }),
+      BT({ w: 2.1, cell: 1.05, gh: 1.8, base: bt + 11.6 }), ...[1.6, 1.1, 0.6, 0.3].map((w, k) => BT({ w, cell: w, gh: 1.8, base: bt + 13.4 + k * 1.8 }))];
+    [big, ...bigTop].forEach((b, k, arr) => { if (k) rests(b, [arr[k - 1]]); });
+    L.parliament = { big, front, hall, inner, central, victoria, bigTop };
     name('The Houses of Parliament', 'the Houses of Parliament', -68, -56, 12, 38); name('Big Ben', 'Big Ben', -63, -58, 12, 17);
     city.crowds.push({ x: -50, z: 4.7, r: 1.1, n: 6, look: 'tourist', act: 'spect', face: { x: -60.6, z: 14.6 } }, { x: -36, z: 4.7, r: 1, n: 5, look: 'tourist', act: 'spect', face: { x: -60.6, z: 14.6 } }, { x: -66, z: 10.4, r: 0.9, n: 4, look: 'tourist', act: 'spect', face: { x: -60.6, z: 14.6 } });
     city.crowds.push({ x: -69, z: 38.6, r: 0.4, n: 2, look: 'metpolice', tag: 'met' }, { x: -69, z: 12.6, r: 0.4, n: 2, look: 'metpolice', tag: 'met' });
@@ -269,6 +276,9 @@ export function london(B) {
     for (let x = -66; x < -14; x += 1) for (let z = -41.9; z < -33; z += 1) if (!inRiver(x + 0.5, z + 0.5) && !inRiver(x + 1.5, z + 0.5)) g.rect(x, z, x + 1, z + 1, '#5d7842');
     for (let x = -64; x < -16; x += 4.2) { const z = -40.6; if (!inRiver(x, z + 2)) city.addTree(x, z, 1.15); }
     L.needle = { x: -49.5, z: -35.6 };
+    L.needle.base = M({ x: -49.5, z: -35.6, w: 1.8, d: 1.8, floors: 1, cell: 0.9, gh: 0.6, style: 'concrete', tint: hsl(0.1, 0.2, 0.5) });
+    L.needle.shaft = M({ x: -49.5, z: -35.6, w: 0.7, d: 0.7, floors: 5, cell: 0.7, gh: 1.28, fh: 1.28, base: 0.6, style: 'concrete', tint: hsl(0.1, 0.25, 0.55) });
+    rests(L.needle.shaft, [L.needle.base]);
     name("Cleopatra's Needle", "Cleopatra's Needle", -52, -46, -38, -33); name('Victoria Embankment', 'Victoria Embankment', -66, 135, -42, -38);
   }
   // St James's Park and its lake, between The Mall and Birdcage Walk
@@ -312,6 +322,14 @@ export function london(B) {
     g.rect(t.lx0, t.lz0, t.lx1, t.lz1, '#c6bead'); g.grainRect(t.lx0, t.lz0, t.lx1, t.lz1, 0.3, 40);
     for (let x = t.lx0; x < t.lx1; x += 1.4) g.line(x, t.lz0, x, t.lz1, 0.04, 'rgba(0,0,0,.08)');
     L.trafalgar = { x: (t.lx0 + t.lx1) / 2, z: (t.lz0 + t.lz1) / 2 + 1 };
+    {
+      const { x: nx, z: nz } = L.trafalgar, stone = hsl(0.11, 0.12, 0.78), N = (o) => M({ x: nx, z: nz, d: o.w, floors: 1, style: 'concrete', tint: stone, ...o });
+      const plinth = N({ w: 3.0, floors: 2, cell: 1.5, gh: 1.2, fh: 1.2 }), col = N({ w: 0.8, cell: 0.8, floors: 13, gh: 1.3, fh: 1.3, base: 2.4 });
+      const cap = N({ w: 1.2, cell: 1.2, gh: 1.1, base: 19.35 }), statue = N({ w: 0.5, cell: 0.5, gh: 1.6, base: 20.45 });
+      const lions = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => M({ x: nx + sx * 2.5, z: nz + sz * 2.5, w: 1.6, d: 1.0, floors: 1, cell: 0.8, gh: 1.3, style: 'concrete', tint: stone }));
+      rests(col, [plinth]); rests(cap, [col]); rests(statue, [cap]);
+      L.nelson = { plinth, col, cap, statue, lions };
+    }
     city.wanderZones.push({ x0: t.lx0 + 0.5, x1: t.lx1 - 0.5, z0: t.lz0 + 0.5, z1: t.lz1 - 0.5 }, { x0: t.lx0 + 0.5, x1: t.lx1 - 0.5, z0: t.lz0 + 0.5, z1: t.lz1 - 0.5 });
     city.crowds.push({ x: L.trafalgar.x - 3, z: L.trafalgar.z + 4, r: 1.2, n: 7, look: 'tourist', act: 'spect', face: L.trafalgar }, { x: L.trafalgar.x + 3, z: L.trafalgar.z - 4.5, r: 1.2, n: 6, look: 'tourist' }, { x: L.trafalgar.x, z: L.trafalgar.z + 6.2, r: 0.6, n: 3, look: 'busker' });
     L.vendors.push({ x: t.lx0 + 0.8, z: t.lz1 - 1, kind: 'nuts' }, { x: t.lx1 - 0.8, z: t.lz0 + 1.4, kind: 'flags' });
@@ -326,6 +344,7 @@ export function london(B) {
     const pc = blk(0, 0);
     const scr = M({ x: pc.lx1 - 4.6, z: pc.lz1 - 4.6, w: 9.2, d: 9.2, floors: 5, style: 'brick', tint: hsl(0.08, 0.2, 0.62), cell: 1.84, gh: 1.6, fh: 1.05 });
     L.piccadilly = { b: scr, x: pc.lx1, z: pc.lz1, eros: { x: -91.2, z: -69.2 } };
+    L.piccadilly.eros.b = M({ x: -91.2, z: -69.2, w: 1.0, d: 1.0, floors: 2, cell: 1.0, gh: 1.0, fh: 1.4, style: 'concrete', tint: hsl(0.35, 0.1, 0.4) });
     pack({ x0: pc.lx0, z0: pc.lz0, x1: pc.lx1, z1: pc.lz1 - 9.8 }, 'mixed', { depth: 5 }); strip(pc.lx0, pc.lz1 - 9.4, pc.lx1 - 9.8, pc.lz1, 'mixed', 's');
     city.crowds.push({ x: -91.6, z: -70.4, r: 1, n: 7, look: 'tourist', act: 'spect', face: { x: pc.lx1 - 3, z: pc.lz1 - 3 } }, { x: -94, z: -66.4, r: 0.8, n: 4, look: 'commuter' });
     name('Piccadilly Circus', 'Piccadilly Circus', -96, -86, -74, -64);
@@ -447,7 +466,12 @@ export function london(B) {
     const nave = M({ x: 40, z: -80.4, w: 17, d: 5.6, floors: 5, style: 'concrete', tint: ps, cell: 1.9, gh: 1.8, fh: 1.4 });
     const tr = [M({ x: 40, z: -85.6, w: 5.4, d: 4.6, floors: 5, style: 'concrete', tint: ps, cell: 1.8, gh: 1.8, fh: 1.4 }), M({ x: 40, z: -75.2, w: 5.4, d: 4.6, floors: 5, style: 'concrete', tint: ps, cell: 1.8, gh: 1.8, fh: 1.4 })];
     const wt = [M({ x: 30.6, z: -83, w: 2.4, d: 2.4, floors: 10, style: 'concrete', tint: ps, cell: 1.2, gh: 1.8, fh: 1.3 }), M({ x: 30.6, z: -77.8, w: 2.4, d: 2.4, floors: 10, style: 'concrete', tint: ps, cell: 1.2, gh: 1.8, fh: 1.3 })];
-    L.stpauls = { nave, tr, wt, dome: { x: 40, z: -80.4 } };
+    const nt = topOf(nave).y, SP = (o) => M({ x: 40, z: -80.4, d: o.w, floors: 1, style: 'concrete', tint: ps, ...o });
+    const domeB = [SP({ w: 6, floors: 3, cell: 1.5, gh: 1.4, fh: 1.3, base: nt }), SP({ w: 5.4, floors: 2, cell: 1.35, gh: 1.1, fh: 1.1, base: nt + 3.9 }),
+      SP({ w: 4.8, floors: 3, cell: 1.2, gh: 1.2, fh: 1.2, base: nt + 6.1, setbacks: [{ f: 2, n: 1 }], crumble: true }), SP({ w: 1.2, floors: 2, cell: 0.6, gh: 1.3, fh: 1.3, base: nt + 10.2 })];
+    [nave, ...domeB].forEach((b, k, arr) => { if (k) rests(b, [arr[k - 1]]); });
+    const wtTop = wt.map((t) => { const tt = topOf(t), b = M({ x: tt.cx, z: tt.cz, w: 1.4, d: 1.4, floors: 2, style: 'concrete', tint: ps, cell: 0.7, gh: 1.2, fh: 1.2, base: tt.y }); rests(b, [t]); return b; });
+    L.stpauls = { nave, tr, wt, wtTop, domeB, dome: { x: 40, z: -80.4 } };
     strip(sp.lx0, sp.lz0, sp.lx1, sp.lz0 + 3.6, 'mixed', 'n', { floors: 5 });
     city.crowds.push({ x: 29.6, z: -73.4, r: 1, n: 6, look: 'tourist', act: 'spect', face: { x: 40, z: -80.4 } });
     for (let x = 32; x < 50; x += 3.6) city.addTree(x, -73.2, 1);
@@ -872,15 +896,16 @@ export class London {
       Gd.push(tint(new THREE.CylinderGeometry(2.14, 2.14, 0.16, 4, 1).rotateY(Math.PI / 4).translate(x, y + 9.4, z), 0xd9b04a), tint(new THREE.CylinderGeometry(1.75, 1.75, 0.14, 4, 1).rotateY(Math.PI / 4).translate(x, y + 11.6, z), 0xd9b04a));
       S.push(box(2.3, 1.8, 2.3, x, y + 12.5, z, 0xc9a462));
       for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) S.push(nx ? box(0.06, 1.2, 0.5, x + nx * 1.16, y + 12.5, z, 0x141414) : box(0.5, 1.2, 0.06, x, y + 12.5, z + nz * 1.16, 0x141414));
-      S.push(tint(new THREE.ConeGeometry(1.55, 7.2, 4).rotateY(Math.PI / 4).translate(x, y + 17, z), 0x3c4644));
+      for (let k = 0; k < 4; k++) S.push(tint(new THREE.CylinderGeometry(1.55 * (1 - (k + 1) / 4) + 0.01, 1.55 * (1 - k / 4), 1.8, 4).rotateY(Math.PI / 4).translate(x, y + 13.4 + k * 1.8 + 0.9, z), 0x3c4644));   // the spire, in pieces
       for (let k = 0; k < 5; k++) Gd.push(tint(new THREE.CylinderGeometry(1.2 - k * 0.22, 1.2 - k * 0.22, 0.1, 4).rotateY(Math.PI / 4).translate(x, y + 14.3 + k * 1.2, z), 0xd9b04a));
       Gd.push(cyl(0.05, 0.08, 1.4, x, y + 21.2, z, 0xd9b04a, 6), sph(0.18, x, y + 21.9, z, 0xd9b04a), box(0.05, 0.6, 0.05, x, y + 22.3, z, 0xd9b04a), box(0.36, 0.05, 0.05, x, y + 22.35, z, 0xd9b04a));
       const top = big.floors - 1;
-      for (const m of [this.add(S), this.add(Gd, this.gilt)]) hangOn(big, [m], top);
+      // the clock stage, belfry and spire break away piece by piece with the stone behind them
+      cutoutOn(this.scene, [big, ...p.bigTop], S, this.mat); cutoutOn(this.scene, [big, ...p.bigTop], Gd, this.gilt); void top;
       // the four dials: white opal glass, black numerals and hands, the real time (lit at night)
       const clock = document.createElement('canvas'); clock.width = clock.height = 256; this.clockCtx = clock.getContext('2d'); this.clockTex = new THREE.CanvasTexture(clock); this.clockTex.colorSpace = THREE.SRGBColorSpace;
       const cmat = new THREE.MeshStandardMaterial({ map: this.clockTex, emissiveMap: this.clockTex, emissive: 0xfff2d0, emissiveIntensity: 0.25, roughness: 0.4 }); this.clockMat = cmat;
-      for (const [dx, dz, ry] of [[0, 2.72, 0], [0, -2.72, Math.PI], [2.72, 0, Math.PI / 2], [-2.72, 0, -Math.PI / 2]]) { const f = new THREE.Mesh(new THREE.CircleGeometry(1.55, 40), cmat); f.position.set(x + dx, y + 2.85, z + dz); f.rotation.y = ry; this.scene.add(f); hangOn(big, [f], top); }
+      for (const [dx, dz, ry] of [[0, 2.72, 0], [0, -2.72, Math.PI], [2.72, 0, Math.PI / 2], [-2.72, 0, -Math.PI / 2]]) { const f = new THREE.Mesh(new THREE.CircleGeometry(1.55, 40), cmat); f.position.set(x + dx, y + 2.85, z + dz); f.rotation.y = ry; this.scene.add(f); hangOn(p.bigTop[0], [f]); }
       this.drawClock(); this.bigBen = { x, z, y: y + 8 };
     }
     // the river front: buttresses with pinnacles every bay, tall traceried windows, a steep slate roof with iron cresting and turrets
@@ -980,10 +1005,14 @@ export class London {
     this.add([box(0.1, 2.4, 2.2, b.bx + 0.06, 1.2, b.cz, 0x1a1a1a), box(1.6, 2.4, 1.4, b.bx + 0.9, 1.2, b.cz - 3.2, 0xece6d8), box(1.6, 2.4, 1.4, b.bx + 0.9, 1.2, b.cz + 3.2, 0xece6d8)]);
   }
   trafalgar(t, gallery) {
-    // Nelson's Column on its plinth with Landseer's lions, the two fountains; the National Gallery's portico and dome
-    const { x, z } = t, P = [];
-    P.push(box(3.2, 2.4, 3.2, x, 1.2, z, 0xc9c1b0), cyl(0.48, 0.58, 17, x, 10.9, z, 0xd8d0c0, 14), box(1.3, 1.1, 1.3, x, 19.9, z, 0xb89858), cyl(0.18, 0.24, 1.3, x, 21.1, z, 0x5a5a58, 8), sph(0.13, x, 21.85, z, 0x5a5a58));
+    // Nelson's Column on its plinth with Landseer's lions, the two fountains; the National Gallery's portico and dome.
+    // The plinth, the column (a block per drum), the capital, Nelson and the lions are real stone: shoot the base and
+    // the column comes down
+    const { x, z } = t, P = [], NL = this.L.nelson;
+    P.push(box(3.2, 2.4, 3.2, x, 1.2, z, 0xc9c1b0), box(1.3, 1.1, 1.3, x, 19.9, z, 0xb89858), cyl(0.18, 0.24, 1.3, x, 21.1, z, 0x5a5a58, 8), sph(0.13, x, 21.85, z, 0x5a5a58));
+    for (let k = 0; k < 13; k++) P.push(cyl(0.58 - k * 0.008, 0.58 - (k + 1) * 0.008, 1.3, x, 2.4 + k * 1.3 + 0.65, z, 0xd8d0c0, 14));
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) P.push(box(1.6, 0.8, 1, x + sx * 2.5, 0.4, z + sz * 2.5, 0xc9c1b0), tint(new THREE.BoxGeometry(0.6, 0.6, 1.3).translate(x + sx * 2.5, 1.1, z + sz * 2.5), 0x2e2e2c), sph(0.28, x + sx * 2.5, 1.45, z + sz * 2.5 + sz * 0.55, 0x2e2e2c));
+    cutoutOn(this.scene, [NL.plinth, NL.col, NL.cap, NL.statue, ...NL.lions], P.splice(0), this.mat);
     for (const dz of [-4.4, 4.4]) P.push(cyl(2, 2.1, 0.5, x + 0, 0.25, z + dz, 0xd0c8b8, 20), cyl(1.8, 1.8, 0.08, x, 0.5, z + dz, 0x6fa8b8, 20), cyl(0.3, 0.4, 1.5, x, 1.05, z + dz, 0xd0c8b8, 8));
     this.add(P);
     this.fountainJets = [-4.4, 4.4].map((dz) => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.6, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xdff2ff, transparent: true, opacity: 0.55, depthWrite: false })); m.position.set(x, 2.5, z + dz); this.scene.add(m); return m; });
@@ -1008,7 +1037,7 @@ export class London {
     }
     this.add([box(0.5, h + 0.4, 0.5, b.x + b.w / 2 + 0.1, y0 + h / 2, b.z + b.d / 2 + 0.1, 0x1a1a1a)]);
     const { x, z } = pc.eros;
-    this.add([cyl(1.1, 1.3, 0.5, x, 0.25, z, 0x6a5a48, 10), cyl(0.5, 0.7, 1.4, x, 1.2, z, 0x5a6a5a, 8), cyl(0.12, 0.18, 0.9, x, 2.3, z, 0x3a5a4a, 8), sph(0.16, x, 2.85, z, 0x3a5a4a), box(0.6, 0.06, 0.12, x, 2.9, z, 0x3a5a4a)], this.metal);
+    cutoutOn(this.scene, pc.eros.b, [cyl(1.1, 1.3, 0.5, x, 0.25, z, 0x6a5a48, 10), cyl(0.5, 0.7, 1.4, x, 1.2, z, 0x5a6a5a, 8), cyl(0.12, 0.18, 0.9, x, 2.3, z, 0x3a5a4a, 8), sph(0.16, x, 2.85, z, 0x3a5a4a), box(0.6, 0.06, 0.12, x, 2.9, z, 0x3a5a4a)], this.metal);
   }
   drawScreen(s) {
     const c = s.ctx, w = c.canvas.width, h = c.canvas.height, [txt, bg, fg, kind] = s.ads[s.i % s.ads.length];
@@ -1024,7 +1053,9 @@ export class London {
   // the London Eye: a truss rim on cable spokes, 32 egg-shaped capsules, the A-frame on the bank with two feet and
   // backstay cables, the boarding pier on the water
   eye(e) {
-    const g2 = new THREE.Group(); g2.position.set(e.x, e.r + 2.2, e.z); g2.rotation.y = Math.PI / 2;     // the rim parallel to the river
+    // everything that can fall over hangs on one pivot at the foot of the wheel (it topples into the river)
+    const pivot = new THREE.Group(); pivot.position.set(e.x, 0, e.z); this.scene.add(pivot); this.eyePivot = pivot;
+    const g2 = new THREE.Group(); g2.position.set(0, e.r + 2.2, 0); g2.rotation.y = Math.PI / 2; pivot.add(g2);     // the rim parallel to the river
     const R = e.r, P = [];
     for (const zz of [-0.45, 0.45]) P.push(tint(new THREE.TorusGeometry(R, 0.09, 6, 96).translate(0, 0, zz), 0xf4f4f2), tint(new THREE.TorusGeometry(R - 0.75, 0.07, 6, 96).translate(0, 0, zz), 0xf4f4f2));
     // the truss bracing round the rim
@@ -1042,7 +1073,7 @@ export class London {
     const cg = mergeGeometries([new THREE.SphereGeometry(0.6, 16, 10).scale(0.62, 0.62, 1.25), new THREE.CylinderGeometry(0.05, 0.05, 0.6, 6).rotateX(Math.PI / 2).translate(0, 0.5, 0)]);
     const cm = new THREE.MeshStandardMaterial({ color: 0xd8ecf6, roughness: 0.04, metalness: 0.55, transparent: true, opacity: 0.9, emissive: 0x3a6aaa, emissiveIntensity: 0, envMapIntensity: 1.5 });
     for (let k = 0; k < 32; k++) { const m = new THREE.Mesh(cg, cm); g2.add(m); this.capsules.push(m); }
-    this.capMat = cm; this.eyeG = g2; this.eyeR = R; this.scene.add(g2);
+    this.capMat = cm; this.eyeG = g2; this.eyeR = R;
     // the A-frame: two legs from feet far apart on the bank, leaning out to hold the spindle; backstays to the land
     const hub = new THREE.Vector3(e.x, R + 2.2, e.z), A = [];
     const strut = (a, b, r0, r1, col) => { const d = new THREE.Vector3().subVectors(b, a), len = d.length(); const g3 = new THREE.CylinderGeometry(r1, r0, len, 10).translate(0, len / 2, 0); g3.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, d.normalize())); g3.translate(a.x, a.y, a.z); return tint(g3, col); };
@@ -1052,10 +1083,73 @@ export class London {
     A.push(strut(top, hub, 0.45, 0.45, 0xf2f2f0), strut(new THREE.Vector3(e.x + 6.6, 3.4, e.z - 6.2), new THREE.Vector3(e.x + 6.6, 3.4, e.z + 6.2), 0.18, 0.18, 0xf2f2f0));
     for (const sz of [-1, 1]) A.push(strut(new THREE.Vector3(e.x + 15.4, 0.2, e.z + sz * 3.2), top, 0.05, 0.05, 0x9aa0a4), box(1.4, 0.4, 1.4, e.x + 15.4, 0.2, e.z + sz * 3.2, 0xbdbdb8));
     // the boarding pier under the wheel, out on the water
+    pivot.attach(this.add(A.splice(0), this.metal));
     A.push(box(3.4, 0.5, 10, e.x - 0.2, WL + 0.3, e.z, 0x6b6f74), box(3.2, 0.7, 9.6, e.x - 0.2, WL + 0.85, e.z, 0xd8dcdc), box(1.6, 0.16, 3, e.x + 0.9, (WL + 1.2) / 2 + 0.2, e.z + 5.4, 0x8a8e92));
     this.add(A, this.metal);
+    // it's solid: the rim, the hub and the A-frame's legs (in the pivot's own space, so the hit box falls with it)
+    const H = R + 2.2, legPts = [[new THREE.Vector3(6.6, 0, -7.6), new THREE.Vector3(1.2, H, 0)], [new THREE.Vector3(6.6, 0, 7.6), new THREE.Vector3(1.2, H, 0)], [new THREE.Vector3(1.2, H, 0), new THREE.Vector3(0, H, 0)]], legs = legPts.map(([a, b]) => capsuleTest(a, b, 0.6));
+    const local = (p) => { pivot.updateMatrixWorld(); return pivot.worldToLocal(p.clone()); };
+    const toWorld = (n) => n.transformDirection(pivot.matrixWorld);
+    this.eyeS = { hp: 90, max: 90, ang: 0, angV: 0, state: 'up', spin: 0, H, R };
+    // how far a point (pivot space) is from the structure, and the way out of it
+    this.eyeDist = (q) => {
+      const ry = q.y - H, rz = q.z, ax = q.x, rad = Math.hypot(ry, rz);
+      const dRim = Math.hypot(Math.max(0, Math.abs(ax) - 0.6), Math.max(0, Math.abs(rad - (R - 0.35)) - 0.6)), dHub = Math.hypot(Math.max(0, Math.abs(ax) - 1.3), Math.max(0, rad - 1));
+      let dLeg = 1e9;
+      for (const [a, b] of legPts) { const ab = b.clone().sub(a), t = Math.max(0, Math.min(1, q.clone().sub(a).dot(ab) / ab.lengthSq())); dLeg = Math.min(dLeg, Math.max(0, q.distanceTo(a.clone().addScaledVector(ab, t)) - 0.6)); }
+      return Math.min(dRim, dHub, dLeg);
+    };
+    solids.push({
+      test: (p) => {
+        const q = local(p), ry = q.y - H, rz = q.z, ax = q.x, rad = Math.hypot(ry, rz);
+        // the rim: a band round the wheel; the hub: a drum at the centre
+        if (Math.abs(ax) < 0.6 && rad > R - 0.95 && rad < R + 0.25) {
+          const pa = 0.6 - Math.abs(ax), pi = rad - (R - 0.95), po = R + 0.25 - rad, m = Math.min(pa, pi, po);
+          const n = m === pa ? new THREE.Vector3(Math.sign(ax) || 1, 0, 0) : new THREE.Vector3(0, ry / rad, rz / rad).multiplyScalar(m === po ? 1 : -1);
+          return { n: toWorld(n), pen: m };
+        }
+        if (Math.abs(ax) < 1.3 && rad < 1) { const pa = 1.3 - Math.abs(ax), pr = 1 - rad; return pa < pr ? { n: toWorld(new THREE.Vector3(Math.sign(ax) || 1, 0, 0)), pen: pa } : { n: toWorld(new THREE.Vector3(0, ry / (rad || 1), rz / (rad || 1))), pen: pr }; }
+        for (const L of legs) { const r = L(q); if (r) return { n: toWorld(r.n), pen: r.pen }; }
+        return null;
+      },
+      // flying into it at speed hurts it too
+      hit: (p, speed) => { if (speed > 6) this.eyeDamage(speed * 0.6, local(p)); },
+    });
   }
-  needle(n) { this.add([box(0.7, 6.4, 0.7, n.x, 3.8, n.z, 0xa89878), tint(new THREE.ConeGeometry(0.52, 0.8, 4).rotateY(Math.PI / 4).translate(n.x, 7.4, n.z), 0x9a8a6a), box(1.8, 0.6, 1.8, n.x, 0.3, n.z, 0x8a7a60), box(1.2, 0.4, 0.5, n.x - 1.4, 0.8, n.z, 0x3a3226), box(1.2, 0.4, 0.5, n.x + 1.4, 0.8, n.z, 0x3a3226)]); }
+  // the Eye takes a beating (hits low on the legs count double); with nothing left it goes over
+  eyeDamage(d, q) {
+    const S = this.eyeS; if (!S || S.state !== 'up') return;
+    S.hp -= d * (q && q.y < 5 ? 2 : 1);
+    if (S.hp < S.max * 0.5 && !S.creaked) { S.creaked = true; const p = this.eyePivot.position; sfx.collapse(p.x, p.z, 12); }
+    if (S.hp <= 0) { S.state = 'falling'; S.angV = 0.04; const p = this.eyePivot.position; sfx.collapse(p.x, p.z, 60); G.news && G.news.destruction && G.news.destruction(p.x, p.z, 120); }
+  }
+  // falling: slowly at first, then faster; the rim crushes whatever it sweeps through; then the landing
+  updateEye(dt) {
+    const S = this.eyeS; if (!S) return;
+    if (S.state === 'up') { S.spin += dt * 0.02 * Math.max(0.15, S.hp / S.max); return; }
+    if (S.state !== 'falling') return;
+    S.angV += dt * (1.1 * Math.sin(S.ang) + 0.12); S.ang += S.angV * dt;
+    const done = S.ang >= Math.PI / 2 - 0.02; if (done) S.ang = Math.PI / 2 - 0.02;
+    const pv = this.eyePivot; pv.rotation.z = S.ang; pv.updateMatrixWorld(true);
+    const B = G.buildings, rim = (k, n) => { const a = k / n * Math.PI * 2; return new THREE.Vector3(0, S.H + Math.cos(a) * S.R, Math.sin(a) * S.R).applyMatrix4(pv.matrixWorld); };
+    if ((S.crushT = (S.crushT || 0) - dt) <= 0) {
+      S.crushT = 0.08;
+      for (let k = 0; k < 16; k++) { const p = rim(k, 16); if (B.inside(p) || p.y < 0.4) { B.damageSphere(p.x, p.y, p.z, 2.4, 260, 0.3, 0.3); if (Math.random() < 0.4) G.fx.dust(p.x, Math.max(0.3, p.y), p.z, 1.2); } }
+    }
+    if (!done) return;
+    // the landing: the whole rim comes down on the river, the banks and whatever stands there
+    S.state = 'down';
+    const c = new THREE.Vector3(0, S.H, 0).applyMatrix4(pv.matrixWorld);
+    for (let k = 0; k < 40; k++) { const p = rim(k, 40); B.damageSphere(p.x, Math.max(0.5, p.y), p.z, 3.2, 520, 0.6, 0.5); if (k % 5 === 0) G.fx.explosion(p.x, Math.max(0.3, p.y), p.z, 0.9); if (k % 2 === 0) { G.fx.dust(p.x, Math.max(0.3, p.y), p.z, 2.2); for (let i = 0; i < 6; i++) G.fx.bits.emit(p.x, 0.3, p.z, rand(-3, 3), rand(4, 9), rand(-3, 3), rand(0.3, 0.6), 1.6, 0.9, 0.95, 1, 1); } }
+    B.damageSphere(c.x, Math.max(0.5, c.y), c.z, 4, 600, 0.8, 0.6);
+    G.fx.fireball(c.x, 2, c.z, 8, 1.2); G.fx.ring(c.x, 0.2, c.z, 45, 1.2, 0xc8c0b0, 0.6);
+    sfx.boom(c.x, c.z, 2.4, 'meteor'); sfx.collapse(c.x, c.z, 300);
+    G.shake = Math.max(G.shake || 0, 1.6);
+    blast(c.x, 1, c.z, 70, 30, 'collapse');
+    G.emergency && G.emergency.report(c.x, c.z, 4);
+    G.news && G.news.destruction && G.news.destruction(c.x, c.z, 400);
+  }
+  needle(n) { cutoutOn(this.scene, [n.base, n.shaft], [...[0, 1, 2, 3, 4].map((k) => box(0.7 - k * 0.03, 1.28, 0.7 - k * 0.03, n.x, 0.6 + k * 1.28 + 0.64, n.z, 0xa89878)), tint(new THREE.ConeGeometry(0.52, 0.8, 4).rotateY(Math.PI / 4).translate(n.x, 7.4, n.z), 0x9a8a6a), box(1.8, 0.6, 1.8, n.x, 0.3, n.z, 0x8a7a60)], this.mat); this.add([ box(1.2, 0.4, 0.5, n.x - 1.4, 0.8, n.z, 0x3a3226), box(1.2, 0.4, 0.5, n.x + 1.4, 0.8, n.z, 0x3a3226)]); }
   // New Scotland Yard's revolving sign out front
   scotlandYard(s) {
     const g2 = new THREE.Group(); g2.position.set(-68.6, 0, s.z - 4.6);
@@ -1065,19 +1159,20 @@ export class London {
     sgn.position.y = 1.9; g2.add(sgn); this.scene.add(g2); this.nsySign = sgn; this.signs.push(sgn.material);
   }
   stpauls(s) {
-    // the dome on its colonnaded drum, the lantern and gilded cross; the baroque west towers
-    const { x, z } = s.dome, base = topOf(s.nave).y, P = [], Gd = [];
-    P.push(cyl(4.3, 4.5, 4, x, base + 2, z, 0xd8d2c4, 32));
+    // the dome on its colonnaded drum, the lantern and gilded cross; the baroque west towers. Every piece is tied to
+    // the stone behind it (the drum, the attic, the dome and the lantern are real blocks), so it breaks up as it's hit
+    const { x, z } = s.dome, base = topOf(s.nave).y, P = [], Gd = [], N8 = 8, seg = (k) => [k / N8 * Math.PI * 2, Math.PI * 2 / N8];
+    for (let k = 0; k < N8; k++) { const [a0, da] = seg(k); P.push(tint(new THREE.CylinderGeometry(4.3, 4.5, 4, 6, 1, false, a0, da).translate(x, base + 2, z), 0xd8d2c4), tint(new THREE.CylinderGeometry(3.9, 4, 2.2, 6, 1, false, a0, da).translate(x, base + 5, z), 0xd8d2c4), tint(new THREE.CylinderGeometry(4.85, 4.85, 0.4, 6, 1, false, a0, da).translate(x, base + 3.8, z), 0xd0c8b8)); }
     for (let a = 0; a < 6.28; a += 0.24) P.push(cyl(0.17, 0.19, 3.4, x + Math.cos(a) * 4.62, base + 1.9, z + Math.sin(a) * 4.62, 0xece6d8, 6));
-    P.push(cyl(4.85, 4.85, 0.4, x, base + 3.8, z, 0xd0c8b8, 32), cyl(3.9, 4, 2.2, x, base + 5, z, 0xd8d2c4, 28));
-    P.push(tint(new THREE.SphereGeometry(4, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 1.18, 1).translate(x, base + 6, z), 0x8a9a96));
+    for (let band = 0; band < 3; band++) for (let k = 0; k < N8; k++) { const [a0, da] = seg(k), t0 = band * Math.PI / 6, t1 = (band + 1) * Math.PI / 6; P.push(tint(new THREE.SphereGeometry(4, 6, 4, a0, da, t0, t1 - t0).scale(1, 1.18, 1).translate(x, base + 6, z), 0x8a9a96)); }
     for (let a = 0; a < 6.28; a += 0.4) P.push(tint(new THREE.TorusGeometry(4.02, 0.05, 4, 24, Math.PI / 2).scale(1, 1.18, 1).rotateY(-a).rotateX(0).translate(x, base + 6, z), 0x7a8a86));
     P.push(cyl(0.7, 0.8, 2.6, x, base + 11.6, z, 0xd8d2c4, 12));
     Gd.push(sph(0.35, x, base + 13.2, z, 0xd9b04a), box(0.12, 1.1, 0.12, x, base + 13.9, z, 0xd9b04a), box(0.6, 0.12, 0.12, x, base + 14.1, z, 0xd9b04a));
-    hangOn(s.nave, [this.add(P), this.add(Gd, this.gilt)]);
-    for (const t of s.wt) { const tt = topOf(t), Q = [cyl(1, 1.1, 2.4, tt.cx, tt.y + 1.2, tt.cz, 0xd8d2c4, 12), tint(new THREE.SphereGeometry(0.9, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(tt.cx, tt.y + 2.4, tt.cz), 0x8a9a96), cone(0.25, 1.6, tt.cx, tt.y + 3.9, tt.cz, 0xd9b04a, 8)]; hangOn(t, [this.add(Q)]); }
+    const dome = [s.nave, ...s.domeB];
+    cutoutOn(this.scene, dome, P, this.mat); cutoutOn(this.scene, dome, Gd, this.gilt);
+    for (const t of s.wt) { const tt = topOf(t), Q = [cyl(1, 1.1, 2.4, tt.cx, tt.y + 1.2, tt.cz, 0xd8d2c4, 12), tint(new THREE.SphereGeometry(0.9, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(tt.cx, tt.y + 2.4, tt.cz), 0x8a9a96), cone(0.25, 1.6, tt.cx, tt.y + 3.9, tt.cz, 0xd9b04a, 8)]; cutoutOn(this.scene, [t, s.wtTop[s.wt.indexOf(t)]], Q, this.mat); }
     const n = topOf(s.nave);
-    hangOn(s.nave, [this.add([box(1, 3.2, 6.4, n.ax - 0.6, 3.6, n.cz, 0xe2dccd), tint(new THREE.ConeGeometry(3.6, 1, 3).rotateX(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 1, 0.25).translate(n.ax - 0.6, 5.7, n.cz), 0xe2dccd), ...[0, 1, 2, 3, 4, 5].map((k) => cyl(0.2, 0.22, 3, n.ax - 1, 2.6, n.cz - 2.5 + k, 0xece6d8, 8))])]);
+    cutoutOn(this.scene, s.nave, ([box(1, 3.2, 6.4, n.ax - 0.6, 3.6, n.cz, 0xe2dccd), tint(new THREE.ConeGeometry(3.6, 1, 3).rotateX(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 1, 0.25).translate(n.ax - 0.6, 5.7, n.cz), 0xe2dccd), ...[0, 1, 2, 3, 4, 5].map((k) => cyl(0.2, 0.22, 3, n.ax - 1, 2.6, n.cz - 2.5 + k, 0xece6d8, 8))]), this.mat);
   }
   cityTowers(c) {
     // the Walkie-Talkie's garden crown, the Cheesegrater's sloping face, Bishopsgate's crown, Lloyd's steel ducts,
@@ -1295,6 +1390,17 @@ export class London {
       _m.compose(_p.set(p.x, p.y, p.z), _q.identity(), _s.set(1, p.h, 1)); poleM.setMatrixAt(k, _m);
       _q.setFromAxisAngle(UP, -0.4 + Math.random() * 0.2); _m.compose(_p.set(p.x, p.y + p.h - 0.28, p.z), _q, _s.set(0.9, 0.9, 1)); flagM.setMatrixAt(fi, _m);
       if (p.cell) (p.cell.props ||= []).push({ mesh: poleM, idx: k, x: p.x, y: p.y, z: p.z }, { mesh: flagM, idx: fi, x: p.x, y: p.y, z: p.z });
+      // every pole is solid, and snaps when something flies into it or goes off next to it: it falls flat, flag and all
+      const fIdx = fi, cap = capsuleTest(new THREE.Vector3(p.x, p.y, p.z), new THREE.Vector3(p.x, p.y + p.h, p.z), 0.14), sol = { alive: true, test: (q) => { if (p.cell && !p.cell.alive) { sol.alive = false; return null; } return cap(q); } };   // a roof pole goes with its roof
+      sol.hit = () => {
+        if (!sol.alive) return; sol.alive = false;
+        const a = rand(0, 6.28); _q.setFromEuler(new THREE.Euler(Math.cos(a) * 1.5, 0, Math.sin(a) * 1.5));
+        _m.compose(_p.set(p.x, p.y + 0.05, p.z), _q, _s.set(1, p.h, 1)); poleM.setMatrixAt(k, _m); poleM.instanceMatrix.needsUpdate = true;
+        flagM.setMatrixAt(fIdx, new THREE.Matrix4().makeScale(0, 0, 0)); flagM.instanceMatrix.needsUpdate = true;
+        G.fx.debris.spawn(p.x, p.y + p.h * 0.7, p.z, new THREE.Vector3(rand(-2, 2), 2, rand(-2, 2)), 0.5, 0.25, 0.02, new THREE.Color(0.8, 0.1, 0.15));
+        sfx.crash(p.x, p.z, 0.15);
+      };
+      solids.push(sol); (this.poleSolids ||= []).push({ sol, x: p.x, y: p.y, z: p.z, h: p.h });
       fi++;
     });
     // bunting: little flags strung across the street from side to side, every few metres
@@ -1831,11 +1937,17 @@ export class London {
   }
 
   // things hit by a blast: horses rear and fall, riders come off their scooters and bikes, boats nearby are swamped
-  onBlast(x, y, z, r, power) {
+  onBlast(x, y, z, r, power, kind) {
     const hit = (px, pz, k = 0.6) => Math.hypot(px - x, pz - z) < r * k && power > 1;
     if (this.hz) for (const o of this.hz.list) if (o.down == null && hit(o.x, o.z)) o.down = rand(35, 50);
     if (this.wh) for (const o of this.wh.list) if (o.down == null && hit(o.x, o.z, 0.7)) o.down = rand(20, 35);
     for (const b of this.boatList || []) if (!b.sunk && hit(b.m.position.x, b.m.position.z, 0.45) && power > 2) { b.sunk = true; b.m.rotation.z = 0.6; }
+    for (const ps of this.poleSolids || []) if (ps.sol.alive && power > 1 && Math.hypot(ps.x - x, ps.z - z) < r * 0.4 + 0.5 && y < ps.y + ps.h + r * 0.3) ps.sol.hit();
+    // the Eye: anything going off close to its rim, hub or legs wears it down
+    if (this.eyeS && this.eyeS.state === 'up' && kind !== 'collapse' && kind !== 'wind') {
+      this.eyePivot.updateMatrixWorld(); const q = this.eyePivot.worldToLocal(new THREE.Vector3(x, y, z)), d = this.eyeDist(q), reach = Math.max(1.5, r * 0.5);
+      if (d < reach) this.eyeDamage(power * (kind === 'laser' ? 0.6 : 1.4) * (1 - d / reach * 0.7), q);
+    }
   }
 
   update(dt) {
@@ -1851,7 +1963,8 @@ export class London {
     for (const j of this.fountainJets || []) j.scale.y = 0.9 + Math.sin(t * 7 + j.position.z) * 0.12;
     for (const s of this.pcScreens || []) if (t > s.next) { s.next = t + rand(5, 8); s.i++; this.drawScreen(s); }
     // the Eye turns slowly, the capsules hang level
-    if (this.eyeG) { const a = t * 0.02; this.eyeG.children[0].rotation.z = a; this.capsules.forEach((m, k) => { const b = a + k / 32 * 6.283; m.position.set(Math.sin(b) * (this.eyeR + 0.7), -Math.cos(b) * (this.eyeR + 0.7), 0); }); }
+    this.updateEye(dt);
+    if (this.eyeG) { const a = this.eyeS ? this.eyeS.spin : t * 0.02; this.eyeG.children[0].rotation.z = a; this.capsules.forEach((m, k) => { const b = a + k / 32 * 6.283; m.position.set(Math.sin(b) * (this.eyeR + 0.7), -Math.cos(b) * (this.eyeR + 0.7), 0); }); }
     this.updateBoats(dt); this.updateVehicles(); this.updateHorses(dt); this.updateWheels(dt); this.updateMarch(dt);
     // anything standing on legs comes down when the legs go
     if ((this.restsT -= dt) <= 0) {

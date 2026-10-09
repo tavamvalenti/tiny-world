@@ -612,6 +612,8 @@ export class RickMode {
       const w = _v.set(c[0] * S, c[1] * S, c[2] * S).applyQuaternion(this.quat).add(this.pos);
       const floor = B.surfaceAt(w.x, w.z, w.y + 0.3).y, pen = floor - w.y;
       if (pen > worst) { worst = pen; n = new THREE.Vector3(0, 1, 0); wallCell = null; wp = w.clone(); }
+      const so = G.solidHit && G.solidHit(w);                    // non-cell solids (the Eye, poles)
+      if (so && so.pen > worst) { worst = so.pen; n = so.n.clone(); wallCell = null; wp = w.clone(); if (so.solid.hit) so.solid.hit(w, this.vel.length()); }
       const cell = B.inside(w);
       if (cell) {
         const dx = w.x - cell.x, dy = w.y - cell.y, dz = w.z - cell.z;
@@ -700,6 +702,7 @@ export class RickMode {
       // people and cars along the bolt's path
       const victim = this.boltVictim(b.prev, dir, len);
       if (victim && (!hit || victim.t < b.prev.distanceTo(hit.point))) hit = { point: b.prev.clone().addScaledVector(dir, victim.t), normal: new THREE.Vector3(0, 1, 0), cell: null, victim };
+      if (!hit && G.solidHit) { const so = G.solidHit(b.pos); if (so) hit = { point: b.pos.clone(), normal: so.n, cell: null }; }   // the Eye, poles
       if (!hit && b.pos.y <= (TH ? TH(b.pos.x, b.pos.z) : 0)) hit = { point: b.pos.clone().setY(TH ? TH(b.pos.x, b.pos.z) : 0), normal: new THREE.Vector3(0, 1, 0), cell: null };
       if (hit) { this.boltHit(hit); this.bolts.splice(i, 1); continue; }
       if (b.life <= 0) this.bolts.splice(i, 1);

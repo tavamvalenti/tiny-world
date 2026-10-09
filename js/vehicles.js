@@ -309,6 +309,9 @@ export class VehicleMode {
         const n = ax === 'x' ? new THREE.Vector3(Math.sign(dx) || 1, 0, 0) : ax === 'y' ? new THREE.Vector3(0, Math.sign(dy) || 1, 0) : new THREE.Vector3(0, 0, Math.sign(dz) || 1);
         return { w: w.clone(), pen: ax === 'x' ? px : ax === 'y' ? py : pz, cell, n, ground: ax === 'y' && n.y > 0 };
       }
+      // a solid that isn't a block (the Eye, a pole)
+      const so = G.solidHit && G.solidHit(w);
+      if (so) { if (so.solid.hit) so.solid.hit(w, this.vel.length()); return { w: w.clone(), pen: so.pen, n: so.n.clone(), solid: so.solid }; }
       // the bare ground (terrain), once no block is involved
       const gy = G.terrainH ? G.terrainH(w.x, w.z) : 0;
       if (w.y < gy) return { w: w.clone(), pen: gy - w.y, n: new THREE.Vector3(0, 1, 0), ground: true };
@@ -581,6 +584,7 @@ export class VehicleMode {
       let hit = len > 0 ? B.raycast(s.prev, dir, len) : null;
       const vic = this.victim(s.prev, dir, len);
       if (vic && (!hit || vic.t < s.prev.distanceTo(hit.point))) hit = { point: s.prev.clone().addScaledVector(dir, vic.t), normal: new THREE.Vector3(0, 1, 0), cell: null, victim: vic };
+      if (!hit && G.solidHit) { const so = G.solidHit(s.pos); if (so) hit = { point: s.pos.clone(), normal: so.n, cell: null }; }   // the Eye, poles
       const gy = TH ? TH(s.pos.x, s.pos.z) : 0;
       if (!hit && s.pos.y <= gy) hit = { point: s.pos.clone().setY(gy), normal: new THREE.Vector3(0, 1, 0), cell: null, ground: true };
       if (hit) { if (s.kind === 'fire') this.fireHit(hit); else this.bulletHit(hit); if (s.sp) { s.sp.visible = false; s.sp = null; } this.shots.splice(i, 1); continue; }

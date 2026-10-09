@@ -154,6 +154,27 @@ export function skinOn(scene, b, tris, color, mat, uvf) {        // uvf(vertex) 
   }
   for (const [cell, geos] of byCell) { const m = new THREE.Mesh(mergeGeometries(geos), mat); m.castShadow = true; scene.add(m); (cell.props ||= []).push({ obj: [m], x: cell.x, y: cell.y, z: cell.z }); }
 }
+// Decoration that breaks with the stone behind it: each piece is tied to the nearest cell of the given building(s)
+// and all of them are merged into one mesh (one draw call); when a cell goes, its pieces are cut out of the mesh.
+// Split big shapes (a dome, a spire) into pieces first so they break up bit by bit.
+export function cutoutOn(scene, builds, geos, mat) {
+  const cells = (Array.isArray(builds) ? builds : [builds]).filter(Boolean).flatMap((b) => b.cells);
+  if (!geos.length || !cells.length) return null;
+  const c = new THREE.Vector3(), parts = geos.map((g0) => {
+    const g = g0.index ? g0.toNonIndexed() : g0; g.computeBoundingBox(); g.boundingBox.getCenter(c);
+    let best = null, bd = 1e9;
+    for (const cell of cells) { const d = Math.max(0, Math.abs(cell.x - c.x) - cell.hx) + Math.max(0, Math.abs(cell.y - c.y) - cell.hy) * 1.2 + Math.max(0, Math.abs(cell.z - c.z) - cell.hz) + Math.hypot(cell.x - c.x, cell.y - c.y, cell.z - c.z) * 0.05; if (d < bd) { bd = d; best = cell; } }
+    return { g, cell: best };
+  });
+  const merged = mergeGeometries(parts.map((q) => q.g)); if (!merged) return null;
+  const pos = merged.attributes.position.array, ranges = new Map(); let off = 0;
+  for (const q of parts) { const n = q.g.attributes.position.count * 3; if (!ranges.has(q.cell)) ranges.set(q.cell, []); ranges.get(q.cell).push(off, off + n); off += n; }
+  const m = new THREE.Mesh(merged, mat); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+  for (const [cell, r] of ranges) (cell.props ||= []).push({ x: cell.x, y: cell.y, z: cell.z, noDebris: true, hide: () => { for (let k = 0; k < r.length; k += 2) pos.fill(0, r[k], r[k + 1]); merged.attributes.position.needsUpdate = true; } });
+  return m;
+}
+// a shape cut into pieces round its axis (so a dome or a drum can break away a piece at a time)
+export function segments(make, n) { const out = []; for (let k = 0; k < n; k++) out.push(make((k / n) * Math.PI * 2, (Math.PI * 2) / n)); return out; }
 // triangles of a surface of revolution about (x, z): profile [[r, y], ...] bottom to top, n sides
 export function latheTris(x, z, profile, n = 20) {
   const out = [], P = (r, y, a) => new THREE.Vector3(x + Math.cos(a) * r, y, z + Math.sin(a) * r);
