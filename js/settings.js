@@ -1,5 +1,7 @@
 // Player settings: schema, persistence (localStorage, best effort) and the settings panel UI.
 // v2: new default mix (bumping the key applies the new defaults once)
+import { icon, installGlassUI } from './ui-glass.js';
+const SECTION_ICON = { Audio: ['speaker', '#ff375f'], Controls: ['gamepad', '#0a84ff'], Graphics: ['sparkles', '#bf5af2'], World: ['globe', '#30d158'] };
 const KEY = 'tinyworld.settings.v2';
 
 export const SCHEMA = [
@@ -57,13 +59,14 @@ const fmt = (f, v) => (f.type === 'range' ? `${v}${f.unit || ''}` : '');
 
 export function buildSettingsPanel(root, { onClose } = {}) {
   root.innerHTML = '';
+  installGlassUI();
   const panel = document.createElement('div');
   panel.className = 'sp';
-  panel.innerHTML = '<h2>SETTINGS</h2>';
+  panel.innerHTML = '<h2>Settings</h2>';
   const body = document.createElement('div');
   body.className = 'sp-body';
   for (const f of SCHEMA) {
-    if (f.section) { const h = document.createElement('h3'); h.textContent = f.section.toUpperCase(); body.appendChild(h); continue; }
+    if (f.section) { const h = document.createElement('h3'); const [ic, c] = SECTION_ICON[f.section] || ['sparkles', '#0a84ff']; h.style.setProperty('--hc', c); h.innerHTML = `${icon(ic, 16)}${f.section}`; body.appendChild(h); continue; }
     const row = document.createElement('label');
     row.className = 'sp-row';
     const name = document.createElement('span');
@@ -97,8 +100,8 @@ export function buildSettingsPanel(root, { onClose } = {}) {
   panel.appendChild(body);
   const foot = document.createElement('div');
   foot.className = 'sp-foot';
-  const reset = document.createElement('button'); reset.textContent = 'RESET DEFAULTS';
-  const done = document.createElement('button'); done.textContent = 'DONE'; done.className = 'primary';
+  const reset = document.createElement('button'); reset.textContent = 'Reset to defaults';
+  const done = document.createElement('button'); done.textContent = 'Done'; done.className = 'primary';
   reset.addEventListener('click', () => { Object.assign(settings, defaults()); save(); buildSettingsPanel(root, { onClose }); });
   done.addEventListener('click', () => onClose && onClose());
   foot.append(reset, done);

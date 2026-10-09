@@ -4,6 +4,7 @@
 import { G } from '../core.js';
 import { sfx } from '../audio.js';
 import * as D from './defs.js';
+import { icon, TAB_STYLE, installGlassUI } from '../ui-glass.js';
 
 const CSS = `
 #progChip{position:absolute;left:16px;top:calc(4.2vh + 70px);display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;cursor:pointer;pointer-events:auto;user-select:none;
@@ -106,6 +107,7 @@ export class ProgressUI {
     this.panel.addEventListener('change', (e) => this.change(e));
     progress.on((type, d) => this.onEvent(type, d));
     this.renderChip();
+    installGlassUI();
   }
   // ---------- the chip ----------
   renderChip() {
@@ -161,8 +163,8 @@ export class ProgressUI {
   toggle() { this.panel.classList.contains('open') ? this.close() : this.open(); }
   get isOpen() { return this.panel.classList.contains('open'); }
   render() {
-    const tabs = [['profile', 'PROFILE'], ['shop', 'SHOP'], ['wallet', 'WALLET'], ['ach', 'ACHIEVEMENTS'], ['chal', 'CHALLENGES'], ['rec', 'RECORDS'], ['rew', 'REWARDS'], ['lb', 'LEADERBOARDS']];
-    this.panel.innerHTML = `<div class="pp"><header><h2>PROFILE</h2><span class="x" data-a="close">×</span></header><nav>${tabs.map(([k, l]) => `<span data-tab="${k}" class="${k === this.tab ? 'on' : ''}">${l}</span>`).join('')}</nav><div class="body">${this['tab_' + this.tab]()}</div></div>`;
+    const tabs = [['profile', 'Profile'], ['shop', 'Shop'], ['wallet', 'Wallet'], ['ach', 'Achievements'], ['chal', 'Challenges'], ['rec', 'Records'], ['rew', 'Rewards'], ['lb', 'Leaderboards']];
+    this.panel.innerHTML = `<div class="pp"><header><h2>${{ profile: 'Profile', shop: 'Shop', wallet: 'Wallet', ach: 'Achievements', chal: 'Challenges', rec: 'Records', rew: 'Rewards', lb: 'Leaderboards' }[this.tab]}</h2><span class="x" data-a="close">×</span></header><nav>${tabs.map(([k, l]) => `<span data-tab="${k}" class="${k === this.tab ? 'on' : ''}" style="--tc:${TAB_STYLE[k][1]}">${icon(TAB_STYLE[k][0], 15)}${l}</span>`).join('')}</nav><div class="body">${this['tab_' + this.tab]()}</div></div>`;
     if (this.tab === 'lb') this.loadBoard();
     if (this.tab === 'profile') this.drawCard();
   }
@@ -221,12 +223,12 @@ export class ProgressUI {
   // the shop: everything for sale, grouped by what it's for; owned ones equip from here too
   tab_shop() {
     const P = this.p.P, cash = this.p.wallet.cash;
-    const groups = [['car_paint', 'HIGHWAY CUT-UP · CAR PAINT'], ['car_flame', 'HIGHWAY CUT-UP · BOOST FLAMES'], ['sled_paint', 'SNOWMOBILE PAINT'], ['drone_paint', 'DRONE PAINT'], ['drone_tracer', 'DRONE & JETPACK TRACERS'], ['jetpack_paint', 'JETPACK TANKS'], ['chair_balloons', 'BALLOON CHAIR BALLOONS'], ['title', 'TITLES'], ['badge', 'BADGES'], ['card_theme', 'PROFILE CARD THEMES']];
+    const groups = [['car_paint', 'Highway Cut-Up car paint', 'car', '#ff375f'], ['car_flame', 'Boost flames', 'flame', '#ff9f0a'], ['sled_paint', 'Snowmobile paint', 'snow', '#64d2ff'], ['drone_paint', 'Drone paint', 'drone', '#bf5af2'], ['drone_tracer', 'Drone & jetpack tracers', 'bolt', '#ffd60a'], ['jetpack_paint', 'Jetpack tanks', 'jet', '#ff453a'], ['chair_balloons', 'Balloon chair balloons', 'balloon', '#ff2d55'], ['title', 'Titles', 'tag', '#0a84ff'], ['badge', 'Badges', 'badge', '#ff9f0a'], ['card_theme', 'Profile card themes', 'card', '#5e5ce6']];
     const sw = (r) => (typeof r.value === 'number' ? `<span class="sw" style="background:#${r.value.toString(16).padStart(6, '0')}"></span>` : r.slot === 'chair_balloons' ? `<span class="sw" style="background:linear-gradient(90deg,${D.BALLOON_PALETTES[r.value].slice(0, 4).map((c) => '#' + c.toString(16).padStart(6, '0')).join(',')})"></span>` : r.slot === 'card_theme' ? `<span class="sw" style="background:linear-gradient(135deg,${D.CARD_THEMES[r.value].join(',')})"></span>` : r.icon ? svg(r.icon, 14) + ' ' : '');
-    return `<div class="row" style="justify-content:space-between"><div><span class="note">YOUR CASH</span><div class="bal">$${cash.toLocaleString()}</div></div><span class="note">${esc(this.shopMsg || 'Earn Cash in the mini-games, challenges and achievements. Everything here is cosmetic and works in the game.')}</span></div>
-      ${groups.map(([slot, label]) => { const items = D.REWARDS.filter((r) => r.slot === slot && r.how.buy); if (!items.length) return '';
-        return `<h4>${label}</h4><div class="grid">${items.map((r) => { const own = !!P.unlocked[r.id], on = slot === 'badge' ? P.equipped.badges.includes(r.id) : P.equipped[slot] === r.id, price = r.how.buy, can = cash >= price, conf = this.confirmBuy === r.id;
-          return `<div class="it shop-it ${own ? 'owned' : ''}"><b>${sw(r)}${esc(r.label)}${price >= 30000 ? ' ★' : ''}</b>${own ? `<span class="note">Owned</span><button data-eq="${slot}|${r.id}" ${on && slot !== 'badge' ? 'disabled' : ''}>${on ? (slot === 'badge' ? 'SHOWN · HIDE' : 'EQUIPPED') : slot === 'badge' ? 'SHOW ON CARD' : 'EQUIP'}</button>` : `<span class="pr">$${price.toLocaleString()}</span><button data-buy="${r.id}" class="${conf ? 'confirm' : ''}" ${can ? '' : 'disabled'}>${conf ? `CONFIRM · LEAVES $${(cash - price).toLocaleString()}` : can ? 'BUY' : `NEED $${(price - cash).toLocaleString()} MORE`}</button>`}</div>`; }).join('')}</div>`; }).join('')}
+    return `<div class="row" style="justify-content:space-between"><div><span class="note" style="display:flex;align-items:center;gap:6px">${icon('cash', 15)} Your Cash</span><div class="bal">$${cash.toLocaleString()}</div></div><span class="note">${esc(this.shopMsg || 'Earn Cash in the mini-games, challenges and achievements. Everything here is cosmetic and works in the game.')}</span></div>
+      ${groups.map(([slot, label, ic, hc]) => { const items = D.REWARDS.filter((r) => r.slot === slot && r.how.buy); if (!items.length) return '';
+        return `<h4 style="--hc:${hc}">${icon(ic, 16)}${label}</h4><div class="grid">${items.map((r) => { const own = !!P.unlocked[r.id], on = slot === 'badge' ? P.equipped.badges.includes(r.id) : P.equipped[slot] === r.id, price = r.how.buy, can = cash >= price, conf = this.confirmBuy === r.id;
+          return `<div class="it shop-it ${own ? 'owned' : ''}"><b>${sw(r)}${esc(r.label)}${price >= 30000 ? ' ★' : ''}</b>${own ? `<span class="note">Owned</span><button data-eq="${slot}|${r.id}" ${on && slot !== 'badge' ? 'disabled' : ''}>${on ? (slot === 'badge' ? 'Shown · hide' : '✓ Equipped') : slot === 'badge' ? 'Show on card' : 'Equip'}</button>` : `<span class="pr">$${price.toLocaleString()}</span><button data-buy="${r.id}" class="${conf ? 'confirm' : ''}" ${can ? '' : 'disabled'}>${conf ? `Confirm · leaves $${(cash - price).toLocaleString()}` : can ? 'Buy' : `Need $${(price - cash).toLocaleString()} more`}</button>`}</div>`; }).join('')}</div>`; }).join('')}
       <p class="note">★ Long-term goals. Some items can't be bought, only earned: see REWARDS.</p>`;
   }
   // the wallet: balance, lifetime numbers, where it came from, the latest transactions
@@ -234,8 +236,8 @@ export class ProgressUI {
     const W = this.p.wallet.W, names = { traffic: 'Highway Cut-Up', sled: 'Snowmobile', casino: 'Casino (net)', shop: 'Shop' };
     const by = Object.entries(W.byAct || {}).map(([k, v]) => `<tr class="tx"><td>${esc(names[k] || k)}</td><td class="a" style="color:${v < 0 ? '#ff9a7a' : '#7ff0a8'}">${v < 0 ? '−' : '+'}$${Math.abs(v).toLocaleString()}</td></tr>`).join('');
     return `<div class="row" style="gap:28px"><div><span class="note">BALANCE</span><div class="bal">$${W.cash.toLocaleString()}</div></div><div><span class="note">EARNED</span><div style="font:800 18px Inter">$${W.earned.toLocaleString()}</div></div><div><span class="note">SPENT</span><div style="font:800 18px Inter">$${W.spent.toLocaleString()}</div></div>${W.largest ? `<div><span class="note">LARGEST PAYOUT</span><div style="font:800 18px Inter">$${W.largest.amount.toLocaleString()}</div><span class="note">${esc(W.largest.reason)}</span></div>` : ''}</div>
-      ${by ? `<h4>BY ACTIVITY</h4><table style="width:100%;border-collapse:collapse">${by}</table>` : ''}
-      <h4>RECENT TRANSACTIONS</h4><table style="width:100%;border-collapse:collapse">${(W.tx || []).map((t) => `<tr class="tx"><td style="opacity:.6;white-space:nowrap">${new Date(t.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td><td>${esc(t.reason)}${t.n > 1 ? ` <span style="opacity:.55">(${t.n} spins)</span>` : ''}</td><td class="a" style="color:${t.amount < 0 ? '#ff9a7a' : '#7ff0a8'}">${t.amount < 0 ? '−' : '+'}$${Math.abs(t.amount).toLocaleString()}</td><td class="a" style="opacity:.6">$${t.bal.toLocaleString()}</td></tr>`).join('') || '<tr><td class="note">Nothing yet.</td></tr>'}</table>
+      ${by ? `<h4 style="--hc:#30d158">${icon('cash', 16)}By activity</h4><table style="width:100%;border-collapse:collapse">${by}</table>` : ''}
+      <h4 style="--hc:#64d2ff">${icon('stopwatch', 16)}Recent transactions</h4><table style="width:100%;border-collapse:collapse">${(W.tx || []).map((t) => `<tr class="tx"><td style="opacity:.6;white-space:nowrap">${new Date(t.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td><td>${esc(t.reason)}${t.n > 1 ? ` <span style="opacity:.55">(${t.n} spins)</span>` : ''}</td><td class="a" style="color:${t.amount < 0 ? '#ff9a7a' : '#7ff0a8'}">${t.amount < 0 ? '−' : '+'}$${Math.abs(t.amount).toLocaleString()}</td><td class="a" style="opacity:.6">$${t.bal.toLocaleString()}</td></tr>`).join('') || '<tr><td class="note">Nothing yet.</td></tr>'}</table>
       <p class="note">Cash is game money: earned by playing, spent in the shop and at the casino. It's never bought and never cashed out. Leaderboard scores don't turn into Cash.</p>`;
   }
   tab_rec() {

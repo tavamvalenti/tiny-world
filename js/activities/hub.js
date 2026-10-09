@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { G, clamp } from '../core.js';
 import { sfx } from '../audio.js';
 import { RECORDS } from '../progress/defs.js';
+import { installGlassUI, icon } from '../ui-glass.js';
 
 const CSS = `
 #actBtn{position:relative;display:flex;align-items:center;font:800 11px Inter;letter-spacing:.2em;color:#e6fff6;padding:8px 16px 8px 46px;border-radius:999px;margin:-3px 0 -3px 10px;cursor:pointer;user-select:none;
@@ -109,6 +110,7 @@ export class ActivityHub {
     G.hub = this;
     if (!document.getElementById('actCss')) { const st = document.createElement('style'); st.id = 'actCss'; st.textContent = CSS; document.head.appendChild(st); }
     this.buildUi(); this.buildBeacons();
+    installGlassUI();
   }
   get active() { return !!this.cur; }
 
@@ -175,7 +177,7 @@ export class ActivityHub {
       if (behind) { v.x = -v.x; v.y = -v.y; }
       const off = behind || v.x < -0.92 || v.x > 0.92 || v.y < -0.8 || v.y > 0.9;
       // out of view: pinned to the edge of the screen, an arrow pointing the way
-      if (off) { const k = 1 / Math.max(Math.abs(v.x) / 0.86, Math.abs(v.y) / 0.72, 1e-3); v.x *= k; v.y *= k; }
+      if (off) { const k = 1 / Math.max(Math.abs(v.x) / 0.86, (v.y > 0 ? v.y / 0.55 : -v.y / 0.62), 1e-3); v.x *= k; v.y *= k; }   // (clear of the chips at the top)
       b.tag.classList.toggle('edge', off);
       if (off) b.arrow.style.transform = `rotate(${Math.atan2(-v.y, v.x)}rad)`;
       b.tag.style.display = 'flex';
@@ -192,14 +194,14 @@ export class ActivityHub {
       const med = d.medals && d.medals[m.id], best = st && st.best[m.id];
       const got = st && st.medals[m.id];
       const meds = med ? `<div class="ac-meds">${['bronze', 'silver', 'gold'].map((k) => `<span class="ac-med ${k} ${got && MEDAL_RANK[got] >= MEDAL_RANK[k] ? 'got' : ''}">${k.toUpperCase()} ${fmtVal(med[k], med.unit)}</span>`).join('')}</div>` : '';
-      return `<div class="ac-mode" data-mode="${m.id}"><b>${m.name.toUpperCase()}</b><p>${m.desc}</p><span class="go">START ▸</span>${best != null && med ? `<span class="pb">Your best: ${fmtVal(best, med.unit)}</span>` : ''}${meds}</div>`;
+      return `<div class="ac-mode" data-mode="${m.id}"><b>${m.name.toUpperCase()}</b><p>${m.desc}</p><span class="go">Start ▸</span>${best != null && med ? `<span class="pb">Your best: ${fmtVal(best, med.unit)}</span>` : ''}${meds}</div>`;
     }).join('');
-    const recs = (d.records || []).map((k) => { const r = RECORDS[k], v = P && P.P.records[k]; return r ? `<span>${r.label.replace(/^[^:]*: /, '')}</span><span>${v ? fmtVal(v.value, r.unit) : '—'}</span>` : ''; }).join('');
+    const recs = (d.records || []).map((k) => { const r = RECORDS[k], v = P && P.P.records[k]; return r ? `<span>${r.label.replace(/^[^:]*: /, '').replace(/^./, (c) => c.toUpperCase())}</span><span>${v ? fmtVal(v.value, r.unit) : '—'}</span>` : ''; }).join('');
     this.card.dataset.id = d.id;
     this.card.innerHTML = `<div class="ac-p"><div class="ac-hd"><span class="em">${d.icon}</span><div><h2>${d.name}</h2><p>${d.desc}</p></div><span class="x" data-a="close">×</span></div>
-      <div class="ac-b"><h4>CHOOSE A MODE</h4><div class="ac-modes">${modes}</div>
-      <h4>CONTROLS</h4><div class="ac-keys">${d.controls.map(([k, t]) => `<span>${k.split(' / ').map((x) => `<b class="key">${x}</b>`).join('')}${t}</span>`).join('')}</div>
-      ${recs ? `<h4>YOUR RECORDS</h4><div class="ar-grid">${recs}</div>` : ''}
+      <div class="ac-b"><h4 style="--hc:#30d158">${icon('flag', 16)}Choose a mode</h4><div class="ac-modes">${modes}</div>
+      <h4 style="--hc:#0a84ff">${icon('gamepad', 16)}Controls</h4><div class="ac-keys">${d.controls.map(([k, t]) => `<span>${k.split(' / ').map((x) => `<b class="key">${x}</b>`).join('')}${t}</span>`).join('')}</div>
+      ${recs ? `<h4 style="--hc:#bf5af2">${icon('stopwatch', 16)}Your records</h4><div class="ar-grid">${recs}</div>` : ''}
       ${d.note ? `<p class="ac-note">${d.note}</p>` : ''}</div></div>`;
     this.card.classList.add('open');
   }
@@ -261,7 +263,7 @@ export class ActivityHub {
       ${pbLabels.length ? `<div class="ar-pb">★ NEW PERSONAL BEST: ${esc(pbLabels.join(' · ').toUpperCase())}</div>` : ''}
       <div class="ar-grid">${(r.lines || []).map(([a, b]) => `<span>${esc(a)}</span><span>${esc(b)}</span>`).join('')}${out.xp ? `<span>XP earned</span><span style="color:#ffd46b">+${out.xp}</span>` : ''}</div>
       ${out.cash && out.cash.lines.length ? `<div class="ar-cash"><div class="ar-sub" style="color:#7ff0a8;margin-top:14px">CASH</div><div class="ar-grid">${out.cash.lines.map(([a, b]) => `<span>${esc(a)}</span><span style="color:${b < 0 ? '#ff9a7a' : '#7ff0a8'}">${fmtCash(b, true)}</span>`).join('')}<span><b>Paid to your wallet</b></span><span style="color:#7ff0a8;font-size:15px">${fmtCash(out.cash.total, true)}</span><span style="opacity:.6">Balance</span><span style="opacity:.8">${fmtCash(G.progress.wallet.cash)}</span></div></div>` : ''}
-      <div class="ar-btns"><button class="pri" data-a="retry">RETRY<span class="key">R</span></button><button data-a="modes">MODES</button><button data-a="exit">EXIT<span class="key">ESC</span></button></div></div></div>`;
+      <div class="ar-btns"><button class="pri" data-a="retry">Retry<span class="key">R</span></button><button data-a="modes">Modes</button><button data-a="exit">Exit<span class="key">Esc</span></button></div></div></div>`;
     this.res.classList.add('open');
     if (document.pointerLockElement) document.exitPointerLock();
   }
