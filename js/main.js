@@ -39,7 +39,9 @@ import { boatsOnBlast, updateWrecks } from './boats.js';
 import { solidHit, clearSolids } from './solids.js';
 import { Progress } from './progress/core.js';
 import { ProgressUI } from './progress/ui.js';
+import { Minimap } from './minimap.js';
 const progress = new Progress(), progressUI = new ProgressUI(progress);   // the player's profile (js/progress/)
+const minimap = new Minimap();
 G.boatsOnBlast = boatsOnBlast; G.solidHit = solidHit;
 import { addRipples, gatherWakes, buildPools } from './water.js';
 import { Chains } from './chains.js';
@@ -354,6 +356,7 @@ function step(dt) {
   if (driving) veh.update(dt);                                  // the drone / balloon chair / jetpack, the same way
   updateWrecks(dt);                                             // boats going down
   progress.update(dt);                                          // XP, records, challenges (js/progress/)
+  if (flying || driving) minimap.update(dt);                    // the minimap while flying anything
   if (input.down && !flying && !driving && !(G.world && G.world.armed) && G.weapons) progress.toolUse(['hand', 'laser', 'bomb', 'wind', 'meteor'][G.weapons.cur] || 'hand');
   updateCamera(dt);
   if (flying) rick.applyCamera(dt);                             // ... and the chase camera replaces the overhead one
@@ -461,6 +464,8 @@ function flashHint(text) { placeHint.textContent = text; placeHint.classList.add
 
 // ---------- input ----------
 window.addEventListener('keydown', (e) => {
+  // typing in a text box (a name, a setting): the keys are for the box, never the game
+  if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
   if (settingsOpen) { if (e.code === 'Escape') closeSettings(); return; }
   if (rick && rick.key(e, true)) return;                        // flying the ship: it takes the keys it uses
   if (veh && veh.key(e, true)) return;                          // ... and so does a vehicle
@@ -469,12 +474,12 @@ window.addEventListener('keydown', (e) => {
   keys[e.code] = true;
   if (!running) return;
   if (e.code >= 'Digit1' && e.code <= 'Digit5') selectWeapon(+e.code.slice(5) - 1);
-  if (e.code === 'Escape') { if (G.world && G.world.armed) { disarm(); return; } if (worldMenu.classList.contains('open')) { worldMenu.classList.remove('open'); $('#worldBtn').classList.remove('on'); return; } location.reload(); }
+  if (e.code === 'Escape') { if (G.world && G.world.armed) { disarm(); return; } if (worldMenu.classList.contains('open')) { worldMenu.classList.remove('open'); $('#worldBtn').classList.remove('on'); return; } backToMenu(); }
   if (e.code === 'KeyT') { tod.cycle(makeEnv); setTodButtons(); }
   if (e.code === 'KeyV') resetView();
   if (e.code === 'KeyM') { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; }
 });
-window.addEventListener('keyup', (e) => { keys[e.code] = false; if (rick) rick.key(e, false); if (veh) veh.key(e, false); });
+window.addEventListener('keyup', (e) => { if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return; keys[e.code] = false; if (rick) rick.key(e, false); if (veh) veh.key(e, false); });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; input.down = false; });
 canvasEl.addEventListener('mousemove', (e) => {
   input.mx = e.clientX; input.my = e.clientY;
@@ -527,7 +532,10 @@ document.querySelectorAll('#tod .t').forEach((el) => el.addEventListener('click'
 $('#mute').addEventListener('click', () => { const m = sfx.toggleMute(); $('#mute .tx').textContent = m ? 'SOUND OFF' : 'SOUND ON'; $('#mute').classList.toggle('off', m); });
 // touch: one button steps through day, sunset and night; the back button returns to the city menu (desktop: Esc)
 $('#todCycle').addEventListener('click', () => { const T = ['day', 'sunset', 'night']; tod.set(T[(T.indexOf(tod.mode) + 1) % 3], makeEnv); setTodButtons(); });
-$('#backBtn').addEventListener('click', () => { const q = new URLSearchParams(location.search); q.delete('map'); location.replace(location.pathname + (q.toString() ? '?' + q : '')); });
+// back to the city menu (the Esc key and the back button): the game page reloads without a map; the outer page (and
+// full screen) stays put
+function backToMenu() { const q = new URLSearchParams(location.search); q.delete('map'); location.replace(location.pathname + (q.toString() ? '?' + q : '')); }
+$('#backBtn').addEventListener('click', backToMenu);
 
 document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEventListener('click', () => {
   sfx.unlock();
@@ -554,6 +562,32 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
 }));
 
 initMenu();                                                    // the title screen: the interactive Earth
+// Full screen: asked of the outer page (index.html holds the game in a frame), so it survives the game reloading
+// itself to go back to the menu. In Chrome and Edge, Esc is then kept for the game ("hold Esc" still leaves full screen).
+{
+  const TOPW = (() => { try { return window.top && window.top.document ? window.top : window; } catch { return window; } })();
+  const D = TOPW.document;
+  const fsOn = () => !!(D.fullscreenElement || D.webkitFullscreenElement);
+  const toggle = () => {
+    if (fsOn()) { (D.exitFullscreen || D.webkitExitFullscreen).call(D); return; }
+    const el = D.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) return;
+    Promise.resolve(req.call(el)).then(() => { const kb = TOPW.navigator.keyboard; if (kb && kb.lock) kb.lock(['Escape']).catch(() => {}); }).catch(() => {});
+  };
+  const icon = '<svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  const hudBtn = document.createElement('span'); hudBtn.id = 'fsBtn'; hudBtn.title = 'Full screen';
+  const menuBtn = document.createElement('button'); menuBtn.className = 'menu-settings menu-fs'; menuBtn.type = 'button';
+  const st = document.createElement('style');
+  st.textContent = `#menu button.menu-fs{right:calc(var(--pad) + 170px)} html.touch #fsBtn, html.touch #menu button.menu-fs{display:none}`;
+  document.head.appendChild(st);
+  const label = () => { const on = fsOn(); hudBtn.innerHTML = `${icon}<span class="tx">${on ? 'EXIT FULL SCREEN' : 'FULL SCREEN'}</span>`; menuBtn.textContent = on ? 'EXIT FULL SCREEN' : 'FULL SCREEN'; };
+  label(); D.addEventListener('fullscreenchange', label); D.addEventListener('webkitfullscreenchange', label);
+  hudBtn.addEventListener('click', toggle); menuBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+  const tr = document.getElementById('topright'); tr.insertBefore(hudBtn, document.getElementById('mute'));
+  document.getElementById('menu').appendChild(menuBtn);
+  // back in full screen after a reload: keep Esc for the game again
+  if (fsOn()) { const kb = TOPW.navigator.keyboard; if (kb && kb.lock) kb.lock(['Escape']).catch(() => {}); }
+}
 // the player's card on the title screen: name, rank, XP to the next rank and a few totals (click for the full profile)
 {
   const st = document.createElement('style');

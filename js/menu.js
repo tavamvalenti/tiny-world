@@ -609,7 +609,10 @@ export function initMenu() {
     if (!going) {
       // coast after a fling; idle: a slow turn west to east; focused: lean toward the place (and in a little)
       if (!drag) { target.lon += vel.lon * dt; target.lat = clamp(target.lat + vel.lat * dt, -70, 78); const f = Math.exp(-dt * 3.2); vel.lon *= f; vel.lat *= f; }
-      if (hovered >= 0 && !drag) {
+      if (pinHover >= 0 && !TOUCH && !drag) {
+        // the mouse is on a pin: hold the globe still so the pin stays under the cursor
+        vel.lon = vel.lat = 0; lastInput = t;
+      } else if (hovered >= 0 && !drag) {
         const p = PLACES[hovered], k = Math.min(1, dt * 1.6);
         target.lon += (near(p.lon, target.lon) - target.lon) * k; target.lat += (p.lat * 0.85 - target.lat) * k;
         if (target.dist > baseDist * 0.82) target.dist += (baseDist * 0.82 - target.dist) * Math.min(1, dt * 0.8);
