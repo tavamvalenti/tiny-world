@@ -10,16 +10,21 @@ import { G } from './core.js';
 
 const CSS = `
 #minimap{position:absolute;left:16px;bottom:calc(4.2vh + 14px);width:236px;height:164px;border-radius:22px;overflow:hidden;display:none;pointer-events:none;
-  background:#262d3a;box-shadow:0 14px 34px -12px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.1),inset 0 0 0 1px rgba(0,0,0,.35)}
+  background:rgba(38,45,58,.28);backdrop-filter:blur(14px) saturate(170%);-webkit-backdrop-filter:blur(14px) saturate(170%);
+  box-shadow:0 18px 40px -14px rgba(0,0,0,.65),0 6px 14px -6px rgba(0,0,0,.45),0 0 0 .5px rgba(255,255,255,.22)}
+/* liquid glass: a soft sheen across the top and a bright rim that fades down the sides */
+#minimap:after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.04) 28%,rgba(255,255,255,0) 55%,rgba(255,255,255,.05) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38),inset 0 -1px 0 rgba(255,255,255,.08),inset 1px 0 0 rgba(255,255,255,.1),inset -1px 0 0 rgba(255,255,255,.1)}
 body.rick-on #minimap,body.veh-on #minimap,body.act-map #minimap{display:block}
-#minimap canvas{width:100%;height:100%;display:block}
-#minimap .mm-btn{position:absolute;bottom:9px;width:30px;height:30px;border-radius:50%;background:rgba(58,66,82,.86);backdrop-filter:blur(6px);box-shadow:0 2px 6px rgba(0,0,0,.45);display:grid;place-items:center}
+#minimap canvas{width:100%;height:100%;display:block;opacity:.84}
+#minimap .mm-btn{position:absolute;z-index:1;bottom:9px;width:30px;height:30px;border-radius:50%;background:rgba(70,80,98,.55);backdrop-filter:blur(8px) saturate(160%);box-shadow:0 3px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.35),inset 0 0 0 .5px rgba(255,255,255,.18);display:grid;place-items:center}
 #minimap .mm-btn.l{left:9px} #minimap .mm-btn.r{right:9px}
 #minimap .mm-btn svg{width:15px;height:15px;transition:transform .15s linear}
-#minimap .mm-pill{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;align-items:center;gap:5px;white-space:nowrap;
+#minimap .mm-pill{position:absolute;z-index:1;left:50%;bottom:12px;transform:translateX(-50%);display:flex;align-items:center;gap:5px;white-space:nowrap;
   font:700 11px -apple-system,'SF Pro Text',Inter,system-ui,sans-serif;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)}
 #minimap .mm-pill svg{width:12px;height:12px}
-#minimap .mm-place{position:absolute;right:12px;top:9px;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 11px -apple-system,'SF Pro Text',Inter,system-ui,sans-serif;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.85)}
+#minimap .mm-place{position:absolute;z-index:1;right:12px;top:9px;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 11px -apple-system,'SF Pro Text',Inter,system-ui,sans-serif;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.85)}
 body.rick-on #rickHud .rk-keys{bottom:calc(4.2vh + 194px)}
 body.veh-on #vehHud .vh-keys{bottom:calc(4.2vh + 194px)}
 html.touch #minimap{display:none!important}
