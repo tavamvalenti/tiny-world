@@ -554,6 +554,35 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
 }));
 
 initMenu();                                                    // the title screen: the interactive Earth
+// the player's card on the title screen: name, rank, XP to the next rank and a few totals (click for the full profile)
+{
+  const st = document.createElement('style');
+  st.textContent = `#menuProfile{position:absolute;right:var(--pad);top:calc(var(--top) + 50px);z-index:7;width:210px;padding:12px 14px;border-radius:10px;cursor:pointer;
+    background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 26px -16px var(--shadow);
+    font-family:Inter,system-ui,sans-serif;color:var(--fg);transition:transform .25s,border-color .25s,opacity .4s}
+    #menuProfile:hover{transform:translateY(-2px);border-color:rgba(255,190,90,.6)}
+    #menuProfile .mp-k{font:600 9px Inter;letter-spacing:.28em;color:var(--faint)}
+    #menuProfile .mp-n{font:600 15px Inter;letter-spacing:.02em;margin:5px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #menuProfile .mp-r{font:700 10px Inter;letter-spacing:.2em;color:#e8a23a}
+    #menuProfile .mp-b{height:3px;border-radius:2px;background:var(--line);margin:8px 0 6px;overflow:hidden} #menuProfile .mp-b i{display:block;height:100%;background:linear-gradient(90deg,#ffd46b,#ff7a3a)}
+    #menuProfile .mp-s{display:flex;justify-content:space-between;font:500 10px Inter;color:var(--dim)}
+    #menu.diving #menuProfile{opacity:0;pointer-events:none}
+    @media (max-width: 760px), (max-height: 520px) { #menuProfile{top:calc(4.2vh + 52px);width:170px;padding:9px 11px} #menuProfile .mp-s{display:none} }
+    @media (max-width: 520px) { #menuProfile{display:none} }
+    html.touch #menuProfile{top:calc(var(--st, 0px) + 52px)}`;
+  document.head.appendChild(st);
+  const box = document.createElement('div'); box.id = 'menuProfile'; box.title = 'Your profile';
+  const draw = () => {
+    const P = progress.P, r = progress.rank, n = progress.nextRank, pct = n ? Math.min(100, ((P.xp - r.xp) / (n.xp - r.xp)) * 100) : 100;
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    box.innerHTML = `<div class="mp-k">PROFILE</div><div class="mp-n">${esc(P.name)}</div><div class="mp-r">${esc((progress.equipped('title') || r.name).toUpperCase())}</div>
+      <div class="mp-b"><i style="width:${pct}%"></i></div><div class="mp-s"><span>${P.xp.toLocaleString()} XP</span><span>${progress.unlockedCount} achievements</span></div>`;
+  };
+  draw(); progress.on((t) => { if (t === 'change') draw(); });
+  box.addEventListener('click', (e) => { e.stopPropagation(); progressUI.open('profile'); });
+  box.addEventListener('pointerdown', (e) => e.stopPropagation());
+  document.getElementById('menu').appendChild(box);
+}
 
 // allow ?map=downtown for quick testing
 const qp = new URLSearchParams(location.search).get('map');
