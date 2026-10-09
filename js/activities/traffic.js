@@ -41,6 +41,21 @@ export class TrafficCutUp {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.32, 2500), mat); bar.position.set(C.I15, 0.16, 0); bar.receiveShadow = true;
     const gr = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 2500), rail); gr.position.set(C.I15 + 8.25, 0.28, 0);
     const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 0.3, 0.06), rail, 640); for (let i = 0; i < 640; i++) posts.setMatrixAt(i, new THREE.Matrix4().makeTranslation(C.I15 + 8.25, 0.15, -1250 + i * 3.9));
+    // freeway lights down the median: tall poles with a head over each carriageway, pools of light on the road at night
+    const N = 70, poleG = new THREE.CylinderGeometry(0.06, 0.08, 6, 6).translate(0, 3, 0), armG = new THREE.BoxGeometry(5.2, 0.08, 0.1).translate(0, 5.95, 0);
+    const poleM = new THREE.MeshStandardMaterial({ color: 0x6a6e74, roughness: 0.5, metalness: 0.6 });
+    const poles = new THREE.InstancedMesh(poleG, poleM, N), arms = new THREE.InstancedMesh(armG, poleM, N);
+    const headM = new THREE.MeshBasicMaterial({ color: 0xffd8a0, toneMapped: false }), heads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.1, 0.25), headM, N * 2);
+    const poolTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,190,120,1)'); r.addColorStop(0.5, 'rgba(255,160,80,.35)'); r.addColorStop(1, 'rgba(255,150,70,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+    this.poolM = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(7, 10).rotateX(-Math.PI / 2), this.poolM, N * 2);
+    const M4 = new THREE.Matrix4();
+    for (let i = 0; i < N; i++) {
+      const z = -1250 + i * (2500 / N);
+      poles.setMatrixAt(i, M4.makeTranslation(C.I15, 0, z)); arms.setMatrixAt(i, M4.makeTranslation(C.I15, 0, z));
+      for (const k of [0, 1]) { const x = C.I15 + (k ? 2.4 : -2.4); heads.setMatrixAt(i * 2 + k, M4.makeTranslation(x, 5.88, z)); pools.setMatrixAt(i * 2 + k, M4.makeTranslation(C.I15 + (k ? 3.8 : -3.8), 0.04, z)); }
+    }
+    for (const m of [poles, arms, heads, pools]) { m.frustumCulled = false; G.scene.add(m); this.disposables.push(m); }
     for (const m of [bar, gr, posts]) { G.scene.add(m); this.disposables.push(m); }
     // the car, on the inside lane south of the Strip, stopped; the cars right round it are cleared
     this.ride = new Ride(G.scene, () => 0, { kind: 'car', paint: (G.progress && G.progress.equipped('car_paint')) ?? 0xff5a1f, flame: G.progress && G.progress.equipped('car_flame') });
@@ -134,6 +149,7 @@ export class TrafficCutUp {
     if (this.recoverT > 0) { this.recoverT -= dt; if (this.recoverT <= 0) this.recover(); }
     this.ghost = Math.max(0, this.ghost - dt);
     R.model.root.visible = this.ghost > 0 ? Math.floor(this.ghost * 12) % 2 === 0 : true;
+    if (this.poolM) this.poolM.opacity = Math.max(0, (G.night || 0) - 0.15) * 0.28;
     this.traffic(dt);
     if (!this.over && this.ghost <= 0 && this.recoverT <= 0) this.contacts(dt);
     // endless: the traffic gets thicker as you go

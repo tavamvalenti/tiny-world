@@ -88,10 +88,13 @@ body.act-on #progChip{opacity:.5}
 body.act-on #actHud{display:block}
 #actHud .ah-keys{position:absolute;right:16px;bottom:calc(4.2vh + 14px);display:flex;flex-direction:column;align-items:flex-end;gap:4px;font:600 9.5px Inter;letter-spacing:.12em;text-transform:uppercase;color:rgba(235,255,248,.7);text-shadow:0 1px 3px rgba(0,0,0,.8)}
 #actHud .key{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:15px;padding:0 4px;margin-left:6px;border-radius:3px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);font:600 8.5px Inter;color:#fff;letter-spacing:0}
-#actHud .ah-pop{position:absolute;left:50%;top:34%;transform:translate(-50%,0);display:flex;flex-direction:column;align-items:center;gap:4px}
-#actHud .ah-pop span{font:900 15px Inter;letter-spacing:.18em;color:#fff;text-shadow:0 0 14px var(--c,rgba(80,240,190,.9)),0 2px 4px rgba(0,0,0,.7);animation:ahPop 1.3s ease-out forwards}
-#actHud .ah-pop span.big{font-size:22px}
-@keyframes ahPop{0%{opacity:0;transform:scale(.6)}12%{opacity:1;transform:scale(1.12)}22%{transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:translateY(-26px)}}
+/* call-outs: a short column on the right, out of the way of the road ahead */
+#actHud .ah-pop{position:absolute;right:max(24px,5vw);top:38%;display:flex;flex-direction:column;align-items:flex-end;gap:5px;max-width:42vw}
+#actHud .ah-pop span{font:800 11px -apple-system,'SF Pro Text',Inter,sans-serif;letter-spacing:.14em;color:#fff;padding:5px 10px;border-radius:999px;background:rgba(10,12,16,.38);backdrop-filter:blur(6px);
+  border:1px solid color-mix(in srgb,var(--c,#5af0be) 55%,transparent);text-shadow:0 0 8px var(--c,rgba(80,240,190,.8));white-space:nowrap;animation:ahPop 1.5s ease-out forwards}
+#actHud .ah-pop span.big{font-size:13px;padding:6px 12px}
+#actHud .ah-pop span i{font-style:normal;opacity:.75;margin-left:4px}
+@keyframes ahPop{0%{opacity:0;transform:translateX(14px)}10%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0;transform:translateX(8px)}}
 #actHud .ah-count{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font:900 80px Inter;color:#fff;text-shadow:0 0 30px rgba(80,240,190,.9);opacity:0}
 #actHud .ah-count.show{animation:ahCount .9s ease-out}
 @keyframes ahCount{0%{opacity:0;transform:translate(-50%,-50%) scale(1.8)}20%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.8)}}
@@ -292,9 +295,12 @@ export class ActivityHub {
 
   // ---------------- helpers for activities
   pop(text, color, big = false) {
-    const s = document.createElement('span'); s.textContent = text; if (big) s.className = 'big'; if (color) s.style.setProperty('--c', color);
-    this.popEl.appendChild(s); while (this.popEl.children.length > 4) this.popEl.firstChild.remove();
-    setTimeout(() => s.remove(), 1350);
+    // the same call-out again straight away just counts up (x2, x3) instead of stacking
+    const last = this.popEl.lastElementChild, now = performance.now();
+    if (last && last.dataset.t === text && now - +last.dataset.at < 1200) { const n = (+last.dataset.n || 1) + 1; last.dataset.n = n; last.dataset.at = now; last.innerHTML = `${esc(text)}<i>x${n}</i>`; last.style.animation = 'none'; void last.offsetWidth; last.style.animation = ''; clearTimeout(last._t); last._t = setTimeout(() => last.remove(), 1550); return; }
+    const s = document.createElement('span'); s.textContent = text; s.dataset.t = text; s.dataset.at = now; if (big) s.className = 'big'; if (color) s.style.setProperty('--c', color);
+    this.popEl.appendChild(s); while (this.popEl.children.length > 3) this.popEl.firstChild.remove();
+    s._t = setTimeout(() => s.remove(), 1550);
   }
   count(text) { const el = this.countEl; el.textContent = text; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
   // shadows follow the activity rather than the (map-clamped) overhead view

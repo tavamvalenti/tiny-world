@@ -1499,19 +1499,28 @@ export class Vegas {
     const COL = [0xf2f2f0, 0x1c1d22, 0x8a8f96, 0xc8102e, 0x1e3f73, 0xd8d8d4, 0x5a5f66, 0xb8b8b4, 0x2a4a7a, 0x7a1a1a];
     cars.forEach((c, i) => im.setColorAt(i, new THREE.Color(c.truck ? 0xf2f2ee : pick(COL))));
     im.frustumCulled = false; im.castShadow = true; scene.add(im);
-    this.hw = { im, cars, m4: new THREE.Matrix4(), q: new THREE.Quaternion(), s: new THREE.Vector3(), p: new THREE.Vector3() };
+    // head and tail lights, lit as night falls: white at the front, red at the back (the cars' front is +z)
+    const lamp = (x, z, c) => tint(new THREE.BoxGeometry(0.12, 0.06, 0.03).translate(x, 0.33, z), c);
+    const lg = mergeGeometries([lamp(0.2, 0.71, 0xfff4dc), lamp(-0.2, 0.71, 0xfff4dc), lamp(0.21, -0.71, 0xff1a10), lamp(-0.21, -0.71, 0xff1a10)]);
+    const lights = new THREE.InstancedMesh(lg, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), cars.length);
+    lights.frustumCulled = false; lights.visible = false; scene.add(lights);
+    this.hw = { im, lights, cars, m4: new THREE.Matrix4(), q: new THREE.Quaternion(), s: new THREE.Vector3(), p: new THREE.Vector3() };
     this.updateHighway(0);
   }
   updateHighway(dt) {
     const H = this.hw; if (!H) return;
+    const n = G.night || 0, lit = n > 0.25 || !!G.hub && !!G.hub.cur && G.hub.curDef && G.hub.curDef.id === 'traffic' && n > 0.1;
+    H.lights.visible = lit;
     H.cars.forEach((c, i) => {
       c.z += c.L.dir * c.v * dt;
       if (c.z > c.L.z1) c.z = c.L.z0; else if (c.z < c.L.z0) c.z = c.L.z1;
       H.q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), c.L.dir > 0 ? 0 : Math.PI);
       const sc = c.off ? H.s.set(0, 0, 0) : c.truck ? H.s.set(1.2, 1.7, 3.2) : H.s.set(1, 1, 1);   // off: taken out by a mini-game
       H.m4.compose(H.p.set(c.L.x, 0, c.z), H.q, sc); H.im.setMatrixAt(i, H.m4);
+      if (lit) H.lights.setMatrixAt(i, H.m4);
     });
     H.im.instanceMatrix.needsUpdate = true;
+    if (lit) { H.lights.instanceMatrix.needsUpdate = true; H.lights.material.color.setScalar(0.6 + n * 2.4); }
   }
   billboards(scene) {
     const spots = [];

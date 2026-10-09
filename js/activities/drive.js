@@ -133,6 +133,8 @@ export class Ride {
 
 // ---------------------------------------------------------------- models
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.3, ...o });
+let GLOW = null;
+function glowTex() { if (GLOW) return GLOW; const c = document.createElement('canvas'); c.width = 128; c.height = 64; const g = c.getContext('2d'); g.globalCompositeOperation = 'lighter'; for (const x of [32, 96]) { const r = g.createRadialGradient(x, 32, 0, x, 32, 30); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,240,210,.6)'); r.addColorStop(1, 'rgba(255,220,180,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 64); } GLOW = new THREE.CanvasTexture(c); return GLOW; }
 function addBox(p, w, h, d, m, x, y, z) { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; }
 
 // a low wedge sports car, a little bigger than the traffic so it reads, its nose to -z
@@ -154,6 +156,11 @@ function buildCar(paint = 0xff5a1f, flameCol = null) {
   for (const [x, z] of [[0.31, -0.5], [-0.31, -0.5], [0.31, 0.5], [-0.31, 0.5]]) { const w = new THREE.Mesh(wg, wm); w.position.set(x, 0.13, z); w.castShadow = true; root.add(w); wheels.push(w); }
   // boost flames out of the exhausts
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.4, 8).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: flameCol != null ? new THREE.Color(flameCol).multiplyScalar(2.4) : new THREE.Color(2.5, 1.4, 0.5), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));   // the boost flames (their colour from the shop)
+  // headlights that really light the road (a spotlight, brighter as it gets dark), and glowing tail lights
+  const beam = new THREE.SpotLight(0xfff0d8, 0, 55, 0.55, 0.55, 1.1); beam.position.set(0, 0.35, -0.7);
+  const aim = new THREE.Object3D(); aim.position.set(0, -0.6, -14); root.add(beam, aim); beam.target = aim;
+  const flares = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.35), new THREE.MeshBasicMaterial({ map: glowTex(), color: 0xfff0d8, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  flares.position.set(0, 0.25, -0.8); root.add(flares);
   const flames = [flame, flame.clone()]; flames[0].position.set(0.12, 0.16, 0.95); flames[1].position.set(-0.12, 0.16, 0.95); for (const fl of flames) root.add(fl);
   let roll = 0;
   return {
@@ -163,6 +170,7 @@ function buildCar(paint = 0xff5a1f, flameCol = null) {
       wheels[0].rotation.y = wheels[1].rotation.y = 0;
       body.rotation.z = clamp(-R.vx * 0.04, -0.12, 0.12);       // body roll in a slide
       for (const fl of flames) { fl.visible = !!R.boosting; fl.scale.set(1, 1, 0.7 + Math.random() * 0.6); }
+      const n = G.night || 0; beam.intensity = n * 60; flares.material.opacity = n * 0.8; tail.color.setRGB(1 + n * 2.5, 0.08, 0.05);
     },
   };
 }
@@ -181,6 +189,7 @@ function buildSled(paint = 0xd8202a) {
   for (const x of [0.2, -0.2]) { addBox(root, 0.05, 0.03, 0.62, chrome, x, 0.02, -0.42); addBox(root, 0.03, 0.18, 0.03, chrome, x, 0.1, -0.42); const tip = addBox(root, 0.05, 0.03, 0.14, chrome, x, 0.06, -0.76); tip.rotation.x = -0.6; }
   addBox(body, 0.5, 0.025, 0.025, chrome, 0, 0.56, -0.12);       // handlebar
   const lit = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.3, 2) }); addBox(body, 0.14, 0.05, 0.02, lit, 0, 0.32, -0.52);
+  const beam = new THREE.SpotLight(0xfff0d8, 0, 40, 0.6, 0.6, 1.1); beam.position.set(0, 0.35, -0.55); const aim = new THREE.Object3D(); aim.position.set(0, -0.8, -12); root.add(beam, aim); beam.target = aim;
   // the rider
   const rider = new THREE.Group(); rider.position.set(0, 0.42, 0.18); body.add(rider);
   addBox(rider, 0.22, 0.28, 0.16, suit, 0, 0.2, 0).rotation.x = -0.35;
@@ -194,6 +203,7 @@ function buildSled(paint = 0xd8202a) {
     update(dt, R) {
       track.position.z = 0.3 + ((performance.now() * 0.001 * R.v) % 0.05);
       rider.rotation.x = -0.15 - R.lean * 0.35 + (R.air ? -0.1 : 0);
+      beam.intensity = (G.night || 0) * 45;
       rider.rotation.z = clamp(R.vx * 0.05, -0.3, 0.3);
       body.rotation.z = clamp(-R.vx * 0.05, -0.15, 0.15);
       // a spray of snow off the track at speed

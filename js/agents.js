@@ -271,6 +271,7 @@ export class Agents {
   }
   chooseNext(c) {
     const C = this.city, B = C.nodes[c.to];
+    if (!B) { c.state = 'hidden'; return null; }               // heading for a junction that isn't there: out of the traffic
     if (c.dest != null) {
       const n = this.route(c.to, c.from, c.dest);
       if (n != null) return n;
