@@ -8,6 +8,7 @@ const UP = new THREE.Vector3(0, 1, 0), XAX = new THREE.Vector3(1, 0, 0), ZAX = n
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const POSE = { aL: 0, aR: 0, oL: 0, oR: 0, lL: 0, lR: 0, dy: 0 };
 const LOD_STATES = new Set(['walk', 'wander', 'idle', 'wait', 'job', 'return']);
+const KEEP_OUT = new Set(['walk', 'wander', 'idle', 'wait', 'return', 'alert', 'flee', 'riot', 'toCar']);   // states where people move on foot
 const CAR_COLORS = [0xf2f2f0, 0x1c1d20, 0x8a9096, 0xb4bac0, 0x9e1b1b, 0x1e3f73, 0x2f5d3a, 0xd9c7a0, 0x5a1f2b, 0x3a3f46, 0xcfd6dc, 0x7a5230];
 const SHIRTS = [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a, 0xd87a3a, 0x9a5fb0, 0xf0f0f0, 0x6fb3c9, 0xc94f7c, 0x1f2a44, 0x8a8f96];
 const PANTS = [0x2a3448, 0x1f1f22, 0x5a5044, 0x7b8794, 0x3c4a3a, 0xb8ad96, 0x33415e];
@@ -446,6 +447,8 @@ export class Agents {
     }
   }
   land(a, isCar) {
+    if (!isCar && G.terrainH) a.pos.y = Math.max(0, a.pos.y - G.terrainH(a.pos.x, a.pos.z));   // back to height above the ground
+    if (!isCar && this.city.deepWater && this.city.deepWater(a.pos.x, a.pos.z) && a.pos.y < 0.5) { this.drown(a); return; }
     // settle upright or on its roof, keeping yaw
     const up = _v.set(0, 1, 0).applyQuaternion(a.q);
     const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(a.q);
@@ -478,6 +481,8 @@ export class Agents {
       const p = this.borrowPed(a.pos, 0);
       if (p) { p.pos.set(a.pos.x, 0.4, a.pos.z); p.heading = a.heading; this.launch(p, dir, f * 1.1 + 1, up + 1, false, 10); p.bleed = true; }
     }
+    // people on the ground keep their height above the terrain; in the air it's absolute (the hills, the plateau)
+    if (!isCar && a.state !== 'air' && a.state !== 'held' && G.terrainH) a.pos.y += G.terrainH(a.pos.x, a.pos.z);
     a.state = 'air';
     if (!a.q || a.q.lengthSq() === 0 || !a.airborneBefore) a.q.setFromAxisAngle(UP, a.heading);
     if (a.flipped) a.q.multiply(_q.setFromAxisAngle(ZAX, Math.PI));
@@ -764,6 +769,32 @@ export class Agents {
     if (!opts.length) { [p.from, p.to] = [p.to, p.from]; return; }
     const e = pick(opts);
     p.pending = e;
+  }
+  // a person who ends up in deep water (a river, the harbour, the open sea) goes under: a splash and they're gone
+  drown(p) {
+    for (let i = 0; i < 10; i++) G.fx.bits.emit(p.pos.x + rand(-0.3, 0.3), 0.1, p.pos.z + rand(-0.3, 0.3), rand(-1.5, 1.5), rand(2, 4), rand(-1.5, 1.5), rand(0.15, 0.3), 1, 0.9, 0.95, 1, 1);
+    p.state = 'gone'; p.respawn = rand(20, 40); p.dead = false; p.q.identity();
+  }
+  // the ground rule for people: never inside a building, never walking on deep water (pools and the shallows at the
+  // beach are fine). A step that would break it is undone and they turn round
+  keepOut(p) {
+    const B = G.buildings, C = this.city, TH = G.terrainH, x = p.pos.x, z = p.pos.z;
+    const bad = (C.deepWater && C.deepWater(x, z)) || !!B.inside(_p.set(x, p.pos.y + (TH ? TH(x, z) : 0) + 0.4, z));
+    if (!bad) { (p.okPos ||= new THREE.Vector3()).copy(p.pos); return; }
+    if (p.okPos) {
+      // step back out, and turn round (a walker heads back along the pavement it came by)
+      p.pos.x = p.okPos.x; p.pos.z = p.okPos.z; p.heading += Math.PI;
+      if (p.state === 'walk' && p.from != null) [p.from, p.to] = [p.to, p.from];
+      if (p.state === 'wander' && p.zone) p.target = { x: rand(p.zone.x0, p.zone.x1), z: rand(p.zone.z0, p.zone.z1) };   // somewhere else in their patch
+      return;
+    }
+    // never been anywhere valid (placed inside a building, or out on the water): find them a clear spot nearby, or
+    // send them off to turn up somewhere else
+    if ((p.relocs = (p.relocs || 0) + 1) > 4) return;
+    const ok = (qx, qz) => !(C.deepWater && C.deepWater(qx, qz)) && !B.inside(_p.set(qx, (TH ? TH(qx, qz) : 0) + 0.4, qz));
+    if (p.zone) for (let k = 0; k < 12; k++) { const qx = rand(p.zone.x0, p.zone.x1), qz = rand(p.zone.z0, p.zone.z1); if (ok(qx, qz)) { p.pos.x = qx; p.pos.z = qz; return; } }
+    for (let k = 0; k < 12; k++) { const a = k * 0.52, r2 = 0.8 + k * 0.35, qx = x + Math.cos(a) * r2, qz = z + Math.sin(a) * r2; if (ok(qx, qz)) { p.pos.x = qx; p.pos.z = qz; if (p.state === 'walk') this.respawnPed(p); return; } }
+    this.respawnPed(p);
   }
   updatePed(p, dt) {
     const C = this.city;
@@ -1089,6 +1120,7 @@ export class Agents {
       const far = Math.abs(p.pos.x - T.x) + Math.abs(p.pos.z - T.z) > 150 && LOD_STATES.has(p.state);
       if (far) { p.lodDt = (p.lodDt || 0) + dt; if ((this.frame + p.i) % 3) continue; this.updatePed(p, p.lodDt); p.lodDt = 0; }
       else this.updatePed(p, dt);
+      if (KEEP_OUT.has(p.state) && !p.hidden) this.keepOut(p);
       const umbrella = umbOn && p.i % 3 === 0 && !p.officer && (p.state === 'walk' || p.state === 'wait' || p.state === 'wander' || p.state === 'idle' || p.state === 'return' || (p.state === 'job' && !p.hidden && !p.carry));
       if (!umbrella && p.umbShown) { this.umb.setMatrixAt(p.i, ZERO); p.umbShown = false; }
       if (p.state === 'gone' || p.state === 'incar' || (p.hidden && p.state === 'job')) { for (const m of this.pMeshes) m.setMatrixAt(p.i, ZERO); if (p.slot != null) G.roles.draw(p, null, null); continue; }
@@ -1119,7 +1151,7 @@ export class Agents {
         else if (p.act === 'sit') { o.dy = -0.2; o.lL = o.lR = -1.45; o.aL = o.aR = -0.35 + Math.sin(tt * 0.1) * 0.05; o.oL = o.oR = 0.15; }
         else { o.aL = -2.5 + Math.sin(tt) * 0.5; o.aR = -2.5 + Math.cos(tt * 1.1) * 0.5; o.oL = o.oR = 0.35; o.lL = Math.sin(tt) * 0.25; o.lR = -o.lL; o.dy = Math.abs(Math.sin(tt)) * (p.act === 'pole' ? 0.02 : 0.05); _q.multiply(new THREE.Quaternion().setFromAxisAngle(UP, Math.sin(tt * 0.5) * 0.6)); }
       }
-      _p.set(p.pos.x, p.pos.y + bob + o.dy + (p.state === 'down' ? 0.06 : 0) + (TH ? TH(p.pos.x, p.pos.z) : 0), p.pos.z);   // on the hills, stand on the slope
+      _p.set(p.pos.x, p.pos.y + bob + o.dy + (p.state === 'down' ? 0.06 : 0) + (TH && p.state !== 'air' && p.state !== 'held' ? TH(p.pos.x, p.pos.z) : 0), p.pos.z);   // on the hills, stand on the slope (in the air the height is absolute)
       _m.compose(_p, _q, _s.set(p.s, p.s, p.s));
       const i = p.i;
       this.pTorso.setMatrixAt(i, _m); this.pHead.setMatrixAt(i, _m); this.pHair.setMatrixAt(i, _m);

@@ -55,6 +55,7 @@ function makeMowing() {
 export class Pets {
   constructor(scene, map, city) {
     this.scene = scene; this.dogs = []; this.mow = null;
+    G.animalProviders && G.animalProviders.push(() => this.dogs.filter((d) => d.state === 'walk' || d.state === 'run').map((d) => (d.grabR = 0.45, d)));   // the Free Hand can pick them up
     const n = DOGS[map] || 0;
     for (let i = 0; i < n; i++) {
       const d = makeDog(pick(COATS)), sc = rand(0.85, 1.25);
@@ -116,6 +117,9 @@ export class Pets {
     const T = G.camTarget, TH = G.terrainH, t = G.time;
     for (const d of this.dogs) {
       d.t -= dt;
+      // picked up by the Free Hand (or flying): drawn where the hand has it; set down, it bolts
+      if (d.held || d.flying) { d._air = true; d.g.position.set(d.x, d.y, d.z); d.g.quaternion.copy(d.q); d.leash.visible = false; continue; }
+      if (d._air) { d._air = false; this.drop(d, 'run'); d.t = rand(4, 7); if (Math.random() < 0.8) sfx.bark(d.x, d.z, 0.8); }
       if (d.state === 'wait' || d.state === 'gone') {
         // (re)assign: start next to a walker, out of view if this is a dog coming back
         if (d.t > 0) continue;

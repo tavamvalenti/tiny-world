@@ -388,6 +388,7 @@ export function cairo(B) {
   }
   city.hotspot = { x: 40, z: -10, r: 90 };
   city.river = { wet, inNile, WL: NILE.WL };
+  city.deepWater = wet;                                     // the Nile: nobody walks on it
   return { ...ctx, agents: { cars: 150, peds: 1050, wanderFrac: 0.3 }, fog: 0xd9c49c, start: { x: 20, z: -10 }, zMin: -165, zMax: 165, xMin: -370, maxD: 240, yaw: -1.2, ownBackdrop: true, terrainH };
 }
 
@@ -947,10 +948,14 @@ export class Cairo {
     });
     for (const [geo, list] of meshes) { const m = mk(geo, list.length); list.forEach((c) => { c.mesh = m; m.setColorAt(c.idx, c.tint); }); slots.push(m); }
     this.camelMeshes = slots;
+    G.animalProviders && G.animalProviders.push(() => [...this.camels, ...this.carts]);   // the Free Hand can pick them up
   }
   updateAnimals(dt) {
     const t = G.time;
     this.carts.forEach((c, i) => {
+      // held or thrown by the Free Hand: drawn where it is; once down again it rejoins its street at the nearest point
+      if (c.held || c.flying) { c._air = true; _m.compose(_p.set(c.x, c.y, c.z), c.q, ONE); this.cartMesh.setMatrixAt(i, _m); return; }
+      if (c._air) { c._air = false; const [a, b] = c.r, L2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2; c.u = Math.max(0, Math.min(1, ((c.x - a[0]) * (b[0] - a[0]) + (c.z - a[1]) * (b[1] - a[1])) / L2)); }
       if (c.down != null) { if ((c.down -= dt) <= 0) c.down = null; }
       else { const [a, b] = c.r, L = Math.hypot(b[0] - a[0], b[1] - a[1]); c.u += c.dir * c.v * dt / L; if (c.u > 1 || c.u < 0) { c.dir *= -1; c.u = Math.max(0, Math.min(1, c.u)); } const dx = (b[0] - a[0]) / L * c.dir, dz = (b[1] - a[1]) / L * c.dir; c.x = a[0] + (b[0] - a[0]) * c.u + dz * 1.9; c.z = a[1] + (b[1] - a[1]) * c.u - dx * 1.9; c.h = Math.atan2(dx, dz); }
       _q.setFromAxisAngle(UP, c.h); if (c.down != null) _q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 1.3));
@@ -958,6 +963,7 @@ export class Cairo {
     });
     for (const c of this.camels) {
       let moving = false;
+      if (c.held || c.flying) { _m.compose(_p.set(c.x, c.y, c.z), c.q, ONE); c.mesh.setMatrixAt(c.idx, _m); c.tx = c.x; c.tz = c.z; continue; }
       if (c.down != null) { if ((c.down -= dt) <= 0) c.down = null; }
       else if (c.kind !== 'rest') {
         const d = Math.hypot(c.tx - c.x, c.tz - c.z);

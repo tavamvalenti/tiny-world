@@ -643,6 +643,7 @@ export function london(B) {
   g.x.closePath(); g.x.fill(); g.x.restore();
   city.hotspot = { x: -40, z: -10, r: 80 };
   city.river = { wet, inRiver, WL };
+  city.deepWater = wet;                                     // the Thames: nobody walks on it
   return { ...ctx, agents: { cars: 140, peds: 980, wanderFrac: 0.14 }, fog: 0xbcc2c6, start: { x: -40, z: 0 }, zMin: -104, zMax: 124, xMin: -150, maxD: 230, yaw: 0.35, ownBackdrop: true };
 }
 
@@ -1596,6 +1597,7 @@ export class London {
       else for (let k = 0; k < h.n; k++) H.push({ route: h.route, road: !h.path, u: (k + 0.3) / h.n, dir: k % 2 ? 1 : -1, v: rand(0.7, 0.95), ph: rand(0, 6), x: 0, z: 0, h: 0 });
     }
     const n = H.length;
+    G.animalProviders && G.animalProviders.push(() => H);              // the Free Hand can pick them up
     this.hz = { list: H, body: mk(horse, n), legs: mk(leg, n * 4), rider: mk(rider, n), head: mk(head, n, new THREE.MeshStandardMaterial({ roughness: 0.8 })), helmet: mk(helmet, n, new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.5 })), plume: mk(plume, n, new THREE.MeshStandardMaterial({ roughness: 0.8 })) };
     const Z = this.hz;
     H.forEach((o, i) => {
@@ -1612,7 +1614,12 @@ export class London {
     const T = G.camTarget, t = G.time;
     Z.list.forEach((o, i) => {
       let moving = false;
-      if (o.down != null) {
+      // picked up by the Free Hand (or flying after a throw): left alone, drawn where the hand has it; back down, it
+      // rejoins its route at the nearest point
+      const air = o.held || o.flying;
+      if (air) o._air = true;
+      else if (o._air) { o._air = false; if (!o.fixed) { const [a, b] = o.route, L2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2; o.u = Math.max(0, Math.min(1, ((o.x - a[0]) * (b[0] - a[0]) + (o.z - a[1]) * (b[1] - a[1])) / L2)); } }
+      if (air) { /* the hand has it */ } else if (o.down != null) {
         if ((o.down -= dt) <= 0) { o.down = null; if (!o.fixed) o.u = Math.random(); }
       } else if (!o.fixed) {
         const [a, b] = o.route, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -1624,8 +1631,8 @@ export class London {
       }
       const cyc = t * 5.2 + o.ph, bob = moving ? Math.abs(Math.sin(cyc)) * 0.012 : 0;
       _q.setFromAxisAngle(UP, o.h);
-      if (o.down != null) _q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2));
-      _m.compose(_p.set(o.x, (o.down != null ? 0.15 : 0) + bob, o.z), _q, ONE);
+      if (air) _q.copy(o.q); else if (o.down != null) _q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2));
+      _m.compose(_p.set(o.x, air ? o.y : (o.down != null ? 0.15 : 0) + bob, o.z), _q, ONE);
       for (const k of ['body', 'rider', 'head', 'helmet', 'plume']) Z[k].setMatrixAt(i, _m);
       [[0.07, 0.22, 0], [-0.07, 0.22, Math.PI], [0.07, -0.22, Math.PI], [-0.07, -0.22, 0]].forEach(([lx, lz, ph], k) => {
         const sw = moving ? Math.sin(cyc + ph) * 0.42 : (o.fixed ? 0 : 0);

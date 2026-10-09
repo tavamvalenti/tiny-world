@@ -12,8 +12,8 @@ import { sfx } from './audio.js';
 const GRAB_PEDS = new Set(['walk', 'wander', 'wait', 'idle', 'return', 'alert', 'flee', 'down', 'riot', 'entering', 'air', 'job', 'toCar']);
 const GRAB_CARS = new Set(['drive', 'parked', 'wreck', 'onscene', 'air']);
 const GRAB_PROPS = new Set(['bin', 'bench', 'dumpster', 'umbrella', 'junk']);
-const LIFT = { ped: 1.6, car: 2.0, prop: 1.5 };
-const HANG = { ped: 0.55, car: 0.3, prop: 0.25 };          // how far the body hangs below the grip
+const LIFT = { ped: 1.6, car: 2.0, prop: 1.5, animal: 1.8 };
+const HANG = { ped: 0.55, car: 0.3, prop: 0.25, animal: 0.6 };          // how far the body hangs below the grip
 const UP = new THREE.Vector3(0, 1, 0), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler(), _m = new THREE.Matrix4(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
 
 export class Hand {
@@ -37,23 +37,31 @@ export class Hand {
       for (const c of A.cars) if (GRAB_CARS.has(c.state)) consider('car', c, c.pos.x, c.pos.z, 1.05);
     }
     for (const p of (G.city && G.city.props) || []) if (p.alive && !p.flying && GRAB_PROPS.has(p.type)) consider('prop', p, p.x, p.z, p.type === 'dumpster' ? 0.75 : 0.5);
+    // animals: every map registers its own (dogs, camels, donkey carts, horses...). While one is held or flying the
+    // map leaves it alone and just draws it at a.x/a.y/a.z turned by a.q
+    for (const prov of G.animalProviders || []) for (const a of prov()) if (!a.flying && a.alive !== false) consider('animal', a, a.x, a.z, a.grabR || 0.7);
     return best;
   }
 
-  pos(h) { return h.kind === 'prop' ? _v.set(h.o.x, h.o.y || 0, h.o.z) : h.o.pos; }
+  pos(h) { return h.kind === 'prop' ? _v.set(h.o.x, h.o.y || 0, h.o.z) : h.kind === 'animal' ? _v.set(h.o.x, h.o.y ?? (G.terrainH ? G.terrainH(h.o.x, h.o.z) : 0), h.o.z) : h.o.pos; }
 
   grab(h) {
     const o = h.o;
     const p0 = this.pos(h);
-    this.held = { ...h, vel: new THREE.Vector3(), grip: new THREE.Vector3(p0.x, p0.y + HANG[h.kind], p0.z), sway: new THREE.Vector2(), spin: rand(-0.6, 0.6) };
+    const g0 = h.kind === 'ped' && o.state !== 'air' && G.terrainH ? G.terrainH(p0.x, p0.z) : 0;
+    this.held = { ...h, vel: new THREE.Vector3(), grip: new THREE.Vector3(p0.x, p0.y + g0 + HANG[h.kind], p0.z), sway: new THREE.Vector2(), spin: rand(-0.6, 0.6) };
     if (h.kind === 'ped') {
       if (o.state !== 'air' && !o.dead) sfx.yelp(o.pos.x, o.pos.z);
+      if (o.state !== 'air' && G.terrainH) o.pos.y += G.terrainH(o.pos.x, o.pos.z);   // held and flying: absolute height
       o.state = 'held'; o.target = null; o.group = null; o.zone = null;
       o.heading = o.heading || 0;
     } else if (h.kind === 'car') {
       o.wasState = o.state; o.state = 'held'; o.speed = 0; o.queue = [];
       if (o.obs) { const k = G.city.obstacles.indexOf(o.obs); if (k >= 0) G.city.obstacles.splice(k, 1); o.obs = null; }
       if (o.siren) { o.siren.stop(); o.siren = null; }
+    } else if (h.kind === 'animal') {
+      o.held = true; o.y = p0.y; o.q = new THREE.Quaternion().setFromAxisAngle(UP, o.h || 0);
+      if (o.onGrab) o.onGrab();
     } else {
       o.held = true; o.y = o.y || 0;
     }
@@ -65,6 +73,11 @@ export class Hand {
     const o = h.o, v = h.vel, sp = Math.hypot(v.x, v.z);
     const dir = sp > 0.01 ? { x: v.x / sp, z: v.z / sp } : { x: 0, z: 1 };
     const f = clamp(sp * 1.1, 0, 28), up = clamp(v.y * 0.9 + sp * 0.12, -4, 16);
+    if (h.kind === 'animal') {
+      o.held = false; o.flying = true;
+      this.flying.push({ p: o, animal: true, vel: new THREE.Vector3(dir.x * f, up, dir.z * f), w: new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(2 + sp * 0.5), q: (o.q || new THREE.Quaternion()).clone() });
+      return;
+    }
     if (h.kind === 'prop') {
       o.held = false; o.flying = true;
       this.flying.push({ p: o, vel: new THREE.Vector3(dir.x * f, up, dir.z * f), w: new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(2 + sp * 0.5), q: (o.q || new THREE.Quaternion().setFromAxisAngle(UP, o.rot)).clone() });
@@ -115,6 +128,8 @@ export class Hand {
       o.q.copy(_q); H.q = o.q.clone();
     } else if (H.kind === 'car') {
       o.pos.set(nx, ny - HANG.car, nz); o.q.copy(_q); H.q = o.q.clone();
+    } else if (H.kind === 'animal') {
+      o.x = nx; o.y = ny - HANG.animal; o.z = nz; o.q = _q.clone();
     } else {
       o.x = nx; o.y = ny - HANG.prop; o.z = nz;
       _q2.copy(_q); o.q = _q2.clone();
@@ -135,7 +150,7 @@ export class Hand {
     const B = G.buildings;
     for (let i = this.flying.length - 1; i >= 0; i--) {
       const f = this.flying[i], p = f.p;
-      if (!p.alive) { this.flying.splice(i, 1); continue; }
+      if (p.alive === false) { this.flying.splice(i, 1); continue; }
       f.vel.y -= 14 * dt;
       p.x += f.vel.x * dt; p.y = (p.y || 0) + f.vel.y * dt; p.z += f.vel.z * dt;
       if (B.inside(_v.set(p.x, p.y + 0.2, p.z))) { p.x -= f.vel.x * dt; p.z -= f.vel.z * dt; f.vel.x *= -0.3; f.vel.z *= -0.3; }
@@ -143,17 +158,18 @@ export class Hand {
       const floor = B.surfaceAt(p.x, p.z, p.y + 0.2).y;
       if (p.y <= floor) {
         p.y = floor;
-        if (f.vel.y < -3) { f.vel.y *= -0.3; f.vel.x *= 0.55; f.vel.z *= 0.55; f.w.multiplyScalar(0.5); sfx.crumble(p.x, p.z, 0.35); G.fx.dust(p.x, p.y, p.z, 0.3); }
+        if (f.vel.y < -3) { if (f.vel.y < -9) f.hard = true; f.vel.y *= -0.3; f.vel.x *= 0.55; f.vel.z *= 0.55; f.w.multiplyScalar(0.5); sfx.crumble(p.x, p.z, 0.35); G.fx.dust(p.x, p.y, p.z, 0.3); }
         else {
           // settled: upright where it came down, facing however it landed
           const fwd = _v.set(0, 0, 1).applyQuaternion(f.q);
           p.rot = Math.atan2(fwd.x, fwd.z); p.q = null; p.flying = false;
+          if (f.animal) { p.h = p.rot; p.y = undefined; if (f.hard) p.down = rand(15, 30); if (p.onLand) p.onLand(f.hard); this.flying.splice(i, 1); continue; }
           this.writeProp(p, _q.setFromAxisAngle(UP, p.rot));
           this.flying.splice(i, 1);
           continue;
         }
       }
-      this.writeProp(p, f.q);
+      if (f.animal) p.q = f.q; else this.writeProp(p, f.q);
     }
   }
 

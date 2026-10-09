@@ -191,6 +191,8 @@ export function greenland(B) {
   name('the football pitch', 'the football pitch', P.x - 9, P.x + 9, P.z - 6, P.z + 6);
   city.lampsAlongBlock && city.blocks.forEach((b) => city.lampsAlongBlock(b, 10));
   city.hotspot = { x: 0, z: -4, r: 45 };
+  // the sea (but not the pier): nobody walks on it
+  city.deepWater = (x, z) => { const D = GL.dock; return terrainH(x, z) < SEA - 0.3 && !(x > D.x0 - 7 && x < D.x1 + 1 && Math.abs(z - D.z) < D.w / 2 + 3.5); };
   return { ...ctx, agents: { cars: 10, peds: 150, wanderFrac: 0.3 }, fog: 0xcfdbe6, start: { x: -10, z: 0 }, zMin: -150, zMax: 150, xMin: -280, maxD: 230, yaw: -0.9, ownBackdrop: true, terrainH };
 }
 

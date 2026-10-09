@@ -143,6 +143,7 @@ export function downtown(B) {
   // light rail runs down the street at z = 0 (a trolley-only transit mall), with two stations
   // the harbour is the west edge: seawall at x = -74, open water beyond (see harbor.js)
   city.shoreX = -74;
+  city.deepWater = (x) => x < city.shoreX - 1;              // the bay: nobody walks on it
   city.bridgeClear = [{ x: -45, z: 124, r: 22 }, { x: -62, z: 112, r: 16 }];
   ctx.skipOuter = (x, z) => x < -70;
   city.rail = { z: 0, stations: [{ x: 11, name: 'CIVIC CENTER' }, { x: -33, name: 'GASLAMP QUARTER' }] };
@@ -386,6 +387,7 @@ export function tropical(B) {
     b.speed = rand(0.8, 2.2); city.boats.push(b);
   }
   city.shore = shore;
+  city.deepWater = (x, z) => z < shore - 6;                  // the sea past the shallows (paddling at the edge is fine)
   for (const b of city.blocks) {
     city.paintSidewalk(g, b, '#c8c0b0');
     if (b.i === 3 && b.j === 1) { policeHQ(ctx, b); continue; }            // La Playa's police headquarters
