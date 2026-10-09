@@ -95,7 +95,7 @@ export class ProgressUI {
       this.renderChip();
       // keep an open panel current, but not while typing in it, and not more than once a second
       const typing = this.panel.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName);
-      if (this.isOpen && !typing && performance.now() - (this.lastRender || 0) > 1000) { this.lastRender = performance.now(); this.render(); }
+      if (this.isOpen && !typing && this.tab !== 'lb' && performance.now() - (this.lastRender || 0) > 1000) { this.lastRender = performance.now(); this.render(); }
       return;
     }
     const T = G.camTarget || { x: 0, z: 0 };
@@ -168,8 +168,15 @@ export class ProgressUI {
   tab_rec() {
     const P = this.p.P;
     return `<div class="grid">${Object.entries(D.RECORDS).map(([id, r]) => { const rec = P.records[id]; const perMap = r.perMap ? D.ALL_MAPS.map((m) => P.records[`${id}:${m}`] ? `${D.MAP_LABELS[m]}: ${fmt(P.records[`${id}:${m}`].value, r.unit)}` : null).filter(Boolean) : [];
-      return `<div class="it ${rec ? 'done' : 'locked'}"><b>${svg(r.icon, 14)} ${esc(r.label)}</b>${rec ? `<p style="font-size:16px;color:#fff;margin-top:6px">${fmt(rec.value, r.unit)}</p><div class="meta"><span>${rec.map ? D.MAP_LABELS[rec.map] || '' : ''} · ${new Date(rec.date).toLocaleDateString()}</span><span>${rec.prev != null ? `was ${fmt(rec.prev, r.unit)}` : ''}</span></div>${perMap.length > 1 ? `<p>${perMap.join(' · ')}</p>` : ''}` : '<p>No record yet.</p>'}</div>`; }).join('')}</div>
+      return `<div class="it ${rec ? 'done' : 'locked'}"><b>${svg(r.icon, 14)} ${esc(r.label)}</b>${rec ? `<p style="font-size:16px;color:#fff;margin-top:6px">${fmt(rec.value, r.unit)}</p><div class="meta"><span>${rec.map ? D.MAP_LABELS[rec.map] || '' : ''} · ${new Date(rec.date).toLocaleDateString()}</span><span>${rec.prev != null ? `was ${fmt(rec.prev, r.unit)}` : ''}</span></div>${perMap.length > 1 ? `<p>${perMap.join(' · ')}</p>` : ''}${this.globalLine(id, r, rec)}` : '<p>No record yet.</p>'}</div>`; }).join('')}</div>
       <p class="note">More records (race times, casino, taxi fares, boat races) arrive with those activities when they're added to the game.</p>`;
+  }
+  // the global standing of a record, from the last time it was sent (or still waiting to go)
+  globalLine(id, r, rec) {
+    if (!r.board) return '';
+    const P = this.p.P, key = `${id}:${r.perMap ? rec.map || '' : ''}`, g = (P.global || {})[key];
+    if (P.pending.some((s) => s.category === id)) return '<p style="color:#7cc8ff">Global: waiting to be sent</p>';
+    return g && g.rank ? `<p style="color:#7cc8ff">Global rank #${g.rank}${r.perMap ? ` in ${D.MAP_LABELS[rec.map] || ''}` : ''}</p>` : '';
   }
   tab_rew() {
     const P = this.p.P, slots = [['title', 'TITLE'], ['drone_paint', 'DRONE PAINT'], ['jetpack_paint', 'JETPACK TANKS'], ['chair_balloons', 'BALLOON CHAIR BALLOONS'], ['badge', 'BADGES (UP TO 3 ON YOUR CARD)']];
@@ -183,20 +190,22 @@ export class ProgressUI {
     const local = def.perMap ? P.records[`${this.lbCat}:${this.lbMap}`] : P.records[this.lbCat];
     const pend = P.pending.length;
     return `<div class="row"><select id="lbCat">${cats.map(([k, r]) => `<option value="${k}" ${k === this.lbCat ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</select>${def.perMap ? `<select id="lbMap">${D.ALL_MAPS.map((m) => `<option value="${m}" ${m === this.lbMap ? 'selected' : ''}>${D.MAP_LABELS[m]}</option>`).join('')}</select>` : ''}</div>
-      <h4>YOUR LOCAL BEST (THIS BROWSER, NOT A GLOBAL RANKING)</h4><div class="it"><b>${local ? fmt(local.value, def.unit) : 'No score yet'}</b></div>
-      <h4>GLOBAL TOP 10</h4><div id="lbBox">${lb.configured ? '<p class="note">Loading…</p>' : `<p class="note">Global leaderboards aren't switched on yet. Your best scores are kept here${pend ? ` (${pend} waiting to be sent)` : ''} and will be sent automatically as soon as they are.</p>`}</div>
+      <h4>GLOBAL TOP 10 · PLAYERS EVERYWHERE</h4><div id="lbBox">${lb.configured ? (this.lbCache && this.lbCache[`${this.lbCat}:${def.perMap ? this.lbMap : ''}`] || '<p class="note">Loading…</p>') : `<p class="note">Global leaderboards aren't switched on yet. Your best scores are kept here${pend ? ` (${pend} waiting to be sent)` : ''} and will be sent automatically as soon as they are.</p>`}</div>
+      <h4>YOUR LOCAL BEST (THIS BROWSER)</h4><div class="it"><b>${local ? fmt(local.value, def.unit) : 'No score yet'}</b></div>
       ${lb.configured ? `<div class="row"><span class="note">${pend ? `${pend} score${pend > 1 ? 's' : ''} waiting to be sent.` : 'All your scores are sent.'} ${lb.status === 'error' ? `Last attempt failed (${esc(lb.lastError)}).` : lb.status === 'offline' ? 'You\'re offline.' : ''}</span>${pend ? '<button data-a="retry">SEND NOW</button>' : ''}</div>` : ''}`;
   }
   async loadBoard() {
     const lb = this.p.lb; if (!lb.configured) return;
-    const box = this.panel.querySelector('#lbBox'); if (!box) return;
-    const cat = this.lbCat, def = D.RECORDS[cat], map = def.perMap ? this.lbMap : '';
+    const cat = this.lbCat, def = D.RECORDS[cat], map = def.perMap ? this.lbMap : '', key = `${cat}:${map}`;
+    const put = (html) => { (this.lbCache ||= {})[key] = html; const box = this.panel.querySelector('#lbBox'); if (box && this.lbCat === cat && (!def.perMap || this.lbMap === map)) box.innerHTML = html; };   // into the box on screen now
     try {
+      if (this.p.P.pending.length) await lb.flush();                 // send anything waiting first, so your own score is on it
       const [top, me] = await Promise.all([lb.top(cat, map, 10), lb.mine(cat, map)]);
-      if (this.lbCat !== cat) return;
-      box.innerHTML = top.length ? `<table>${top.map((r) => `<tr class="${r.name === this.p.P.name ? 'me' : ''}"><td>#${r.rank}</td><td>${esc(r.name)}</td><td style="text-align:right">${fmt(r.value, def.unit)}</td><td style="text-align:right;opacity:.6">${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join('')}</table>` : '<p class="note">No scores yet. Be the first.</p>';
-      box.innerHTML += me && me.rank ? `<p class="note">You: #${me.rank} of ${me.total} with ${fmt(me.value, def.unit)}</p>` : '<p class="note">You don\'t have a global score in this category yet.</p>';
-    } catch (e) { box.innerHTML = `<p class="note">Couldn't reach the leaderboards right now (${esc(e.message)}). Your local scores are safe and will be sent later.</p>`; }
+      const box = { innerHTML: '' };
+      box.innerHTML = top.length ? `<table>${top.map((r) => `<tr class="${r.name.toLowerCase() === this.p.P.name.toLowerCase() ? 'me' : ''}"><td>#${r.rank}</td><td>${esc(r.name)}</td><td style="text-align:right">${fmt(r.value, def.unit)}</td><td style="text-align:right;opacity:.6">${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join('')}</table>` : '<p class="note">No scores yet. Be the first.</p>';
+      box.innerHTML += me && me.rank ? `<p class="note" style="color:#ffd46b">You: #${me.rank} of ${me.total} with ${fmt(me.value, def.unit)}</p>` : '<p class="note">You don\'t have a global score in this category yet.</p>';
+      put(box.innerHTML);
+    } catch (e) { put(`<p class="note">Couldn't reach the leaderboards right now (${esc(e.message)}). Your local scores are safe and will be sent later.</p>`); }
   }
   // ---------- the profile card: drawn on a canvas in the game's own look ----------
   drawCard(cv = this.panel.querySelector('#ppCard')) {
