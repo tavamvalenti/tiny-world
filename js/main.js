@@ -37,6 +37,9 @@ import { RickMode } from './rick.js';
 import { VehicleMode } from './vehicles.js';
 import { boatsOnBlast, updateWrecks } from './boats.js';
 import { solidHit, clearSolids } from './solids.js';
+import { Progress } from './progress/core.js';
+import { ProgressUI } from './progress/ui.js';
+const progress = new Progress(), progressUI = new ProgressUI(progress);   // the player's profile (js/progress/)
 G.boatsOnBlast = boatsOnBlast; G.solidHit = solidHit;
 import { addRipples, gatherWakes, buildPools } from './water.js';
 import { Chains } from './chains.js';
@@ -350,6 +353,8 @@ function step(dt) {
   if (flying) rick.update(dt);                                  // Rick's ship: flies, then parks the view target on itself
   if (driving) veh.update(dt);                                  // the drone / balloon chair / jetpack, the same way
   updateWrecks(dt);                                             // boats going down
+  progress.update(dt);                                          // XP, records, challenges (js/progress/)
+  if (input.down && !flying && !driving && !(G.world && G.world.armed) && G.weapons) progress.toolUse(['hand', 'laser', 'bomb', 'wind', 'meteor'][G.weapons.cur] || 'hand');
   updateCamera(dt);
   if (flying) rick.applyCamera(dt);                             // ... and the chase camera replaces the overhead one
   if (driving) veh.applyCamera(dt);
@@ -459,6 +464,8 @@ window.addEventListener('keydown', (e) => {
   if (settingsOpen) { if (e.code === 'Escape') closeSettings(); return; }
   if (rick && rick.key(e, true)) return;                        // flying the ship: it takes the keys it uses
   if (veh && veh.key(e, true)) return;                          // ... and so does a vehicle
+  if (progressUI.isOpen) { if (e.code === 'Escape' || e.code === 'KeyP') progressUI.close(); return; }   // the profile panel is up
+  if (e.code === 'KeyP' && running) { progressUI.open(); return; }
   keys[e.code] = true;
   if (!running) return;
   if (e.code >= 'Digit1' && e.code <= 'Digit5') selectWeapon(+e.code.slice(5) - 1);
@@ -540,6 +547,7 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     if (!TOUCH) veh = new VehicleMode(scene, camera, post, cam, renderer); // the VEHICLES button (desktop)
     last = performance.now();
     running = true;
+    progress.mapLoaded(btn.dataset.map, G.city);
     if (window.__twDive) { cam.dist = Math.min(cam.maxD * 1.25, cam.distT * 2.4); cam.intro = 2.2; }   // the descent from the globe carries on
     document.dispatchEvent(new Event('tw:start'));
   }, 60);

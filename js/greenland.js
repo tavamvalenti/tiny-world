@@ -598,7 +598,7 @@ export class Greenland {
       for (let k = 0; k < n && FX; k++) FX.debris.spawn(x + rand(-1, 1), Math.max(SEA + 0.3, y), z + rand(-1, 1), new THREE.Vector3(rand(-4, 4), rand(2, 6), rand(-4, 4)), rand(0.2, 0.8), rand(0.2, 0.7), rand(0.2, 0.8), ice);
       if (b.hp <= 0) {
         // it breaks up: a burst of ice, white water, and what's left rolls over and sinks
-        b.gone = true;
+        b.gone = true; G.progress && G.progress.event('iceberg');
         for (let k = 0; k < 26 && FX; k++) FX.debris.spawn(b.x + rand(-b.R, b.R) * 0.7, SEA + rand(0.5, b.H * 0.7), b.z + rand(-b.R, b.R) * 0.7, new THREE.Vector3(rand(-3, 3), rand(1, 4), rand(-3, 3)), rand(0.4, 1.6), rand(0.4, 1.4), rand(0.4, 1.6), ice);
         for (let k = 0; k < 40 && FX; k++) FX.bits.emit(b.x + rand(-b.R, b.R), SEA + 0.1, b.z + rand(-b.R, b.R), rand(-1.5, 1.5), rand(1, 4), rand(-1.5, 1.5), 0.3, 1.6, 0.95, 0.98, 1, 1);
       }

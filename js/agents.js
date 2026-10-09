@@ -447,6 +447,7 @@ export class Agents {
     }
   }
   land(a, isCar) {
+    if (a.throwFrom) { G.progress && G.progress.throwLanded(a.throwFrom.kind, Math.hypot(a.pos.x - a.throwFrom.x, a.pos.z - a.throwFrom.z)); a.throwFrom = null; }
     if (!isCar && G.terrainH) a.pos.y = Math.max(0, a.pos.y - G.terrainH(a.pos.x, a.pos.z));   // back to height above the ground
     if (!isCar && this.city.deepWater && this.city.deepWater(a.pos.x, a.pos.z) && a.pos.y < 0.5) { this.drown(a); return; }
     // settle upright or on its roof, keeping yaw

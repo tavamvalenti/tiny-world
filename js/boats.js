@@ -61,6 +61,7 @@ export function wreckBoat(t) {
   G.shake = Math.max(G.shake || 0, big ? 0.5 : 0.3);
   G.news && G.news.destruction && G.news.destruction(x, z, big ? 20 : 8);
   if (draw) wrecks.push({ draw, x, z, t: 0 });
+  G.progress && G.progress.boatSunk();
 }
 // gunfire wears a boat down until it goes up (like a car)
 export function damageBoat(t, amount) {

@@ -13,6 +13,7 @@ import { G, clamp, rand, pick, blast } from './core.js';
 import { sfx } from './audio.js';
 import { CartoonCharacter } from './rickship.js';
 import { boatTargets, damageBoat } from './boats.js';
+import { BALLOON_PALETTES } from './progress/defs.js';
 
 const S = 0.42;                                     // the characters' scale (as Rick and Morty: people on the street)
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _z = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0);
@@ -198,6 +199,7 @@ export class VehicleMode {
     if (this.active) this.exit(true);
     sfx.unlock();
     this.kind = kind; this.active = true;
+    G.progress && G.progress.vehicle(kind);
     this.buildFx();
     this.model = kind === 'drone' ? this.buildDrone() : kind === 'chair' ? this.buildChair() : this.buildJetpack();
     this.scene.add(this.model.root, this.fxGroup);
@@ -360,6 +362,7 @@ export class VehicleMode {
   explodeDrone() {
     if (this.dead) return;                                  // one crash, one explosion, one respawn
     this.dead = true; this.respawnT = 2.2;
+    G.progress && G.progress.droneCrash();
     const p = this.pos.clone(), B = G.buildings, fx = G.fx;
     G.weapons.bombImpact(p);                                 // Tiny World's bomb ...
     B.damageSphere(p.x, p.y, p.z, 5.5, 360, 1.0, 0.55);      // ... and a heavier punch round it
@@ -466,7 +469,8 @@ export class VehicleMode {
     const g2 = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.4 + fallSpeed * dt).y;
     if (this.pos.y < g2) {
       this.pos.y = g2;
-      if (fallSpeed > 17) { this.jetpackDeath(fallSpeed); return; }
+      if (fallSpeed > 17) { G.progress && G.progress.jetpackLanded(0, true); this.jetpackDeath(fallSpeed); return; }
+      if (fallSpeed > 9 && G.progress) G.progress.jetpackLanded(fallSpeed * fallSpeed / 24, false);   // the drop survived (v² = 2gh)
       if (fallSpeed > 9) { this.shake = Math.max(this.shake, 0.5); sfx.crash(this.pos.x, this.pos.z, 0.3); }
       if (this.vel.y < 0) this.vel.y = 0;
     }
@@ -708,7 +712,8 @@ export class VehicleMode {
   // ======================================================================== the models
   buildDrone() {
     const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-    const black = new THREE.MeshStandardMaterial({ color: 0x141518, roughness: 0.45, metalness: 0.4 }), dark = new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.5, metalness: 0.6 });
+    const paint = (G.progress && G.progress.equipped('drone_paint')) ?? 0x141518;                  // the paint chosen in the profile
+    const black = new THREE.MeshStandardMaterial({ color: paint, roughness: 0.45, metalness: 0.4 }), dark = new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.5, metalness: 0.6 });
     const gun = new THREE.MeshStandardMaterial({ color: 0x2e3034, roughness: 0.35, metalness: 0.85 }), lens = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.1, metalness: 0.9 });
     const add = (p, g, m, x, y, z) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; };
     // the hull: a long body with a raised spine, chamfered nose, a camera eye
@@ -790,7 +795,7 @@ export class VehicleMode {
     const MAX = 34, FREE = 24, bal = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10).scale(1, 1.18, 1), new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.05, transparent: true, opacity: 0.94 }), MAX + FREE);
     bal.frustumCulled = false; bal.castShadow = true;
     const knot = [V(0, 0.64, 0.52), V(0, 0.22, -0.5)];                                      // tie points (head, foot), chair space
-    const cols = [0xe8342a, 0x2a7ae8, 0x2ac85a, 0xf2c21a, 0xe83a9a, 0x8a4ae8, 0xf2802a, 0x2ac8c8, 0xffffff, 0x9ae82a];
+    const cols = BALLOON_PALETTES[(G.progress && G.progress.equipped('chair_balloons')) || 'party'] || BALLOON_PALETTES.party;   // the balloons chosen in the profile
     const slots = [];
     for (let i = 0; i < MAX; i++) {
       const g = i % 2, a = rand(0, 6.28), r = rand(0.04, 0.24), h = rand(1.15, 1.6) + (g ? -0.1 : 0);
@@ -892,7 +897,7 @@ export class VehicleMode {
     // the jetpack (after the reference): two red tanks with chrome nose cones and dark nozzles either side of a
     // yellow-and-grey core with red lamps, black hoses looping up over the shoulders
     const pack = new THREE.Group(); pack.position.set(0, 0.0, 0.17); guy.chest.add(pack);
-    const red = new THREE.MeshStandardMaterial({ color: 0xd8262a, roughness: 0.3, metalness: 0.2 }), chrome = new THREE.MeshStandardMaterial({ color: 0xd0d4da, roughness: 0.2, metalness: 1 }), grey = new THREE.MeshStandardMaterial({ color: 0x4a4c52, roughness: 0.5, metalness: 0.5 }), yellow = new THREE.MeshStandardMaterial({ color: 0xf2a52a, roughness: 0.45 }), lamp = new THREE.MeshBasicMaterial({ color: 0xff3a2a });
+    const red = new THREE.MeshStandardMaterial({ color: (G.progress && G.progress.equipped('jetpack_paint')) ?? 0xd8262a, roughness: 0.3, metalness: 0.2 }), chrome = new THREE.MeshStandardMaterial({ color: 0xd0d4da, roughness: 0.2, metalness: 1 }), grey = new THREE.MeshStandardMaterial({ color: 0x4a4c52, roughness: 0.5, metalness: 0.5 }), yellow = new THREE.MeshStandardMaterial({ color: 0xf2a52a, roughness: 0.45 }), lamp = new THREE.MeshBasicMaterial({ color: 0xff3a2a });
     add(pack, new THREE.BoxGeometry(0.22, 0.34, 0.12), grey, 0, 0, 0);
     add(pack, new THREE.CylinderGeometry(0.075, 0.075, 0.03, 18).rotateX(Math.PI / 2), yellow, 0, 0.06, 0.065);
     add(pack, new THREE.BoxGeometry(0.12, 0.08, 0.02), yellow, 0, -0.08, 0.065);

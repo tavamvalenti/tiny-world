@@ -86,6 +86,7 @@ export class Hand {
     const isCar = h.kind === 'car';
     if (isCar) o.gentle = sp < 2.5 && (o.wasState !== 'wreck');           // set down softly: it stays a working car
     else if (sp > 18 && !o.dead) { o.dead = true; o.bleed = true; }      // flung hard enough, that's the end of them
+    if (sp > 2) o.throwFrom = { x: o.pos.x, z: o.pos.z, kind: isCar ? 'car' : 'person' };   // for the throw records
     G.agents.launch(o, dir, f, up, isCar, Math.min(9, 1 + sp * 0.45));
     o.q.copy(h.q || o.q);                                                 // keep the pose it had in the hand
   }

@@ -298,3 +298,11 @@ Every new map must be added to all of these:
 - People on raised terrain (`G.terrainH`) keep their height relative to the ground while walking and absolute while airborne or held; convert when they leave and return to the ground (`launch`, `land`, the Free Hand's grab), or they float.
 - Every animal must be pick-up-able with the Free Hand: register it with `G.animalProviders.push(() => list)`, give it `x`, `z`, `h`; while `held` or `flying`, stop its own movement and draw it at `x`, `y`, `z` turned by `q`.
 - Everything that sticks out (landmark tops, domes, spires, statues, columns, poles, big rides) must be destructible and solid: build it from cells (decor tied on with `cutoutOn`), or register a solid in `js/solids.js` with its own break behaviour.
+
+## Progression (js/progress/)
+
+Every map plugs into the player's profile:
+- Its named places (`city.named` and the landmarks js/news.js knows) become discoverable places and, where real buildings stand in them, landmarks that count when brought down. Name every landmark.
+- Add its map challenges to `MAP_CHALLENGES` in `js/progress/defs.js` (the three common ones plus at least one tied to something special on that map), and add its key to `MAP_LABELS`.
+- Report real events only: `G.progress.event(id)` for a map's set pieces (the London Eye toppling, icebergs breaking up), `boatSunk()`, `throwLanded()`, and so on. Never award progress from a UI click or a timer.
+- A new activity (race, casino, taxi, boat race) adds its record to `RECORDS` (and the server's `tw_category` list in `server/leaderboard.sql` if it gets a global board), and its challenges, when the activity itself is built.

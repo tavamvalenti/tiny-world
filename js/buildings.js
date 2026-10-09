@@ -401,6 +401,7 @@ export class Buildings {
     if (!c.alive) return;
     c.alive = false; c.falling = false;
     this.destroyed++;
+    G.progress && G.progress.cell(c);                      // the player's lifetime stats (js/progress/)
     const S = this.byStyle[c.style];
     S.mesh.setMatrixAt(c.idx, ZERO);
     S.mesh.instanceMatrix.needsUpdate = true;

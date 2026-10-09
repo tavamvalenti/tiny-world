@@ -1122,7 +1122,7 @@ export class London {
     const S = this.eyeS; if (!S || S.state !== 'up') return;
     S.hp -= d * (q && q.y < 5 ? 2 : 1);
     if (S.hp < S.max * 0.5 && !S.creaked) { S.creaked = true; const p = this.eyePivot.position; sfx.collapse(p.x, p.z, 12); }
-    if (S.hp <= 0) { S.state = 'falling'; S.angV = 0.04; const p = this.eyePivot.position; sfx.collapse(p.x, p.z, 60); G.news && G.news.destruction && G.news.destruction(p.x, p.z, 120); }
+    if (S.hp <= 0) { G.progress && G.progress.event('london_eye'); S.state = 'falling'; S.angV = 0.04; const p = this.eyePivot.position; sfx.collapse(p.x, p.z, 60); G.news && G.news.destruction && G.news.destruction(p.x, p.z, 120); }
   }
   // falling: slowly at first, then faster; the rim crushes whatever it sweeps through; then the landing
   updateEye(dt) {
