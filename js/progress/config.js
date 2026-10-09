@@ -3,7 +3,7 @@
 // database only accepts scores through the checked submit_score function, see server/leaderboard.sql). Never put a
 // service-role key here.
 export const LEADERBOARD = {
-  provider: '',          // 'supabase'
-  url: '',               // e.g. 'https://abcdefgh.supabase.co'
-  anonKey: '',
+  provider: 'supabase',
+  url: 'https://qfmvnctlbthopdmuuaxt.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbXZuY3RsYnRob3BkbXV1YXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MDg0MTIsImV4cCI6MjEwNzA4NDQxMn0.Tg6dbqrHbQPTXYMFYT8NI0ibytFnDdistMnpLJKKnWw',   // the public anon key
 };
