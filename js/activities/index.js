@@ -1,6 +1,7 @@
 // The mini-games: what each is, where it starts, its modes, controls and medal targets. The hub (hub.js) shows them
 // in the PLAY menu and at their start beacons; `make` is the class that runs one.
 import { TrafficCutUp, TRAFFIC_CFG } from './traffic.js';
+import { SnowmobileTrial } from './sled.js';
 
 export const ACTIVITY_DEFS = [
   {
@@ -17,5 +18,20 @@ export const ACTIVITY_DEFS = [
     note: 'Near misses only count at speed while actually overtaking, once per car. Scraping a car or the barrier loses the combo; a hard hit is a crash.',
     at: () => ({ x: TRAFFIC_CFG.I15 + 11, z: 150, y: 0, tagH: 5 }),
     minimap: true, make: TrafficCutUp,
+  },
+  {
+    id: 'sled', map: 'greenland', where: 'Sisimiut', name: 'Snowmobile Jump & Time Trial', icon: '🏂', tag: 'A snowcross loop with big jumps',
+    desc: 'A groomed snowcross track on the snowfield east of town: a tabletop, rollers, a big gap jump, a risky shortcut over a mega gap, ice and rocks to dodge. Land clean to score; pass every gate for the lap to count.',
+    modes: [
+      { id: 'trial', name: 'Time trial', desc: 'One lap against the clock. The time starts as you cross the line; every checkpoint, in order.' },
+      { id: 'stunt', name: 'Stunt run', desc: 'One lap scored on jumps: distance, airtime and clean landings, chained together.' },
+    ],
+    controls: [['W / ↑', 'throttle · in the air: lean forward'], ['S / ↓', 'brake · in the air: lean back'], ['A D / ← →', 'steer'], ['Shift', 'boost'], ['Space', 'handbrake slide'], ['V', 'camera distance'], ['R', 'restart'], ['Esc', 'leave']],
+    hudKeys: [['W S', 'throttle · lean'], ['A D', 'steer'], ['Shift', 'boost'], ['R', 'restart'], ['Esc', 'leave']],
+    medals: { trial: { bronze: 42, silver: 35, gold: 31, unit: 's', better: 'low' }, stunt: { bronze: 2500, silver: 4500, gold: 7000, unit: 'pts', better: 'high' } },
+    records: ['sled_time', 'sled_clean', 'sled_jump', 'sled_stunt'],
+    note: 'Landing matched to the slope is PERFECT; nose-first or flat on the back is a wipeout. Jumps only score taken off the course, and taking off from the same spot again and again pays less each time. The shortcut is faster if you clear the gap.',
+    at: () => ({ x: 106, z: 20, tagH: 6 }),
+    minimap: true, make: SnowmobileTrial,
   },
 ];

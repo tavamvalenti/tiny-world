@@ -693,6 +693,13 @@ export const sfx = {
     const t = now(), ch = chain(x, z, { vol: 0.5 * v });
     burst(ch.input, t, { buf: pink, type: 'bandpass', f: 1800, q: 1.4, a: 0.05, peak: 0.6, d: 0.35, sweep: 650 });
   },
+  // a heavy landing in snow (the snowmobile coming down off a jump): a soft low thud with a crunch
+  thump(x, z, v = 1) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.7 * v });
+    burst(ch.input, t, { buf: brown, type: 'lowpass', f: 260, a: 0.004, peak: 1, d: 0.28 });
+    burst(ch.input, t + 0.01, { buf: pink, type: 'bandpass', f: 2400, q: 0.8, a: 0.004, peak: 0.25 * v, d: 0.16 });
+  },
   // Tyre squeal leading into a collision
   skid(x, z, d = 0.6) {
     if (!init()) return;

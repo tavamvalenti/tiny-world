@@ -35,6 +35,10 @@ export const RECORDS = {
   traffic_distance: { label: 'Highway Cut-Up: survival distance', unit: 'm', better: 'high', perMap: false, board: true, max: 1e6, icon: 'car', group: 'Highway Cut-Up' },
   traffic_combo: { label: 'Highway Cut-Up: highest combo', unit: 'x', better: 'high', perMap: false, board: true, max: 5000, icon: 'car', group: 'Highway Cut-Up' },
   traffic_clean: { label: 'Highway Cut-Up: longest clean run', unit: 'm', better: 'high', perMap: false, board: true, max: 1e6, icon: 'car', group: 'Highway Cut-Up' },
+  sled_time: { label: 'Snowmobile: fastest lap', unit: 's', better: 'low', perMap: false, board: true, min: 20, max: 900, icon: 'sled', group: 'Snowmobile' },
+  sled_clean: { label: 'Snowmobile: fastest clean lap', unit: 's', better: 'low', perMap: false, board: true, min: 20, max: 900, icon: 'sled', group: 'Snowmobile' },
+  sled_jump: { label: 'Snowmobile: longest jump', unit: 'm', better: 'high', perMap: false, board: true, max: 400, icon: 'sled', group: 'Snowmobile' },
+  sled_stunt: { label: 'Snowmobile: highest stunt score', unit: 'pts', better: 'high', perMap: false, board: true, max: 2e6, icon: 'sled', group: 'Snowmobile' },
   boats_session: { label: 'Boats sunk in one visit', unit: 'boats', better: 'high', perMap: true, board: false, max: 500, icon: 'boat' },
 };
 
@@ -76,6 +80,11 @@ export const ACHIEVEMENTS = [
   { id: 'cutup_score', name: 'Highway Star', desc: 'Score 40,000 in the 90-second Highway Cut-Up.', cat: 'Mini-games', xp: 300, test: (S) => [Math.round(S.best.traffic_score90 || 0), 40000] },
   { id: 'cutup_far', name: 'Long Haul', desc: 'Survive 10 km in endless Highway Cut-Up.', cat: 'Mini-games', xp: 300, test: (S) => [Math.round((S.best.traffic_distance || 0) / 1000), 10] },
   { id: 'cutup_misses', name: 'Close Shave', desc: 'Make 250 near misses on the highway.', cat: 'Mini-games', xp: 200, test: (S) => [Math.round((((S.acts || {}).traffic || {}).totals || {}).nearMisses || 0), 250] },
+  { id: 'sled_first', name: 'Fresh Powder', desc: 'Finish a valid snowmobile lap.', cat: 'Mini-games', xp: 50, test: (S) => [Math.round((((S.acts || {}).sled || {}).totals || {}).laps || 0), 1] },
+  { id: 'sled_big', name: 'Big Air', desc: 'Land a 40 m snowmobile jump.', cat: 'Mini-games', xp: 250, test: (S) => [Math.round(S.best.sled_jump || 0), 40] },
+  { id: 'sled_clean', name: 'Clean Sheet', desc: 'Finish a snowmobile lap without a wipeout.', cat: 'Mini-games', xp: 150, test: (S) => [S.best.sled_clean ? 1 : 0, 1] },
+  { id: 'sled_stunt', name: 'Stuntman', desc: 'Score 6,000 stunt points in one lap.', cat: 'Mini-games', xp: 300, test: (S) => [Math.round(S.best.sled_stunt || 0), 6000] },
+  { id: 'sled_perfect', name: 'Stomped It', desc: 'Land 25 perfect snowmobile jumps.', cat: 'Mini-games', xp: 200, test: (S) => [Math.round((((S.acts || {}).sled || {}).totals || {}).perfects || 0), 25] },
   // landmarks with their own events
   { id: 'eye_down', name: 'Eye Sore', desc: 'Topple the London Eye.', cat: 'Landmarks', xp: 300, test: (S) => [S.events.london_eye || 0, 1] },
   { id: 'big_ben', name: 'Time Out', desc: "Bring down Big Ben.", cat: 'Landmarks', xp: 250, test: (S) => [(S.landmarks.london || []).includes('Big Ben') ? 1 : 0, 1] },

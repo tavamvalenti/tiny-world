@@ -11,7 +11,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 export const RIDES = {
   car: { vmax: 34, boostMax: 44, accel: 15, boostAccel: 26, brake: 32, grip: 9, turn: 2.1, turnFall: 22, halfW: 0.33, halfL: 0.76, gravity: 22, lean: 0 },
-  sled: { vmax: 27, boostMax: 33, accel: 13, boostAccel: 20, brake: 22, grip: 5.5, turn: 2.3, turnFall: 18, halfW: 0.3, halfL: 0.62, gravity: 16, lean: 2.6 },
+  sled: { vmax: 27, boostMax: 33, accel: 13, boostAccel: 20, brake: 22, grip: 5.5, turn: 2.3, turnFall: 18, halfW: 0.3, halfL: 0.62, gravity: 16, lean: 1.0 },
 };
 
 export class Ride {
@@ -66,7 +66,7 @@ export class Ride {
     } else {
       // in the air: no grip, a little steering (for style), lean back / forward with the throttle keys
       this.yaw += -c.steer * 0.9 * dt;
-      this.lean = clamp(this.lean + (c.leanFwd || 0) * P.lean * dt, -1.2, 1.2);
+      this.lean = clamp(this.lean + (c.leanFwd || 0) * P.lean * dt, -0.8, 0.8);
     }
     // world velocity on the ground plane
     const f = this.fwd, r = this.right;
@@ -88,7 +88,7 @@ export class Ride {
       this.pos.y += this.vy * dt;
       if (this.pos.y <= g) {
         // touch down: judge the landing by how the vehicle meets the slope (its pitch against the ground's)
-        const n = this.normalAt(this.pos.x, this.pos.z), slopePitch = Math.atan2(-(n.x * f.x + n.z * f.z), n.y);
+        const ah = this.pos.clone().addScaledVector(f, 0.7), n = this.normalAt(ah.x, ah.z), slopePitch = Math.atan2(-(n.x * f.x + n.z * f.z), n.y);
         const err = Math.abs(this.pitch - slopePitch) + Math.abs(this.roll) * 0.5, impact = Math.max(0, -this.vy);
         landed = { airT: this.airT, from: this.takeoff, to: this.pos.clone(), err, impact };
         this.pos.y = g; this.air = false;
@@ -117,7 +117,7 @@ export class Ride {
       this.pitch += (tp - this.pitch) * (1 - Math.exp(-dt * 14)); this.roll += (tr - this.roll) * (1 - Math.exp(-dt * 14));
     } else {
       // in the air the nose follows the flight path, plus the rider's lean
-      const path = Math.atan2(this.vy, Math.max(4, this.speed)) * 0.6 - this.lean * 0.6;
+      const path = Math.atan2(this.vy, Math.max(4, this.speed)) * 0.6 - this.lean * 0.5;
       this.pitch += (path - this.pitch) * (1 - Math.exp(-dt * 3)); this.roll *= Math.exp(-dt * 2);
     }
     M.root.position.copy(this.pos);
