@@ -126,7 +126,15 @@ export class ProgressUI {
     if (t.dataset.eq) { const [slot, id] = t.dataset.eq.split('|'); this.p.equip(slot, id); this.render(); return; }
     const a = t.dataset.a;
     if (a === 'close') this.close();
-    if (a === 'name') { const v = this.panel.querySelector('#ppName').value; if (!this.p.setName(v)) this.panel.querySelector('#ppNameMsg').textContent = 'Use 3 to 18 letters, numbers, spaces, dots, dashes or underscores.'; else this.render(); }
+    if (a === 'name') {
+      const v = this.panel.querySelector('#ppName').value, msg = this.panel.querySelector('#ppNameMsg');
+      msg.textContent = 'Checking…'; this.busy = true;
+      this.p.setName(v).then((r) => {
+        this.busy = false;
+        if (r.ok) { this.render(); const m = this.panel.querySelector('#ppNameMsg'); if (m) m.textContent = r.local || r.offline ? 'Saved. It will be checked when the leaderboards are reachable.' : 'Saved. That name is yours.'; }
+        else msg.textContent = r.reason === 'taken' ? 'That name is already taken by another player. Try a different one.' : 'Use 3 to 18 letters, numbers, spaces, dots, dashes or underscores.';
+      });
+    }
     if (a === 'card') this.downloadCard();
     if (a === 'retry') { this.p.lb.flush().then(() => this.render()); }
   }
@@ -137,7 +145,7 @@ export class ProgressUI {
     const visited = Object.keys(S.maps).length, places = Object.values(S.discovered).reduce((a, b) => a + b.length, 0);
     const fav = Object.entries(S.mapStats).sort((a, b) => (b[1].time || 0) - (a[1].time || 0))[0];
     const h = Math.floor(S.time / 3600), m = Math.floor((S.time % 3600) / 60);
-    return `<div class="row"><input id="ppName" value="${esc(P.name)}" maxlength="18" aria-label="Display name"><button data-a="name">SAVE NAME</button><span id="ppNameMsg" class="note">Your name on the leaderboards. No real names needed.</span></div>
+    return `<div class="row"><input id="ppName" value="${esc(P.name)}" maxlength="18" aria-label="Display name"><button data-a="name">SAVE NAME</button><span id="ppNameMsg" class="note">${P.nameStatus === 'taken' ? 'Your name is taken by another player: choose a new one to keep sending scores.' : 'Your name on the leaderboards (each name is unique). No real names needed.'}</span></div>
       <h4>RANK</h4><div class="it"><b>${esc(p.rank.name)} · ${P.xp.toLocaleString()} XP</b><div class="pb"><i style="width:${n ? Math.min(100, ((P.xp - p.rank.xp) / (n.xp - p.rank.xp)) * 100) : 100}%"></i></div><div class="meta"><span>${n ? `${(n.xp - P.xp).toLocaleString()} XP to ${esc(n.name)}` : 'Top rank'}</span><span>${p.unlockedCount} / ${D.ACHIEVEMENTS.length} achievements</span></div></div>
       <h4>LIFETIME</h4><div class="grid">
         ${[['Blocks destroyed', S.cells.toLocaleString()], ['Property damage', money(S.damage)], ['Landmarks brought down', Object.values(S.landmarks).reduce((a, b) => a + b.length, 0)], ['Boats sunk', S.boats], ['Cities visited', `${visited} / ${D.ALL_MAPS.length}`], ['Places discovered', places], ['Challenges completed', S.challengesDone], ['Time played', `${h}h ${m}m`], ['Favourite city', fav ? D.MAP_LABELS[fav[0]] : '—']].map(([k, v]) => `<div class="it"><p>${k}</p><b>${v}</b></div>`).join('')}</div>

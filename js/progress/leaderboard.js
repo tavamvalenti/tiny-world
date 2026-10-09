@@ -17,6 +17,7 @@ class SupabaseProvider {
       return data;
     } finally { clearTimeout(t); }
   }
+  claim(player, name) { return this.rpc('claim_name', { p_player: player, p_name: name }); }
   submit(s) { return this.rpc('submit_score', { p_player: s.player, p_name: s.name, p_category: s.category, p_map: s.map || '', p_value: s.value, p_evidence: s.evidence || {}, p_version: VERSION }); }
   top(category, map, limit) { return this.rpc('top_scores', { p_category: category, p_map: map || '', p_limit: limit }); }
   mine(category, map, player) { return this.rpc('my_rank', { p_category: category, p_map: map || '', p_player: player }); }
@@ -42,12 +43,34 @@ export class Leaderboard {
     if (i >= 0) { const o = P.pending[i]; if (def.better === 'low' ? value < o.value : value > o.value) P.pending[i] = s; } else P.pending.push(s);
     clearTimeout(this.flushT); this.flushT = setTimeout(() => this.flush(), 3000);
   }
+  // names are unique across all players (the server decides). A random default name that clashes is re-rolled; a
+  // name the player chose that turns out to be taken pauses sending until they pick another
+  async claimName(name) {
+    if (!this.provider) return { ok: true, local: true };
+    try {
+      const r = await this.provider.claim(this.progress.P.id, name);
+      if (r && r.ok) { this.progress.P.nameClaimed = name; return { ok: true }; }
+      return { ok: false, reason: (r && r.reason) || 'taken' };
+    } catch (e) { if (e.status === 400 && /bad name/.test(e.message)) return { ok: false, reason: 'bad' }; return { ok: true, offline: true }; }
+  }
+  async ensureName() {
+    const P = this.progress.P;
+    if (P.nameClaimed && P.nameClaimed === P.name) return true;
+    for (let k = 0; k < 6; k++) {
+      const r = await this.claimName(P.name);
+      if (r.ok) { if (!r.offline) P.nameStatus = 'ok'; return !r.offline; }
+      if (r.reason === 'taken' && /^Player-\d+$/.test(P.name)) { P.name = `Player-${Math.floor(1000 + Math.random() * 9000)}${k > 2 ? Math.floor(Math.random() * 10) : ''}`; continue; }
+      P.nameStatus = 'taken'; this.status = 'name'; this.lastError = 'That name belongs to another player: choose a different one in your profile.'; return false;
+    }
+    return false;
+  }
   async flush() {
     if (!this.provider || this.flushing) return;
     if (!navigator.onLine) { this.status = 'offline'; return; }
     this.flushing = true;
     const P = this.progress.P;
     try {
+      if (P.pending.length && !(await this.ensureName())) return;
       while (P.pending.length) {
         const s = P.pending[0];
         try {
@@ -55,6 +78,7 @@ export class Leaderboard {
           (P.global ||= {})[`${s.category}:${s.map}`] = { value: s.value, rank: res && res.rank, at: Date.now() };
           P.pending.shift(); this.status = 'ready';
         } catch (e) {
+          if (/name taken/i.test(e.message)) { P.nameClaimed = null; if (!(await this.ensureName())) break; continue; }   // someone has that name now
           if (e.status >= 400 && e.status < 500 && e.status !== 429 && !/slow down/i.test(e.message)) { (P.rejected ||= []).push({ ...s, why: e.message }); P.pending.shift(); this.lastError = e.message; continue; }   // refused by the server's checks
           this.status = e.status === 429 ? 'ready' : 'error'; this.lastError = e.message; break;                                                                          // try again later
         }

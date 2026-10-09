@@ -348,9 +348,15 @@ export class Progress {
   }
   // what's equipped in a slot (the value for paint and palettes; the label for titles)
   equipped(slot) { const id = this.P.equipped[slot], r = D.REWARDS.find((x) => x.id === id); return r && this.P.unlocked[id] ? (r.value ?? r.label) : null; }
-  setName(n) {
-    const clean = String(n || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, 18);
-    if (clean.length < 3) return false;
-    this.P.name = clean; this.touch(true); return true;
+  // a new display name: checked with the leaderboard service, which keeps every name unique
+  async setName(n) {
+    const clean = String(n || '').replace(/[^A-Za-z0-9 _.\-]/g, '').trim().slice(0, 18);
+    if (clean.length < 3) return { ok: false, reason: 'bad' };
+    if (clean.toLowerCase() === (this.P.nameClaimed || '').toLowerCase() && clean === this.P.name) return { ok: true };
+    const r = await this.lb.claimName(clean);
+    if (!r.ok) return r;
+    this.P.name = clean; this.P.nameStatus = r.local || r.offline ? 'unchecked' : 'ok'; if (r.local || r.offline) this.P.nameClaimed = null;
+    this.touch(true); this.lb.flush();
+    return r;
   }
 }
