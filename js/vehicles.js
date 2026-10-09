@@ -19,7 +19,7 @@ const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quater
 
 const KINDS = {
   drone: { name: 'Armed Drone', sub: 'Machine gun · grenades · explodes if rammed', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'boost'], ['Click', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
-  chair: { name: 'Balloon Chair', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'turn · aim'], ['W S', 'forward / back'], ['A D', 'slide sideways'], ['Space', 'rise (balloons fill)'], ['C / Ctrl', 'sink (balloons let go)'], ['Shift', 'faster'], ['Click', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
+  chair: { name: 'Balloon Chair', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'turn · aim'], ['W S', 'forward / back'], ['A D', 'slide sideways'], ['Space', 'rise (balloons fill)'], ['⌘ Cmd', 'hold: drop balloons, sink'], ['Shift', 'faster'], ['Click', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
   jetpack: { name: 'Jetpack', sub: 'Machine gun · grenade launcher · real gravity', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'thrust where you point'], ['A D', 'strafe'], ['Space', 'thrust up'], ['—', 'let go and you fall'], ['Shift', 'thrust burst'], ['Click', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
 };
 
@@ -187,6 +187,9 @@ export class VehicleMode {
       if (c === 'KeyV') this.zoom = this.zoom > 1.2 ? 0.75 : this.zoom < 0.9 ? 1 : 1.5;
     }
     this.keys[c] = down;
+    // macOS drops the key-ups of anything pressed while Command is down: let go of Command and the movement keys
+    // reset (a key still held comes straight back on its repeat)
+    if (!down && (c === 'MetaLeft' || c === 'MetaRight')) for (const kk of Object.keys(this.keys)) if (kk.startsWith('Key') || kk === 'Space' || kk.startsWith('Shift')) this.keys[kk] = false;
     e.preventDefault();
     return true;
   }
@@ -389,7 +392,7 @@ export class VehicleMode {
     const k = this.keys, B = G.buildings, M = this.model;
     this.yaw -= turn;
     const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0), boost = k.ShiftLeft || k.ShiftRight;
-    const up = !!k.Space, down = !!(k.KeyC || k.ControlLeft || k.ControlRight) && !up;
+    const up = !!k.Space, down = !!(k.MetaLeft || k.MetaRight || k.KeyC || k.ControlLeft || k.ControlRight) && !up;   // Command (or C / Ctrl): let balloons go
     const fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), rt = _v2.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const wish = new THREE.Vector3().addScaledVector(fw, f).addScaledVector(rt, s); if (wish.lengthSq() > 1) wish.normalize();
     const vmax = boost ? 13 : 8;
