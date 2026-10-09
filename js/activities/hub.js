@@ -214,6 +214,7 @@ export class ActivityHub {
     this.gameEl.innerHTML = ''; this.popEl.innerHTML = '';
     this.hud.querySelector('.ah-keys').innerHTML = (d.hudKeys || d.controls).map(([k, t]) => `<span>${t}${k.split(' / ').map((x) => `<b class="key">${x}</b>`).join('')}</span>`).join('');
     document.body.classList.add('act-on'); document.body.classList.toggle('act-map', !!d.minimap);
+    this.runId = `${d.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;   // this run's payout can be claimed once
     this.cur = new d.make(this, d);
     this.cur.start(mode);
     G.progress && G.progress.activityStarted && G.progress.activityStarted(d.id, mode);
@@ -247,7 +248,7 @@ export class ActivityHub {
       const better = (a, b) => (med.better === 'low' ? a <= b : a >= b);
       medal = better(r.medalValue, med.gold) ? 'gold' : better(r.medalValue, med.silver) ? 'silver' : better(r.medalValue, med.bronze) ? 'bronze' : null;
     }
-    const out = r.valid && G.progress ? G.progress.activityRun(d.id, { title: d.name, better: med ? med.better : 'high', mode: this.mode, medal, best: r.medalValue, records: r.records || {}, evidence: r.evidence || {}, xp: r.xp || 0, stats: r.stats || {} }) : { pbs: [], xp: 0 };
+    const out = r.valid && G.progress ? G.progress.activityRun(d.id, { runId: this.runId, payload: r, title: d.name, better: med ? med.better : 'high', mode: this.mode, medal, best: r.medalValue, records: r.records || {}, evidence: r.evidence || {}, xp: r.xp || 0, stats: r.stats || {} }) : { pbs: [], xp: 0, cash: { lines: [], total: 0 } };
     const pbLabels = out.pbs.map((k) => (RECORDS[k] ? RECORDS[k].label.replace(/^[^:]*: /, '') : k));
     this.res.innerHTML = `<div class="ac-p" style="width:min(420px,100%)"><div class="ac-b" style="padding-top:18px">
       <div class="ar-sub">${esc(r.title || d.name.toUpperCase())}</div>
@@ -256,6 +257,7 @@ export class ActivityHub {
       ${med ? `<div class="ar-medal ${medal || 'none'}">${medal ? `${medal.toUpperCase()} MEDAL` : `NO MEDAL · BRONZE AT ${fmtVal(med.bronze, med.unit)}`}</div>` : ''}
       ${pbLabels.length ? `<div class="ar-pb">★ NEW PERSONAL BEST: ${esc(pbLabels.join(' · ').toUpperCase())}</div>` : ''}
       <div class="ar-grid">${(r.lines || []).map(([a, b]) => `<span>${esc(a)}</span><span>${esc(b)}</span>`).join('')}${out.xp ? `<span>XP earned</span><span style="color:#ffd46b">+${out.xp}</span>` : ''}</div>
+      ${out.cash && out.cash.lines.length ? `<div class="ar-cash"><div class="ar-sub" style="color:#7ff0a8;margin-top:14px">CASH</div><div class="ar-grid">${out.cash.lines.map(([a, b]) => `<span>${esc(a)}</span><span style="color:${b < 0 ? '#ff9a7a' : '#7ff0a8'}">${fmtCash(b, true)}</span>`).join('')}<span><b>Paid to your wallet</b></span><span style="color:#7ff0a8;font-size:15px">${fmtCash(out.cash.total, true)}</span><span style="opacity:.6">Balance</span><span style="opacity:.8">${fmtCash(G.progress.wallet.cash)}</span></div></div>` : ''}
       <div class="ar-btns"><button class="pri" data-a="retry">RETRY<span class="key">R</span></button><button data-a="modes">MODES</button><button data-a="exit">EXIT<span class="key">ESC</span></button></div></div></div>`;
     this.res.classList.add('open');
     if (document.pointerLockElement) document.exitPointerLock();
@@ -306,5 +308,7 @@ export function fmtVal(v, unit) {
   if (unit === 's') { const m = Math.floor(v / 60), s = v - m * 60; return m ? `${m}:${s.toFixed(2).padStart(5, '0')}` : `${s.toFixed(2)} s`; }
   if (unit === 'm') return v >= 1000 ? `${(v / 1000).toFixed(2)} km` : `${Math.round(v)} m`;
   if (unit === 'x') return `x${Math.round(v)}`;
+  if (unit === 'cash') return fmtCash(v);
   return `${Math.round(v).toLocaleString()}${unit ? ' ' + unit : ''}`;
 }
+export const fmtCash = (v, sign = false) => `${v < 0 ? '−' : sign ? '+' : ''}$${Math.abs(Math.round(v)).toLocaleString()}`;

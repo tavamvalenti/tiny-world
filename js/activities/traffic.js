@@ -43,7 +43,7 @@ export class TrafficCutUp {
     const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 0.3, 0.06), rail, 640); for (let i = 0; i < 640; i++) posts.setMatrixAt(i, new THREE.Matrix4().makeTranslation(C.I15 + 8.25, 0.15, -1250 + i * 3.9));
     for (const m of [bar, gr, posts]) { G.scene.add(m); this.disposables.push(m); }
     // the car, on the inside lane south of the Strip, stopped; the cars right round it are cleared
-    this.ride = new Ride(G.scene, () => 0, { kind: 'car', paint: 0xff5a1f });
+    this.ride = new Ride(G.scene, () => 0, { kind: 'car', paint: (G.progress && G.progress.equipped('car_paint')) ?? 0xff5a1f, flame: G.progress && G.progress.equipped('car_flame') });
     const x0 = C.I15 + C.lanes[1], z0 = 230;
     for (const c of this.north) if (Math.abs(c.z - z0) < 45) c.z = z0 - 45 - Math.random() * 60;
     this.ride.place(x0, z0, 0, 0); this.ride.refill = 0.02;
@@ -301,7 +301,7 @@ export class TrafficCutUp {
       headlineLabel: this.mode === 'score90' ? 'POINTS' : why === 'crash' ? `WRECKED · ${score.toLocaleString()} POINTS` : `${score.toLocaleString()} POINTS`,
       medalValue: this.mode === 'score90' ? score : distM, lines, records, evidence,
       xp: this.mode === 'score90' ? Math.min(80, 15 + score / 1500) : Math.min(80, 15 + distM / 250),
-      stats: { runs: 1, nearMisses: this.nearMisses, km: distM / 1000, max_combo: this.bestCombo },
+      score, stats: { runs: 1, nearMisses: this.nearMisses, km: distM / 1000, max_combo: this.bestCombo, collisions: this.collisions, cleanM: Math.round(this.bestClean) },
     }), why === 'crash' ? 1400 : 300);
     void C;
   }

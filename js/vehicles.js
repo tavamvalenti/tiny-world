@@ -202,6 +202,8 @@ export class VehicleMode {
     this.kind = kind; this.active = true;
     G.progress && G.progress.vehicle(kind);
     this.buildFx();
+    const tc = G.progress && G.progress.equipped('drone_tracer');                 // the tracers' colour from the shop
+    this.tracers.material.color.set(tc ?? 0xffa040).multiplyScalar(2.6);
     this.model = kind === 'drone' ? this.buildDrone() : kind === 'chair' ? this.buildChair() : this.buildJetpack();
     this.scene.add(this.model.root, this.fxGroup);
     // appear above where the view was looking, facing the way it faced

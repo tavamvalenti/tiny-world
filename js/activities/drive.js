@@ -22,7 +22,7 @@ export class Ride {
     this.pos = new THREE.Vector3(); this.vel = new THREE.Vector3();
     this.yaw = 0; this.v = 0; this.vx = 0; this.vy = 0; this.air = false; this.airT = 0;
     this.pitch = 0; this.roll = 0; this.lean = 0; this.spin = 0; this.boost = 1;
-    this.model = this.kind === 'sled' ? buildSled(opts.paint) : buildCar(opts.paint);
+    this.model = this.kind === 'sled' ? buildSled(opts.paint) : buildCar(opts.paint, opts.flame);
     scene.add(this.model.root);
     this.engine = new EngineSynth(this.kind === 'sled' ? 'sled' : 'car'); this.engine.start();
   }
@@ -136,7 +136,7 @@ const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness
 function addBox(p, w, h, d, m, x, y, z) { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; }
 
 // a low wedge sports car, a little bigger than the traffic so it reads, its nose to -z
-function buildCar(paint = 0xff5a1f) {
+function buildCar(paint = 0xff5a1f, flameCol = null) {
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const pm = mat(paint, { roughness: 0.25, metalness: 0.55 }), dark = mat(0x16181c, { roughness: 0.6 }), glass = mat(0x0c1218, { roughness: 0.05, metalness: 0.9 });
   const lit = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.3, 2) }), tail = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 0.15, 0.1) });
@@ -153,7 +153,7 @@ function buildCar(paint = 0xff5a1f) {
   const wg = new THREE.CylinderGeometry(0.13, 0.13, 0.1, 12).rotateZ(Math.PI / 2), wm = mat(0x111214, { roughness: 0.8 });
   for (const [x, z] of [[0.31, -0.5], [-0.31, -0.5], [0.31, 0.5], [-0.31, 0.5]]) { const w = new THREE.Mesh(wg, wm); w.position.set(x, 0.13, z); w.castShadow = true; root.add(w); wheels.push(w); }
   // boost flames out of the exhausts
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.4, 8).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.5, 1.4, 0.5), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.4, 8).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: flameCol != null ? new THREE.Color(flameCol).multiplyScalar(2.4) : new THREE.Color(2.5, 1.4, 0.5), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));   // the boost flames (their colour from the shop)
   const flames = [flame, flame.clone()]; flames[0].position.set(0.12, 0.16, 0.95); flames[1].position.set(-0.12, 0.16, 0.95); for (const fl of flames) root.add(fl);
   let roll = 0;
   return {

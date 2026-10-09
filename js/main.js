@@ -644,7 +644,7 @@ initMenu();                                                    // the title scre
     const ranks = Object.values(P.global || {}).map((g) => g && g.rank).filter((r) => r > 0), best = ranks.length ? Math.min(...ranks) : 0;
     const badge = progress.lb.configured ? `<span class="mp-rank ${best ? '' : 'none'}" title="Your best global leaderboard placing">${best ? `GLOBAL #${best}` : 'UNRANKED'}</span>` : '';
     box.innerHTML = `<div class="mp-top"><span class="mp-k">PROFILE</span>${badge}</div><div class="mp-n">${esc(P.name)}</div><div class="mp-r">${esc((progress.equipped('title') || r.name).toUpperCase())}</div>
-      <div class="mp-b"><i style="width:${pct}%"></i></div><div class="mp-s"><span>${P.xp.toLocaleString()} XP</span><span>${progress.unlockedCount} achievements</span></div>${progress.lb.configured ? '<button class="mp-gl" data-gl="1">GLOBAL RANKINGS</button>' : ''}`;
+      <div class="mp-b"><i style="width:${pct}%"></i></div><div class="mp-s"><span>${P.xp.toLocaleString()} XP</span><span style="color:#7ff0a8;font-weight:800">$${(progress.wallet ? progress.wallet.cash : 0).toLocaleString()}</span><span>${progress.unlockedCount} achievements</span></div>${progress.lb.configured ? '<button class="mp-gl" data-gl="1">GLOBAL RANKINGS</button>' : ''}`;
   };
   // once, when the menu opens: send anything waiting and refresh where you stand on each board (others may have passed you)
   (async () => {

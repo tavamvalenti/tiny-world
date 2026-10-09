@@ -47,7 +47,7 @@ export const MACHINES = [
     ],
     pays: { DRAGON: 400, WILD: 1000, GOLD: 120, PEARL: 40, COIN: 15, JP: 1000 },
     bonus: { kind: 'pick', picks: [5, 10, 10, 25, 25, 50, 100], scatterPay: 0 },   // 3 BONUS anywhere: pick a chest, it pays that many times the total bet
-    jackpot: { seed: 50000, share: 0.02 },                     // JACKPOT x3 on the centre line at the top bet wins the progressive pot (2% of every bet feeds it); otherwise 1,000x the line bet
+    jackpot: { seed: 25000, share: 0.02 },                     // JACKPOT x3 on the centre line at the top bet wins the progressive pot (2% of every bet feeds it); otherwise 1,000x the line bet
   },
 ];
 

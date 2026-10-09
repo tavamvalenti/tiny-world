@@ -15,6 +15,26 @@ const CSS = `
 #progChip small{display:block;font:500 9px Inter;letter-spacing:.08em;color:rgba(255,255,255,.55);margin-top:3px}
 html.touch #progChip{top:calc(var(--st,0px) + 54px);left:12px;transform:scale(.9);transform-origin:left top}
 body.rick-on #progChip,body.veh-on #progChip{opacity:.55}
+#cashChip{position:absolute;left:16px;top:calc(4.2vh + 118px);display:flex;align-items:center;gap:7px;padding:5px 12px 5px 7px;border-radius:999px;cursor:pointer;pointer-events:auto;user-select:none;
+  background:rgba(10,24,16,.62);border:1px solid rgba(120,240,170,.32);backdrop-filter:blur(8px);font:800 13px Inter;color:#d8ffe8;font-variant-numeric:tabular-nums;letter-spacing:.02em;transition:transform .2s,border-color .2s;box-shadow:0 6px 18px -8px rgba(0,0,0,.6)}
+#cashChip:hover{transform:translateY(-1px);border-color:rgba(120,240,170,.7)}
+#cashChip .cs-ic{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:900 11px Inter;color:#0c2a18;background:linear-gradient(135deg,#9affc4,#2ac86a)}
+#cashChip.pulse{animation:cashPulse .5s ease-out}
+@keyframes cashPulse{40%{transform:scale(1.08);border-color:#7ff0a8}}
+#cashChip .cs-fl{position:absolute;left:100%;margin-left:8px;white-space:nowrap;font:800 11px Inter;color:#7ff0a8;text-shadow:0 1px 3px rgba(0,0,0,.8);animation:cashFloat 2.2s ease-out forwards;pointer-events:none}
+#cashChip .cs-fl.neg{color:#ff9a7a}
+@keyframes cashFloat{0%{opacity:0;transform:translateY(4px)}12%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+html.touch #cashChip{top:calc(var(--st,0px) + 96px);left:12px;transform:scale(.9);transform-origin:left top}
+body.rick-on #cashChip,body.veh-on #cashChip,body.act-on #cashChip{opacity:.6}
+#progPanel .shop-it{display:flex;flex-direction:column;gap:6px}
+#progPanel .shop-it .pr{font:900 14px Inter;color:#7ff0a8}
+#progPanel .shop-it button{align-self:flex-start;font:800 10px Inter;letter-spacing:.16em;padding:7px 12px;border-radius:999px;border:1px solid rgba(120,240,170,.5);background:rgba(120,240,170,.12);color:#d8ffe8;cursor:pointer}
+#progPanel .shop-it button.confirm{background:#7ff0a8;color:#0c2a18}
+#progPanel .shop-it button:disabled{opacity:.4;cursor:default}
+#progPanel .shop-it.owned{border-color:rgba(127,240,168,.35)}
+#progPanel .bal{font:900 34px Inter;color:#7ff0a8;font-variant-numeric:tabular-nums}
+#progPanel .tx td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.06);font:500 11.5px Inter}
+#progPanel .tx td.a{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
 #progToasts{position:absolute;left:50%;top:calc(4.2vh + 58px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;z-index:6}
 .pt{display:flex;align-items:center;gap:9px;padding:7px 14px;border-radius:999px;background:rgba(12,14,18,.72);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);font:600 11px Inter;letter-spacing:.06em;color:#f2f4f6;
   box-shadow:0 8px 24px -10px rgba(0,0,0,.6);animation:ptIn .3s cubic-bezier(.2,1.2,.4,1),ptOut .4s ease-in forwards;animation-delay:0s,var(--life,3s)}
@@ -57,6 +77,7 @@ const ICON = {
   drone: '<path d="M4 7h6M14 7h6M7 7l3 5h4l3-5"/><rect x="9" y="11" width="6" height="4" rx="1"/><path d="M12 15v4"/>', jet: '<rect x="6" y="5" width="4" height="12" rx="2"/><rect x="14" y="5" width="4" height="12" rx="2"/><path d="M8 17l-1 4M16 17l1 4"/>',
   balloon: '<circle cx="12" cy="9" r="6"/><path d="M12 15v7"/>', boat: '<path d="M3 15h18l-3 5H6zM12 4v11M12 4l6 8h-6"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
   tower: '<path d="M8 22V8l4-6 4 6v14M8 12h8M8 17h8"/>', car: '<path d="M3 15l2-5c.5-1.2 1.5-2 3-2h8c1.5 0 2.5.8 3 2l2 5v3H3z"/><circle cx="7.5" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/>',
+  cash: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 9v6M18 9v6"/>',
   sled: '<path d="M3 17h13l5-3M6 17l2-5h6l3 3M9 12l1-4h3"/><path d="M2 20h14"/>', chip: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/>', target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>', crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 12H5z"/>',
 };
 const svg = (k, s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICON[k] || ICON.boom}</svg>`;
@@ -64,6 +85,7 @@ const fmt = (v, unit) => {
   if (unit === 'm') return v >= 1000 ? `${(v / 1000).toFixed(2)} km` : `${(+v).toFixed(1)} m`;
   if (unit === 's') { const m = Math.floor(v / 60), x = v - m * 60; return m ? `${m}:${x.toFixed(2).padStart(5, '0')}` : `${(+v).toFixed(2)} s`; }
   if (unit === 'x') return `x${Math.round(v)}`;
+  if (unit === 'cash') return `$${Math.round(v).toLocaleString()}`;
   return `${Math.round(v).toLocaleString()} ${unit}`;
 };
 const money = (v) => (v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3)}K`);
@@ -75,6 +97,8 @@ export class ProgressUI {
     if (!document.getElementById('progCss')) { const st = document.createElement('style'); st.id = 'progCss'; st.textContent = CSS; document.head.appendChild(st); }
     const hud = document.getElementById('hud');
     this.chip = document.createElement('div'); this.chip.id = 'progChip'; this.chip.title = 'Your profile (P)'; hud.appendChild(this.chip);
+    this.cashChip = document.createElement('div'); this.cashChip.id = 'cashChip'; this.cashChip.title = 'Your Cash: the shop and your wallet'; hud.appendChild(this.cashChip);
+    this.cashChip.addEventListener('click', (e) => { e.stopPropagation(); this.open('shop'); });
     this.toasts = document.createElement('div'); this.toasts.id = 'progToasts'; hud.appendChild(this.toasts);
     this.panel = document.createElement('div'); this.panel.id = 'progPanel'; document.body.appendChild(this.panel);
     this.chip.addEventListener('click', (e) => { e.stopPropagation(); this.open(); });
@@ -87,7 +111,15 @@ export class ProgressUI {
   renderChip() {
     const p = this.p, r = p.rank, n = p.nextRank, xp = p.P.xp;
     const pct = n ? Math.min(100, ((xp - r.xp) / (n.xp - r.xp)) * 100) : 100;
+    this.renderCash();
     this.chip.innerHTML = `<span class="em">${p.rankIndex + 1}</span><span>${r.name.toUpperCase()}<span class="xpb"><i style="width:${pct}%"></i></span><small>${xp.toLocaleString()} XP${n ? ` · ${(n.xp - xp).toLocaleString()} to ${n.name}` : ''}</small></span>`;
+  }
+  renderCash() {
+    if (!this.cashChip || !this.p.wallet) return;
+    const v = this.p.wallet.cash; if (v === this.cashShown) return;
+    this.cashShown = v;
+    const keep = [...this.cashChip.querySelectorAll('.cs-fl')];
+    this.cashChip.innerHTML = `<span class="cs-ic">$</span>${v.toLocaleString()}`; for (const k of keep) this.cashChip.appendChild(k);
   }
   // ---------- notifications ----------
   toast(html, o = {}) {
@@ -105,6 +137,15 @@ export class ProgressUI {
       return;
     }
     const T = G.camTarget || { x: 0, z: 0 };
+    if (type === 'cash') {
+      this.renderCash();
+      this.cashChip.classList.remove('pulse'); void this.cashChip.offsetWidth; this.cashChip.classList.add('pulse');
+      const f = document.createElement('span'); f.className = `cs-fl${d.amount < 0 ? ' neg' : ''}`; f.textContent = `${d.amount < 0 ? '−' : '+'}$${Math.abs(d.amount).toLocaleString()} ${d.reason}`;
+      while (this.cashChip.querySelectorAll('.cs-fl').length > 1) this.cashChip.querySelector('.cs-fl').remove();
+      this.cashChip.appendChild(f); setTimeout(() => f.remove(), 2300);
+      return;
+    }
+    if (type === 'bought') this.toast(`<span class="k">BOUGHT</span><b>${esc(d.label)}</b> · balance $${this.p.wallet.cash.toLocaleString()}`, { life: 3.5, color: '#7ff0a8' });
     if (type === 'xp') { const now = performance.now(); if (now - (this.lastXp || 0) > 700 || d.xp >= 50) { this.toast(`<b>+${d.xp} XP</b> ${esc(d.reason)}`, { xp: true, life: 2.2 }); this.lastXp = now; } }
     if (type === 'rankup') { this.toast(`<span class="k">RANK UP</span><b>${esc(d.rank.name.toUpperCase())}</b>`, { big: true, life: 4.5 }); sfx.cheer && sfx.cheer(T.x, T.z, 0.4); }
     if (type === 'achievement') { this.toast(`<span class="k">ACHIEVEMENT</span><b>${esc(d.name)}</b>${d.xp ? ` +${d.xp} XP` : ''}`, { life: 4 }); sfx.bell && sfx.bell(T.x, T.z); }
@@ -120,15 +161,21 @@ export class ProgressUI {
   toggle() { this.panel.classList.contains('open') ? this.close() : this.open(); }
   get isOpen() { return this.panel.classList.contains('open'); }
   render() {
-    const tabs = [['profile', 'PROFILE'], ['ach', 'ACHIEVEMENTS'], ['chal', 'CHALLENGES'], ['rec', 'RECORDS'], ['rew', 'REWARDS'], ['lb', 'LEADERBOARDS']];
+    const tabs = [['profile', 'PROFILE'], ['shop', 'SHOP'], ['wallet', 'WALLET'], ['ach', 'ACHIEVEMENTS'], ['chal', 'CHALLENGES'], ['rec', 'RECORDS'], ['rew', 'REWARDS'], ['lb', 'LEADERBOARDS']];
     this.panel.innerHTML = `<div class="pp"><header><h2>PROFILE</h2><span class="x" data-a="close">×</span></header><nav>${tabs.map(([k, l]) => `<span data-tab="${k}" class="${k === this.tab ? 'on' : ''}">${l}</span>`).join('')}</nav><div class="body">${this['tab_' + this.tab]()}</div></div>`;
     if (this.tab === 'lb') this.loadBoard();
     if (this.tab === 'profile') this.drawCard();
   }
   click(e) {
     if (e.target === this.panel) return this.close();
-    const t = e.target.closest('[data-tab],[data-a],[data-eq]'); if (!t) return;
-    if (t.dataset.tab) { this.tab = t.dataset.tab; this.render(); return; }
+    const t = e.target.closest('[data-tab],[data-a],[data-eq],[data-buy]'); if (!t) return;
+    if (t.dataset.tab) { this.tab = t.dataset.tab; this.confirmBuy = null; this.render(); return; }
+    if (t.dataset.buy) {
+      // two clicks: BUY, then CONFIRM (so nothing is bought by accident)
+      const id = t.dataset.buy;
+      if (this.confirmBuy !== id) { this.confirmBuy = id; this.render(); return; }
+      this.confirmBuy = null; const r = this.p.buy(id); this.shopMsg = r.ok ? `Bought. Balance $${r.balance.toLocaleString()}.` : `Couldn't buy: ${r.why}.`; this.render(); return;
+    }
     if (t.dataset.eq) { const [slot, id] = t.dataset.eq.split('|'); this.p.equip(slot, id); this.render(); return; }
     const a = t.dataset.a;
     if (a === 'close') this.close();
@@ -171,6 +218,26 @@ export class ProgressUI {
       <h4>OTHER CITIES</h4><div class="grid">${D.ALL_MAPS.filter((m) => m !== map).map((m) => { const L = this.p.mapChallengeList(m); return `<div class="it"><b>${D.MAP_LABELS[m]}</b><p>${L.filter((c) => c.done).length} / ${L.length} challenges done</p></div>`; }).join('')}</div>
       <p class="note">Daily challenges change at midnight UTC, weekly ones on Mondays (UTC). They're picked from the date, so reloading won't change them.</p>`;
   }
+  // the shop: everything for sale, grouped by what it's for; owned ones equip from here too
+  tab_shop() {
+    const P = this.p.P, cash = this.p.wallet.cash;
+    const groups = [['car_paint', 'HIGHWAY CUT-UP · CAR PAINT'], ['car_flame', 'HIGHWAY CUT-UP · BOOST FLAMES'], ['sled_paint', 'SNOWMOBILE PAINT'], ['drone_paint', 'DRONE PAINT'], ['drone_tracer', 'DRONE & JETPACK TRACERS'], ['jetpack_paint', 'JETPACK TANKS'], ['chair_balloons', 'BALLOON CHAIR BALLOONS'], ['title', 'TITLES'], ['badge', 'BADGES'], ['card_theme', 'PROFILE CARD THEMES']];
+    const sw = (r) => (typeof r.value === 'number' ? `<span class="sw" style="background:#${r.value.toString(16).padStart(6, '0')}"></span>` : r.slot === 'chair_balloons' ? `<span class="sw" style="background:linear-gradient(90deg,${D.BALLOON_PALETTES[r.value].slice(0, 4).map((c) => '#' + c.toString(16).padStart(6, '0')).join(',')})"></span>` : r.slot === 'card_theme' ? `<span class="sw" style="background:linear-gradient(135deg,${D.CARD_THEMES[r.value].join(',')})"></span>` : r.icon ? svg(r.icon, 14) + ' ' : '');
+    return `<div class="row" style="justify-content:space-between"><div><span class="note">YOUR CASH</span><div class="bal">$${cash.toLocaleString()}</div></div><span class="note">${esc(this.shopMsg || 'Earn Cash in the mini-games, challenges and achievements. Everything here is cosmetic and works in the game.')}</span></div>
+      ${groups.map(([slot, label]) => { const items = D.REWARDS.filter((r) => r.slot === slot && r.how.buy); if (!items.length) return '';
+        return `<h4>${label}</h4><div class="grid">${items.map((r) => { const own = !!P.unlocked[r.id], on = slot === 'badge' ? P.equipped.badges.includes(r.id) : P.equipped[slot] === r.id, price = r.how.buy, can = cash >= price, conf = this.confirmBuy === r.id;
+          return `<div class="it shop-it ${own ? 'owned' : ''}"><b>${sw(r)}${esc(r.label)}${price >= 30000 ? ' ★' : ''}</b>${own ? `<span class="note">Owned</span><button data-eq="${slot}|${r.id}" ${on && slot !== 'badge' ? 'disabled' : ''}>${on ? (slot === 'badge' ? 'SHOWN · HIDE' : 'EQUIPPED') : slot === 'badge' ? 'SHOW ON CARD' : 'EQUIP'}</button>` : `<span class="pr">$${price.toLocaleString()}</span><button data-buy="${r.id}" class="${conf ? 'confirm' : ''}" ${can ? '' : 'disabled'}>${conf ? `CONFIRM · LEAVES $${(cash - price).toLocaleString()}` : can ? 'BUY' : `NEED $${(price - cash).toLocaleString()} MORE`}</button>`}</div>`; }).join('')}</div>`; }).join('')}
+      <p class="note">★ Long-term goals. Some items can't be bought, only earned: see REWARDS.</p>`;
+  }
+  // the wallet: balance, lifetime numbers, where it came from, the latest transactions
+  tab_wallet() {
+    const W = this.p.wallet.W, names = { traffic: 'Highway Cut-Up', sled: 'Snowmobile', casino: 'Casino (net)', shop: 'Shop' };
+    const by = Object.entries(W.byAct || {}).map(([k, v]) => `<tr class="tx"><td>${esc(names[k] || k)}</td><td class="a" style="color:${v < 0 ? '#ff9a7a' : '#7ff0a8'}">${v < 0 ? '−' : '+'}$${Math.abs(v).toLocaleString()}</td></tr>`).join('');
+    return `<div class="row" style="gap:28px"><div><span class="note">BALANCE</span><div class="bal">$${W.cash.toLocaleString()}</div></div><div><span class="note">EARNED</span><div style="font:800 18px Inter">$${W.earned.toLocaleString()}</div></div><div><span class="note">SPENT</span><div style="font:800 18px Inter">$${W.spent.toLocaleString()}</div></div>${W.largest ? `<div><span class="note">LARGEST PAYOUT</span><div style="font:800 18px Inter">$${W.largest.amount.toLocaleString()}</div><span class="note">${esc(W.largest.reason)}</span></div>` : ''}</div>
+      ${by ? `<h4>BY ACTIVITY</h4><table style="width:100%;border-collapse:collapse">${by}</table>` : ''}
+      <h4>RECENT TRANSACTIONS</h4><table style="width:100%;border-collapse:collapse">${(W.tx || []).map((t) => `<tr class="tx"><td style="opacity:.6;white-space:nowrap">${new Date(t.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td><td>${esc(t.reason)}${t.n > 1 ? ` <span style="opacity:.55">(${t.n} spins)</span>` : ''}</td><td class="a" style="color:${t.amount < 0 ? '#ff9a7a' : '#7ff0a8'}">${t.amount < 0 ? '−' : '+'}$${Math.abs(t.amount).toLocaleString()}</td><td class="a" style="opacity:.6">$${t.bal.toLocaleString()}</td></tr>`).join('') || '<tr><td class="note">Nothing yet.</td></tr>'}</table>
+      <p class="note">Cash is game money: earned by playing, spent in the shop and at the casino. It's never bought and never cashed out. Leaderboard scores don't turn into Cash.</p>`;
+  }
   tab_rec() {
     const P = this.p.P;
     const groups = [...new Set(Object.values(D.RECORDS).map((r) => r.group || 'Sandbox'))];
@@ -185,9 +252,9 @@ export class ProgressUI {
     return g && g.rank ? `<p style="color:#7cc8ff">Global rank #${g.rank}${r.perMap ? ` in ${D.MAP_LABELS[rec.map] || ''}` : ''}</p>` : '';
   }
   tab_rew() {
-    const P = this.p.P, slots = [['title', 'TITLE'], ['drone_paint', 'DRONE PAINT'], ['jetpack_paint', 'JETPACK TANKS'], ['chair_balloons', 'BALLOON CHAIR BALLOONS'], ['badge', 'BADGES (UP TO 3 ON YOUR CARD)']];
+    const P = this.p.P, slots = [['title', 'TITLE'], ['car_paint', 'HIGHWAY CUT-UP CAR'], ['car_flame', 'BOOST FLAMES'], ['sled_paint', 'SNOWMOBILE'], ['drone_paint', 'DRONE PAINT'], ['drone_tracer', 'TRACERS'], ['jetpack_paint', 'JETPACK TANKS'], ['chair_balloons', 'BALLOON CHAIR BALLOONS'], ['card_theme', 'PROFILE CARD'], ['badge', 'BADGES (UP TO 3 ON YOUR CARD)']];
     return slots.map(([slot, l]) => `<h4>${l}</h4><div class="grid">${D.REWARDS.filter((r) => r.slot === slot).map((r) => { const has = !!P.unlocked[r.id], on = slot === 'badge' ? P.equipped.badges.includes(r.id) : P.equipped[slot] === r.id;
-      const sw = typeof r.value === 'number' ? `<span class="sw" style="background:#${r.value.toString(16).padStart(6, '0')}"></span>` : typeof r.value === 'string' ? `<span class="sw" style="background:linear-gradient(90deg,${D.BALLOON_PALETTES[r.value].slice(0, 4).map((c) => '#' + c.toString(16).padStart(6, '0')).join(',')})"></span>` : r.icon ? svg(r.icon, 14) + ' ' : '';
+      const sw = typeof r.value === 'number' ? `<span class="sw" style="background:#${r.value.toString(16).padStart(6, '0')}"></span>` : r.slot === 'card_theme' ? `<span class="sw" style="background:linear-gradient(135deg,${D.CARD_THEMES[r.value].join(',')})"></span>` : typeof r.value === 'string' ? `<span class="sw" style="background:linear-gradient(90deg,${D.BALLOON_PALETTES[r.value].slice(0, 4).map((c) => '#' + c.toString(16).padStart(6, '0')).join(',')})"></span>` : r.icon ? svg(r.icon, 14) + ' ' : '';
       return `<div class="it ${has ? 'eq' : 'locked'} ${on ? 'on' : ''}" ${has ? `data-eq="${slot}|${r.id}"` : ''}><b>${sw}${esc(r.label)}${on ? ' · EQUIPPED' : ''}</b><p>${has ? (slot === 'badge' ? 'Click to show or hide on your card' : 'Click to equip') : `Locked: ${esc(this.p.howText(r))}`}</p></div>`; }).join('')}</div>`).join('');
   }
   tab_lb() {
@@ -217,7 +284,7 @@ export class ProgressUI {
   drawCard(cv = this.panel.querySelector('#ppCard')) {
     if (!cv) return null;
     const c = cv.getContext('2d'), W = cv.width, H = cv.height, p = this.p, P = p.P, S = P.stats;
-    const g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#0d1220'); g.addColorStop(0.55, '#1a1430'); g.addColorStop(1, '#2a1a12'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+    const th = D.CARD_THEMES[p.equipped('card_theme') || 'night'] || D.CARD_THEMES.night, g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, th[0]); g.addColorStop(0.55, th[1]); g.addColorStop(1, th[2]); c.fillStyle = g; c.fillRect(0, 0, W, H);
     for (let i = 0; i < 140; i++) { c.fillStyle = `rgba(255,255,255,${Math.random() * 0.5})`; c.fillRect(Math.random() * W, Math.random() * H * 0.6, 2, 2); }
     // a little skyline along the bottom
     c.fillStyle = 'rgba(0,0,0,.45)'; let x = 0; while (x < W) { const w = 30 + Math.random() * 60, h = 40 + Math.random() * 140; c.fillRect(x, H - h, w - 4, h); x += w; }

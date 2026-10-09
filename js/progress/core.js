@@ -6,6 +6,7 @@
 import { G } from '../core.js';
 import * as D from './defs.js';
 import { Leaderboard } from './leaderboard.js';
+import { Wallet, ECONOMY, runPayout, diminishFor } from './economy.js';
 
 const KEY = 'tinyworld.profile', VERSION = 1;
 const STYLE_VALUE = { office: 42000, concrete: 36000, glass: 52000, gothic: 140000, limestone: 260000, islamic: 120000, brick: 18000, house: 14000, stucco: 16000, flat: 15000, cairo: 9000, cairobrick: 7000, nordic: 12000, boarded: 6000, garage: 8000, site: 10000 };
@@ -19,7 +20,7 @@ function defaults() {
     ach: {},              // achievement id -> date unlocked
     mapc: {},             // map challenge id -> date completed
     periods: { day: null, week: null },
-    unlocked: {}, equipped: { title: null, drone_paint: 'p_drone_black', jetpack_paint: 'p_jet_red', chair_balloons: 'p_bal_party', badges: [] },
+    unlocked: {}, equipped: { title: null, drone_paint: 'p_drone_black', jetpack_paint: 'p_jet_red', chair_balloons: 'p_bal_party', car_paint: 'p_car_orange', car_flame: 'f_flame_fire', sled_paint: 'p_sled_red', drone_tracer: 'tr_amber', card_theme: 'ct_night', badges: [] },
     pending: [],          // leaderboard submissions waiting for the service
     casino: { credits: 1000, day: null, topUpAt: 0, pot: 50000 },   // fictional casino credits: never bought, never cashed out, separate from XP
   };
@@ -52,6 +53,7 @@ export class Progress {
     this.session = { boats: 0 };
     this.ensurePeriods();
     this.unlockRewards(true);
+    this.wallet = new Wallet(this); this.wallet.open();
     G.progress = this;
     addEventListener('beforeunload', () => this.save());
   }
@@ -111,6 +113,7 @@ export class Progress {
     S.maps[name] = (S.maps[name] || 0) + 1;
     this.counter('maps', name);
     if (first) this.award(150, `First visit: ${D.MAP_LABELS[name] || name}`);
+    if (first && this.wallet) this.wallet.credit(ECONOMY.firstVisit, `First visit: ${D.MAP_LABELS[name] || name}`, { claim: `visit:${name}` });
     this.places = null; this.landmarkSets = null;      // built once the map has finished loading
     this.touch(true);
   }
@@ -301,9 +304,25 @@ export class Progress {
     const day = this.period('day'), key = `actxp_${id}`, used = (day && day.counters[key]) || 0, room = Math.max(0, 400 - used);
     const runXp = Math.min(room, Math.round(run.xp || 0) + (pbs.length ? 40 : 0));
     if (runXp > 0) { const got = this.award(runXp, `Mini-game: ${run.title || id}`); xp += got; if (day) day.counters[key] = used + got; }
+    // Cash: the run's payout (from its verified numbers), less after many runs of the same game today; the first run of
+    // each game, each medal's first time and each record beaten pay extra. The run id makes it pay once, ever
+    let cash = { lines: [], total: 0 };
+    if (this.wallet && run.runId && !this.wallet.claimed(`run:${run.runId}`)) {
+      const pay = runPayout(id, run.mode, run.payload || {}, run.medal), dkey = `actruns_${id}`, n = (day && day.counters[dkey]) || 0, k = diminishFor(n);
+      if (day) day.counters[dkey] = n + 1;
+      const lines = pay.lines.slice();
+      if (k < 1 && pay.total) lines.push([`Played a lot today (x${k})`, -Math.round(pay.total * (1 - k))]);
+      const extra = (label, amount, claim) => { if (!this.wallet.claimed(claim)) { this.wallet.W.claims[claim] = Date.now(); lines.push([label, amount]); } };
+      extra(`First ${run.title || id} run`, ECONOMY.firstRun, `firstrun:${id}`);
+      if (run.medal) for (const m of ['bronze', 'silver', 'gold']) { if (R[m] <= R[run.medal]) extra(`First ${m} medal`, ECONOMY.firstMedal[m], `medal:${id}:${run.mode}:${m}`); }
+      for (const cat of pbs.slice(0, ECONOMY.personalBestMax)) lines.push([`Personal best: ${(D.RECORDS[cat] || {}).label || cat}`.replace(/^Personal best: [^:]*: /, 'Personal best: '), ECONOMY.personalBest]);
+      const total = Math.max(0, lines.reduce((a, l) => a + l[1], 0));
+      cash = { lines, total: total ? this.wallet.credit(total, `${run.title || id}: run payout`, { claim: `run:${run.runId}`, act: id }) : 0 };
+      if (!total) this.wallet.W.claims[`run:${run.runId}`] = Date.now();
+    }
     this.counter('actRuns'); this.counter('acts', id);
     this.checkAchievements(); this.checkChallenges(); this.touch(true);
-    return { pbs, xp };
+    return { pbs, xp, cash };
   }
 
   // the casino: every spin is settled in credits before the reels even move (so a reload can't undo or repeat it);
@@ -329,6 +348,7 @@ export class Progress {
   }
 
   // ---------- achievements ----------
+  achDef(id) { return D.ACHIEVEMENTS.find((a) => a.id === id); }
   checkAchievements() {
     const S = this.P.stats;
     for (const a of D.ACHIEVEMENTS) {
@@ -338,6 +358,7 @@ export class Progress {
         this.P.ach[a.id] = Date.now();
         this.emit('achievement', a);
         if (a.xp) this.award(a.xp, `Achievement: ${a.name}`);
+        if (a.xp && this.wallet) this.wallet.credit(a.xp * ECONOMY.achievementPerXp, `Achievement: ${a.name}`, { claim: `ach:${a.id}` });
         this.unlockRewards(); this.touch(true);
       }
     }
@@ -378,24 +399,37 @@ export class Progress {
       this.P.periods[kind].done.push(c.id); this.P.stats.challengesDone++;
       if (kind === 'day') this.counter('dailies');
       this.emit('challenge', { name: c.name, kind });
-      this.award(c.xp, `${kind === 'day' ? 'Daily' : 'Weekly'} challenge: ${c.name}`); this.touch(true);
+      this.award(c.xp, `${kind === 'day' ? 'Daily' : 'Weekly'} challenge: ${c.name}`);
+      this.wallet && this.wallet.credit(kind === 'day' ? ECONOMY.daily : ECONOMY.weekly, `${kind === 'day' ? 'Daily' : 'Weekly'} challenge: ${c.name}`, { claim: `${kind}:${this.P.periods[kind].key}:${c.id}` });
+      this.touch(true);
     }
     for (const c of D.MAP_CHALLENGES) {
       if (this.P.mapc[c.id]) continue;
       const [have, need] = c.test(this.P.stats);
-      if (have >= need) { this.P.mapc[c.id] = Date.now(); this.P.stats.challengesDone++; this.emit('challenge', { name: c.name, kind: 'map' }); this.award(c.xp, `${D.MAP_LABELS[c.map]} challenge: ${c.name}`); this.unlockRewards(); this.touch(true); }
+      if (have >= need) { this.P.mapc[c.id] = Date.now(); this.P.stats.challengesDone++; this.emit('challenge', { name: c.name, kind: 'map' }); this.award(c.xp, `${D.MAP_LABELS[c.map]} challenge: ${c.name}`); this.wallet && this.wallet.credit(ECONOMY.mapChallenge, `${D.MAP_LABELS[c.map]} challenge: ${c.name}`, { claim: `mapc:${c.id}` }); this.unlockRewards(); this.touch(true); }
     }
   }
 
   // ---------- rewards ----------
-  earned(r) { const h = r.how; return h.rank != null ? this.rankIndex >= h.rank : h.ach ? !!this.P.ach[h.ach] : h.mapc ? !!this.P.mapc[h.mapc] : false; }
-  howText(r) { const h = r.how; if (h.rank != null) return `Reach the rank of ${D.RANKS[h.rank].name}`; if (h.ach) { const a = D.ACHIEVEMENTS.find((x) => x.id === h.ach); return `Achievement: ${a ? a.name : h.ach}`; } if (h.mapc) { const c = D.MAP_CHALLENGES.find((x) => x.id === h.mapc); return `${c ? D.MAP_LABELS[c.map] + ' challenge: ' + c.name : h.mapc}`; } return ''; }
+  earned(r) { const h = r.how; if (h.buy) return !!this.P.unlocked[r.id]; return h.rank != null ? this.rankIndex >= h.rank : h.ach ? !!this.P.ach[h.ach] : h.mapc ? !!this.P.mapc[h.mapc] : false; }
+  howText(r) { const h = r.how; if (h.buy) return `In the shop for $${h.buy.toLocaleString()}`; if (h.rank != null) return `Reach the rank of ${D.RANKS[h.rank].name}`; if (h.ach) { const a = D.ACHIEVEMENTS.find((x) => x.id === h.ach); return `Achievement: ${a ? a.name : h.ach}`; } if (h.mapc) { const c = D.MAP_CHALLENGES.find((x) => x.id === h.mapc); return `${c ? D.MAP_LABELS[c.map] + ' challenge: ' + c.name : h.mapc}`; } return ''; }
   unlockRewards(silent = false) {
     for (const r of D.REWARDS) {
       if (this.P.unlocked[r.id] || !this.earned(r)) continue;
       this.P.unlocked[r.id] = Date.now();
       if (!silent && !(r.how.rank === 0)) this.emit('reward', r);
     }
+  }
+  // the shop: pay, own it, wear it. Refused if it isn't for sale, already yours, or you can't afford it
+  buy(id) {
+    const r = D.REWARDS.find((x) => x.id === id);
+    if (!r || !r.how.buy) return { ok: false, why: 'not for sale' };
+    if (this.P.unlocked[id]) return { ok: false, why: 'already yours' };
+    if (!this.wallet.debit(r.how.buy, `Bought: ${r.label}${r.slot === 'title' ? ' (title)' : r.slot === 'badge' ? ' (badge)' : ''}`, { act: 'shop' })) return { ok: false, why: 'not enough Cash' };
+    this.P.unlocked[id] = Date.now();
+    if (r.slot === 'badge') { if (this.P.equipped.badges.length < 3) this.P.equipped.badges.push(id); } else this.P.equipped[r.slot] = id;
+    this.emit('bought', r); this.touch(true);
+    return { ok: true, balance: this.wallet.cash };
   }
   equip(slot, id) {
     const r = D.REWARDS.find((x) => x.id === id); if (!r || r.slot !== slot || !this.P.unlocked[id]) return false;

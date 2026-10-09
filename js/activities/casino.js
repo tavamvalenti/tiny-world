@@ -3,10 +3,10 @@
 // machines in the middle are yours to play (js/activities/slots.js has their exact rules and odds):
 //   LUCKY 7s (low risk, one line), DIAMOND RUSH (five lines, free spins), DRAGON'S HOARD (high risk, a pick-a-chest
 //   bonus and a progressive jackpot).
-// Fictional casino credits only (kept in the profile, separate from XP, never bought or cashed out). Every spin is
-// settled the moment you press SPIN (credits taken and paid, saved), then the reels show it: so a reload, a double
-// click or a held key can't pay twice or undo a loss. Free play uses your credits; the 50-spin challenge gives a
-// fixed bet for exactly 50 spins and scores what you win.
+// It plays with your Cash (the one wallet, js/progress/economy.js): fictional game money, never bought, never cashed
+// out. Every spin is settled the moment you press SPIN (the bet out, the win in, saved), then the reels show it: so a
+// reload, a double click or a held key can't pay twice or undo a loss, and you can't bet more than you have. The
+// 50-spin challenge is a $500 buy-in for 50 spins at $10; what you win is paid in as you go (unplayed spins refunded).
 import * as THREE from 'three';
 import { G, clamp, rand } from '../core.js';
 import { sfx } from '../audio.js';
@@ -15,27 +15,29 @@ import { MACHINES, SYM, LINES, evaluate, randomStops, strips, rtp } from './slot
 const O = new THREE.Vector3(0, 0, -2600);           // the casino floor, far out of town (it's "inside")
 const SP = 2.3;                                     // machine spacing along the bank
 const CHALLENGE_SPINS = 50, CHALLENGE_BET = 10;
-const DAILY = 500, TOPUP = 300;
+const BUYIN = CHALLENGE_SPINS * CHALLENGE_BET;
 
 export class Casino {
   constructor(hub, def) { this.hub = hub; this.def = def; this.objs = []; this.usesR = true; }
   start(mode) {
     if (G.mapName !== 'vegas') { this.hub.exit(); return; }
     this.mode = mode;
-    const P = G.progress, C = P ? P.casino() : { credits: 1000, pot: 50000 };
-    this.C = C;
-    // daily chips: once per UTC day, a top-up if you're running low
-    const today = new Date().toISOString().slice(0, 10);
-    if (P && C.day !== today) { C.day = today; if (C.credits < 5000) { C.credits += DAILY; this.toast = `DAILY CHIPS +${DAILY}`; } P.touch(true); }
+    const P = G.progress, C = P ? P.casino() : { pot: 25000 };
+    this.C = C; this.W = P && P.wallet;
+    // the challenge's buy-in, up front (and only if you can cover it)
+    if (mode === 'challenge') {
+      if (!this.W || !this.W.debit(BUYIN, 'Casino: 50-spin challenge buy-in', { act: 'casino' })) { this.blocked = `THE CHALLENGE COSTS $${BUYIN} · PLAY THE OTHER GAMES TO EARN MORE`; }
+    }
     this.buildRoom();
     this.mi = 1; this.camX = this.machineX(this.mi); this.bet = {}; for (const m of MACHINES) this.bet[m.id] = m.bets[Math.min(1, m.bets.length - 1)];
-    this.state = 'idle'; this.free = 0; this.freeMult = 1; this.streak = 0; this.shown = C.credits; this.lastWin = 0; this.pick = null; this.info = false;
+    this.state = 'idle'; this.free = 0; this.freeMult = 1; this.streak = 0; this.shown = this.cash; this.lastWin = 0; this.pick = null; this.info = false;
     if (mode === 'challenge') { this.ch = { left: CHALLENGE_SPINS, won: 0, spins: 0, biggest: 0, bestStreak: 0 }; this.shown = 0; }
     this.buildHud();
     this.amb = sfx.loop ? sfx.loop('casino', O.x, O.z - 2) : null; if (this.amb) this.amb.set(0.5, 1);
-    if (this.toast) setTimeout(() => this.hub.pop(this.toast, 'rgba(255,212,107,.95)', true), 400);
+    if (this.blocked) { this.over = true; this.message(this.blocked); }
     this.render(0);
   }
+  get cash() { return this.W ? this.W.cash : 0; }
   machineX(i) { return O.x + (i - 1) * SP * 1.0; }
   get m() { return MACHINES[this.mi]; }
 
@@ -128,7 +130,7 @@ export class Casino {
     <div class="cs-pick"><p>PICK A CHEST</p><button data-c="0">?</button><button data-c="1">?</button><button data-c="2">?</button></div>
     <div class="cs">
       <div class="cs-top"><b class="nm"></b><span class="sub"></span></div>
-      <div class="cs-row"><div class="cs-box"><small class="crL">CREDITS</small><b class="cr">0</b></div><div class="cs-box"><small>BET</small><b class="bt">0</b></div><div class="cs-box win"><small>WIN</small><b class="wn">0</b></div><div class="cs-box"><small class="x1L">STREAK</small><b class="x1">0</b></div></div>
+      <div class="cs-row"><div class="cs-box"><small class="crL">CASH</small><b class="cr">0</b></div><div class="cs-box"><small>BET</small><b class="bt">0</b></div><div class="cs-box win"><small>WIN</small><b class="wn">0</b></div><div class="cs-box"><small class="x1L">STREAK</small><b class="x1">0</b></div></div>
       <div class="cs-btns"><button data-a="prev">◀<span class="key">←</span></button><button data-a="down">BET −<span class="key">↓</span></button><button class="spin" data-a="spin">SPIN<span class="key">SPACE</span></button><button data-a="up">BET +<span class="key">↑</span></button><button data-a="max">MAX</button><button data-a="info">PAYS<span class="key">I</span></button><button data-a="next">▶<span class="key">→</span></button></div>
     </div>`;
     const q = (s) => el.querySelector(s);
@@ -173,11 +175,11 @@ export class Casino {
     if (this.state !== 'idle' || this.pick || this.over) return;
     const m = this.m, C = this.C, P = G.progress, lb = this.lineBet(m), total = lb * m.lines, isFree = this.free > 0;
     if (this.mode === 'challenge') { if (!isFree && this.ch.left <= 0) return; }
-    else if (!isFree && C.credits < total) {
-      // out of credits: the house tops you up (once an hour), or lower the bet
+    else if (!isFree && this.cash < total) {
+      // not enough Cash: lower the bet, or (down to nothing) the one-time fresh start; otherwise earn it elsewhere
       const minBet = m.bets[0] * m.lines;
-      if (C.credits < minBet && Date.now() - (C.topUpAt || 0) > 3600e3) { C.credits += TOPUP; C.topUpAt = Date.now(); this.hub.pop(`HOUSE TOP-UP +${TOPUP}`, 'rgba(255,212,107,.95)', true); P && P.touch(true); this.shown = C.credits; this.paint(); }
-      else this.message(C.credits < minBet ? 'OUT OF CREDITS · FREE TOP-UP EVERY HOUR · DAILY CHIPS TOMORROW' : 'NOT ENOUGH CREDITS · LOWER THE BET');
+      if (this.cash < minBet && this.W && this.W.rescueIfBroke()) { this.hub.pop('FRESH START · ONE TIME ONLY', 'rgba(255,212,107,.95)', true); this.shown = this.cash; this.paint(); }
+      else this.message(this.cash < minBet ? 'OUT OF CASH · WIN SOME IN THE OTHER MINI-GAMES AND CHALLENGES' : 'NOT ENOUGH CASH · LOWER THE BET');
       return;
     }
     const top = lb === m.bets[m.bets.length - 1] && this.mode !== 'challenge';
@@ -189,8 +191,11 @@ export class Casino {
     const bet = isFree ? 0 : total;
     let bonusWin = 0;
     if (r.bonus === 'pick') { const picks = m.bonus.picks, k = Math.floor(rand(0, picks.length)); bonusWin = picks[k] * total; this.pendingPick = { prize: picks[k], win: bonusWin, others: [picks[Math.floor(rand(0, picks.length))], picks[Math.floor(rand(0, picks.length))]] }; }
+    // the money: the bet out (the challenge's spins are already paid for), the win in, as one line in the history
+    const W = this.W, mo = { act: 'casino', merge: 'casino', mergeReason: `Casino: ${m.name.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase())}`, quiet: true };
     if (this.mode === 'challenge') { if (!isFree) this.ch.left--; this.ch.spins++; this.ch.won += win + bonusWin; this.ch.biggest = Math.max(this.ch.biggest, win + bonusWin); }
-    else C.credits += win + bonusWin - bet;
+    else if (bet && !(W && W.debit(bet, 'Casino bet', { ...mo, count: true }))) { this.message('NOT ENOUGH CASH'); return; }
+    if (W && win + bonusWin > 0) W.credit(win + bonusWin, r.jackpot ? 'Casino: JACKPOT' : 'Casino win', { ...mo, count: !bet, merge: r.jackpot ? null : 'casino', quiet: !r.jackpot });
     if (isFree) this.free--;
     if (r.bonus === 'free') { this.free += m.bonus.spins; this.freeMult = m.bonus.mult; }
     this.streak = win + bonusWin > 0 ? this.streak + 1 : 0;
@@ -243,7 +248,7 @@ export class Casino {
       else if (this.mode === 'challenge' && this.ch.left <= 0) this.endChallenge();
     }
     // the credits count up to the real number
-    const real = this.mode === 'challenge' ? this.ch.won : this.C.credits;
+    const real = this.mode === 'challenge' ? this.ch.won : this.cash;
     this.shown += (real - this.shown) * (1 - Math.exp(-dt * 6)); if (Math.abs(real - this.shown) < 0.5) this.shown = real;
     this.flash = Math.max(0, (this.flash || 0) - dt);
     this.paint(true);
@@ -252,8 +257,8 @@ export class Casino {
     if (this.over) return; this.over = true;
     const c = this.ch;
     setTimeout(() => this.hub.finish({
-      valid: c.spins >= CHALLENGE_SPINS, title: 'CASINO · 50-SPIN CHALLENGE', headline: `${c.won.toLocaleString()}`, headlineLabel: 'CREDITS WON IN 50 SPINS',
-      medalValue: c.won, lines: [['Spins (incl. free spins)', c.spins], ['Biggest single win', c.biggest.toLocaleString()], ['Longest win streak', c.bestStreak], ['Bet per spin', `${CHALLENGE_BET} credits`]],
+      valid: c.spins >= CHALLENGE_SPINS, title: 'CASINO · 50-SPIN CHALLENGE', headline: `$${c.won.toLocaleString()}`, headlineLabel: 'WON IN 50 SPINS (PAID IN AS YOU PLAYED)',
+      medalValue: c.won, lines: [['Spins (incl. free spins)', c.spins], ['Biggest single win', `$${c.biggest.toLocaleString()}`], ['Longest win streak', c.bestStreak], ['Buy-in', `$${BUYIN}`], ['Net', `${c.won - BUYIN < 0 ? '−' : '+'}$${Math.abs(c.won - BUYIN).toLocaleString()}`]],
       records: { casino_session: c.won }, evidence: { spins: c.spins, bet: CHALLENGE_BET },
       xp: Math.min(60, 20 + c.won / 100), stats: { challenges: 1 },
     }), 600);
@@ -262,11 +267,11 @@ export class Casino {
     const e = this.el; if (!e) return;
     const m = this.m;
     if (!light) { e.nm.textContent = m.name; e.sub.textContent = `${m.risk} RISK · ${m.sub.toUpperCase()}`; this.renderInfo(); }
-    e.cr.textContent = this.mode === 'challenge' ? `${this.ch.left}` : Math.round(this.shown).toLocaleString();
-    if (this.mode === 'challenge') { e.x1L.textContent = 'WON SO FAR'; e.x1.textContent = Math.round(this.shown).toLocaleString(); }
+    e.cr.textContent = this.mode === 'challenge' ? `${this.ch.left}` : `$${Math.round(this.shown).toLocaleString()}`;
+    if (this.mode === 'challenge') { e.x1L.textContent = 'WON SO FAR'; e.x1.textContent = `$${Math.round(this.shown).toLocaleString()}`; }
     else { e.x1L.textContent = this.free > 0 ? 'FREE SPINS' : 'STREAK'; e.x1.textContent = this.free > 0 ? `${this.free} · x${this.freeMult}` : `${this.streak}`; }
-    e.bt.textContent = `${this.totalBet()}${m.lines > 1 ? ` · ${m.lines} LINES` : ''}`;
-    e.wn.textContent = this.state === 'spinning' ? '…' : (this.lastWin || 0).toLocaleString();
+    e.bt.textContent = `$${this.totalBet()}${m.lines > 1 ? ` · ${m.lines} LINES` : ''}`;
+    e.wn.textContent = this.state === 'spinning' ? '…' : `$${(this.lastWin || 0).toLocaleString()}`;
     e.spin.disabled = this.state !== 'idle' || !!this.pick || this.over;
     e.spin.firstChild.textContent = this.free > 0 ? 'FREE SPIN' : 'SPIN';
     e.info.classList.toggle('on', !!this.info);
@@ -279,7 +284,7 @@ export class Casino {
     }).join('');
     this.el.info.innerHTML = `<h3>${m.name} · PAYS</h3><p>Per line, at your current bet (${lb} a line, ${m.lines} line${m.lines > 1 ? 's' : ''}). WILD stands in for any symbol${m.jackpot ? ' (except JACKPOT)' : ''}.</p>
       <table>${rows}${m.bonus ? `<tr><td>${sym('BONUS')} on all three reels</td><td>${m.bonus.kind === 'free' ? `${m.bonus.spins} free spins at x${m.bonus.mult}` : 'Pick a chest: 5x–100x the bet'}</td></tr>` : ''}${m.jackpot ? `<tr><td>JACKPOT x3 on the centre line at the top bet</td><td>${this.C.pot.toLocaleString()} (progressive)</td></tr>` : ''}</table>
-      <p>Return to player <b>${(R.rtp * 100).toFixed(1)}%</b> · wins on ${(R.hit * 100).toFixed(0)}% of spins${R.bonusEvery ? ` · bonus about 1 in ${R.bonusEvery}` : ''}${R.jackpotEvery ? ` · jackpot line about 1 in ${R.jackpotEvery.toLocaleString()}` : ''}. Worked out exactly from the reel strips. Fictional credits only — nothing to buy, nothing to cash out.</p>`;
+      <p>Return to player <b>${(R.rtp * 100).toFixed(1)}%</b> · wins on ${(R.hit * 100).toFixed(0)}% of spins${R.bonusEvery ? ` · bonus about 1 in ${R.bonusEvery}` : ''}${R.jackpotEvery ? ` · jackpot line about 1 in ${R.jackpotEvery.toLocaleString()}` : ''}. Worked out exactly from the reel strips. Played with your Cash: game money only — never bought, never cashed out.</p>`;
   }
   render() {}
   applyCamera(dt) {
@@ -295,6 +300,7 @@ export class Casino {
     this.hub.followSun(O.x, O.z);
   }
   dispose() {
+    if (this.mode === 'challenge' && this.ch && !this.over && !this.blocked && this.ch.left > 0 && this.W) this.W.credit(this.ch.left * CHALLENGE_BET, `Casino: ${this.ch.left} unplayed challenge spins refunded`, { act: 'casino' });
     for (const o of this.objs) { G.scene.remove(o); o.traverse && o.traverse((c) => { if (c.isMesh) { c.geometry.dispose(); const ms = Array.isArray(c.material) ? c.material : [c.material]; for (const mt of ms) { if (mt.map) mt.map.dispose(); mt.dispose(); } } }); }
     this.objs.length = 0; this.machines = null; this.deco = null;
     if (this.amb) { this.amb.stop(); this.amb = null; }

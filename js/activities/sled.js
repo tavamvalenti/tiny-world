@@ -189,7 +189,7 @@ export class SnowmobileTrial {
     this.mode = mode;
     this.course = new Course(); this.course.build(G.scene);
     const C = this.course, g0 = C.gates[0];
-    this.ride = new Ride(G.scene, (x, z) => C.groundAt(x, z), { kind: 'sled', paint: 0xd8202a, tune: { vmax: 22, boostMax: 27, accel: 12, boostAccel: 16, gravity: 16 } });
+    this.ride = new Ride(G.scene, (x, z) => C.groundAt(x, z), { kind: 'sled', paint: (G.progress && G.progress.equipped('sled_paint')) ?? 0xd8202a, tune: { vmax: 22, boostMax: 27, accel: 12, boostAccel: 16, gravity: 16 } });
     this.ride.refill = 0.06;
     // behind the start line, facing along the track
     const sx = g0.x - g0.tx * 7, sz = g0.z - g0.tz * 7;
@@ -253,6 +253,7 @@ export class SnowmobileTrial {
     if (landed) this.landing(landed);
     if (R.air) this.airHud(); else this.el.air.classList.remove('on');
     this.gatesCheck();
+    if (!this.tookShortcut && this.started) { const q = this.course.nearestOn(this.course.alt, R.pos.x, R.pos.z); if (q && q.d < HW && q.i > 20 && q.i < this.course.alt.pts.length - 20) this.tookShortcut = true; }
     if (this.ghost <= 0) this.obstacles();
     // too far off the course: back on it
     const loc = this.course.locate(R.pos.x, R.pos.z);
@@ -365,7 +366,7 @@ export class SnowmobileTrial {
       medalValue: trial ? this.t : this.stunt, lines, records,
       evidence: { t: +this.t.toFixed(2), cps: this.course.gates.length - 1, jumps: this.jumps.length, wipe: this.wipeouts, best: +this.bestJump.toFixed(1) },
       xp: Math.min(80, 20 + this.jumps.length * 3 + this.perfects * 4),
-      stats: { laps: 1, jumps: this.jumps.length, perfects: this.perfects, clean: clean ? 1 : 0 },
+      stats: { laps: 1, jumps: this.jumps.length, perfects: this.perfects, clean: clean ? 1 : 0, bestJump: +this.bestJump.toFixed(1), shortcut: this.tookShortcut ? 1 : 0, stunt: this.stunt },
     }), 400);
   }
   hudUpdate() {
