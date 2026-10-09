@@ -355,7 +355,17 @@ function frame(now) {
   if (!running || settingsOpen) { last = now; return; }
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  step(dt);
+  step(dt * slowmoAt(now));
+}
+// cinematic slow motion (a crash in a mini-game): time runs at `scale` for most of `dur` real seconds, then eases back
+let slowmo = null;
+G.slowmo = (dur = 1.1, scale = 0.22) => { slowmo = { t0: performance.now(), dur: dur * 1000, scale }; };
+function slowmoAt(now) {
+  if (!slowmo) return 1;
+  const k = (now - slowmo.t0) / slowmo.dur;
+  if (k >= 1) { slowmo = null; return 1; }
+  const hold = 0.55, e = k < hold ? 0 : (k - hold) / (1 - hold);
+  return slowmo.scale + (1 - slowmo.scale) * e * e * (3 - 2 * e);
 }
 // one simulation + render tick (also used by automated tests via G.step)
 let rick = null, veh = null, hub = null;

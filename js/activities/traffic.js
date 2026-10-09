@@ -253,6 +253,7 @@ export class TrafficCutUp {
     fx && fx.sparks(at.x, 0.4, at.z, 30, 2.4, 1.8, 0.8, 9);
     sfx.crashRec ? sfx.crashRec(at.x, at.z, 0.05, 1) || sfx.crash(at.x, at.z, 1) : sfx.crash(at.x, at.z, 1);
     this.chase.shake = 1.2; G.shake = Math.max(G.shake || 0, 0.4);
+    G.slowmo && G.slowmo(1.2, 0.2);                 // a cinematic beat of slow motion
     R.spin = (Math.random() < 0.5 ? -1 : 1) * rand(5, 8); R.v *= 0.45;
     if (this.mode === 'endless') { this.wreckFx(R.pos.clone(), false, true); this.end('crash'); return; }
     this.hub.pop('CRASHED', 'rgba(255,80,80,.95)', true);
