@@ -365,7 +365,8 @@ export class VehicleMode {
   explodeDrone() {
     if (this.dead) return;                                  // one crash, one explosion, one respawn
     this.dead = true; this.respawnT = 2.2;
-    G.progress && G.progress.droneCrash();
+    if (this.combat) this.combat.playerDown();
+    else G.progress && G.progress.droneCrash();
     const p = this.pos.clone(), B = G.buildings, fx = G.fx;
     G.weapons.bombImpact(p);                                 // Tiny World's bomb ...
     B.damageSphere(p.x, p.y, p.z, 5.5, 360, 1.0, 0.55);      // ... and a heavier punch round it
@@ -514,7 +515,7 @@ export class VehicleMode {
     this.fireCd -= dt; this.secCd -= dt;
     const k = this.keys, firing = k.Mouse0, second = k.Mouse2 || k.KeyG;
     if (firing && this.fireCd <= 0) this.firePrimary();
-    if (second && this.secCd <= 0) this.fireSecondary();
+    if (second && this.secCd <= 0) { if (this.combat) { if (this.combat.fireMissile()) this.secCd = 0.35; } else this.fireSecondary(); }
   }
   firePrimary() {
     const mz = this.model.muzzle(), target = this.aimPoint(), dir = target.clone().sub(mz).normalize();
@@ -529,6 +530,7 @@ export class VehicleMode {
     }
     // machine guns: fast tracers, a muzzle flash, the gun's report
     dir.x += rand(-0.012, 0.012); dir.y += rand(-0.012, 0.012); dir.z += rand(-0.012, 0.012); dir.normalize();
+    if (this.combat) this.combat.assist(mz, dir);                    // a combat mode may nudge it onto a target
     this.shots.push({ kind: 'bullet', pos: mz.clone(), prev: mz.clone(), vel: dir.multiplyScalar(150), life: 1.1 });
     this.fireCd = this.kind === 'drone' ? 1 / 13 : 1 / 11;
     this.pop(mz, 0.7, 0.05, new THREE.Color(2, 1.5, 0.7));
@@ -589,6 +591,10 @@ export class VehicleMode {
       s.prev.copy(s.pos); s.pos.addScaledVector(s.vel, dt);
       const seg = _v.copy(s.pos).sub(s.prev), len = seg.length(), dir = seg.clone().normalize();
       let hit = len > 0 ? B.raycast(s.prev, dir, len) : null;
+      if (this.combat && s.kind === 'bullet' && len > 0) {
+        const eh = this.combat.rayHit(s.prev, dir, len);
+        if (eh && (!hit || eh.t < s.prev.distanceTo(hit.point))) { this.combat.bulletHit(eh.enemy, s.prev.clone().addScaledVector(dir, eh.t)); if (s.sp) { s.sp.visible = false; s.sp = null; } this.shots.splice(i, 1); continue; }
+      }
       const vic = this.victim(s.prev, dir, len);
       if (vic && (!hit || vic.t < s.prev.distanceTo(hit.point))) hit = { point: s.prev.clone().addScaledVector(dir, vic.t), normal: new THREE.Vector3(0, 1, 0), cell: null, victim: vic };
       if (!hit && G.solidHit) { const so = G.solidHit(s.pos); if (so) hit = { point: s.pos.clone(), normal: so.n, cell: null }; }   // the Eye, poles

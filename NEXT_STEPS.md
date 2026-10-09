@@ -1,5 +1,36 @@
 # Tiny World — where we left off
 
+## PAUSED HERE (2026-10-09): Drone Combat mini-game (phase 4 of the mini-games spec)
+**Status:** not built yet. Only the opt-in hooks in `js/vehicles.js` exist (they do nothing unless `veh.combat` is set):
+- `veh.combat.assist(muzzle, dir)` nudges machine-gun bullets onto a target (aim assist)
+- `veh.combat.rayHit(origin, dir, len)` → `{ enemy, t }` and `veh.combat.bulletHit(enemy, point)` (bullets hit enemy drones)
+- `veh.combat.fireMissile()` replaces the grenade (right click / G) while a combat mode is on
+- `veh.combat.playerDown()` is called instead of the drone-crash record when the drone is destroyed
+
+**To build next: `js/activities/dogfight.js`**, registered in `js/activities/index.js` as `{ id: 'dogfight', map: '*', usesVehicle: true, ... }`.
+- It enters `G.veh.enter('drone')`, sets `G.veh.combat = this`, and on dispose clears it and calls `G.veh.exit()`.
+- `hub.key` must let keys through to the drone: add a `passKeys` flag, so Esc / R are handled by the hub and everything else returns false.
+- Enemy drones (one type first): pursue, keep distance, 3D steering with an acceleration limit, stay above roofs, avoid buildings, line-of-sight checks throttled, fire back with red tracers, evade missiles (hard turn + flares), lose and reacquire the player, flash when hit, smoke when low, explode and fall. Max ~6 alive, pooled meshes.
+- Weapons: the machine gun with aim assist in a configurable cone (the reticle shows when assist is on); lock-on missiles (aim near a target for ~1.2 s to lock, a lock box that shrinks, LOCKED tone, homing with a limited turn rate, proximity fuse, 4 missiles reloading one per ~6 s, despawn after ~6 s).
+- HUD: health, missiles, lock box, target health, hit markers, missile warning, wave / kills / timer.
+- Modes:
+  - Survival waves: the run ends when you're destroyed.
+  - 2-minute time attack: respawn with a penalty.
+  - Boss: more health, readable patterns (strafing fans, slow homing rockets, a telegraphed dash).
+- Records, already defined in `server/minigames.sql` but still to add to `js/progress/defs.js`: `dogfight_wave`, `dogfight_kills`, `dogfight_boss` (low is better, minimum 15 s), `dogfight_score`. Also add achievements.
+- Cash: add a `dogfight` entry to `ECONOMY` (per kill, per wave, boss) and a `runPayout` branch in `js/progress/economy.js`.
+- The minimap: the activity provides `pilot()` and `minimap()` (enemies as red dots).
+- Then **phase 5** of the spec: test all four games, exits, map changes, no console errors or leaks, and give the final report.
+
+**Waiting on the user:** run `server/minigames.sql` in the Supabase SQL Editor (it registers all four games' boards; copy it with `pbcopy < server/minigames.sql`).
+New-board scores wait in the pending queue until then.
+
+**Testing tips:**
+- Block Supabase fetches in test pages and clear `G.progress.P.pending` afterwards, so bot scores never reach the live boards.
+- Images can be posted to a local receiver (scratchpad `recv.py` on port 8791).
+- Check imports in the browser: `node --check` missed a real syntax error once.
+
+
 ## Done (2026-09-28)
 - **Petco Park** tested and tuned (bigger field, calmer crowd, Western Metal behind the left-field wall, plaza sign).
 - **Harbor**: detailed cruise ships (lit balconies, bridge wings, funnel, lido deck + slide, lifeboats), glass terminals,
