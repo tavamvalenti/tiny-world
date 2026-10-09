@@ -815,8 +815,9 @@ export class Cairo {
     for (let k = 0; k < 6; k++) add(cruise(), 'cruise');
     for (let k = 0; k < 6; k++) add(taxi(), 'taxi');
     // moored at the docks: feluccas side by side, a couple of cruise boats tied up along the bank
-    for (const c of this.C.cafes) for (let k = 0; k < 3; k++) { const m = felucca(rand(0.8, 1.1)); m.userData.rig.scale.y = 0.3; m.position.set(nileX(c.z) + c.s * (NILE.hw - 1.6), NILE.WL, c.z + (k - 1) * 1.6); m.rotation.y = Math.random() < 0.5 ? 0 : Math.PI; this.scene.add(m); }
-    for (const [z, s] of [[-120, 1], [100, -1], [-40, -1]]) { const m = new THREE.Mesh(cruise(), this.mat); m.position.set(nileX(z) + s * (NILE.hw - 2.2), NILE.WL, z); m.castShadow = true; this.scene.add(m); }
+    this.moored = [];
+    for (const c of this.C.cafes) for (let k = 0; k < 3; k++) { const m = felucca(rand(0.8, 1.1)); this.moored.push(m); m.userData.rig.scale.y = 0.3; m.position.set(nileX(c.z) + c.s * (NILE.hw - 1.6), NILE.WL, c.z + (k - 1) * 1.6); m.rotation.y = Math.random() < 0.5 ? 0 : Math.PI; this.scene.add(m); }
+    for (const [z, s] of [[-120, 1], [100, -1], [-40, -1]]) { const m = new THREE.Mesh(cruise(), this.mat); m.position.set(nileX(z) + s * (NILE.hw - 2.2), NILE.WL, z); m.castShadow = true; this.scene.add(m); this.moored.push(m); }
     this.wakeList = [];
   }
   updateBoats(dt) {

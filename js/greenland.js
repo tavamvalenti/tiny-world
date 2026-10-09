@@ -522,6 +522,7 @@ export class Greenland {
   updateBoats(dt) {
     const t = G.time, W = (this.wakeList = []);
     for (const b of this.boatList) {
+      if (b.dead) continue;                                                     // wrecked (js/boats.js sinks it)
       let vx = 0, vz = 0;
       if (b.wait > 0) b.wait -= dt;
       else {

@@ -1544,7 +1544,7 @@ export class Vegas {
     if (this.bulbs) this.bulbs.material.color.setScalar(0.4 + n * 1.2 + 0.4 * Math.max(0, Math.sin(t * 9)));
     if (this.clubLights) this.clubLights.material.color.setHSL((t * 0.3) % 1, 1, 0.3 + n * 0.3 + 0.2 * Math.max(0, Math.sin(t * 12)), THREE.SRGBColorSpace);
     if (this.wheelG) { const a = t * 0.02; this.cabins.forEach((m, k) => { const b = a + k / 28 * 6.283; m.position.set(Math.sin(b) * (this.wheelR + 0.4), Math.cos(b) * (this.wheelR + 0.4), 0); }); this.wheelG.children[0].rotation.z = -a; }
-    for (const gd of this.gondolas || []) { gd.t = (gd.t + dt * 0.02) % 1; const u = gd.t < 0.5 ? gd.t * 2 : 2 - gd.t * 2; gd.m.position.set((gd.v.x0 + gd.v.x1) / 2 + (gd.t < 0.5 ? -0.8 : 0.8), 0.05, gd.v.z0 + 1.2 + u * (gd.v.z1 - gd.v.z0 - 2.4)); gd.m.rotation.y = gd.t < 0.5 ? 0 : Math.PI; }
+    for (const gd of this.gondolas || []) { if (gd.dead) continue; gd.t = (gd.t + dt * 0.02) % 1; const u = gd.t < 0.5 ? gd.t * 2 : 2 - gd.t * 2; gd.m.position.set((gd.v.x0 + gd.v.x1) / 2 + (gd.t < 0.5 ? -0.8 : 0.8), 0.05, gd.v.z0 + 1.2 + u * (gd.v.z1 - gd.v.z0 - 2.4)); gd.m.rotation.y = gd.t < 0.5 ? 0 : Math.PI; }
     if (this.sphCtx && (this._sphT = (this._sphT || 0) - dt) <= 0) { this._sphT = 0.08; this.drawSphere(t); }
     // the ad reels: each screen changes ad every few seconds
     for (const r of this.reels) if (t > r.next) { r.next = t + 6 + Math.random() * 3; r.i++; this.drawReel(r); }

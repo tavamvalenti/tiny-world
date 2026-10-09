@@ -422,6 +422,7 @@ export class Harbor {
     this.lampHeads.material.color.setRGB(0.6 + n * 3, 0.55 + n * 2.6, 0.45 + n * 2);
     // boats wander the bay, staying off the seawall
     this.boats.forEach((b, i) => {
+      if (b.dead) return;                                                       // wrecked (js/boats.js sinks it)
       b.a += b.turn * dt;
       b.x += Math.cos(b.a) * b.sp * dt; b.z += Math.sin(b.a) * b.sp * dt;
       if (b.x > this.X0 - 8) b.a = Math.PI - b.a, b.x = this.X0 - 8;

@@ -55,4 +55,5 @@ export function blast(x, y, z, radius, power, kind = 'explosion') {
   G.london && G.london.onBlast(x, y, z, radius, power, kind);
   G.greenland && G.greenland.onBlast(x, y, z, radius, power, kind);
   G.cairo && G.cairo.onBlast(x, y, z, radius, power, kind);
+  G.boatsOnBlast && G.boatsOnBlast(x, y, z, radius, power, kind);     // any boat on any map (js/boats.js)
 }

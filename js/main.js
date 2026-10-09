@@ -35,6 +35,8 @@ import { Petco } from './petco.js';
 import { settings, onSettingsChange, buildSettingsPanel } from './settings.js';
 import { RickMode } from './rick.js';
 import { VehicleMode } from './vehicles.js';
+import { boatsOnBlast, updateWrecks } from './boats.js';
+G.boatsOnBlast = boatsOnBlast;
 import { addRipples, gatherWakes, buildPools } from './water.js';
 import { Chains } from './chains.js';
 import { vegas, Vegas } from './vegas.js';
@@ -345,7 +347,8 @@ function step(dt) {
   G.dt = dt; G.time += dt;
   const flying = !!(rick && rick.active), driving = !!(veh && veh.active);
   if (flying) rick.update(dt);                                  // Rick's ship: flies, then parks the view target on itself
-  if (driving) veh.update(dt);                                  // the drone / paraglider / jetpack, the same way
+  if (driving) veh.update(dt);                                  // the drone / balloon chair / jetpack, the same way
+  updateWrecks(dt);                                             // boats going down
   updateCamera(dt);
   if (flying) rick.applyCamera(dt);                             // ... and the chase camera replaces the overhead one
   if (driving) veh.applyCamera(dt);
@@ -381,8 +384,8 @@ function step(dt) {
   G.sky && G.sky.update(dt);
   G.news && G.news.update(dt);
   updatePlacing(dt);
-  G.weapons.update(dt, flying ? NO_INPUT : input);
-  if (flying) G.weapons.reticle.visible = G.weapons.reticleDot.visible = false;
+  G.weapons.update(dt, flying || driving ? NO_INPUT : input);
+  if (flying || driving) G.weapons.reticle.visible = G.weapons.reticleDot.visible = false;   // no god-view aim ring while flying
   input.pressed = false;
   G.buildings.update(dt);
   G.fx.update(dt, camera, renderer);

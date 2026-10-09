@@ -2,24 +2,25 @@
 //   - the armed drone: a heavy black quadcopter with a machine gun slung under it. Fast, precise, and fragile: it
 //     blows up the moment it touches anything (a big blast that hurts whatever is near), then a fresh one drops in
 //     high above. Damage done stays done; the map is never reset.
-//   - the powered paraglider: the dad in his white T-shirt in a paramotor trike under a big white wing. Always flying
-//     forward, it banks to turn, climbs on the throttle and glides when you let off; lands and takes off on its
-//     wheels. Rapid fireballs, and a bomb-power firework.
+//   - the balloon chair: the dad in his white T-shirt stretched out in a lawn chair under two bunches of balloons,
+//     with a little fan behind. Point and fly, holds its height; rise and the balloons fill up, sink and they come
+//     loose and float away (or pop). Rapid fireballs, and a bomb-power firework.
 //   - the jetpack: a regular guy with a red twin-tank jetpack. Hovers, lifts straight up, strafes, bursts; the most
 //     agile of the three. A machine gun and a grenade launcher.
 // Everything they do goes through Tiny World's own systems: damageSphere / blast / bombImpact / carExplode / the fx.
 import * as THREE from 'three';
-import { G, clamp, rand, blast } from './core.js';
+import { G, clamp, rand, pick, blast } from './core.js';
 import { sfx } from './audio.js';
 import { CartoonCharacter } from './rickship.js';
+import { boatTargets, damageBoat } from './boats.js';
 
 const S = 0.42;                                     // the characters' scale (as Rick and Morty: people on the street)
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _z = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0);
 
 const KINDS = {
   drone: { name: 'Armed Drone', sub: 'Machine gun · grenades · explodes if rammed', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'boost'], ['Click', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
-  glider: { name: 'Paraglider', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['A D', 'bank / turn'], ['W', 'throttle'], ['Space', 'climb'], ['S', 'idle'], ['Shift', 'speed bar'], ['Click', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
-  jetpack: { name: 'Jetpack', sub: 'Machine gun · grenade launcher', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'thrust burst'], ['Click', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
+  chair: { name: 'Balloon Chair', sub: 'Fireballs · bomb-power firework', keys: [['Mouse', 'turn · aim'], ['W S', 'forward / back'], ['A D', 'slide sideways'], ['Space', 'rise (balloons fill)'], ['C / Ctrl', 'sink (balloons let go)'], ['Shift', 'faster'], ['Click', 'fireballs'], ['Right click / G', 'firework'], ['V', 'camera'], ['Esc', 'leave']] },
+  jetpack: { name: 'Jetpack', sub: 'Machine gun · grenade launcher · real gravity', keys: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'thrust where you point'], ['A D', 'strafe'], ['Space', 'thrust up'], ['—', 'let go and you fall'], ['Shift', 'thrust burst'], ['Click', 'machine gun'], ['Right click / G', 'grenade'], ['V', 'camera'], ['Esc', 'leave']] },
 };
 
 const CSS = `
@@ -69,10 +70,10 @@ body.veh-on #vehHud{display:block}
 #vehHud .vh-ret.drone .k3{left:-20px;bottom:-20px;border-right:0;border-top:0} #vehHud .vh-ret.drone .k4{right:-20px;bottom:-20px;border-left:0;border-top:0}
 /* the jetpack: a heavier assault-rifle cross, wider gap, warm white, no dot */
 #vehHud .vh-ret.jetpack{--gap:8px;--len:11px;--th:2.5px;--col:#fff4e2}
-/* the paraglider: the fireball launcher's sight, flame-orange, with a dot and a short drop line under it */
-#vehHud .vh-ret.glider{--gap:7px;--len:8px;--th:2px;--col:#ffb04a}
-#vehHud .vh-ret.glider .c{display:block;width:4px;height:4px;left:-2px;top:-2px;background:#ffe2b0}
-#vehHud .vh-ret.glider .b{height:16px}
+/* the balloon chair: the fireball launcher's sight, flame-orange, with a dot and a short drop line under it */
+#vehHud .vh-ret.chair{--gap:7px;--len:8px;--th:2px;--col:#ffb04a}
+#vehHud .vh-ret.chair .c{display:block;width:4px;height:4px;left:-2px;top:-2px;background:#ffe2b0}
+#vehHud .vh-ret.chair .b{height:16px}
 #vehHud .vh-cd{position:absolute;left:50%;top:46%;width:64px;height:4px;margin:24px 0 0 -32px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden}
 #vehHud .vh-cd i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ffb35a,#ff5a3c)}
 #vehHud .vh-title{font:800 12px Inter;letter-spacing:.24em;color:#ffd9a8;text-shadow:0 1px 4px rgba(0,0,0,.8);margin-bottom:4px}
@@ -85,7 +86,7 @@ body.veh-on #vehHud{display:block}
 
 const ICONS = {
   drone: '<svg viewBox="0 0 40 30"><g fill="none" stroke="#ffd6a0" stroke-width="1.6" stroke-linecap="round"><path d="M8 9h8M24 9h8M12 9l4 6M28 9l-4 6"/><ellipse cx="12" cy="8" rx="7" ry="1.6"/><ellipse cx="28" cy="8" rx="7" ry="1.6"/></g><rect x="14" y="13" width="12" height="6" rx="2" fill="#2a2a2e" stroke="#ffd6a0" stroke-width="1.2"/><path d="M20 19v4h7" stroke="#ff9a4a" stroke-width="2" fill="none"/></svg>',
-  glider: '<svg viewBox="0 0 40 30"><path d="M4 12C10 2 30 2 36 12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M6 12l13 11M34 12L21 23M14 6l5 17M26 6l-5 17" stroke="#ffd6a0" stroke-width=".7"/><circle cx="20" cy="24" r="3.4" fill="none" stroke="#ffd6a0" stroke-width="1.2"/><circle cx="20" cy="24" r="1.3" fill="#fff"/></svg>',
+  chair: '<svg viewBox="0 0 40 30"><g stroke="#e8e8e8" stroke-width=".6"><path d="M14 13l3 9M26 13l-3 9"/></g><circle cx="11" cy="7" r="4.2" fill="#e8342a"/><circle cx="16" cy="5" r="4" fill="#2a7ae8"/><circle cx="13" cy="11" r="3.6" fill="#f2c21a"/><circle cx="25" cy="7" r="4.2" fill="#2ac85a"/><circle cx="30" cy="10" r="3.8" fill="#e83a9a"/><circle cx="27" cy="12" r="3.4" fill="#8a4ae8"/><path d="M11 24h18l-3-3H15z" fill="#f2d27a" stroke="#fff" stroke-width=".8"/><path d="M12 24l-1 4M28 24l1 4" stroke="#fff" stroke-width="1"/></svg>',
   jetpack: '<svg viewBox="0 0 40 30"><rect x="9" y="6" width="6" height="15" rx="3" fill="#e0342a"/><rect x="25" y="6" width="6" height="15" rx="3" fill="#e0342a"/><rect x="15" y="8" width="10" height="13" rx="2" fill="#f2a52a"/><path d="M12 6c0-5 8-5 8 0M28 6c0-5-8-5-8 0" fill="none" stroke="#8a8a8a" stroke-width="1.2"/><path d="M10 21l2 6 2-6M26 21l2 6 2-6" fill="#ffb84a"/></svg>',
 };
 
@@ -105,11 +106,11 @@ class EngineSynth {
     const bp = (this.bp = ctx.createBiquadFilter()); bp.type = 'bandpass'; bp.frequency.value = this.kind === 'jetpack' ? 500 : 1400; bp.Q.value = 0.7;
     const ng = (this.ng = ctx.createGain()); ng.gain.value = this.kind === 'jetpack' ? 0.9 : 0.25; src.connect(bp); bp.connect(ng); ng.connect(out); src.start();
     // the two-stroke's chop
-    if (this.kind === 'glider') { const lfo = (this.lfo = ctx.createOscillator()), lg = ctx.createGain(); lfo.frequency.value = 22; lg.gain.value = 0.25; lfo.connect(lg); lg.connect(out.gain); lfo.start(); }
+    if (this.kind === 'chair') { const lfo = (this.lfo = ctx.createOscillator()), lg = ctx.createGain(); lfo.frequency.value = 9; lg.gain.value = 0.1; lfo.connect(lg); lg.connect(out.gain); lfo.start(); }
   }
   set(level, pitch) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime, base = this.kind === 'drone' ? 150 : this.kind === 'glider' ? 62 : 55;
+    const t = this.ctx.currentTime, base = this.kind === 'drone' ? 150 : this.kind === 'chair' ? 120 : 55;
     this.osc.frequency.setTargetAtTime(base * (1 + pitch * 0.9), t, 0.08);
     this.lp.frequency.setTargetAtTime(500 + pitch * 1800, t, 0.1);
     if (this.kind === 'jetpack') this.bp.frequency.setTargetAtTime(350 + pitch * 900, t, 0.1);
@@ -139,7 +140,7 @@ export class VehicleMode {
   // ---------------- the button, its menu and the in-flight HUD
   buildUi() {
     const bar = document.getElementById('weapons');
-    this.btn = document.createElement('span'); this.btn.id = 'vehBtn'; this.btn.title = 'Fly a drone, a paraglider or a jetpack';
+    this.btn = document.createElement('span'); this.btn.id = 'vehBtn'; this.btn.title = 'Fly a drone, a balloon chair or a jetpack';
     this.btn.innerHTML = `<span class="vh-icon"><i class="vh-glow"></i><span class="vh-rotor"><i></i><i></i></span><svg class="vh-drone" viewBox="0 0 26 26"><rect x="8" y="10" width="10" height="6" rx="2" fill="#1c1c20" stroke="#ffd6a0" stroke-width="1"/><path d="M8 11L3 7M18 11l5-4M8 15l-5 4M18 15l5 4" stroke="#ffd6a0" stroke-width="1.4"/><path d="M13 16v4h5" stroke="#ff9a4a" stroke-width="1.6" fill="none"/></svg></span>VEHICLES
       <div id="vehMenu">${Object.entries(KINDS).map(([k, v]) => `<div class="vh-item" data-k="${k}">${ICONS[k]}<span><b>${v.name.toUpperCase()}</b><small>${v.sub}</small></span></div>`).join('')}</div>`;
     const rickBtn = document.getElementById('rickBtn');
@@ -198,14 +199,14 @@ export class VehicleMode {
     sfx.unlock();
     this.kind = kind; this.active = true;
     this.buildFx();
-    this.model = kind === 'drone' ? this.buildDrone() : kind === 'glider' ? this.buildGlider() : this.buildJetpack();
+    this.model = kind === 'drone' ? this.buildDrone() : kind === 'chair' ? this.buildChair() : this.buildJetpack();
     this.scene.add(this.model.root, this.fxGroup);
     // appear above where the view was looking, facing the way it faced
     const T = this.cam, B = G.buildings, ground = B.surfaceAt(T.x, T.z, 999).y;
     this.yaw = T.yaw; this.look = 0; this.aim = 0;
-    this.pos.set(T.x, kind === 'jetpack' ? ground + 0.05 : Math.max(ground + (kind === 'drone' ? 18 : 14), 20), T.z);
+    this.pos.set(T.x, kind === 'jetpack' ? ground + 0.05 : Math.max(ground + (kind === 'drone' ? 18 : 10), kind === 'drone' ? 20 : 12), T.z);
     this.vel.set(0, 0, 0); this.dead = false; this.respawnT = 0; this.safeT = 1.2; this.fireCd = 0; this.secCd = 0; this.burstCd = 0; this.lost = 0; this.bank = 0;
-    this.airspeed = kind === 'glider' ? 8 : 0; this.grounded = kind === 'jetpack';
+    this.grounded = kind === 'jetpack';
     this.camInit = false; this.keys = {};
     this.engine = new EngineSynth(kind); this.engine.start();
     document.body.classList.add('veh-on'); this.btn.classList.add('on');
@@ -221,6 +222,7 @@ export class VehicleMode {
     if (!switching && document.pointerLockElement) document.exitPointerLock();
     this.scene.remove(this.model.root, this.fxGroup);
     this.dispose(this.model.root);
+    this.model.dispose && this.model.dispose();
     for (const b of this.bombs) this.fxGroup.remove(b.mesh);
     this.shots.length = 0; this.bombs.length = 0;
     for (const f of this.flashes) f.visible = false; this.flashes.length = 0;
@@ -268,7 +270,7 @@ export class VehicleMode {
     const turn = this.look; this.look = 0;
     if (this.dead) this.updateDead(dt);
     else if (this.kind === 'drone') this.flyDrone(dt, turn);
-    else if (this.kind === 'glider') this.flyGlider(dt, turn);
+    else if (this.kind === 'chair') this.flyChair(dt, turn);
     else this.flyJetpack(dt, turn);
     this.keepInBounds();
     if (!this.dead) this.weapons(dt);
@@ -279,9 +281,9 @@ export class VehicleMode {
     const C = this.cam; C.x = this.pos.x; C.z = this.pos.z; C.dist = C.distT = 26; C.ty = 0;
     // the cross opens up while the gun runs and closes again after
     this.spread = Math.max(0, this.spread - dt * 6);
-    const base = { drone: 5, jetpack: 8, glider: 7 }[this.kind];
+    const base = { drone: 5, jetpack: 8, chair: 7 }[this.kind];
     this.ret.style.setProperty('--gap', `${base + this.spread * (this.kind === 'jetpack' ? 9 : 6)}px`);
-    this.cdBar.style.width = `${(1 - clamp(this.secCd / (this.kind === 'glider' ? 2.4 : 0.7), 0, 1)) * 100}%`;
+    this.cdBar.style.width = `${(1 - clamp(this.secCd / (this.kind === 'chair' ? 2.4 : 0.7), 0, 1)) * 100}%`;
   }
   keepInBounds() {
     const Cm = this.cam, p = this.pos;
@@ -368,80 +370,103 @@ export class VehicleMode {
   updateDead(dt) {
     this.respawnT -= dt;
     if (this.respawnT > 0) return;
-    // a fresh drone high over the wreck; the wreckage stays
-    const B = G.buildings, ground = B.surfaceAt(this.pos.x, this.pos.z, 999).y;
-    this.pos.y = Math.max(ground + 30, 40); this.vel.set(0, 0, 0);
-    this.dead = false; this.safeT = 1.0; this.aim = -0.2;
+    // the drone: a fresh one high over the wreck (the wreckage stays). The jetpack: back on his feet where he fell
+    const B = G.buildings, ground = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.5).y;
+    if (this.kind === 'drone') { this.pos.y = Math.max(B.surfaceAt(this.pos.x, this.pos.z, 999).y + 30, 40); this.aim = -0.2; } else { this.pos.y = ground; this.aim = 0; }
+    this.vel.set(0, 0, 0);
+    this.dead = false; this.safeT = 1.0;
     this.msgEl.classList.remove('show');
   }
 
-  // ---------------- the paraglider: always flying, banks to turn, climbs on the throttle
-  flyGlider(dt, turn) {
-    const k = this.keys, B = G.buildings;
-    const climb = !!k.Space, throttle = k.KeyW || climb ? 1 : 0, idle = k.KeyS, bar = k.ShiftLeft || k.ShiftRight;
-    const steer = clamp(((k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0)) + turn * 6, -1, 1);
-    this.lost = Math.max(0, this.lost - dt);
-    // the wing banks (and swings the pilot under it) toward the turn; the turn follows the bank
-    this.bank += ((steer * 0.55 * (this.lost > 0 ? 0.3 : 1)) - this.bank) * (1 - Math.exp(-dt * 2.2));
-    const ground = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.5).y;
-    this.grounded = this.pos.y <= ground + 0.06;
-    if (!this.grounded) this.yaw -= this.bank * 1.25 * dt; else this.yaw -= steer * 0.9 * dt;
-    const target = this.grounded ? (throttle ? 10 : 0) : bar ? 12.5 : 8.5;
-    this.airspeed += (target - this.airspeed) * (1 - Math.exp(-dt * (this.grounded ? 0.8 : 1.4)));
-    // up and down by pointing: nose the view up to climb (the throttle gives the power to climb hard), down to dive;
-    // with the engine off it can only glide, slowly sinking
-    const look = this.lookDir();
-    let vy;
-    if (this.grounded) vy = this.airspeed > 7 && throttle && (look.y > -0.05 || climb) ? 3 : 0;   // rolls along, lifts off at speed
-    else vy = clamp(look.y * this.airspeed * 1.1, -7, throttle ? 4.5 : idle ? -1.8 : 0.4) - (throttle ? 0 : 0.9) - (bar ? 0.4 : 0);
-    if (climb && !this.grounded) vy = Math.max(vy, 0) + 4;                         // Space: full power and climb
-    if (this.lost > 0) vy = Math.min(vy, -3.5);
-    const fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
-    this.vel.set(fw.x * this.airspeed, vy, fw.z * this.airspeed);
-    this.pos.addScaledVector(this.vel, dt);
-    if (this.pos.y < ground) { this.pos.y = ground; }
-    this.model.pose(this.yaw, this.bank, throttle, this.grounded, this.lost);
-    this.engine.set(throttle ? 1 : 0.35, throttle ? 0.9 : 0.25);
-    // knocks: the trike against a wall or roof edge, or the wing into a building. bounced off, the wing partly
-    // collapses for a moment and he drops, then it reinflates. Never blown up.
-    const hit = this.touching([[0, 0.25, -0.7], [0, 0.25, 0.6], [0.5, 0.25, 0], [-0.5, 0.25, 0], [0, 3.7, 0], [2.8, 1.9, 0], [-2.8, 1.9, 0]]);
-    if (hit && !hit.ground) {
-      // always pushed out sideways (the wing poking into a building from below shouldn't drive him into the ground)
-      let n = hit.n, pen = hit.pen;
-      if (Math.abs(n.y) > 0.5 && hit.cell) { const c = hit.cell, dx = hit.w.x - c.x, dz = hit.w.z - c.z; if (Math.abs(dx) / c.hx > Math.abs(dz) / c.hz) { n = new THREE.Vector3(Math.sign(dx) || 1, 0, 0); pen = c.hx - Math.abs(dx); } else { n = new THREE.Vector3(0, 0, Math.sign(dz) || 1); pen = c.hz - Math.abs(dz); } }
-      this.pos.addScaledVector(n, pen + 0.08);
-      if (this.lost <= 0) { this.yaw = Math.atan2(-n.x, -n.z) + rand(-0.5, 0.5); this.airspeed *= 0.5; }   // turned away from the wall, once per knock
-      if (this.lost <= 0) { this.lost = 1.1; this.shake = 0.8; sfx.crash(hit.w.x, hit.w.z, 0.4); if (hit.cell && this.airspeed > 6) B.damageSphere(hit.w.x, hit.w.y, hit.w.z, 0.8, 50, 0, 0, this.pos); }
+  // ---------------- the balloon chair: point-and-fly like the drone, but it holds its height by itself. Mouse turns
+  // and aims (aiming never changes altitude); W/S forward and back, A/D slide sideways, let go and it stops and hovers.
+  // Space rises (the balloons fill back up), C / Ctrl sinks (balloons come loose one at a time and float off), and
+  // the vertical speed follows the lift the balloons give, so what you see is what it does.
+  flyChair(dt, turn) {
+    const k = this.keys, B = G.buildings, M = this.model;
+    this.yaw -= turn;
+    const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0), boost = k.ShiftLeft || k.ShiftRight;
+    const up = !!k.Space, down = !!(k.KeyC || k.ControlLeft || k.ControlRight) && !up;
+    const fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), rt = _v2.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    const wish = new THREE.Vector3().addScaledVector(fw, f).addScaledVector(rt, s); if (wish.lengthSq() > 1) wish.normalize();
+    const vmax = boost ? 13 : 8;
+    // horizontal: quick to start, quick to stop (no drifting off into walls)
+    const hv = new THREE.Vector3(this.vel.x, 0, this.vel.z).lerp(wish.multiplyScalar(vmax), 1 - Math.exp(-dt * (wish.lengthSq() ? 3 : 4.5)));
+    // vertical: balloons. Sinking lets them go one by one (never below a floor that still holds him up); rising
+    // fills them back; in between it simply holds its height
+    const want = up ? 4.2 : down ? -3.6 : 0;
+    let vy = this.vel.y + (want - this.vel.y) * (1 - Math.exp(-dt * 3));
+    M.lift(dt, up, down && !this.grounded);
+    const ground = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.3).y;
+    this.grounded = this.pos.y <= ground + 0.03;
+    if (this.grounded && vy < 0) vy = 0;
+    this.vel.set(hv.x, vy, hv.z);
+    // move in small steps so a fast chair can't skip through a thin wall
+    const steps = Math.max(1, Math.ceil(this.vel.length() * dt / 0.25));
+    for (let st = 0; st < steps; st++) {
+      this.pos.addScaledVector(this.vel, dt / steps);
+      const g2 = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.3).y;
+      if (this.pos.y < g2) { this.pos.y = g2; if (this.vel.y < 0) this.vel.y = 0; }
+      this.collideChair();
+    }
+    M.pose(this.yaw, this.vel, dt);
+    this.engine.set(0.25 + Math.min(1, hv.length() / 10) * 0.6, Math.min(1, hv.length() / 12));
+  }
+  // the chair's own small, stable box of points (the balloons and strings take no part): pushed straight back out of
+  // whatever it touches through the face it came in by, the speed into the wall taken away, so it slides along walls,
+  // settles on roofs and can always back away
+  collideChair() {
+    const pts = [[0, 0.06, 0], [0.24, 0.12, 0.4], [-0.24, 0.12, 0.4], [0.24, 0.12, -0.42], [-0.24, 0.12, -0.42], [0.22, 0.55, 0.42], [-0.22, 0.55, 0.42], [0, 0.85, 0.3], [0, 0.4, -0.5]];
+    for (let it = 0; it < 3; it++) {
+      const hit = this.touching(pts);
+      if (!hit) return;
+      if (hit.ground) { this.pos.y += hit.pen + 0.01; if (this.vel.y < 0) this.vel.y = 0; continue; }
+      this.pos.addScaledVector(hit.n, hit.pen + 0.02);
+      const vn = this.vel.dot(hit.n); if (vn < 0) this.vel.addScaledVector(hit.n, -vn);
+      if (vn < -5 && (this.bumpT || 0) <= G.time) { this.bumpT = G.time + 0.4; this.shake = Math.max(this.shake, 0.25); sfx.crash(hit.w.x, hit.w.z, 0.2); }
     }
   }
 
   // ---------------- the jetpack: hover, lift, strafe, burst
   flyJetpack(dt, turn) {
-    const k = this.keys, B = G.buildings;
+    const k = this.keys, B = G.buildings, GRAV = 12;
     this.yaw -= turn;
     const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
-    const fw = _v.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), rt = _v2.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    // W flies down the crosshair: point up to rise, down to drop; A/D strafe; nothing pressed: he hovers
+    const rt = _v2.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    // a real jetpack: gravity always pulls. While you're firing it (W/S/A/D along the crosshair, Space straight up)
+    // it carries his weight and pushes him where you point; let go of everything and he drops like a stone
     const look = this.lookDir(), dir3 = new THREE.Vector3().addScaledVector(look, f).addScaledVector(rt, s); if (dir3.lengthSq() > 1) dir3.normalize();
-    const wish = new THREE.Vector3(dir3.x, 0, dir3.z), u = k.Space ? 1 : clamp(dir3.y * 1.6, -1, 1);
+    const firing = f !== 0 || s !== 0 || !!k.Space;
     const ground = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.4).y;
     this.grounded = this.pos.y <= ground + 0.03 && this.vel.y <= 0.01;
-    // horizontal: quick to answer, a little slide
-    const hv = new THREE.Vector3(this.vel.x, 0, this.vel.z).lerp(wish.clone().multiplyScalar(13), 1 - Math.exp(-dt * (this.grounded ? 6 : 3.4)));
-    // vertical: lift on R, drop on F, hold altitude (hover) with neither; standing on the ground until you lift off
-    let vy = this.vel.y;
-    if (Math.abs(u) > 0.05) vy += (u * 11 - vy) * (1 - Math.exp(-dt * 4));
-    else if (!this.grounded) vy *= Math.exp(-dt * 3.5);
-    vy = clamp(vy, -14, 11);
-    // burst: a sharp kick of thrust the way you're steering (or straight ahead)
+    const v = this.vel.clone();
+    v.y -= GRAV * dt;
+    if (firing) {
+      v.y += GRAV * dt;                                                   // the jets hold him up ...
+      const want = dir3.clone().multiplyScalar(13); if (k.Space) want.y = Math.max(want.y, 0) + 9;
+      v.lerp(want, 1 - Math.exp(-dt * 3.2));                              // ... and drive him where he's pointed
+    } else if (!this.grounded) {
+      v.x *= Math.exp(-dt * 0.25); v.z *= Math.exp(-dt * 0.25);           // falling: only a little air drag
+    }
+    if (this.grounded && !firing) { v.x *= Math.exp(-dt * 10); v.z *= Math.exp(-dt * 10); }
+    v.y = Math.max(v.y, -40);
+    // burst: a sharp kick of thrust the way you're pointing
     this.burstCd -= dt;
     if ((k.ShiftLeft || k.ShiftRight) && this.burstCd <= 0) {
-      const d = dir3.lengthSq() > 0 ? dir3.clone() : look.clone(); hv.addScaledVector(new THREE.Vector3(d.x, 0, d.z), 16); vy += d.y * 14 + 1.5;
+      const d = dir3.lengthSq() > 0 ? dir3.clone() : look.clone(); v.addScaledVector(d, 16); v.y += 2;
       this.burstCd = 0.9; this.model.burst = 0.35; this.shake = Math.max(this.shake, 0.35);
     }
-    this.vel.set(hv.x, vy, hv.z);
+    this.vel.copy(v);
+    const fallSpeed = -this.vel.y;
     this.pos.addScaledVector(this.vel, dt);
-    if (this.pos.y < ground) { this.pos.y = ground; if (this.vel.y < 0) this.vel.y = 0; }
+    // landing: from high enough (hitting at over 17, about four storeys' drop) it kills him
+    const g2 = B.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.4 + fallSpeed * dt).y;
+    if (this.pos.y < g2) {
+      this.pos.y = g2;
+      if (fallSpeed > 17) { this.jetpackDeath(fallSpeed); return; }
+      if (fallSpeed > 9) { this.shake = Math.max(this.shake, 0.5); sfx.crash(this.pos.x, this.pos.z, 0.3); }
+      if (this.vel.y < 0) this.vel.y = 0;
+    }
     // walls and roof edges: slide along them
     for (let it = 0; it < 2; it++) {
       const hit = this.touching([[0, 0.05, 0], [0, 0.75, 0], [0.22, 0.45, 0], [-0.22, 0.45, 0], [0, 0.45, 0.28], [0, 0.45, -0.22]]);
@@ -450,9 +475,22 @@ export class VehicleMode {
       const vn = this.vel.dot(hit.n); if (vn < 0) this.vel.addScaledVector(hit.n, -vn * 1.2);
       if (vn < -9) { this.shake = 0.6; sfx.crash(hit.w.x, hit.w.z, 0.3); }
     }
-    const thrust = this.grounded && u <= 0 ? 0 : clamp(0.55 + u * 0.45 + wish.length() * 0.15, 0, 1);
+    const thrust = firing ? clamp(0.6 + (k.Space ? 0.4 : 0) + Math.max(0, dir3.y) * 0.3, 0, 1) : 0;
     this.model.pose(this.yaw, this.vel, this.yaw, thrust, this.grounded, dt);
     this.engine.set(thrust > 0 ? 0.5 + thrust * 0.5 : 0.05, thrust);
+  }
+  // hit the ground too fast: he's killed (a thump, dust, the crowd scatters), then back on his feet a moment later
+  jetpackDeath(speed) {
+    if (this.dead) return;
+    const p = this.pos.clone(), fx = G.fx;
+    this.dead = true; this.respawnT = 1.6; this.vel.set(0, 0, 0); this.shots.length = 0;
+    fx.dust(p.x, p.y + 0.2, p.z, 1.6); for (let i = 0; i < 3; i++) fx.smokePuff(p.x + rand(-0.4, 0.4), p.y + 0.3, p.z + rand(-0.4, 0.4), 0.6, 0.3, 3);
+    for (let i = 0; i < 8; i++) fx.debris.spawn(p.x, p.y + 0.2, p.z, new THREE.Vector3(rand(-3, 3), rand(2, 5), rand(-3, 3)), rand(0.06, 0.14), rand(0.06, 0.1), rand(0.06, 0.14), new THREE.Color(pick([0xd8262a, 0xf2a52a, 0x4a4c52, 0x6e7073])));
+    sfx.crash(p.x, p.z, 0.8); sfx.yelp && sfx.yelp(p.x, p.z);
+    if (speed > 25) G.ground && G.ground.scorch && G.ground.scorch(p.x, p.z, 0.8, 0.4);
+    blast(p.x, p.y, p.z, 3, 1.5, 'collapse');
+    this.shake = 1; this.engine.set(0, 0);
+    this.msgEl.textContent = 'SPLAT — BACK ON YOUR FEET'; this.msgEl.classList.add('show');
   }
 
   // ---------------- weapons
@@ -470,7 +508,7 @@ export class VehicleMode {
   }
   firePrimary() {
     const mz = this.model.muzzle(), target = this.aimPoint(), dir = target.clone().sub(mz).normalize();
-    if (this.kind === 'glider') {
+    if (this.kind === 'chair') {
       // fireballs: a rapid stream of glowing balls of fire
       dir.x += rand(-0.02, 0.02); dir.y += rand(-0.02, 0.02); dir.normalize();
       this.shots.push({ kind: 'fire', pos: mz.clone(), prev: mz.clone(), vel: dir.multiplyScalar(48).add(this.vel), life: 1.6, sp: null });
@@ -489,7 +527,7 @@ export class VehicleMode {
   }
   fireSecondary() {
     const mz = this.model.muzzle(true), target = this.aimPoint(), dir = target.clone().sub(mz).normalize();
-    if (this.kind === 'glider') {
+    if (this.kind === 'chair') {
       // the firework: a fat rocket on a stick, sparkling, that goes off like a bomb
       const mesh = this.fireworkMesh(); mesh.position.copy(mz); this.fxGroup.add(mesh);
       this.bombs.push({ kind: 'firework', pos: mz.clone(), vel: dir.multiplyScalar(55).add(this.vel), life: 2.4, mesh, t: 0 });
@@ -527,7 +565,8 @@ export class VehicleMode {
     const test = (obj, x, y, z, r) => { const tx = x - o.x, ty = y - o.y, tz = z - o.z, al = tx * dir.x + ty * dir.y + tz * dir.z; if (al < -r || al > len + r) return; const d2 = tx * tx + ty * ty + tz * tz - al * al; if (d2 < r * r && (!best || al < best.t)) best = { obj, t: Math.max(0, al) }; };
     for (const p of A.peds) if (!p.hidden && p.state !== 'gone' && p.state !== 'incar' && !p.dead) test(p, p.pos.x, p.pos.y + 0.4, p.pos.z, 0.4);
     for (const c of A.cars) if (c.state !== 'hidden') test(c, c.pos.x, c.pos.y + 0.35, c.pos.z, 0.8);
-    if (best) best.car = A.cars.includes(best.obj);
+    for (const t of boatTargets()) test(t, t.x, t.y, t.z, t.r);
+    if (best) { best.car = A.cars.includes(best.obj); best.boat = !best.car && !!best.obj.kill; }
     return best;
   }
   updateShots(dt) {
@@ -560,11 +599,15 @@ export class VehicleMode {
   }
   bulletHit(hit) {
     const B = G.buildings, fx = G.fx, p = hit.point, nrm = hit.normal;
-    B.damageSphere(p.x, p.y, p.z, 0.9, 34, 0.05, 0.03, this.pos);
+    // the machine guns are for people: on a building a round only chips the surface (it takes a long burst to break a
+    // single block), but anyone it hits goes down
+    B.damageSphere(p.x, p.y, p.z, 0.45, 3, 0, 0, this.pos);
     fx.sparks(p.x + nrm.x * 0.1, p.y + nrm.y * 0.1, p.z + nrm.z * 0.1, 5, 2.2, 1.8, 0.8, 5);
     if (Math.random() < 0.25) fx.smokePuff(p.x + nrm.x * 0.3, p.y + 0.2, p.z + nrm.z * 0.3, 0.35, 0.2, 2);
     if (hit.victim && hit.victim.car) { const c = hit.victim.obj; c.cook = (c.cook || 0) + 0.12; if (c.cook > 1) { c.cook = -10; G.weapons.carExplode(c); } }
-    blast(p.x, p.y, p.z, hit.victim && !hit.victim.car ? 1.6 : 0.9, hit.victim && !hit.victim.car ? 2.4 : 0.6, 'laser');
+    if (hit.victim && hit.victim.boat) damageBoat(hit.victim.obj, 0.1);
+    const person = hit.victim && !hit.victim.car && !hit.victim.boat;
+    blast(p.x, p.y, p.z, person ? 1.8 : 0.9, person ? 3 : 0.6, 'laser');
   }
   fireHit(hit) {
     const B = G.buildings, fx = G.fx, p = hit.point;
@@ -574,6 +617,7 @@ export class VehicleMode {
     this.pop(_v.copy(p), 2, 0.25, new THREE.Color(2, 0.9, 0.3));
     if (hit.ground && Math.random() < 0.15) fx.groundFire(p.x, p.y, p.z, rand(4, 8), 0.5);
     if (hit.victim && hit.victim.car) { const c = hit.victim.obj; c.cook = (c.cook || 0) + 0.3; if (c.cook > 1) { c.cook = -10; G.weapons.carExplode(c); } }
+    if (hit.victim && hit.victim.boat) damageBoat(hit.victim.obj, 0.3);
     blast(p.x, p.y, p.z, hit.victim && !hit.victim.car ? 2.2 : 1.4, hit.victim && !hit.victim.car ? 3 : 1, 'laser');
   }
   updateBombs(dt) {
@@ -637,17 +681,17 @@ export class VehicleMode {
     if (!this.active) return;
     const cam = this.camera, K = this.kind;
     this.shake = Math.max(0, this.shake - dt * 1.8);
-    const dist = (K === 'drone' ? 3.6 : K === 'glider' ? 7.5 : 3.2) * this.zoom, h = K === 'glider' ? 1.8 : K === 'drone' ? 0.55 : 0.45;
+    const dist = (K === 'drone' ? 3.6 : K === 'chair' ? 4.6 : 3.2) * this.zoom, h = K === 'chair' ? 1.25 : K === 'drone' ? 0.55 : 0.45;
     const pitch = clamp(this.aim * 0.85, -1.1, 0.55);
     const back = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(pitch), -Math.sin(pitch), Math.cos(this.yaw) * Math.cos(pitch));
-    const focus = this.pos.clone().add(new THREE.Vector3(0, K === 'glider' ? 1.6 : K === 'jetpack' ? 0.55 : 0.1, 0));
+    const focus = this.pos.clone().add(new THREE.Vector3(0, K === 'chair' ? 0.75 : K === 'jetpack' ? 0.55 : 0.1, 0));
     const want = focus.clone().addScaledVector(back, dist).add(new THREE.Vector3(0, h, 0));
     if (!this.camInit) { this.camPos.copy(want); this.camInit = true; }
-    this.camPos.lerp(want, 1 - Math.exp(-dt * (K === 'glider' ? 4 : 8)));
+    this.camPos.lerp(want, 1 - Math.exp(-dt * (K === 'chair' ? 6 : 8)));
     cam.position.copy(this.camPos);
     const B = G.buildings, floor = B ? B.surfaceAt(cam.position.x, cam.position.z, cam.position.y + 0.2).y : 0;
     if (cam.position.y < floor + 0.3) cam.position.y = floor + 0.3;
-    const look = focus.clone().addScaledVector(back, -7).add(new THREE.Vector3(0, K === 'glider' ? 0.3 : 0.25, 0));
+    const look = focus.clone().addScaledVector(back, -7).add(new THREE.Vector3(0, 0.25, 0));
     cam.up.set(0, 1, 0); cam.lookAt(look);
     if (this.shake > 0) { const s = this.shake * this.shake * 0.02, t = performance.now() * 0.037; cam.quaternion.multiply(_q.setFromEuler(new THREE.Euler(Math.sin(t) * s, Math.sin(t * 1.3 + 1) * s, 0))); }
     const sp = this.vel.length(), fov = 64 + clamp(sp / 24, 0, 1) * 8;
@@ -701,69 +745,142 @@ export class VehicleMode {
     };
   }
 
-  buildGlider() {
-    const root = new THREE.Group(), swing = new THREE.Group(); root.add(swing);
-    const tube = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, roughness: 0.35, metalness: 0.8 }), red = new THREE.MeshStandardMaterial({ color: 0xc8202a, roughness: 0.45 }), green = new THREE.MeshStandardMaterial({ color: 0x3ad22a, roughness: 0.5 }), tyre = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 });
+  buildChair() {
+    const root = new THREE.Group(), chair = new THREE.Group(); root.add(chair);
+    const self = this;
+    const frameM = new THREE.MeshStandardMaterial({ color: 0xe8eaec, roughness: 0.3, metalness: 0.75 }), web = new THREE.MeshStandardMaterial({ color: 0xf2d27a, roughness: 0.75, side: THREE.DoubleSide }), webW = new THREE.MeshStandardMaterial({ color: 0xfaf6ea, roughness: 0.75, side: THREE.DoubleSide });
     const add = (p, g, m, x, y, z) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; };
     const rod = (p, a, b, r, m) => { const d = new THREE.Vector3().subVectors(b, a), L = d.length(); const o = add(p, new THREE.CylinderGeometry(r, r, L, 6), m, 0, 0, 0); o.position.copy(a).addScaledVector(d, 0.5); o.quaternion.setFromUnitVectors(UP, d.normalize()); return o; };
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
-    // the trike (after the reference): a tube frame, three green wheels, the seat, the red engine and its prop in a
-    // round cage behind the pilot
-    const trike = new THREE.Group(); swing.add(trike);
-    rod(trike, V(0, 0.16, -0.75), V(0, 0.22, 0.25), 0.025, tube);
-    rod(trike, V(-0.45, 0.16, 0.25), V(0.45, 0.16, 0.25), 0.025, tube);
-    rod(trike, V(0, 0.22, 0.25), V(0, 0.95, 0.3), 0.025, tube);
-    for (const s of [-1, 1]) rod(trike, V(s * 0.45, 0.16, 0.25), V(0, 0.6, 0.3), 0.02, tube);
-    for (const [x, z] of [[0, -0.75], [-0.45, 0.25], [0.45, 0.25]]) { add(trike, new THREE.CylinderGeometry(0.15, 0.15, 0.07, 14).rotateZ(Math.PI / 2), green, x, 0.15, z); add(trike, new THREE.TorusGeometry(0.15, 0.035, 6, 14).rotateY(Math.PI / 2), tyre, x, 0.15, z); }
-    add(trike, new THREE.BoxGeometry(0.34, 0.06, 0.34), new THREE.MeshStandardMaterial({ color: 0x2a2a2e }), 0, 0.32, 0.05);
-    add(trike, new THREE.BoxGeometry(0.34, 0.4, 0.06), new THREE.MeshStandardMaterial({ color: 0x2a2a2e }), 0, 0.52, 0.24).rotation.x = -0.2;
-    add(trike, new THREE.BoxGeometry(0.3, 0.42, 0.26), red, 0, 0.6, 0.45);
-    add(trike, new THREE.CylinderGeometry(0.08, 0.08, 0.2, 10).rotateX(Math.PI / 2), tube, 0, 0.62, 0.62);
-    const cage = new THREE.Group(); cage.position.set(0, 0.68, 0.74); trike.add(cage);
-    cage.add(Object.assign(new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.016, 6, 40), tube), { castShadow: true }));
-    for (let i = 0; i < 6; i++) { const sp = add(cage, new THREE.BoxGeometry(0.012, 1.24, 0.012), tube, 0, 0, 0); sp.rotation.z = (i / 6) * Math.PI; }
-    const prop = new THREE.Group(); prop.position.z = -0.03; cage.add(prop);
-    add(prop, new THREE.BoxGeometry(1.12, 0.07, 0.02), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 }), 0, 0, 0);
-    const blur = new THREE.Mesh(new THREE.CircleGeometry(0.58, 28), new THREE.MeshBasicMaterial({ color: 0x8a7a6a, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false })); cage.add(blur);
-    // the pilot: the dad, seated, hands up on the brake toggles
-    const pilot = new CartoonCharacter('dad'); pilot.root.scale.setScalar(S); pilot.root.position.set(0, 0.12, 0.06); trike.add(pilot.root);
-    // the wing: a long arc of white cells with dark bands and blue tips, its lines down to the risers
-    const wing = new THREE.Group(); wing.position.y = 3.7; swing.add(wing);
-    const N = 22, R = 3.2, span = 1.25, wingCol = (i) => (i === 0 || i === N - 1 ? 0x2a9ad8 : [5, 6, 15, 16].includes(i) ? 0x3a5868 : 0xf4f6f8);
-    const ribs = [];
-    for (let i = 0; i < N; i++) {
-      const a0 = -span + (i / N) * span * 2, a1 = -span + ((i + 1) / N) * span * 2, am = (a0 + a1) / 2;
-      const cell = add(wing, new THREE.BoxGeometry(R * (a1 - a0) * 1.02, 0.16, 1.15), new THREE.MeshStandardMaterial({ color: wingCol(i), roughness: 0.7, side: THREE.DoubleSide }), Math.sin(am) * R, Math.cos(am) * R - R, 0);
-      cell.rotation.z = -am; ribs.push([Math.sin(am) * R, Math.cos(am) * R - R]);
+    // the folding lounge chair (after the reference): aluminium tube frame on two pairs of legs, a long seat, the back
+    // reclined, yellow-and-white striped webbing, armrests
+    // (the frame is built with its foot toward +z and turned round, so the feet point the way he faces, -z)
+    const W = 0.2, seatY = 0.2, frame = new THREE.Group(); frame.rotation.y = Math.PI; chair.add(frame);
+    for (const sx of [-W, W]) {
+      rod(frame, V(sx, seatY, 0.5), V(sx, seatY, -0.3), 0.012, frameM);                      // seat rail
+      rod(frame, V(sx, seatY, -0.3), V(sx, 0.62, -0.52), 0.012, frameM);                     // reclined back
+      rod(frame, V(sx, seatY, 0.42), V(sx, 0.02, 0.5), 0.01, frameM); rod(frame, V(sx, seatY, -0.22), V(sx, 0.02, -0.3), 0.01, frameM);   // legs
+      rod(frame, V(sx, 0.36, -0.12), V(sx, 0.36, -0.36), 0.01, frameM); rod(frame, V(sx, seatY, -0.12), V(sx, 0.36, -0.12), 0.01, frameM);  // armrest
     }
-    const lp = [];
-    for (const [x, y] of ribs.filter((_, i) => i % 2 === 0)) for (const z of [-0.4, 0.3]) lp.push(x, y + 3.7 - 0.08, z, x > 0 ? 0.22 : -0.22, 1.05, 0.15);
-    const lines = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)), new THREE.LineBasicMaterial({ color: 0x9aa0a6, transparent: true, opacity: 0.7 }));
-    swing.add(lines);
-    // the launchers: the fireball tube on the right of the frame, the firework rack on the left
-    add(trike, new THREE.CylinderGeometry(0.05, 0.06, 0.55, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3a3a3e, metalness: 0.7, roughness: 0.4 }), 0.3, 0.55, -0.3);
-    add(trike, new THREE.BoxGeometry(0.18, 0.18, 0.5), new THREE.MeshStandardMaterial({ color: 0xd8202a, roughness: 0.5 }), -0.32, 0.55, -0.2);
-    const self = this;
-    let collapse = 0;
+    rod(frame, V(-W, 0.62, -0.52), V(W, 0.62, -0.52), 0.012, frameM); rod(frame, V(-W, seatY, 0.5), V(W, seatY, 0.5), 0.012, frameM);
+    for (let i = 0; i < 9; i++) { const z = 0.46 - i * 0.085; add(frame, new THREE.BoxGeometry(W * 2, 0.008, 0.07), i % 2 ? webW : web, 0, seatY, z); }
+    for (let i = 0; i < 6; i++) { const t = (i + 0.5) / 6, y = seatY + (0.62 - seatY) * t, z = -0.3 - 0.22 * t; const sl = add(frame, new THREE.BoxGeometry(W * 2, 0.07, 0.008), i % 2 ? webW : web, 0, y, z); sl.rotation.x = -0.48; }
+    // the dad, stretched out in it with a drink
+    const dad = new CartoonCharacter('dad'); dad.root.scale.setScalar(S); dad.root.position.set(0, 0.05, 0.2); dad.root.rotation.x = 0.28; chair.add(dad.root);
+    const drink = new THREE.Group(); dad.armL.end.add(drink); drink.position.set(0, -0.12, -0.02);
+    add(drink, new THREE.CylinderGeometry(0.035, 0.02, 0.09, 10), new THREE.MeshStandardMaterial({ color: 0xff6a3a, transparent: true, opacity: 0.85, roughness: 0.1 }), 0, 0.02, 0);
+    add(drink, new THREE.CylinderGeometry(0.006, 0.006, 0.07, 4), new THREE.MeshStandardMaterial({ color: 0xffffff }), 0, -0.05, 0);
+    add(drink, new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffa020 }), 0.03, 0.06, 0);
+    // propulsion: a small caged fan behind the backrest, and the weapons on the armrests (fireball tube right,
+    // firework rack left)
+    const fan = new THREE.Group(); fan.position.set(0, 0.36, -0.62); fan.scale.setScalar(0.7); frame.add(fan);
+    add(fan, new THREE.TorusGeometry(0.14, 0.01, 6, 24), frameM, 0, 0, 0);
+    const blades = new THREE.Group(); fan.add(blades);
+    for (let i = 0; i < 3; i++) { const bl = add(blades, new THREE.BoxGeometry(0.24, 0.035, 0.01), new THREE.MeshStandardMaterial({ color: 0x2a2a2e }), 0, 0, 0); bl.rotation.z = (i / 3) * Math.PI; }
+    add(fan, new THREE.CylinderGeometry(0.04, 0.04, 0.06, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xc8202a }), 0, 0, 0.04);
+    rod(frame, V(0, 0.36, -0.58), V(0, 0.42, -0.4), 0.01, frameM);
+    add(chair, new THREE.CylinderGeometry(0.03, 0.035, 0.32, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3a3a3e, metalness: 0.7, roughness: 0.4 }), W + 0.04, 0.4, 0.1);
+    add(chair, new THREE.BoxGeometry(0.1, 0.1, 0.24), new THREE.MeshStandardMaterial({ color: 0xd8202a, roughness: 0.5 }), -W - 0.05, 0.41, 0.14);
+    // the balloons: two bunches, one tied at the head of the chair and one at the foot, strings to each balloon.
+    // Drawn in world space (one instanced mesh) so balloons that come loose can float away on their own.
+    const MAX = 34, FREE = 24, bal = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10).scale(1, 1.18, 1), new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.05, transparent: true, opacity: 0.94 }), MAX + FREE);
+    bal.frustumCulled = false; bal.castShadow = true;
+    const knot = [V(0, 0.64, 0.52), V(0, 0.22, -0.5)];                                      // tie points (head, foot), chair space
+    const cols = [0xe8342a, 0x2a7ae8, 0x2ac85a, 0xf2c21a, 0xe83a9a, 0x8a4ae8, 0xf2802a, 0x2ac8c8, 0xffffff, 0x9ae82a];
+    const slots = [];
+    for (let i = 0; i < MAX; i++) {
+      const g = i % 2, a = rand(0, 6.28), r = rand(0.04, 0.24), h = rand(1.15, 1.6) + (g ? -0.1 : 0);
+      slots.push({ g, off: V(Math.cos(a) * r, h, Math.sin(a) * r * 0.8 + (g ? 0.08 : -0.08)), size: rand(0.09, 0.115), on: true, fill: 1, ph: rand(0, 6), col: new THREE.Color(pick(cols)) });
+      bal.setColorAt(i, slots[i].col);
+    }
+    const free = [];
+    for (let i = 0; i < FREE; i++) bal.setColorAt(MAX + i, new THREE.Color(1, 1, 1));
+    const strings = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX * 6), 3)), new THREE.LineBasicMaterial({ color: 0xdedede, transparent: true, opacity: 0.75 }));
+    strings.frustumCulled = false;
+    const world = new THREE.Group(); world.add(bal, strings); world.userData.shared = false;
+    this.fxGroup.add(world);
+    let releaseT = 0, fillT = 0, sway = new THREE.Vector2(), lean = [new THREE.Vector3(), new THREE.Vector3()];
+    const popSound = (p, popped) => {
+      const ctx = sfx.ctx; if (!ctx || sfx.muted) return;
+      const t = ctx.currentTime, len = Math.floor(ctx.sampleRate * (popped ? 0.08 : 0.25)), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, popped ? 4 : 1.5);
+      const src = ctx.createBufferSource(); src.buffer = buf; const f = ctx.createBiquadFilter(); f.type = popped ? 'highpass' : 'bandpass'; f.frequency.value = popped ? 900 : 2400;
+      const g2 = ctx.createGain(); const dist = Math.hypot(p.x - G.camTarget.x, p.z - G.camTarget.z); g2.gain.value = (popped ? 0.5 : 0.12) / (1 + dist * 0.05);
+      src.connect(f); f.connect(g2); g2.connect(sfx.bus || ctx.destination); src.start(t);
+    };
+    const mat4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), wp = new THREE.Vector3();
     return {
       root,
-      pose(yaw, bank, throttle, grounded, lost) {
+      // sinking lets balloons go (from alternate bunches, down to a floor of 10 that always keeps him flying); rising
+      // fills them back up one at a time
+      lift(dt, up, down) {
+        const on = slots.filter((b) => b.on);
+        if (down && on.length > 10 && (releaseT -= dt) <= 0) {
+          releaseT = rand(0.22, 0.4);
+          const ready = on.filter((x) => x.fill >= 1), b = ready.length ? pick(ready) : null;
+          if (b) {
+            b.on = false; b.fill = 0;
+            const w = this.balloonWorld(b), popped = Math.random() < 0.35;
+            if (popped) { G.fx.sparks(w.x, w.y, w.z, 6, b.col.r * 2, b.col.g * 2, b.col.b * 2, 3); popSound(w, true); }
+            else { const fr = free.find((x) => !x.live) || (free.length < FREE ? (free[free.length] = { i: MAX + free.length }) : null); if (fr) Object.assign(fr, { live: true, p: w.clone(), v: new THREE.Vector3(rand(-0.6, 0.6), rand(1.6, 2.6), rand(-0.6, 0.6)), t: 0, size: b.size, col: b.col }), bal.setColorAt(fr.i, b.col), bal.instanceColor.needsUpdate = true; popSound(w, false); }
+          }
+        }
+        if (up && (fillT -= dt) <= 0) {
+          const b = slots.find((x) => !x.on); fillT = 0.18;
+          if (b) { b.on = true; b.fill = 0.05; b.col.set(pick(cols)); bal.setColorAt(slots.indexOf(b), b.col); bal.instanceColor.needsUpdate = true; }
+        }
+        for (const b of slots) if (b.on && b.fill < 1) b.fill = Math.min(1, b.fill + dt * 2.2);
+      },
+      count() { return { on: slots.filter((b) => b.on).length, floating: free.filter((f) => f.live).length }; },
+      balloonWorld(b) { root.updateMatrixWorld(true); return wp.copy(knot[b.g]).add(b.off).add(lean[b.g]).applyMatrix4(chair.matrixWorld).clone(); },
+      pose(yaw, vel, dt) {
         root.rotation.set(0, yaw, 0);
-        swing.rotation.z = bank * 0.9; trike.rotation.x = grounded ? 0 : -0.08 + throttle * 0.1;
-        collapse += ((lost > 0 ? 1 : 0) - collapse) * 0.15;
-        wing.scale.set(1 - collapse * 0.35, 1, 1 - collapse * 0.2); wing.rotation.z = collapse * 0.4 * Math.sin(performance.now() * 0.01);
-        lines.visible = wing.visible = !grounded || self.airspeed > 2;
-        this.throttle = throttle;
+        // the chair swings a little under the balloons as it speeds up, slows and turns
+        const fwd = vel.x * -Math.sin(yaw) + vel.z * -Math.cos(yaw), side = vel.x * Math.cos(yaw) + vel.z * -Math.sin(yaw);
+        sway.x += (clamp(fwd / 13, -1, 1) * 0.16 - sway.x) * (1 - Math.exp(-dt * 2.5)); sway.y += (clamp(-side / 13, -1, 1) * 0.14 - sway.y) * (1 - Math.exp(-dt * 2.5));
+        chair.rotation.set(-sway.x, 0, sway.y);
+        this.speed = Math.hypot(vel.x, vel.z); this.vy = vel.y;
       },
       update(dt) {
         root.position.copy(self.pos);
-        prop.rotation.z += dt * (8 + (this.throttle ? 70 : 30)); blur.material.opacity = this.throttle ? 0.3 : 0.15;
-        pilot.update(dt, 'seated'); pilot.armL.upper.rotation.set(2.6, 0, -0.35); pilot.armR.upper.rotation.set(2.6, 0, 0.35); pilot.armL.mid.rotation.x = 0.3; pilot.armR.mid.rotation.x = 0.3;
+        dad.update(dt, 'seated');
+        dad.legL.upper.rotation.x = dad.legR.upper.rotation.x = 1.3; dad.legL.mid.rotation.x = dad.legR.mid.rotation.x = -0.12; dad.legL.end.rotation.x = dad.legR.end.rotation.x = -0.9;   // legs out along the chair
+        dad.armL.upper.rotation.set(0.9, 0, -0.3); dad.armL.mid.rotation.x = 1.0; dad.armR.upper.rotation.set(0.35, 0, 0.25); dad.armR.mid.rotation.x = 0.8;
+        blades.rotation.z += dt * (6 + (this.speed || 0) * 6);
+        root.updateMatrixWorld(true);
+        // the bunches lean away from any wall they'd push into, so they never sink into a building
+        const B = G.buildings, t = performance.now() * 0.001;
+        for (let g = 0; g < 2; g++) {
+          const top = wp.copy(knot[g]).add(V(0, 1.4, 0)).applyMatrix4(chair.matrixWorld), cell = B.inside(top);
+          const want = new THREE.Vector3();
+          if (cell) { const dx = top.x - cell.x, dz = top.z - cell.z; const away = Math.abs(dx) / cell.hx > Math.abs(dz) / cell.hz ? V(Math.sign(dx) * (cell.hx - Math.abs(dx) + 0.3), 0, 0) : V(0, 0, Math.sign(dz) * (cell.hz - Math.abs(dz) + 0.3)); want.copy(away).applyQuaternion(q.copy(chair.getWorldQuaternion(new THREE.Quaternion())).invert()); want.y = -Math.min(0.8, cell.hy); }
+          lean[g].lerp(want, 1 - Math.exp(-dt * 6));
+        }
+        // balloons on the chair: bobbing on their strings, trailing a little behind the motion
+        const pos = strings.geometry.attributes.position.array;
+        const trail = V(sway.x * 0.0, -(this.vy || 0) * 0.02, (this.speed || 0) * 0.012);
+        slots.forEach((b, i) => {
+          if (!b.on) { mat4.makeScale(0, 0, 0); bal.setMatrixAt(i, mat4); pos.fill(0, i * 6, i * 6 + 6); return; }
+          const o = wp.copy(knot[b.g]).add(b.off).add(lean[b.g]).add(trail).add(V(Math.sin(t * 1.3 + b.ph) * 0.03, Math.sin(t * 1.7 + b.ph) * 0.02, Math.cos(t * 1.1 + b.ph) * 0.03));
+          const w = o.clone().applyMatrix4(chair.matrixWorld), k0 = knot[b.g].clone().applyMatrix4(chair.matrixWorld);
+          const s2 = b.size * (0.2 + 0.8 * b.fill);
+          mat4.compose(w, q.identity(), sc.set(s2, s2, s2)); bal.setMatrixAt(i, mat4);
+          pos.set([k0.x, k0.y, k0.z, w.x, w.y - s2 * 1.15, w.z], i * 6);
+        });
+        // the ones that got away: up and off on the wind, swaying, shrinking into the sky
+        for (const fr of free) {
+          if (!fr.live) { if (fr.i != null) { mat4.makeScale(0, 0, 0); bal.setMatrixAt(fr.i, mat4); } continue; }
+          fr.t += dt; fr.v.y += dt * 0.4; fr.v.x += Math.sin(fr.t * 2 + fr.i) * dt * 0.8;
+          fr.p.addScaledVector(fr.v, dt);
+          if (fr.t > 9 || B.inside(fr.p)) { fr.live = false; if (fr.t <= 9) popSound(fr.p, true); continue; }
+          mat4.compose(fr.p, q.identity(), sc.setScalar(fr.size)); bal.setMatrixAt(fr.i, mat4);
+        }
+        bal.instanceMatrix.needsUpdate = true; strings.geometry.attributes.position.needsUpdate = true;
       },
-      muzzle(second) { root.updateMatrixWorld(true); return new THREE.Vector3(second ? -0.32 : 0.3, 0.55, second ? -0.5 : -0.6).applyMatrix4(trike.matrixWorld); },
+      muzzle(second) { root.updateMatrixWorld(true); return new THREE.Vector3(second ? -W - 0.05 : W + 0.04, 0.41, second ? -0.04 : -0.08).applyMatrix4(chair.matrixWorld); },
+      dispose() { this.fxGroupRemove = true; self.fxGroup.remove(world); bal.geometry.dispose(); strings.geometry.dispose(); },
     };
   }
-
   buildJetpack() {
     const root = new THREE.Group();
     const guy = new CartoonCharacter('guy'); guy.root.scale.setScalar(S); root.add(guy.root);

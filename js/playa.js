@@ -436,6 +436,7 @@ export class Playa {
     // griddle smoke near the camera
     for (const s of this.smoke) if (Math.random() < dt * 1.5 && Math.hypot(s.x - T.x, s.z - T.z) < 60) G.fx.smokePuff(s.x, 0.6, s.z, 0.3, 0.02);
     for (const b of this.boats) {
+      if (b.dead) continue;                                                     // wrecked (js/boats.js sinks it)
       // drift slowly, ride the swell
       b.h += Math.sin(t * 0.05 + b.ph) * dt * 0.05;
       b.x += Math.sin(b.h) * dt * 0.12; b.z += Math.cos(b.h) * dt * 0.12;
