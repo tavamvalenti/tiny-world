@@ -10,8 +10,8 @@ const CSS = `
   background:rgba(12,14,18,.55);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);font:600 10px Inter;letter-spacing:.16em;color:#f2f4f6;transition:transform .2s,border-color .2s}
 #progChip:hover{transform:translateY(-1px);border-color:rgba(255,214,120,.6)}
 #progChip .em{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:800 11px Inter;color:#14161a;background:linear-gradient(135deg,#ffd46b,#f08a2a);box-shadow:0 0 10px rgba(255,180,80,.5)}
-#progChip .bar{width:84px;height:3px;border-radius:2px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:4px}
-#progChip .bar i{display:block;height:100%;background:linear-gradient(90deg,#ffd46b,#ff7a3a);transition:width .6s}
+#progChip .xpb{display:block;width:84px;height:3px;border-radius:2px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:4px}
+#progChip .xpb i{display:block;height:100%;background:linear-gradient(90deg,#ffd46b,#ff7a3a);transition:width .6s}
 #progChip small{display:block;font:500 9px Inter;letter-spacing:.08em;color:rgba(255,255,255,.55);margin-top:3px}
 html.touch #progChip{top:calc(var(--st,0px) + 54px);left:12px;transform:scale(.9);transform-origin:left top}
 body.rick-on #progChip,body.veh-on #progChip{opacity:.55}
@@ -27,13 +27,13 @@ body.rick-on #progChip,body.veh-on #progChip{opacity:.55}
 #progPanel{position:fixed;inset:0;z-index:31;display:none;align-items:center;justify-content:center;background:rgba(6,7,9,.6);backdrop-filter:blur(6px);padding:16px;font-family:Inter,system-ui,sans-serif;color:#eef0f2}
 #progPanel.open{display:flex}
 #progPanel .pp{width:min(860px,100%);max-height:88vh;display:flex;flex-direction:column;background:rgba(18,20,24,.97);border:1px solid rgba(255,255,255,.1);border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden}
-#progPanel header{display:flex;align-items:center;gap:14px;padding:16px 20px 10px}
+#progPanel header{flex:none;display:flex;align-items:center;gap:14px;padding:16px 20px 10px}
 #progPanel header h2{margin:0;font:500 24px 'Playfair Display',serif;letter-spacing:.1em;flex:1}
 #progPanel header .x{cursor:pointer;font:400 22px Inter;opacity:.7;padding:0 6px}
-#progPanel nav{display:flex;gap:4px;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.08);overflow-x:auto}
+#progPanel nav{flex:none;display:flex;flex-wrap:wrap;gap:0 4px;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.08)}
 #progPanel nav span{padding:9px 12px;font:700 10px Inter;letter-spacing:.2em;color:rgba(255,255,255,.55);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
 #progPanel nav span.on{color:#ffd46b;border-color:#ffd46b}
-#progPanel .body{overflow:auto;padding:16px 20px 20px}
+#progPanel .body{flex:1 1 auto;min-height:0;overflow:auto;padding:16px 20px 20px}
 #progPanel h4{margin:16px 0 8px;font:700 10px Inter;letter-spacing:.25em;color:#ffd46b}
 #progPanel .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
 #progPanel .it{padding:10px 12px;border-radius:5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
@@ -81,7 +81,7 @@ export class ProgressUI {
   renderChip() {
     const p = this.p, r = p.rank, n = p.nextRank, xp = p.P.xp;
     const pct = n ? Math.min(100, ((xp - r.xp) / (n.xp - r.xp)) * 100) : 100;
-    this.chip.innerHTML = `<span class="em">${p.rankIndex + 1}</span><span>${r.name.toUpperCase()}<span class="bar"><i style="width:${pct}%"></i></span><small>${xp.toLocaleString()} XP${n ? ` · ${(n.xp - xp).toLocaleString()} to ${n.name}` : ''}</small></span>`;
+    this.chip.innerHTML = `<span class="em">${p.rankIndex + 1}</span><span>${r.name.toUpperCase()}<span class="xpb"><i style="width:${pct}%"></i></span><small>${xp.toLocaleString()} XP${n ? ` · ${(n.xp - xp).toLocaleString()} to ${n.name}` : ''}</small></span>`;
   }
   // ---------- notifications ----------
   toast(html, o = {}) {
