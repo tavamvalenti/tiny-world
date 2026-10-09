@@ -473,6 +473,7 @@ export class RickMode {
   wheel(e) { this.zoom = clamp(this.zoom * (1 + Math.sign(e.deltaY) * 0.1), 0.55, 2.4); }
 
   enter() {
+    if (G.hub && G.hub.active) G.hub.exit();                     // leaving a mini-game
     if (!G.buildings) return;
     if (G.veh && G.veh.active) G.veh.exit();                    // one thing flying at a time
     G.progress && G.progress.vehicle('rick');

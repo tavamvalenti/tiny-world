@@ -14,7 +14,7 @@ const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xx
 function defaults() {
   return {
     v: VERSION, id: uuid(), name: `Player-${Math.floor(1000 + Math.random() * 9000)}`, created: Date.now(), xp: 0,
-    stats: { cells: 0, damage: 0, time: 0, maps: {}, discovered: {}, mapPlaces: {}, tools: {}, vehicles: {}, landmarks: {}, boats: 0, splats: 0, events: {}, best: {}, recordMaps: {}, mapStats: {}, challengesDone: 0 },
+    stats: { cells: 0, damage: 0, time: 0, maps: {}, discovered: {}, mapPlaces: {}, tools: {}, vehicles: {}, landmarks: {}, boats: 0, splats: 0, events: {}, best: {}, recordMaps: {}, mapStats: {}, challengesDone: 0, acts: {} },
     records: {},          // id or id:map -> { value, prev, date, map }
     ach: {},              // achievement id -> date unlocked
     mapc: {},             // map challenge id -> date completed
@@ -246,6 +246,7 @@ export class Progress {
   setRecord(id, value, map, o = {}) {
     const def = D.RECORDS[id]; if (!def || !isFinite(value)) return false;
     if (def.max && value > def.max) return false;                  // impossible: ignore it
+    if (def.min && value < def.min) return false;
     const better = (a, b) => (def.better === 'low' ? a < b : a > b);
     const S = this.P.stats;
     const put = (k) => {
@@ -269,6 +270,39 @@ export class Progress {
     if (def.board) this.lb.offer(id, value, map, o.evidence);
     this.touch();
     return true;
+  }
+
+  // ---------- mini-games (js/activities/) ----------
+  // each activity's lifetime numbers: runs, best per mode, medals per mode, running totals
+  actStats(id) { const A = (this.P.stats.acts ||= {}); return (A[id] ||= { runs: 0, best: {}, medals: {}, totals: {} }); }
+  // a finished, validated run. Records go through setRecord (personal bests, leaderboards); XP comes from medals won
+  // for the first time (once per mode, ever) and a small per-run amount that stops after a daily allowance per
+  // activity, so replaying the easy part can't farm it. Returns what was earned, for the results card.
+  activityRun(id, run) {
+    const st = this.actStats(id), S = this.P.stats, low = run.better === 'low';
+    st.runs++;
+    if (run.best != null && isFinite(run.best) && (st.best[run.mode] == null || (low ? run.best < st.best[run.mode] : run.best > st.best[run.mode]))) st.best[run.mode] = run.best;
+    for (const [k, v] of Object.entries(run.stats || {})) { if (typeof v === 'number' && isFinite(v)) { if (k.startsWith('max_')) st.totals[k] = Math.max(st.totals[k] || 0, v); else st.totals[k] = (st.totals[k] || 0) + v; } }
+    const pbs = [];
+    for (const [cat, v] of Object.entries(run.records || {})) {
+      if (v == null || !isFinite(v) || v <= 0) continue;
+      const had = this.P.records[cat];
+      if (this.setRecord(cat, v, this.map, { evidence: { ...(run.evidence || {}), mode: run.mode } }) && had) pbs.push(cat);
+    }
+    let xp = 0;
+    const R = { bronze: 1, silver: 2, gold: 3 }, PAY = { bronze: 100, silver: 200, gold: 400 };
+    if (run.medal) {
+      const had = R[st.medals[run.mode]] || 0;
+      for (const m of ['bronze', 'silver', 'gold']) if (R[m] <= R[run.medal] && R[m] > had) xp += this.award(PAY[m], `${m[0].toUpperCase() + m.slice(1)} medal`);
+      if (R[run.medal] > had) st.medals[run.mode] = run.medal;
+      this.counter('medals'); if (run.medal === 'gold') this.counter('golds');
+    }
+    const day = this.period('day'), key = `actxp_${id}`, used = (day && day.counters[key]) || 0, room = Math.max(0, 400 - used);
+    const runXp = Math.min(room, Math.round(run.xp || 0) + (pbs.length ? 40 : 0));
+    if (runXp > 0) { const got = this.award(runXp, `Mini-game: ${run.title || id}`); xp += got; if (day) day.counters[key] = used + got; }
+    this.counter('actRuns'); this.counter('acts', id);
+    this.checkAchievements(); this.checkChallenges(); this.touch(true);
+    return { pbs, xp };
   }
 
   // ---------- achievements ----------

@@ -56,10 +56,16 @@ const ICON = {
   hand: '<path d="M7 12V6a1.5 1.5 0 013 0v5M10 11V4a1.5 1.5 0 013 0v7M13 11V5a1.5 1.5 0 013 0v8M16 9a1.5 1.5 0 013 0v5c0 4-3 8-7 8-3 0-5-2-6-4l-3-5a1.5 1.5 0 012.5-1.5L7 14"/>',
   drone: '<path d="M4 7h6M14 7h6M7 7l3 5h4l3-5"/><rect x="9" y="11" width="6" height="4" rx="1"/><path d="M12 15v4"/>', jet: '<rect x="6" y="5" width="4" height="12" rx="2"/><rect x="14" y="5" width="4" height="12" rx="2"/><path d="M8 17l-1 4M16 17l1 4"/>',
   balloon: '<circle cx="12" cy="9" r="6"/><path d="M12 15v7"/>', boat: '<path d="M3 15h18l-3 5H6zM12 4v11M12 4l6 8h-6"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
-  tower: '<path d="M8 22V8l4-6 4 6v14M8 12h8M8 17h8"/>', crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 12H5z"/>',
+  tower: '<path d="M8 22V8l4-6 4 6v14M8 12h8M8 17h8"/>', car: '<path d="M3 15l2-5c.5-1.2 1.5-2 3-2h8c1.5 0 2.5.8 3 2l2 5v3H3z"/><circle cx="7.5" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/>',
+  sled: '<path d="M3 17h13l5-3M6 17l2-5h6l3 3M9 12l1-4h3"/><path d="M2 20h14"/>', chip: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/>', target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>', crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 12H5z"/>',
 };
 const svg = (k, s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICON[k] || ICON.boom}</svg>`;
-const fmt = (v, unit) => (unit === 'blocks' || unit === 'boats' ? `${Math.round(v).toLocaleString()} ${unit}` : unit === 'm' ? `${(+v).toFixed(1)} m` : unit === 's' ? `${(+v).toFixed(2)} s` : `${v} ${unit}`);
+const fmt = (v, unit) => {
+  if (unit === 'm') return v >= 1000 ? `${(v / 1000).toFixed(2)} km` : `${(+v).toFixed(1)} m`;
+  if (unit === 's') { const m = Math.floor(v / 60), x = v - m * 60; return m ? `${m}:${x.toFixed(2).padStart(5, '0')}` : `${(+v).toFixed(2)} s`; }
+  if (unit === 'x') return `x${Math.round(v)}`;
+  return `${Math.round(v).toLocaleString()} ${unit}`;
+};
 const money = (v) => (v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3)}K`);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -167,9 +173,9 @@ export class ProgressUI {
   }
   tab_rec() {
     const P = this.p.P;
-    return `<div class="grid">${Object.entries(D.RECORDS).map(([id, r]) => { const rec = P.records[id]; const perMap = r.perMap ? D.ALL_MAPS.map((m) => P.records[`${id}:${m}`] ? `${D.MAP_LABELS[m]}: ${fmt(P.records[`${id}:${m}`].value, r.unit)}` : null).filter(Boolean) : [];
-      return `<div class="it ${rec ? 'done' : 'locked'}"><b>${svg(r.icon, 14)} ${esc(r.label)}</b>${rec ? `<p style="font-size:16px;color:#fff;margin-top:6px">${fmt(rec.value, r.unit)}</p><div class="meta"><span>${rec.map ? D.MAP_LABELS[rec.map] || '' : ''} · ${new Date(rec.date).toLocaleDateString()}</span><span>${rec.prev != null ? `was ${fmt(rec.prev, r.unit)}` : ''}</span></div>${perMap.length > 1 ? `<p>${perMap.join(' · ')}</p>` : ''}${this.globalLine(id, r, rec)}` : '<p>No record yet.</p>'}</div>`; }).join('')}</div>
-      <p class="note">More records (race times, casino, taxi fares, boat races) arrive with those activities when they're added to the game.</p>`;
+    const groups = [...new Set(Object.values(D.RECORDS).map((r) => r.group || 'Sandbox'))];
+    return groups.map((grp) => `<h4>${esc(grp.toUpperCase())}</h4><div class="grid">${Object.entries(D.RECORDS).filter(([, r]) => (r.group || 'Sandbox') === grp).map(([id, r]) => { const rec = P.records[id]; const perMap = r.perMap ? D.ALL_MAPS.map((m) => P.records[`${id}:${m}`] ? `${D.MAP_LABELS[m]}: ${fmt(P.records[`${id}:${m}`].value, r.unit)}` : null).filter(Boolean) : [];
+      return `<div class="it ${rec ? 'done' : 'locked'}"><b>${svg(r.icon, 14)} ${esc(r.label)}</b>${rec ? `<p style="font-size:16px;color:#fff;margin-top:6px">${fmt(rec.value, r.unit)}</p><div class="meta"><span>${rec.map ? D.MAP_LABELS[rec.map] || '' : ''} · ${new Date(rec.date).toLocaleDateString()}</span><span>${rec.prev != null ? `was ${fmt(rec.prev, r.unit)}` : ''}</span></div>${perMap.length > 1 ? `<p>${perMap.join(' · ')}</p>` : ''}${this.globalLine(id, r, rec)}` : '<p>No record yet.</p>'}</div>`; }).join('')}</div>`).join('');
   }
   // the global standing of a record, from the last time it was sent (or still waiting to go)
   globalLine(id, r, rec) {
@@ -189,7 +195,7 @@ export class ProgressUI {
     this.lbCat ||= cats[0][0]; const def = D.RECORDS[this.lbCat]; this.lbMap ||= this.p.map || 'downtown';
     const local = def.perMap ? P.records[`${this.lbCat}:${this.lbMap}`] : P.records[this.lbCat];
     const pend = P.pending.length;
-    return `<div class="row"><select id="lbCat">${cats.map(([k, r]) => `<option value="${k}" ${k === this.lbCat ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</select>${def.perMap ? `<select id="lbMap">${D.ALL_MAPS.map((m) => `<option value="${m}" ${m === this.lbMap ? 'selected' : ''}>${D.MAP_LABELS[m]}</option>`).join('')}</select>` : ''}</div>
+    return `<div class="row"><select id="lbCat">${[...new Set(cats.map(([, r]) => r.group || 'Sandbox'))].map((g) => `<optgroup label="${esc(g)}">${cats.filter(([, r]) => (r.group || 'Sandbox') === g).map(([k, r]) => `<option value="${k}" ${k === this.lbCat ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</optgroup>`).join('')}</select>${def.perMap ? `<select id="lbMap">${D.ALL_MAPS.map((m) => `<option value="${m}" ${m === this.lbMap ? 'selected' : ''}>${D.MAP_LABELS[m]}</option>`).join('')}</select>` : ''}</div>
       <h4>GLOBAL TOP 10 · PLAYERS EVERYWHERE</h4><div id="lbBox">${lb.configured ? (this.lbCache && this.lbCache[`${this.lbCat}:${def.perMap ? this.lbMap : ''}`] || '<p class="note">Loading…</p>') : `<p class="note">Global leaderboards aren't switched on yet. Your best scores are kept here${pend ? ` (${pend} waiting to be sent)` : ''} and will be sent automatically as soon as they are.</p>`}</div>
       <h4>YOUR LOCAL BEST (THIS BROWSER)</h4><div class="it"><b>${local ? fmt(local.value, def.unit) : 'No score yet'}</b></div>
       ${lb.configured ? `<div class="row"><span class="note">${pend ? `${pend} score${pend > 1 ? 's' : ''} waiting to be sent.` : 'All your scores are sent.'} ${lb.status === 'error' ? `Last attempt failed (${esc(lb.lastError)}).` : lb.status === 'offline' ? 'You\'re offline.' : ''}</span>${pend ? '<button data-a="retry">SEND NOW</button>' : ''}</div>` : ''}`;

@@ -30,6 +30,11 @@ export const RECORDS = {
   drone_kamikaze: { label: 'Most blocks destroyed by one drone crash', unit: 'blocks', better: 'high', perMap: false, board: true, max: 5000, icon: 'drone' },
   jetpack_fall: { label: 'Highest jetpack drop survived', unit: 'm', better: 'high', perMap: false, board: true, max: 80, icon: 'jet' },
   chair_altitude: { label: 'Highest balloon chair flight', unit: 'm', better: 'high', perMap: false, board: true, max: 260, icon: 'balloon' },
+  // mini-games (js/activities/): each metric its own board, the right way round (times: lower is better)
+  traffic_score90: { label: 'Highway Cut-Up: 90-second score', unit: 'pts', better: 'high', perMap: false, board: true, max: 5e6, icon: 'car', group: 'Highway Cut-Up' },
+  traffic_distance: { label: 'Highway Cut-Up: survival distance', unit: 'm', better: 'high', perMap: false, board: true, max: 1e6, icon: 'car', group: 'Highway Cut-Up' },
+  traffic_combo: { label: 'Highway Cut-Up: highest combo', unit: 'x', better: 'high', perMap: false, board: true, max: 5000, icon: 'car', group: 'Highway Cut-Up' },
+  traffic_clean: { label: 'Highway Cut-Up: longest clean run', unit: 'm', better: 'high', perMap: false, board: true, max: 1e6, icon: 'car', group: 'Highway Cut-Up' },
   boats_session: { label: 'Boats sunk in one visit', unit: 'boats', better: 'high', perMap: true, board: false, max: 500, icon: 'boat' },
 };
 
@@ -65,6 +70,12 @@ export const ACHIEVEMENTS = [
   { id: 'splat', name: 'Gravity Always Wins', desc: 'Hit the ground too hard in the jetpack.', cat: 'Vehicles', xp: 40, test: (S) => [S.splats, 1] },
   { id: 'strongman', name: 'Strongman', desc: 'Throw a car 120 m with the Free Hand.', cat: 'Vehicles', xp: 200, test: (S) => [Math.round(S.best.car_throw || 0), 120] },
   { id: 'yeet', name: 'Long Distance Call', desc: 'Throw a person 150 m with the Free Hand.', cat: 'Vehicles', xp: 200, test: (S) => [Math.round(S.best.person_throw || 0), 150] },
+  // mini-games
+  { id: 'cutup_first', name: 'Merging Traffic', desc: 'Finish a Highway Cut-Up run.', cat: 'Mini-games', xp: 50, test: (S) => [((S.acts || {}).traffic || {}).runs || 0, 1] },
+  { id: 'cutup_combo', name: 'Thread the Needle', desc: 'Build a x15 near-miss combo on the highway.', cat: 'Mini-games', xp: 200, test: (S) => [S.best.traffic_combo || 0, 15] },
+  { id: 'cutup_score', name: 'Highway Star', desc: 'Score 40,000 in the 90-second Highway Cut-Up.', cat: 'Mini-games', xp: 300, test: (S) => [Math.round(S.best.traffic_score90 || 0), 40000] },
+  { id: 'cutup_far', name: 'Long Haul', desc: 'Survive 10 km in endless Highway Cut-Up.', cat: 'Mini-games', xp: 300, test: (S) => [Math.round((S.best.traffic_distance || 0) / 1000), 10] },
+  { id: 'cutup_misses', name: 'Close Shave', desc: 'Make 250 near misses on the highway.', cat: 'Mini-games', xp: 200, test: (S) => [Math.round((((S.acts || {}).traffic || {}).totals || {}).nearMisses || 0), 250] },
   // landmarks with their own events
   { id: 'eye_down', name: 'Eye Sore', desc: 'Topple the London Eye.', cat: 'Landmarks', xp: 300, test: (S) => [S.events.london_eye || 0, 1] },
   { id: 'big_ben', name: 'Time Out', desc: "Bring down Big Ben.", cat: 'Landmarks', xp: 250, test: (S) => [(S.landmarks.london || []).includes('Big Ben') ? 1 : 0, 1] },
@@ -113,6 +124,8 @@ export const DAILY_POOL = [
   { id: 'd_vehicles', name: 'Joyride', desc: 'Fly two different vehicles (Rick\'s ship counts).', key: 'vehicles', target: 2, xp: 150 },
   { id: 'd_landmark', name: 'Tear It Down', desc: 'Bring down a landmark.', key: 'landmarks', target: 1, xp: 200 },
   { id: 'd_record', name: 'Personal Best', desc: 'Beat one of your own records.', key: 'records', target: 1, xp: 200 },
+  { id: 'd_minigame', name: 'Game On', desc: 'Finish 3 mini-game runs.', key: 'actRuns', target: 3, xp: 150 },
+  { id: 'd_medal', name: 'On the Podium', desc: 'Win a medal in a mini-game.', key: 'medals', target: 1, xp: 200 },
   { id: 'd_tools', name: 'Mix It Up', desc: 'Use three different tools.', key: 'tools', target: 3, xp: 120 },
 ];
 export const WEEKLY_POOL = [
@@ -122,6 +135,7 @@ export const WEEKLY_POOL = [
   { id: 'w_records', name: 'Record Breaker', desc: 'Beat your own records 4 times.', key: 'records', target: 4, xp: 800 },
   { id: 'w_boats', name: 'Naval Warfare', desc: 'Sink 20 boats.', key: 'boats', target: 20, xp: 700 },
   { id: 'w_dailies', name: 'Regular', desc: 'Complete 5 daily challenges.', key: 'dailies', target: 5, xp: 900 },
+  { id: 'w_gold', name: 'Gold Standard', desc: 'Win 3 gold medals in mini-games.', key: 'golds', target: 3, xp: 900 },
   { id: 'w_discover', name: 'Off the Map', desc: 'Discover 12 new places.', key: 'discover', target: 12, xp: 800, needsUndiscovered: 12 },
 ];
 

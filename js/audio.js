@@ -687,6 +687,12 @@ export const sfx = {
       }
     }
   },
+  // the rush of a car going past close by (the highway cut-up's near misses): a band of noise sweeping down
+  whoosh(x, z, v = 1) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.5 * v });
+    burst(ch.input, t, { buf: pink, type: 'bandpass', f: 1800, q: 1.4, a: 0.05, peak: 0.6, d: 0.35, sweep: 650 });
+  },
   // Tyre squeal leading into a collision
   skid(x, z, d = 0.6) {
     if (!init()) return;

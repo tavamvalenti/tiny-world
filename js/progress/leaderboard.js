@@ -70,6 +70,7 @@ export class Leaderboard {
     this.flushing = true;
     const P = this.progress.P;
     try {
+      for (const q of P.pending) delete q.skip;
       if (P.pending.length && !(await this.ensureName())) return;
       while (P.pending.length) {
         const s = P.pending[0];
@@ -79,6 +80,7 @@ export class Leaderboard {
           P.pending.shift(); this.status = 'ready';
         } catch (e) {
           if (/name taken/i.test(e.message)) { P.nameClaimed = null; if (!(await this.ensureName())) break; continue; }   // someone has that name now
+          if (/unknown category/i.test(e.message)) { const k = P.pending.shift(); P.pending.push(k); this.status = 'error'; this.lastError = 'This board isn\'t set up on the server yet'; if (P.pending.every((q) => q.skip)) break; k.skip = true; continue; }   // a new game's board the server doesn't know yet: keep it, try the rest
           if (e.status >= 400 && e.status < 500 && e.status !== 429 && !/slow down/i.test(e.message)) { (P.rejected ||= []).push({ ...s, why: e.message }); P.pending.shift(); this.lastError = e.message; continue; }   // refused by the server's checks
           this.status = e.status === 429 ? 'ready' : 'error'; this.lastError = e.message; break;                                                                          // try again later
         }

@@ -1485,7 +1485,9 @@ export class Vegas {
   }
   highway(scene) {
     // cars on the open road: each lane a loop of cars spaced out, moving at highway speed
-    const body = mergeGeometries([tint(new THREE.BoxGeometry(0.62, 0.32, 1.4).translate(0, 0.28, 0), 0xffffff), tint(new THREE.BoxGeometry(0.56, 0.24, 0.75).translate(0, 0.55, -0.08), 0x20262c)]);
+    const wheel = (x, z) => tint(new THREE.CylinderGeometry(0.12, 0.12, 0.09, 8).rotateZ(Math.PI / 2).translate(x, 0.12, z), 0x111111);
+    const body = mergeGeometries([tint(new THREE.BoxGeometry(0.62, 0.3, 1.4).translate(0, 0.29, 0), 0xffffff), tint(new THREE.BoxGeometry(0.56, 0.22, 0.75).translate(0, 0.54, -0.08), 0x20262c),
+      wheel(0.3, -0.45), wheel(-0.3, -0.45), wheel(0.3, 0.45), wheel(-0.3, 0.45), tint(new THREE.BoxGeometry(0.5, 0.06, 0.02).translate(0, 0.33, -0.71), 0x551010)]);
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.4 });
     const lanes = [];
     for (const o of [1.6, 3.4, 5.2, 7]) { lanes.push({ x: I15 + o, dir: -1, v: Rr2(13, 17), z0: -1250, z1: 1250 }); lanes.push({ x: I15 - o, dir: 1, v: Rr2(13, 17), z0: -1250, z1: 1250 }); }
@@ -1506,7 +1508,7 @@ export class Vegas {
       c.z += c.L.dir * c.v * dt;
       if (c.z > c.L.z1) c.z = c.L.z0; else if (c.z < c.L.z0) c.z = c.L.z1;
       H.q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), c.L.dir > 0 ? 0 : Math.PI);
-      const sc = c.truck ? H.s.set(1.2, 1.7, 3.2) : H.s.set(1, 1, 1);
+      const sc = c.off ? H.s.set(0, 0, 0) : c.truck ? H.s.set(1.2, 1.7, 3.2) : H.s.set(1, 1, 1);   // off: taken out by a mini-game
       H.m4.compose(H.p.set(c.L.x, 0, c.z), H.q, sc); H.im.setMatrixAt(i, H.m4);
     });
     H.im.instanceMatrix.needsUpdate = true;

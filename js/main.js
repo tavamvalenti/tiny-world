@@ -40,6 +40,8 @@ import { solidHit, clearSolids } from './solids.js';
 import { Progress } from './progress/core.js';
 import { ProgressUI } from './progress/ui.js';
 import { Minimap } from './minimap.js';
+import { ActivityHub } from './activities/hub.js';
+import { ACTIVITY_DEFS } from './activities/index.js';
 const progress = new Progress(), progressUI = new ProgressUI(progress);   // the player's profile (js/progress/)
 const minimap = new Minimap();
 G.boatsOnBlast = boatsOnBlast; G.solidHit = solidHit;
@@ -313,6 +315,15 @@ function updateCamera(dt) {
   sun.position.set(tx + sd.x * 200, sd.y * 200, tz + sd.z * 200);
 }
 
+// the sun and its shadow box follow a point (the overhead view's focus, or a mini-game far out of town)
+G.followSun = (x, z) => {
+  const sc = sun.shadow.camera, ext = 30;
+  sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.updateProjectionMatrix();
+  const texel = (ext * 2) / sun.shadow.mapSize.x, tx = Math.round(x / texel) * texel, tz = Math.round(z / texel) * texel;
+  sun.target.position.set(tx, 0, tz); sun.target.updateMatrixWorld();
+  const sd = tod ? tod.sunDir : SUN_DIR;
+  sun.position.set(tx + sd.x * 200, sd.y * 200, tz + sd.z * 200);
+};
 function aim() {
   const ndc = new THREE.Vector2((input.mx / window.innerWidth) * 2 - 1, -(input.my / viewH()) * 2 + 1);
   ray.setFromCamera(ndc, camera);
@@ -347,20 +358,22 @@ function frame(now) {
   step(dt);
 }
 // one simulation + render tick (also used by automated tests via G.step)
-let rick = null, veh = null;
+let rick = null, veh = null, hub = null;
 const NO_INPUT = { down: false, pressed: false };
 function step(dt) {
   G.dt = dt; G.time += dt;
-  const flying = !!(rick && rick.active), driving = !!(veh && veh.active);
+  const flying = !!(rick && rick.active), driving = !!(veh && veh.active) || !!(hub && hub.active);
   if (flying) rick.update(dt);                                  // Rick's ship: flies, then parks the view target on itself
-  if (driving) veh.update(dt);                                  // the drone / balloon chair / jetpack, the same way
+  if (veh && veh.active) veh.update(dt);                        // the drone / balloon chair / jetpack, the same way
+  if (hub) hub.update(dt);                                      // the mini-games (and their start beacons)
   updateWrecks(dt);                                             // boats going down
   progress.update(dt);                                          // XP, records, challenges (js/progress/)
   if (flying || driving) minimap.update(dt);                    // the minimap while flying anything
   if (input.down && !flying && !driving && !(G.world && G.world.armed) && G.weapons) progress.toolUse(['hand', 'laser', 'bomb', 'wind', 'meteor'][G.weapons.cur] || 'hand');
   updateCamera(dt);
   if (flying) rick.applyCamera(dt);                             // ... and the chase camera replaces the overhead one
-  if (driving) veh.applyCamera(dt);
+  if (veh && veh.active) veh.applyCamera(dt);
+  if (hub && hub.active) hub.applyCamera(dt);
   aim();
   tod && tod.update(dt);
   G.city.update(dt);
@@ -467,6 +480,7 @@ window.addEventListener('keydown', (e) => {
   // typing in a text box (a name, a setting): the keys are for the box, never the game
   if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
   if (settingsOpen) { if (e.code === 'Escape') closeSettings(); return; }
+  if (hub && hub.key(e, true)) return;                          // a mini-game (or its card) takes the keys it uses
   if (rick && rick.key(e, true)) return;                        // flying the ship: it takes the keys it uses
   if (veh && veh.key(e, true)) return;                          // ... and so does a vehicle
   if (progressUI.isOpen) { if (e.code === 'Escape' || e.code === 'KeyP') progressUI.close(); return; }   // the profile panel is up
@@ -479,7 +493,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyV') resetView();
   if (e.code === 'KeyM') { const m = sfx.toggleMute(); $('#mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; }
 });
-window.addEventListener('keyup', (e) => { if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return; keys[e.code] = false; if (rick) rick.key(e, false); if (veh) veh.key(e, false); });
+window.addEventListener('keyup', (e) => { if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return; keys[e.code] = false; if (hub) hub.key(e, false); if (rick) rick.key(e, false); if (veh) veh.key(e, false); });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; input.down = false; });
 canvasEl.addEventListener('mousemove', (e) => {
   input.mx = e.clientX; input.my = e.clientY;
@@ -490,7 +504,7 @@ canvasEl.addEventListener('mousedown', (e) => {
   if (TOUCH && !matchMedia('(any-pointer: fine)').matches) return;   // touch-only device: taps go through the touch code, not these copies
   if (e.button !== 0) return;
   sfx.unlock();
-  if ((rick && rick.active) || (veh && veh.active)) return;     // the ship and the vehicles have their own guns
+  if ((rick && rick.active) || (veh && veh.active) || (hub && hub.active)) return;     // the ship, the vehicles and the mini-games have their own controls
   if (G.world && G.world.armed) { startPlacing(); return; }      // placing from the WORLD menu, not firing
   input.down = true; input.pressed = true;
 });
@@ -522,6 +536,7 @@ canvasEl.addEventListener('contextmenu', (e) => { e.preventDefault(); if (G.worl
 canvasEl.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (rick && rick.active) { rick.wheel(e); return; }
+  if (hub && hub.active) { hub.wheel(e); return; }
   if (veh && veh.active) { veh.wheel(e); return; }
   const k = 0.0012 * settings.zoomSpeed / 100 * (settings.invertZoom ? -1 : 1);
   cam.distT = clamp(cam.distT * Math.exp(e.deltaY * k), cam.minD, cam.maxD);
@@ -553,6 +568,7 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     $('#hud').style.display = 'block';
     if (!TOUCH) rick = new RickMode(scene, camera, post, cam, renderer);   // the RICK & MORTY button (desktop)
     if (!TOUCH) veh = new VehicleMode(scene, camera, post, cam, renderer); // the VEHICLES button (desktop)
+    if (!TOUCH) hub = new ActivityHub(scene, camera, post, cam, renderer, ACTIVITY_DEFS);   // the PLAY button and the mini-games (desktop)
     last = performance.now();
     running = true;
     progress.mapLoaded(btn.dataset.map, G.city);

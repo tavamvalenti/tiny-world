@@ -92,7 +92,7 @@ const ICONS = {
 };
 
 // a small engine voice made in Web Audio (no recordings exist for these yet): a buzz of props, a two-stroke, a roar
-class EngineSynth {
+export class EngineSynth {
   constructor(kind) { this.kind = kind; }
   start() {
     if (this.ctx || !sfx.ctx) return;
@@ -100,18 +100,18 @@ class EngineSynth {
     out.gain.value = 0; out.connect(sfx.bus || ctx.destination);
     const lp = (this.lp = ctx.createBiquadFilter()); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(out);
     const osc = (this.osc = ctx.createOscillator()); osc.type = this.kind === 'jetpack' ? 'triangle' : 'sawtooth'; osc.frequency.value = 80;
-    const og = ctx.createGain(); og.gain.value = this.kind === 'jetpack' ? 0.15 : 0.35; osc.connect(og); og.connect(lp); osc.start();
+    const og = ctx.createGain(); og.gain.value = this.kind === 'jetpack' ? 0.15 : this.kind === 'car' ? 0.5 : 0.35; osc.connect(og); og.connect(lp); osc.start();
     // noise for the rush of air / the jet
     const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     const src = (this.noise = ctx.createBufferSource()); src.buffer = buf; src.loop = true;
-    const bp = (this.bp = ctx.createBiquadFilter()); bp.type = 'bandpass'; bp.frequency.value = this.kind === 'jetpack' ? 500 : 1400; bp.Q.value = 0.7;
-    const ng = (this.ng = ctx.createGain()); ng.gain.value = this.kind === 'jetpack' ? 0.9 : 0.25; src.connect(bp); bp.connect(ng); ng.connect(out); src.start();
+    const bp = (this.bp = ctx.createBiquadFilter()); bp.type = 'bandpass'; bp.frequency.value = this.kind === 'jetpack' ? 500 : this.kind === 'car' ? 600 : 1400; bp.Q.value = 0.7;
+    const ng = (this.ng = ctx.createGain()); ng.gain.value = this.kind === 'jetpack' ? 0.9 : this.kind === 'car' ? 0.3 : 0.25; src.connect(bp); bp.connect(ng); ng.connect(out); src.start();
     // the two-stroke's chop
-    if (this.kind === 'chair') { const lfo = (this.lfo = ctx.createOscillator()), lg = ctx.createGain(); lfo.frequency.value = 9; lg.gain.value = 0.1; lfo.connect(lg); lg.connect(out.gain); lfo.start(); }
+    if (this.kind === 'chair' || this.kind === 'sled') { const lfo = (this.lfo = ctx.createOscillator()), lg = ctx.createGain(); lfo.frequency.value = 9; lg.gain.value = 0.1; lfo.connect(lg); lg.connect(out.gain); lfo.start(); }
   }
   set(level, pitch) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime, base = this.kind === 'drone' ? 150 : this.kind === 'chair' ? 120 : 55;
+    const t = this.ctx.currentTime, base = { drone: 150, chair: 120, car: 42, sled: 78 }[this.kind] || 55;
     this.osc.frequency.setTargetAtTime(base * (1 + pitch * 0.9), t, 0.08);
     this.lp.frequency.setTargetAtTime(500 + pitch * 1800, t, 0.1);
     if (this.kind === 'jetpack') this.bp.frequency.setTargetAtTime(350 + pitch * 900, t, 0.1);
@@ -196,6 +196,7 @@ export class VehicleMode {
   enter(kind) {
     if (!G.buildings) return;
     if (G.rick && G.rick.active) G.rick.exit();
+    if (G.hub && G.hub.active && !(G.hub.curDef && G.hub.curDef.usesVehicle)) G.hub.exit();   // leaving a mini-game
     if (this.active) this.exit(true);
     sfx.unlock();
     this.kind = kind; this.active = true;
