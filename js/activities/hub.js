@@ -259,7 +259,6 @@ export class ActivityHub {
       <div class="ar-btns"><button class="pri" data-a="retry">RETRY<span class="key">R</span></button><button data-a="modes">MODES</button><button data-a="exit">EXIT<span class="key">ESC</span></button></div></div></div>`;
     this.res.classList.add('open');
     if (document.pointerLockElement) document.exitPointerLock();
-    if (medal || pbLabels.length) sfx.cheer && sfx.cheer(this.camera.position.x, this.camera.position.z, 0.4);
   }
 
   // ---------------- per frame and input (main.js calls these like the vehicles')

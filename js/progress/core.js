@@ -21,6 +21,7 @@ function defaults() {
     periods: { day: null, week: null },
     unlocked: {}, equipped: { title: null, drone_paint: 'p_drone_black', jetpack_paint: 'p_jet_red', chair_balloons: 'p_bal_party', badges: [] },
     pending: [],          // leaderboard submissions waiting for the service
+    casino: { credits: 1000, day: null, topUpAt: 0, pot: 50000 },   // fictional casino credits: never bought, never cashed out, separate from XP
   };
 }
 // fill in anything missing (older saves, partial data) without throwing away what's there
@@ -303,6 +304,28 @@ export class Progress {
     this.counter('actRuns'); this.counter('acts', id);
     this.checkAchievements(); this.checkChallenges(); this.touch(true);
     return { pbs, xp };
+  }
+
+  // the casino: every spin is settled in credits before the reels even move (so a reload can't undo or repeat it);
+  // this keeps the lifetime numbers, the records, and pays a little XP for the big moments only (never for spinning)
+  casino() { return (this.P.casino ||= { credits: 1000, day: null, topUpAt: 0, pot: 50000 }); }
+  casinoSpin(r) {
+    const st = this.actStats('casino'), T = st.totals;
+    T.spins = (T.spins || 0) + 1; T.wagered = (T.wagered || 0) + r.bet; T.won = (T.won || 0) + r.win;
+    if (r.jackpot) T.jackpots = (T.jackpots || 0) + 1;
+    if (r.bonus) T.bonuses = (T.bonuses || 0) + 1;
+    if (r.streak > (T.max_streak || 0)) T.max_streak = r.streak;
+    if (r.win > (T.max_win || 0)) T.max_win = r.win;
+    if (r.win > 0) this.setRecord('casino_jackpot', r.win, null, { evidence: { bet: r.bet, machine: r.machine } });
+    if (r.streak >= 2) this.setRecord('casino_streak', r.streak, null, { evidence: { machine: r.machine } });
+    const day = this.period('day'), used = (day && day.counters.casinoXp) || 0;
+    let xp = r.jackpot ? 500 : 0;
+    const extra = (r.bet > 0 && r.win >= r.bet * 25 ? 15 : 0) + (r.bonus ? 10 : 0);
+    if (extra && used < 300) { xp += Math.min(extra, 300 - used); if (day) day.counters.casinoXp = used + Math.min(extra, 300 - used); }
+    if (xp) this.award(xp, r.jackpot ? 'JACKPOT!' : r.bonus ? 'Casino bonus round' : 'Big win');
+    this.counter('spins');
+    if (T.spins % 10 === 0 || r.jackpot || r.win >= r.bet * 25) this.checkAchievements();
+    this.touch(true);
   }
 
   // ---------- achievements ----------

@@ -39,6 +39,9 @@ export const RECORDS = {
   sled_clean: { label: 'Snowmobile: fastest clean lap', unit: 's', better: 'low', perMap: false, board: true, min: 20, max: 900, icon: 'sled', group: 'Snowmobile' },
   sled_jump: { label: 'Snowmobile: longest jump', unit: 'm', better: 'high', perMap: false, board: true, max: 400, icon: 'sled', group: 'Snowmobile' },
   sled_stunt: { label: 'Snowmobile: highest stunt score', unit: 'pts', better: 'high', perMap: false, board: true, max: 2e6, icon: 'sled', group: 'Snowmobile' },
+  casino_jackpot: { label: 'Casino: biggest single win', unit: 'credits', better: 'high', perMap: false, board: true, max: 1e7, icon: 'chip', group: 'Casino' },
+  casino_session: { label: 'Casino: most won in the 50-spin challenge', unit: 'credits', better: 'high', perMap: false, board: true, max: 1e7, icon: 'chip', group: 'Casino' },
+  casino_streak: { label: 'Casino: longest win streak', unit: 'wins', better: 'high', perMap: false, board: true, max: 200, icon: 'chip', group: 'Casino' },
   boats_session: { label: 'Boats sunk in one visit', unit: 'boats', better: 'high', perMap: true, board: false, max: 500, icon: 'boat' },
 };
 
@@ -85,6 +88,11 @@ export const ACHIEVEMENTS = [
   { id: 'sled_clean', name: 'Clean Sheet', desc: 'Finish a snowmobile lap without a wipeout.', cat: 'Mini-games', xp: 150, test: (S) => [S.best.sled_clean ? 1 : 0, 1] },
   { id: 'sled_stunt', name: 'Stuntman', desc: 'Score 6,000 stunt points in one lap.', cat: 'Mini-games', xp: 300, test: (S) => [Math.round(S.best.sled_stunt || 0), 6000] },
   { id: 'sled_perfect', name: 'Stomped It', desc: 'Land 25 perfect snowmobile jumps.', cat: 'Mini-games', xp: 200, test: (S) => [Math.round((((S.acts || {}).sled || {}).totals || {}).perfects || 0), 25] },
+  { id: 'casino_first', name: 'Feeling Lucky', desc: 'Spin a slot machine at Caesars Palace.', cat: 'Mini-games', xp: 25, test: (S) => [Math.round((((S.acts || {}).casino || {}).totals || {}).spins || 0), 1] },
+  { id: 'casino_high', name: 'High Roller', desc: 'Win 5,000 credits on a single spin.', cat: 'Mini-games', xp: 300, test: (S) => [Math.round(S.best.casino_jackpot || 0), 5000] },
+  { id: 'casino_streak', name: 'Hot Streak', desc: 'Win 5 spins in a row.', cat: 'Mini-games', xp: 150, test: (S) => [Math.round(S.best.casino_streak || 0), 5] },
+  { id: 'casino_jp', name: 'JACKPOT!', desc: "Hit the Dragon's Hoard progressive jackpot.", cat: 'Mini-games', xp: 500, test: (S) => [Math.round((((S.acts || {}).casino || {}).totals || {}).jackpots || 0), 1] },
+  { id: 'casino_regular', name: 'Regular', desc: 'Spin 1,000 times.', cat: 'Mini-games', xp: 200, test: (S) => [Math.round((((S.acts || {}).casino || {}).totals || {}).spins || 0), 1000] },
   // landmarks with their own events
   { id: 'eye_down', name: 'Eye Sore', desc: 'Topple the London Eye.', cat: 'Landmarks', xp: 300, test: (S) => [S.events.london_eye || 0, 1] },
   { id: 'big_ben', name: 'Time Out', desc: "Bring down Big Ben.", cat: 'Landmarks', xp: 250, test: (S) => [(S.landmarks.london || []).includes('Big Ben') ? 1 : 0, 1] },

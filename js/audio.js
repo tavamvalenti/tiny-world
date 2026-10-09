@@ -279,10 +279,12 @@ const SFX_FILES = { bat: 'assets/sfx-bat.mp4', cheer: 'assets/sfx-cheer.mp4', fi
   bell: 'assets/sfx-bell.mp4', dog: 'assets/sfx-dog.mp4', gull: 'assets/sfx-gull.mp4', whistle: 'assets/sfx-whistle.mp4', collapse: 'assets/sfx-collapse.mp4', boom: 'assets/sfx-boom.mp4', pyro: 'assets/sfx-pyro.mp4', glass: 'assets/sfx-glass.mp4', dunk: 'assets/sfx-dunk.mp4', net: 'assets/sfx-net.mp4', horn: 'assets/sfx-horn.mp4', thunder: 'assets/sfx-thunder.mp4', rain: 'assets/sfx-rain.mp4', mower: 'assets/sfx-mower.mp4',
   // Las Vegas: the casino floor through the doors, a club crowd, neon hum, a phone camera, laughter, dice
   casino: 'assets/amb-casino.mp4', clubCrowd: 'assets/amb-club-crowd.mp4', neon: 'assets/amb-neon.mp4', shutter: 'assets/sfx-shutter.mp4', laughW: 'assets/sfx-laugh-women.mp4', laughM: 'assets/sfx-laugh-man.mp4', dice: 'assets/sfx-dice.mp4', fountain: 'assets/amb-fountain.mp4',
+  // the casino's slot machines (the player's recordings): ka-chings, a win melody, the jackpot bells, a payout, the reels
+  slots: 'assets/sfx-slots.mp4',
   // London: the band playing the national anthem at the palace for the Changing of the Guard
   anthem: 'assets/anthem.mp4' };
 // where each take sits inside its (trimmed, compressed) file: [offset, duration] in seconds, grouped by kind
-const SL = {"bell":{"bell":[[0.1,2.6]]},"dog":{"bark":[[0.1,0.58],[0.8,0.6]]},"gull":{"call":[[0.1,0.6],[0.82,0.75],[1.69,0.35],[2.16,0.37],[2.65,0.65],[3.42,0.9],[4.44,0.7]],"flock":[[5.26,2.05],[7.43,2.0],[9.55,2.2],[11.87,2.1]]},"whistle":{"fall":[[0.1,3.95]]},"collapse":{"collapse":[[0.1,5.5],[5.72,5.5],[11.34,5.5],[16.96,5.5],[22.58,5.5]]},"boom":{"boom":[[0.1,4.4],[4.62,4.9]]},"pyro":{"burst":[[0.1,2.9]]},"glass":{"break":[[0.1,0.75],[0.97,0.92],[2.01,0.9],[3.03,1.03],[4.18,0.97],[5.27,0.9],[6.29,0.9],[7.31,0.77],[8.2,1.0],[9.32,0.87]]},"dunk":{"dunk":[[0.1,0.95],[1.17,0.95],[2.24,1.15]],"bounce":[[3.51,0.32],[3.95,0.27],[4.34,0.32],[4.78,0.24],[5.14,0.28],[5.54,0.25]]},"net":{"swish":[[0.1,0.55],[0.77,0.77],[1.66,0.47],[2.25,0.53],[2.9,0.5],[3.52,0.66],[4.3,0.63],[5.05,0.65],[5.82,0.85],[6.79,0.43]]},"horn":{"honk":[[0.1,0.85],[1.07,0.62],[1.81,0.53],[2.46,0.88],[3.46,1.06],[4.64,0.85],[5.61,1.03]],"long":[[6.76,4.11]]},"thunder":{"roll":[[0.1,12.5]]}};
+const SL = {"slots":{"ching":[[0.0,0.85],[0.97,0.85],[1.94,1.25],[3.31,1.05]],"melody":[[4.48,3.1]],"jackpot":[[7.7,3.15]],"payout":[[10.97,5.0]],"spin":[[16.09,1.8]],"stop":[[18.01,0.24],[18.37,0.3]],"button":[[18.79,0.16]]},"bell":{"bell":[[0.1,2.6]]},"dog":{"bark":[[0.1,0.58],[0.8,0.6]]},"gull":{"call":[[0.1,0.6],[0.82,0.75],[1.69,0.35],[2.16,0.37],[2.65,0.65],[3.42,0.9],[4.44,0.7]],"flock":[[5.26,2.05],[7.43,2.0],[9.55,2.2],[11.87,2.1]]},"whistle":{"fall":[[0.1,3.95]]},"collapse":{"collapse":[[0.1,5.5],[5.72,5.5],[11.34,5.5],[16.96,5.5],[22.58,5.5]]},"boom":{"boom":[[0.1,4.4],[4.62,4.9]]},"pyro":{"burst":[[0.1,2.9]]},"glass":{"break":[[0.1,0.75],[0.97,0.92],[2.01,0.9],[3.03,1.03],[4.18,0.97],[5.27,0.9],[6.29,0.9],[7.31,0.77],[8.2,1.0],[9.32,0.87]]},"dunk":{"dunk":[[0.1,0.95],[1.17,0.95],[2.24,1.15]],"bounce":[[3.51,0.32],[3.95,0.27],[4.34,0.32],[4.78,0.24],[5.14,0.28],[5.54,0.25]]},"net":{"swish":[[0.1,0.55],[0.77,0.77],[1.66,0.47],[2.25,0.53],[2.9,0.5],[3.52,0.66],[4.3,0.63],[5.05,0.65],[5.82,0.85],[6.79,0.43]]},"horn":{"honk":[[0.1,0.85],[1.07,0.62],[1.81,0.53],[2.46,0.88],[3.46,1.06],[4.64,0.85],[5.61,1.03]],"long":[[6.76,4.11]]},"thunder":{"roll":[[0.1,12.5]]}};
 const SMP = {}, EXTRA = {};
 function loadSamples() {
   const dec = typeof OfflineAudioContext !== 'undefined' ? new OfflineAudioContext(1, 1, 22050) : ctx;
@@ -699,6 +701,29 @@ export const sfx = {
     const t = now(), ch = chain(x, z, { vol: 0.7 * v });
     burst(ch.input, t, { buf: brown, type: 'lowpass', f: 260, a: 0.004, peak: 1, d: 0.28 });
     burst(ch.input, t + 0.01, { buf: pink, type: 'bandpass', f: 2400, q: 0.8, a: 0.004, peak: 0.25 * v, d: 0.16 });
+  },
+  // a slot machine's own voice: the reels whirring, each reel's clunk as it stops, win dings that climb, a big-win run
+  // of bells, the jackpot's long peal, a coin dropping
+  slot(kind, x, z, n = 1) {
+    if (!init()) return;
+    if (SMP.slots) {
+      const o = { vol: 0.8, bus: sfxBus };
+      if (kind === 'spin') return slice('slots', 'spin', x, z, { ...o, vol: 0.6 });
+      if (kind === 'stop') return slice('slots', 'stop', x, z, { ...o, vol: 0.7 });
+      if (kind === 'button') return slice('slots', 'button', x, z, { ...o, vol: 0.5 });
+      if (kind === 'coin') return slice('slots', 'ching', x, z, { ...o, vol: 0.45, rate: R(0.95, 1.08) });
+      if (kind === 'win') return n >= 4 ? slice('slots', 'melody', x, z, o) : slice('slots', 'ching', x, z, o);
+      if (kind === 'big') { slice('slots', 'melody', x, z, o); setTimeout(() => slice('slots', 'payout', x, z, { ...o, vol: 0.6 }), 900); return; }
+      if (kind === 'jackpot') { slice('slots', 'jackpot', x, z, { ...o, vol: 1 }); setTimeout(() => slice('slots', 'payout', x, z, o), 2600); setTimeout(() => slice('slots', 'melody', x, z, o), 3200); return; }
+    }
+    const t = now(), ch = chain(x, z, { vol: 0.55, bus: sfxBus });
+    if (kind === 'spin') { for (let i = 0; i < 6; i++) tone(ch.input, t + i * 0.05, { type: 'square', f: 520 + i * 40, a: 0.002, peak: 0.04, d: 0.04 }); burst(ch.input, t, { type: 'bandpass', f: 900, q: 2, a: 0.05, peak: 0.12, d: 0.5 }); }
+    else if (kind === 'stop') { burst(ch.input, t, { buf: brown, type: 'lowpass', f: 500, a: 0.002, peak: 0.6, d: 0.09 }); tone(ch.input, t, { type: 'triangle', f: 180, f1: 120, a: 0.002, peak: 0.2, d: 0.08 }); }
+    else if (kind === 'win') { const notes = [523, 659, 784, 1046]; for (let i = 0; i < Math.min(8, 2 + n); i++) tone(ch.input, t + i * 0.09, { type: 'triangle', f: notes[i % 4] * (i >= 4 ? 2 : 1), a: 0.004, peak: 0.16, d: 0.22 }); }
+    else if (kind === 'big') { for (let i = 0; i < 24; i++) tone(ch.input, t + i * 0.07, { type: i % 2 ? 'triangle' : 'square', f: [784, 988, 1175, 1568][i % 4], a: 0.003, peak: 0.1, d: 0.16 }); }
+    else if (kind === 'jackpot') { for (let i = 0; i < 40; i++) tone(ch.input, t + i * 0.09, { type: 'sine', f: [1568, 1318, 1175, 1568, 2093][i % 5], a: 0.002, peak: 0.18, d: 0.5 }); }
+    else if (kind === 'coin') { tone(ch.input, t, { type: 'sine', f: 2400, f1: 2100, a: 0.001, peak: 0.12, d: 0.12 }); tone(ch.input, t + 0.05, { type: 'sine', f: 3200, a: 0.001, peak: 0.06, d: 0.1 }); }
+    else if (kind === 'button') tone(ch.input, t, { type: 'square', f: 880, a: 0.001, peak: 0.05, d: 0.03 });
   },
   // Tyre squeal leading into a collision
   skid(x, z, d = 0.6) {

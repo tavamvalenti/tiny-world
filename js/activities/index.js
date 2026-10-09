@@ -2,6 +2,7 @@
 // in the PLAY menu and at their start beacons; `make` is the class that runs one.
 import { TrafficCutUp, TRAFFIC_CFG } from './traffic.js';
 import { SnowmobileTrial } from './sled.js';
+import { Casino } from './casino.js';
 
 export const ACTIVITY_DEFS = [
   {
@@ -33,5 +34,20 @@ export const ACTIVITY_DEFS = [
     note: 'Landing matched to the slope is PERFECT; nose-first or flat on the back is a wipeout. Jumps only score taken off the course, and taking off from the same spot again and again pays less each time. The shortcut is faster if you clear the gap.',
     at: () => ({ x: 106, z: 20, tagH: 6 }),
     minimap: true, make: SnowmobileTrial,
+  },
+  {
+    id: 'casino', map: 'vegas', where: 'Las Vegas', name: 'Casino Jackpot Challenge', icon: '🎰', tag: 'Slots inside Caesars Palace',
+    desc: 'Step through the doors of Caesars Palace onto the casino floor. Three machines to play: Lucky 7s (low risk), Diamond Rush (free spins) and Dragon\'s Hoard (high risk, a chest bonus and a progressive jackpot). Fictional credits only.',
+    modes: [
+      { id: 'floor', name: 'Casino floor', desc: 'Play any machine with your credits. Daily chips every day; a free top-up if you run dry.' },
+      { id: 'challenge', name: '50-spin challenge', desc: 'Exactly 50 spins at 10 credits a spin, on the house. Win as much as you can.' },
+    ],
+    controls: [['Space / Enter', 'spin'], ['↑ ↓', 'bet up / down'], ['← →', 'next machine'], ['I', 'paytable and odds'], ['1 2 3', 'pick a chest (bonus)'], ['Esc', 'leave the casino']],
+    hudKeys: [],                                     // the machine's panel shows its own keys
+    medals: { challenge: { bronze: 600, silver: 1000, gold: 2000, unit: 'credits', better: 'high' } },
+    records: ['casino_jackpot', 'casino_session', 'casino_streak'],
+    note: 'Every spin is decided and paid the moment you press SPIN, then the reels show it, so nothing can pay twice. The odds are fixed and shown on each machine (I). Credits are play money: nothing to buy, nothing to cash out.',
+    at: () => ({ x: -17, z: -38, tagH: 6 }),
+    minimap: false, make: Casino,
   },
 ];
