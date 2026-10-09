@@ -566,6 +566,11 @@ initMenu();                                                    // the title scre
     #menuProfile .mp-r{font:700 10px Inter;letter-spacing:.2em;color:#e8a23a}
     #menuProfile .mp-b{height:3px;border-radius:2px;background:var(--line);margin:8px 0 6px;overflow:hidden} #menuProfile .mp-b i{display:block;height:100%;background:linear-gradient(90deg,#ffd46b,#ff7a3a)}
     #menuProfile .mp-s{display:flex;justify-content:space-between;font:500 10px Inter;color:var(--dim)}
+    #menuProfile .mp-top{display:flex;align-items:center;justify-content:space-between}
+    #menuProfile .mp-rank{font:800 9px Inter;letter-spacing:.12em;padding:3px 7px;border-radius:999px;color:#14161a;background:linear-gradient(135deg,#ffd46b,#f08a2a);box-shadow:0 0 10px rgba(255,180,80,.45)}
+    #menuProfile .mp-rank.none{background:var(--line);color:var(--dim);box-shadow:none}
+    #menuProfile .mp-gl{display:block;width:100%;margin-top:9px;padding:6px 0;border-radius:6px;border:1px solid var(--line);background:none;color:var(--fg);font:700 9px Inter;letter-spacing:.2em;cursor:pointer}
+    #menuProfile .mp-gl:hover{border-color:rgba(255,190,90,.7);color:#e8a23a}
     #menu.diving #menuProfile{opacity:0;pointer-events:none}
     @media (max-width: 760px), (max-height: 520px) { #menuProfile{top:calc(4.2vh + 52px);width:170px;padding:9px 11px} #menuProfile .mp-s{display:none} }
     @media (max-width: 520px) { #menuProfile{display:none} }
@@ -575,11 +580,23 @@ initMenu();                                                    // the title scre
   const draw = () => {
     const P = progress.P, r = progress.rank, n = progress.nextRank, pct = n ? Math.min(100, ((P.xp - r.xp) / (n.xp - r.xp)) * 100) : 100;
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    box.innerHTML = `<div class="mp-k">PROFILE</div><div class="mp-n">${esc(P.name)}</div><div class="mp-r">${esc((progress.equipped('title') || r.name).toUpperCase())}</div>
-      <div class="mp-b"><i style="width:${pct}%"></i></div><div class="mp-s"><span>${P.xp.toLocaleString()} XP</span><span>${progress.unlockedCount} achievements</span></div>`;
+    // the best global placing across every board you're on
+    const ranks = Object.values(P.global || {}).map((g) => g && g.rank).filter((r) => r > 0), best = ranks.length ? Math.min(...ranks) : 0;
+    const badge = progress.lb.configured ? `<span class="mp-rank ${best ? '' : 'none'}" title="Your best global leaderboard placing">${best ? `GLOBAL #${best}` : 'UNRANKED'}</span>` : '';
+    box.innerHTML = `<div class="mp-top"><span class="mp-k">PROFILE</span>${badge}</div><div class="mp-n">${esc(P.name)}</div><div class="mp-r">${esc((progress.equipped('title') || r.name).toUpperCase())}</div>
+      <div class="mp-b"><i style="width:${pct}%"></i></div><div class="mp-s"><span>${P.xp.toLocaleString()} XP</span><span>${progress.unlockedCount} achievements</span></div>${progress.lb.configured ? '<button class="mp-gl" data-gl="1">GLOBAL RANKINGS</button>' : ''}`;
   };
+  // once, when the menu opens: send anything waiting and refresh where you stand on each board (others may have passed you)
+  (async () => {
+    const lb = progress.lb, P = progress.P; if (!lb.configured) return;
+    try {
+      if (P.pending.length) await lb.flush();
+      for (const key of Object.keys(P.global || {})) { const [cat, map] = key.split(':'); const me = await lb.mine(cat, map || ''); if (me && me.rank) P.global[key].rank = me.rank; }
+      progress.touch(true);
+    } catch { /* the boards can wait */ }
+  })();
   draw(); progress.on((t) => { if (t === 'change') draw(); });
-  box.addEventListener('click', (e) => { e.stopPropagation(); progressUI.open('profile'); });
+  box.addEventListener('click', (e) => { e.stopPropagation(); progressUI.open(e.target.closest('[data-gl]') ? 'lb' : 'profile'); });
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
   document.getElementById('menu').appendChild(box);
 }
