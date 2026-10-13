@@ -107,6 +107,10 @@ export class Leaderboard {
     } finally { this.flushing = false; this.progress.touch(true); }
     if (P.pending.length) { clearTimeout(this.retryT); this.retryT = setTimeout(() => this.flush(), 120000); }
   }
+  async overview(limit = 120) {
+    if (!this.provider) return null;
+    try { return await this.provider.rpc('players_overview', { p_limit: limit }); } catch { return null; }
+  }
   async hello() {
     if (!this.provider) return null;
     try { const r = await this.provider.rpc('hello', { p_player: this.progress.P.id }); if (r && r.players) { this.counts = r; this.progress.emit('players', r); } return r; } catch { return null; }
