@@ -1,12 +1,12 @@
 // PHONES AND TABLETS: everything to ride and play, by touch (html.touch only; the desktop never builds any of this).
 //   - two round buttons above the weapon dock: RIDE (Rick's ship, the drone, the balloon chair, the jetpack) and
 //     PLAY (this map's mini-games and Drone Combat), each opening a bottom sheet;
-//   - while flying (any vehicle, Rick's ship, Drone Combat): drag anywhere on the screen to aim / steer; a direction
-//     pad to fly where you point, up / down, FIRE (hold), a second weapon, BOOST, the camera and EXIT;
-//   - while driving (Highway Cut-Up, the snowmobile): big ◀ ▶ to steer, GAS, BRAKE, BOOST and the handbrake;
+//   - while flying (any vehicle, Rick's ship, Drone Combat): drag anywhere on the screen to aim / steer; a joystick
+//     to fly where you point, up / down, FIRE (hold), a second weapon, BOOST, the camera and EXIT;
+//   - while driving (Highway Cut-Up, the snowmobile): a joystick (up gas, down brake, sideways steer), BOOST and the handbrake;
 //   - the casino needs only its own panel (and EXIT).
 // The buttons press the same keys a keyboard would (the game's own key handler routes them), so every vehicle and
-// game behaves exactly as it does on a computer. No joystick, by request: buttons and a drag.
+// game behaves exactly as it does on a computer. Moving is a joystick (it holds W/A/S/D); two fingers pinch to zoom.
 import { G, clamp } from './core.js';
 import { sfx } from './audio.js';
 
@@ -48,6 +48,7 @@ html.touch body.veh-on #tpBtns,html.touch body.act-on #tpBtns,html.touch body.ri
 #tpSheet .it b{display:block;font:600 16px -apple-system,Inter,sans-serif} #tpSheet .it small{display:block;margin-top:3px;font:400 12.5px -apple-system,Inter,sans-serif;color:rgba(235,235,245,.6)}
 #tpSheet .it.off{opacity:.45}
 /* the control pad */
+html.touch #fsBtn,html.touch #menu button.menu-fs,html.touch #resetView{display:none!important}
 #tpPad{display:none;position:fixed;inset:0;z-index:9;pointer-events:none;font-family:-apple-system,'SF Pro Text',Inter,sans-serif}
 html.touch #tpPad.on{display:block}
 #tpPad .look{position:absolute;inset:0;pointer-events:auto;touch-action:none}
@@ -64,6 +65,10 @@ html.touch #tpPad.on{display:block}
 #tpPad .k.gas{--a:rgba(48,209,88,.6);--b:rgba(20,160,90,.5);--rim:rgba(150,255,190,.8);--glow:rgba(48,209,88,.85);border-radius:24px}
 #tpPad .k.brake{--a:rgba(255,69,58,.5);--b:rgba(180,30,30,.42);--rim:rgba(255,160,150,.75);--glow:rgba(255,69,58,.8);border-radius:20px}
 #tpPad .k.steer{--a:rgba(120,150,255,.42);--b:rgba(150,70,255,.36);--rim:rgba(190,200,255,.7);--glow:rgba(130,140,255,.75);border-radius:26px}
+#tpPad .joy{position:absolute;width:132px;height:132px;border-radius:50%;pointer-events:auto;touch-action:none;
+  background:radial-gradient(circle,rgba(120,150,255,.16),rgba(150,70,255,.26));border:1.5px solid rgba(190,200,255,.55);box-shadow:0 10px 30px -10px rgba(0,0,0,.6),inset 0 0 22px rgba(160,170,255,.35);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%)}
+#tpPad .joy b{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;pointer-events:none;
+  background:linear-gradient(150deg,rgba(255,255,255,.55),rgba(150,160,255,.35));border:1px solid rgba(255,255,255,.75);box-shadow:0 6px 16px -4px rgba(0,0,0,.6),0 0 18px rgba(140,150,255,.7)}
 #tpPad .top{position:absolute;left:calc(10px + var(--sl,0px));top:calc(var(--st,0px) + 10px);display:flex;gap:7px;pointer-events:auto}
 #tpPad .top span.ic{width:40px;height:40px;padding:0;display:grid;place-items:center;font-size:17px}
 #tpPad .top span{padding:9px 16px;border-radius:999px;font:700 12px -apple-system,Inter,sans-serif;color:#fff;text-shadow:0 0 6px rgba(255,255,255,.4);
@@ -161,12 +166,25 @@ export class TouchPlay {
   // ---------------- dragging on the screen: aim / steer
   bindLook() {
     this.lookP = null;
+    this.pts = new Map();
+    const zoom = (dy) => { const c = document.getElementById('game'); if (c) c.dispatchEvent(new WheelEvent('wheel', { deltaY: dy, bubbles: true, cancelable: true })); };
+    this.pad.addEventListener('pointerdown', (e) => { if (e.target.classList.contains('look')) this.pts.set(e.pointerId, [e.clientX, e.clientY]); }, true);
+    this.pad.addEventListener('pointermove', (e) => {
+      if (!this.pts.has(e.pointerId)) return; this.pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (this.pts.size !== 2) return;
+      const [a, b] = [...this.pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (!this.pinchD) { this.pinchD = d; return; }
+      if (d > this.pinchD * 1.09) { zoom(-100); this.pinchD = d; } else if (d < this.pinchD / 1.09) { zoom(100); this.pinchD = d; }
+    }, true);
+    const lift = (e) => { this.pts.delete(e.pointerId); if (this.pts.size < 2) this.pinchD = 0; };
+    this.pad.addEventListener('pointerup', lift, true); this.pad.addEventListener('pointercancel', lift, true);
     this.pad.addEventListener('pointerdown', (e) => {
       if (!e.target.classList.contains('look')) return;
+      if (this.pts.size > 1) { this.lookP = null; return; }
       this.lookP = { id: e.pointerId, x: e.clientX, y: e.clientY }; try { e.target.setPointerCapture(e.pointerId); } catch { /* fine without */ }
     });
     this.pad.addEventListener('pointermove', (e) => {
-      const L = this.lookP; if (!L || L.id !== e.pointerId) return;
+      const L = this.lookP; if (!L || L.id !== e.pointerId || this.pts.size > 1) return;
       const dx = e.clientX - L.x, dy = e.clientY - L.y; L.x = e.clientX; L.y = e.clientY;
       if (this.mode === 'rick' && this.rick) { this.rick.stick.x += dx * 0.012; this.rick.stick.y += dy * 0.012; this.rick.activity = Math.min(1, this.rick.activity + Math.hypot(dx, dy) * 0.003); }
       else if (this.veh && this.veh.active) { this.veh.look += dx * 0.0062; this.veh.aim = clamp(this.veh.aim - dy * 0.0052, -1.2, 0.95); }
@@ -191,22 +209,20 @@ export class TouchPlay {
     const tri = (r) => `<svg viewBox="0 0 24 24" style="transform:rotate(${r}deg)"><path d="M12 5l7 12H5z"/></svg>`;
     let html = '';
     if (mode === 'drive') {
-      html = `${btn(tri(-90), 'KeyA', 'steer', `left:calc(14px + ${sl});bottom:calc(${sb} + 24px)`, 76)}${btn(tri(90), 'KeyD', 'steer', `left:calc(100px + ${sl});bottom:calc(${sb} + 24px)`, 76)}
-        ${btn('GAS', 'KeyW', 'gas', `right:calc(14px + ${sr});bottom:calc(${sb} + 24px);height:110px`, 76)}${btn('BRAKE', 'KeyS', 'brake', `right:calc(100px + ${sr});bottom:calc(${sb} + 24px)`, 64)}
-        ${btn('BOOST', 'ShiftLeft', 'boost', `right:calc(100px + ${sr});bottom:calc(${sb} + 98px)`, 58)}${btn('DRIFT', 'Space', '', `right:calc(14px + ${sr});bottom:calc(${sb} + 144px)`, 54)}
-        <div class="top"><span data-k="Escape" class="x">✕ Exit</span><span data-k="KeyR" class="ic" title="Restart">↻</span><span data-k="KeyV" class="ic" title="Camera">◐</span></div>`;
+      html = `<div class="look"></div><div class="joy" data-x="KeyA,KeyD" data-y="KeyW,KeyS" style="left:calc(18px + ${sl});bottom:calc(${sb} + 26px)"><b></b></div>
+        ${btn('BOOST', 'ShiftLeft', 'boost', `right:calc(18px + ${sr});bottom:calc(${sb} + 30px)`, 76)}${btn('DRIFT', 'Space', '', `right:calc(108px + ${sr});bottom:calc(${sb} + 26px)`, 60)}
+        <div class="top"><span data-k="Escape" class="x">✕ Exit</span><span data-k="KeyR" class="ic" title="Restart">↻</span></div>`;
     } else if (mode === 'casino') {
       html = `<div class="top"><span data-k="Escape" class="x">✕ Leave the casino</span></div>`;
     } else {
       const F = FLY[kind] || FLY.drone;
       html = `<div class="look"></div>
-        ${btn(tri(0), 'KeyW', '', `left:calc(76px + ${sl});bottom:calc(${sb} + 124px)`, 58)}${btn(tri(180), 'KeyS', '', `left:calc(76px + ${sl});bottom:calc(${sb} + 20px)`, 58)}
-        ${F.strafe ? `${btn(tri(-90), 'KeyA', '', `left:calc(14px + ${sl});bottom:calc(${sb} + 72px)`, 58)}${btn(tri(90), 'KeyD', '', `left:calc(138px + ${sl});bottom:calc(${sb} + 72px)`, 58)}` : ''}
-        ${btn(F.up[0], F.up[1], '', `left:calc(14px + ${sl});bottom:calc(${sb} + 196px)`, 56)}${F.down ? btn(F.down[0], F.down[1], '', `left:calc(76px + ${sl});bottom:calc(${sb} + 196px)`, 56) : ''}
+        <div class="joy" data-x="${F.strafe ? 'KeyA,KeyD' : ''}" data-y="KeyW,KeyS" style="left:calc(14px + ${sl});bottom:calc(${sb} + 20px)"><b></b></div>
+        ${btn(F.up[0], F.up[1], '', `left:calc(14px + ${sl});bottom:calc(${sb} + 168px)`, 56)}${F.down ? btn(F.down[0], F.down[1], '', `left:calc(80px + ${sl});bottom:calc(${sb} + 168px)`, 56) : ''}
         ${btn(F.fire, 'Mouse0', 'fire', `right:calc(18px + ${sr});bottom:calc(${sb} + 30px)`, 86)}${btn(F.alt[0], F.alt[1], 'alt', `right:calc(116px + ${sr});bottom:calc(${sb} + 26px)`, 62)}
         ${btn('BOOST', 'ShiftLeft', 'boost', `right:calc(30px + ${sr});bottom:calc(${sb} + 132px)`, 60)}
-        <div class="top"><span data-k="Escape" class="x">✕ Exit</span>${this.hub && this.hub.active ? '<span data-k="KeyR" class="ic" title="Restart">↻</span>' : ''}<span data-k="KeyV" class="ic" title="Camera">◐</span></div>
-        <div class="hint on">Drag anywhere to aim</div>`;
+        <div class="top"><span data-k="Escape" class="x">✕ Exit</span>${this.hub && this.hub.active ? '<span data-k="KeyR" class="ic" title="Restart">↻</span>' : ''}</div>
+        <div class="hint on">Joystick to move · drag to aim · pinch to zoom</div>`;
     }
     P.innerHTML = html;
     P.querySelectorAll('[data-k]').forEach((el) => {
@@ -220,7 +236,27 @@ export class TouchPlay {
       const up = (e) => { if (!this.held.has(e.pointerId)) return; const c = this.held.get(e.pointerId); this.held.delete(e.pointerId); el.classList.remove('down'); this.key(c, false); };
       el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
     });
+    P.querySelectorAll('.joy').forEach((j) => this.bindJoy(j));
     clearTimeout(this.hintT); this.hintT = setTimeout(() => this.hideHint(), 4000);
+  }
+  // a joystick: the knob follows the thumb; past a small dead zone each direction holds its key (like WASD)
+  bindJoy(j) {
+    const knob = j.querySelector('b'), [xl, xr] = (j.dataset.x || ',').split(','), [yu, yd] = (j.dataset.y || ',').split(',');
+    let id = null; const on = new Set();
+    const set = (want) => { for (const c of [...on]) if (!want.has(c)) { on.delete(c); this.key(c, false); this.held.delete('j' + c); } for (const c of want) if (!on.has(c)) { on.add(c); this.key(c, true); this.held.set('j' + c, c); } };
+    const move = (e) => {
+      const r = j.getBoundingClientRect(), R = r.width / 2; let dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
+      const d = Math.hypot(dx, dy), m = Math.min(d, R * 0.62); if (d > 0) { dx = dx / d * m; dy = dy / d * m; }
+      knob.style.transform = `translate(${dx}px,${dy}px)`;
+      const nx = dx / (R * 0.62), ny = dy / (R * 0.62), want = new Set();
+      if (xl && nx < -0.38) want.add(xl); if (xr && nx > 0.38) want.add(xr);
+      if (yu && ny < -0.38) want.add(yu); if (yd && ny > 0.38) want.add(yd);
+      set(want);
+    };
+    j.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); sfx.unlock(); id = e.pointerId; try { j.setPointerCapture(id); } catch { /* fine */ } move(e); this.hideHint(); });
+    j.addEventListener('pointermove', (e) => { if (e.pointerId === id) move(e); });
+    const end = (e) => { if (e.pointerId !== id) return; id = null; knob.style.transform = ''; set(new Set()); };
+    j.addEventListener('pointerup', end); j.addEventListener('pointercancel', end); j.addEventListener('lostpointercapture', end);
   }
   hideHint() { const h = this.pad.querySelector('.hint'); if (h) h.classList.remove('on'); }
   releaseAll() { for (const c of this.held.values()) this.key(c, false); this.held.clear(); }

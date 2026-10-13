@@ -23,7 +23,7 @@ const CSS = `
 #menuChat{position:absolute;right:var(--pad);z-index:7;width:210px;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--fg);background:var(--panel);border:1px solid rgba(100,210,255,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-family:-apple-system,Inter,sans-serif;transition:transform .25s}
 #menuChat:hover{transform:translateY(-2px)} #menuChat b{display:block;font:800 10px Inter;letter-spacing:.2em} #menuChat small{display:block;margin-top:3px;font:600 11.5px -apple-system,Inter,sans-serif;color:#64d2ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
 #menu.diving #menuChat{opacity:0;pointer-events:none}
-@media (max-width:520px){#menuChat{left:var(--pad);right:auto;bottom:90px;top:auto!important} #chatMini .chatBox{width:240px}}`;
+@media (max-width:520px){#menuChat{left:12px;right:auto;top:calc(env(safe-area-inset-top,0px) + 8px)!important;width:auto;padding:7px 11px} #menuChat small{display:none} #chatMini .chatBox{width:240px}}`;
 
 export function setupChat(progress, { menu, below }) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
