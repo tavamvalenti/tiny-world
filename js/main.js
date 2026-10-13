@@ -41,6 +41,7 @@ import { Progress } from './progress/core.js';
 import { ProgressUI } from './progress/ui.js';
 import { Minimap } from './minimap.js';
 import { ActivityHub } from './activities/hub.js';
+import { TouchPlay } from './touch-play.js';
 import { ACTIVITY_DEFS } from './activities/index.js';
 const progress = new Progress(), progressUI = new ProgressUI(progress);   // the player's profile (js/progress/)
 const minimap = new Minimap();
@@ -369,7 +370,7 @@ function slowmoAt(now) {
   return slowmo.scale + (1 - slowmo.scale) * e * e * (3 - 2 * e);
 }
 // one simulation + render tick (also used by automated tests via G.step)
-let rick = null, veh = null, hub = null;
+let rick = null, veh = null, hub = null, touchPlay = null;
 const NO_INPUT = { down: false, pressed: false };
 function step(dt) {
   G.dt = dt; G.time += dt;
@@ -377,6 +378,7 @@ function step(dt) {
   if (flying) rick.update(dt);                                  // Rick's ship: flies, then parks the view target on itself
   if (veh && veh.active) veh.update(dt);                        // the drone / balloon chair / jetpack, the same way
   if (hub) hub.update(dt);                                      // the mini-games (and their start beacons)
+  if (touchPlay) touchPlay.update();                            // phones: the right on-screen controls for what's going on
   updateWrecks(dt);                                             // boats going down
   progress.update(dt);                                          // XP, records, challenges (js/progress/)
   if (flying || driving) minimap.update(dt);                    // the minimap while flying anything
@@ -577,9 +579,10 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     }
     $('#loading').style.display = 'none';
     $('#hud').style.display = 'block';
-    if (!TOUCH) rick = new RickMode(scene, camera, post, cam, renderer);   // the RICK & MORTY button (desktop)
-    if (!TOUCH) veh = new VehicleMode(scene, camera, post, cam, renderer); // the VEHICLES button (desktop)
-    if (!TOUCH) hub = new ActivityHub(scene, camera, post, cam, renderer, ACTIVITY_DEFS);   // the PLAY button and the mini-games (desktop)
+    rick = new RickMode(scene, camera, post, cam, renderer);              // Rick's ship (the RICK & MORTY button; RIDE on phones)
+    veh = new VehicleMode(scene, camera, post, cam, renderer);            // the VEHICLES button (RIDE on phones)
+    hub = new ActivityHub(scene, camera, post, cam, renderer, ACTIVITY_DEFS);   // the PLAY button and the mini-games
+    if (TOUCH) touchPlay = new TouchPlay({ rick, veh, hub });             // phones and tablets: RIDE / PLAY and the on-screen controls
     last = performance.now();
     running = true;
     progress.mapLoaded(btn.dataset.map, G.city);
@@ -743,6 +746,7 @@ const pinchAng = (ts) => Math.atan2(ts[1].clientY - ts[0].clientY, ts[1].clientX
 canvasEl.addEventListener('touchstart', (e) => {
   e.preventDefault();
   sfx.unlock();
+  if ((rick && rick.active) || (veh && veh.active) || (hub && hub.active)) { touch = null; return; }   // riding or playing: the on-screen controls have it
   const ts = e.targetTouches;                                  // only fingers that landed on the map, never ones on a button
   if (ts.length === 1) {
     const t = ts[0];

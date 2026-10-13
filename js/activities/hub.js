@@ -181,7 +181,8 @@ export class ActivityHub {
       b.tag.classList.toggle('edge', off);
       if (off) b.arrow.style.transform = `rotate(${Math.atan2(-v.y, v.x)}rad)`;
       b.tag.style.display = 'flex';
-      b.tag.style.left = `${((v.x + 1) / 2) * w}px`; b.tag.style.top = `${((1 - v.y) / 2) * h}px`;
+      const minTop = document.documentElement.classList.contains('touch') ? 170 : 130;   // clear of the map name and chips at the top
+      b.tag.style.left = `${((v.x + 1) / 2) * w}px`; b.tag.style.top = `${clamp(((1 - v.y) / 2) * h, minTop, h - (minTop > 150 ? 250 : 120))}px`;
       b.tag.style.opacity = off ? 0.92 : clamp(1.4 - d / 300, 0.45, 1);
     }
   }
