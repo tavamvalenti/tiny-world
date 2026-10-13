@@ -636,24 +636,36 @@ initMenu();                                                    // the title scre
     @media (max-width: 760px), (max-height: 520px) { #menuProfile{top:calc(4.2vh + 52px);width:170px;padding:9px 11px} #menuProfile .mp-s{display:none} }
     @media (max-width: 520px) { #menuProfile{display:none} }
     html.touch #menuProfile{top:calc(var(--st, 0px) + 52px)}
-    #menuPlayers{position:absolute;right:var(--pad);z-index:7;width:210px;padding:12px 14px;border-radius:10px;text-align:left;display:none;
-      background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 26px -16px var(--shadow);font-family:-apple-system,'SF Pro Display',Inter,system-ui,sans-serif;color:var(--fg);transition:opacity .4s}
+    #menuPlayers{position:absolute;z-index:6;display:none;font-family:-apple-system,'SF Pro Display',Inter,system-ui,sans-serif;color:var(--fg);transition:opacity .4s}
     #menuPlayers.on{display:block}
-    #menuPlayers .mpl-n{font:800 34px -apple-system,'SF Pro Display',Inter,sans-serif;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums;background:linear-gradient(90deg,#ffd46b,#ff9f0a);-webkit-background-clip:text;background-clip:text;color:transparent}
-    #menuPlayers .mpl-k{font:700 9.5px Inter;letter-spacing:.24em;color:var(--faint);margin-top:2px}
-    #menuPlayers .mpl-o{display:flex;align-items:center;gap:7px;margin-top:8px;font:600 11.5px -apple-system,Inter,sans-serif;color:var(--dim)}
+    #menuPlayers .gm-k{margin-bottom:8px}
+    #menuPlayers .mpl-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    #menuPlayers .mpl-n{font:800 40px -apple-system,'SF Pro Display',Inter,sans-serif;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;background:linear-gradient(90deg,#ffd46b,#ff9f0a);-webkit-background-clip:text;background-clip:text;color:transparent}
+    #menuPlayers .mpl-t{display:flex;flex-direction:column;gap:5px}
+    #menuPlayers .mpl-k{font:700 10px Inter;letter-spacing:.22em;color:var(--dim)}
+    #menuPlayers .mpl-o{display:flex;align-items:center;gap:7px;font:600 12px -apple-system,Inter,sans-serif;color:var(--dim)}
     #menuPlayers .mpl-o i{width:8px;height:8px;border-radius:50%;background:#30d158;box-shadow:0 0 0 0 rgba(48,209,88,.6);animation:mplPing 2s infinite}
     @keyframes mplPing{70%{box-shadow:0 0 0 7px rgba(48,209,88,0)}100%{box-shadow:0 0 0 0 rgba(48,209,88,0)}}
     #menu.diving #menuPlayers{opacity:0}
-    @media (max-width: 760px), (max-height: 520px) { #menuPlayers{width:170px;padding:9px 11px} #menuPlayers .mpl-n{font-size:26px} }
+    /* not enough room on the left: its own small card under the profile instead */
+    #menuPlayers.card{right:var(--pad);width:210px;padding:12px 14px;border-radius:10px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 26px -16px var(--shadow)}
+    #menuPlayers.card .mpl-n{font-size:30px}
     @media (max-width: 520px) { #menuPlayers{display:none!important} }`;
   document.head.appendChild(st);
   const box = document.createElement('div'); box.id = 'menuProfile'; box.title = 'Your profile';
   // the player count, under the profile card: everyone who has opened the game, and who's on right now
   const pl = document.createElement('div'); pl.id = 'menuPlayers'; pl.title = 'Everyone who has played Tiny World';
-  pl.innerHTML = '<div class="mpl-n">0</div><div class="mpl-k">PLAYERS SO FAR</div><div class="mpl-o"><i></i><span></span></div>';
+  pl.innerHTML = '<div class="gm-k"><span>Players</span><i></i></div><div class="mpl-row"><div class="mpl-n">0</div><div class="mpl-t"><div class="mpl-k">PLAYED TINY WORLD</div><div class="mpl-o"><i></i><span></span></div></div></div>';
   let shownN = 0;
-  const placePl = () => { pl.style.top = `${box.offsetTop + box.offsetHeight + 10}px`; };
+  // its own section on the left, between the intro and the destinations (or, if that's too tight, a small card on the right)
+  const placePl = () => {
+    const sub = document.querySelector('#menu .sub'), dest = document.querySelector('.gm-dest'), m = document.getElementById('menu').getBoundingClientRect();
+    if (sub && dest) {
+      const a = sub.getBoundingClientRect(), b = dest.getBoundingClientRect();
+      if (b.top - a.bottom >= 96 && b.width > 0) { pl.classList.remove('card'); Object.assign(pl.style, { left: `${b.left - m.left}px`, right: '', width: `${b.width}px`, top: `${a.bottom - m.top + (b.top - a.bottom - 78) / 2}px` }); return; }
+    }
+    pl.classList.add('card'); Object.assign(pl.style, { left: '', right: '', width: '', top: `${box.offsetTop + box.offsetHeight + 10}px` });
+  };
   progress.on((t, d) => {
     if (t !== 'players') return;
     pl.classList.add('on'); placePl();
