@@ -1,5 +1,5 @@
 // The INVITE FRIENDS panel (from the menu, or from the profile): the two rewards with their progress, your link, Copy
-// link / Share / Copy invite message, and the message itself, editable (your link is put in for you).
+// invite (message + link) / Share, and the message itself, editable (your link is put in for you).
 import { SF, icon } from '../ui-glass.js';
 import { REWARDS, DEFAULT_MSG } from './referral.js';
 
@@ -72,8 +72,8 @@ export function openInvite(progress) {
       <div class="rw">${card('share', 'gift', 'Share Tiny World', 'Paid when your first friend joins with your link: they create an account and play to 300 XP.')}${card('five', 'person', 'Invite 5 friends', 'Five different friends join with your link, each with a new account that reaches 300 XP.')}</div>
       <p class="note">${j ? `${j} friend${j > 1 ? 's have' : ' has'} joined with your link${j > q ? ` · ${j - q} still getting to 300 XP` : ''}. ` : ''}${A && A.signedIn ? 'Rewards go into your wallet when you collect them.' : 'Your friends count from now on, but rewards are paid to an account: create one in Profile to collect them.'}</p>
       <h4>${icon('tag', 15)} Your link</h4>
-      <div class="link"><code>${link ? esc(link) : 'Getting your link…'}</code><button data-a="copy-link" ${link ? '' : 'disabled'}>Copy link</button></div>
-      <div class="acts"><button data-a="share" ${link ? '' : 'disabled'}>${navigator.share ? 'Share…' : 'Share (copies the invite)'}</button><button class="ghost" data-a="copy-msg" ${link ? '' : 'disabled'}>Copy invite message</button></div>
+      <div class="link"><code>${link ? esc(link) : 'Getting your link…'}</code><button data-a="copy-link" ${link ? '' : 'disabled'}>Copy invite</button></div>
+      <div class="acts"><button data-a="share" ${link ? '' : 'disabled'}>${navigator.share ? 'Share…' : 'Share (copies the invite)'}</button></div>
       <h4>${icon('card', 15)} Your invite message</h4>
       <textarea id="ivMsg" maxlength="600">${esc(link ? R.message(state.code) : R.template())}</textarea>
       <div class="acts" style="margin-top:6px"><button class="ghost" data-a="reset-msg">Reset message</button></div>
@@ -94,8 +94,7 @@ export function openInvite(progress) {
       return;
     }
     const a = b.dataset.a;
-    if (a === 'copy-link') copy(R.link(state.code), 'Link');
-    if (a === 'copy-msg') { saveMsg(); copy(currentMsg(), 'Invite message'); }
+    if (a === 'copy-link') { saveMsg(); copy(currentMsg(), 'Invite with your link'); }
     if (a === 'reset-msg') { R.saveTemplate(DEFAULT_MSG); const ta = panel.querySelector('#ivMsg'); if (ta) ta.value = R.message(state.code, DEFAULT_MSG); say('Message reset.'); }
     if (a === 'share') {
       saveMsg(); const text = currentMsg();
