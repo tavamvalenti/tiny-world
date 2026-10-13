@@ -939,17 +939,19 @@ export const REACT = ['What was that?', 'Did you see that?', 'What happened?', '
 export function pickLine(arr) { return arr[(Math.random() * arr.length) | 0]; }
 
 
-// ---------- concert music: the Summer Smash set (OMERTA + three Chuckyy tracks), from one spot in the world ----------
+// ---------- concert music: the Chicago Music Festival set (the owner's own tracks), from one spot in the world ----------
 // The set is shuffled: every song plays once, in a random order, before any plays again (and a new round never
 // opens with the song that just ended). There's a short break between songs while the crowd cheers. It goes
 // through a lowpass/gain/pan that tracks the camera, so it is faint and muffled from across the map and fuller up
 // close, plus a crowd bed. Each song's tempo and first downbeat were measured offline from the file (beat-grid fit
 // over the whole track), and that beat clock drives the crowd's jumping and the pyro.
 const SET = [
-  { url: 'assets/omerta.mp3', bpm: 151.5, offset: 0.29 },
-  { url: 'assets/2am.mp3', bpm: 126, offset: 0.015 },
-  { url: 'assets/free-smurk.mp3', bpm: 123.25, offset: 0.472 },
-  { url: 'assets/testimony.mp3', bpm: 139.75, offset: 0.417 },
+  { url: 'assets/music/sixx.m4a', bpm: 140, offset: 0 },
+  { url: 'assets/music/cayendo.m4a', bpm: 99.75, offset: 0 },
+  { url: 'assets/music/aug27.m4a', bpm: 120, offset: 0 },
+  { url: 'assets/music/soul-music.m4a', bpm: 105.25, offset: 0 },
+  { url: 'assets/music/4am.m4a', bpm: 148, offset: 0.355 },
+  { url: 'assets/music/meta-moon.m4a', bpm: 142, offset: 0 },
 ];
 const GAP = 2.5;                                          // seconds between songs
 export const music = {
@@ -1033,7 +1035,7 @@ export const music = {
 // played from a few little speakers on the beach: the loudest spot is whichever speaker is nearest the camera, it
 // tops out well under the concert, and it fades to nothing within a few dozen units (the concert carries across the
 // whole map). Thin in the bass and a little boxy, like a bluetooth speaker; muffled with distance like everything else.
-const BEACH_SET = ['assets/beach-crazyz.mp4', 'assets/beach-chica-atractiva.mp4', 'assets/beach-locura-y-maldad.mp4', 'assets/beach-si-no-es-contigo.mp4', 'assets/beach-callaita.mp4'];
+const BEACH_SET = [];   // La Playa's speakers are silent for now (no licensed music); the clubs pass their own list
 export const beachRadio = {
   spots: [], on: false, out: null, bus: null, buf: null, k: -1, bag: [], level: 0,
   pickNext() {

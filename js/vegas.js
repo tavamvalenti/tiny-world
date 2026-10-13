@@ -21,7 +21,7 @@ import { policeHQ } from './maps.js';
 import { beachRadio, sfx } from './audio.js';
 
 // the rooftop clubs' set (shuffled, every song once before any repeats)
-const CLUB_SET = ['assets/club-come-get-her.mp4', 'assets/club-disco-inferno.mp4', 'assets/club-massive.mp4', 'assets/club-like-a-g6.mp4', 'assets/club-low.mp4'];
+const CLUB_SET = ['assets/music/sixx.m4a', 'assets/music/4am.m4a', 'assets/music/meta-moon.m4a', 'assets/music/aug27.m4a', 'assets/music/cayendo.m4a', 'assets/music/soul-music.m4a'];
 import { hsl, tint, box, cyl, cone, sph, canvasTex, hipRoof, merged, netCtx, paintNetwork, widenFor, topOf, hangOn, rnd, skinOn, pyramidTris } from './mapkit.js';
 import { waterMaterial } from './water.js';
 
@@ -308,7 +308,7 @@ export function vegas(B) {
     lot(E0, 21.4, E1, 27);
     V.showcase = R(B, { x: 25, z: 24.2, w: 22, d: 5.4, floors: 4, style: 'office', tint: hsl(0.55, 0.08, 0.72), cell: 2 });
     V.coke = { x: 13.3, z: 24.2 }; clear(8, 14.5, 21.4, 27);
-    name("M&M'S World", "M&M'S World", E0, E1, 21.4, 27);
+    name("N&N'S World", "N&N'S World", E0, E1, 21.4, 27);
   }
   // Planet Hollywood: the white tower with its dark glass centre, gold letters on top, the Miracle Mile in front
   {
@@ -720,9 +720,9 @@ export class Vegas {
     bottle.castShadow = true; this.scene.add(bottle); hangOn(showcase, [bottle], 0);
     const band = new THREE.Mesh(new THREE.CylinderGeometry(1.52, 1.5, 1.6, 24, 1, true).translate(coke.x, 4.6, coke.z), new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff1010, emissiveIntensity: 0.6, roughness: 0.4 }));
     this.scene.add(band); this.signs.push(band.material); hangOn(showcase, [band], 0);
-    const s = this.sign(3, 0.95, this.text('Coca-Cola', 'italic 700 $px Georgia, serif', '#ffffff', '#ff8080'), coke.x - 1.55, 4.6, coke.z, -Math.PI / 2, 1.2); hangOn(showcase, [s], 0);
+    const s = this.sign(3, 0.95, this.text('Cola', 'italic 700 $px Georgia, serif', '#ffffff', '#ff8080'), coke.x - 1.55, 4.6, coke.z, -Math.PI / 2, 1.2); hangOn(showcase, [s], 0);
     const t = topOf(showcase);
-    this.sign(5, 1, this.text("M&M'S WORLD", '900 $px Arial', '#ffd200', '#ff6a00'), t.ax - 0.06, 3.6, t.cz + 4, -Math.PI / 2, 1);
+    this.sign(5, 1, this.text("N&N'S WORLD", '900 $px Arial', '#ffd200', '#ff6a00'), t.ax - 0.06, 3.6, t.cz + 4, -Math.PI / 2, 1);
     this.screen(5, 2.4, t.ax - 0.07, 7, t.cz + 1.5, -Math.PI / 2, 1);
   }
   cosmo(r) {
@@ -1166,7 +1166,7 @@ export class Vegas {
     if (!D) return;
     const P = [], L = [];
     const elevenTex = canvasTex(256, 64, (c, w, h) => { c.fillStyle = '#f4f4f0'; c.fillRect(0, 0, w, h); const st = [['#f28a1a', 0.12], ['#0e7a4a', 0.38], ['#d8222a', 0.66]]; for (const [col, y] of st) { c.fillStyle = col; c.fillRect(0, h * y, w, h * 0.18); } c.fillStyle = '#fff'; c.fillRect(w * 0.44, 0, w * 0.12, h); c.font = `900 ${h * 0.7}px Arial`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#f28a1a'; c.fillText('7', w * 0.5, h * 0.48); });
-    const poleTex = canvasTex(64, 96, (c, w, h) => { c.fillStyle = '#f4f4f0'; c.fillRect(0, 0, w, h); c.fillStyle = '#0e7a4a'; c.fillRect(3, 3, w - 6, h * 0.72); c.fillStyle = '#fff'; c.fillRect(8, 8, w - 16, h * 0.62); c.fillStyle = '#f28a1a'; c.font = `900 ${h * 0.5}px Arial`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('7', w / 2, h * 0.32); c.fillStyle = '#0e7a4a'; c.font = `900 ${h * 0.13}px Arial`; c.fillText('ELEVEN', w / 2, h * 0.6); c.fillStyle = '#ff2a8a'; c.fillRect(3, h * 0.8, w - 6, h * 0.16); c.fillStyle = '#ffe24a'; c.font = `900 ${h * 0.1}px Arial`; c.fillText('SLURPEE', w / 2, h * 0.88); });
+    const poleTex = canvasTex(64, 96, (c, w, h) => { c.fillStyle = '#f4f4f0'; c.fillRect(0, 0, w, h); c.fillStyle = '#0e7a4a'; c.fillRect(3, 3, w - 6, h * 0.72); c.fillStyle = '#fff'; c.fillRect(8, 8, w - 16, h * 0.62); c.fillStyle = '#f28a1a'; c.font = `900 ${h * 0.5}px Arial`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('7', w / 2, h * 0.32); c.fillStyle = '#0e7a4a'; c.font = `900 ${h * 0.13}px Arial`; c.fillText('ELEVIN', w / 2, h * 0.6); c.fillStyle = '#ff2a8a'; c.fillRect(3, h * 0.8, w - 6, h * 0.16); c.fillStyle = '#ffe24a'; c.font = `900 ${h * 0.1}px Arial`; c.fillText('SLURPY', w / 2, h * 0.88); });
     for (const lot of D.lots) {
       const b = lot.b; if (!b) continue;
       const fr = lot.front, s = -lot.dir, ry = lot.ry, t = topOf(b);

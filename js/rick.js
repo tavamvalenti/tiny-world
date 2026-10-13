@@ -1,4 +1,4 @@
-// RICK & MORTY: fly Rick's ship (with Rick and Morty aboard) through Tiny World. A crossover from Cosmic Solitude:
+// THE WUBLUBDUBDUB SHIP: fly the green saucer (two cartoon crew aboard) through Tiny World. A crossover from Cosmic Solitude:
 // the ship, the crew, the flight model, the guns and bombs, the intergalactic radio, the crew's voice lines and the
 // ship's own sounds all come from there (src/entities/ship/Ship.ts, src/gameplay/CameraRig.ts, src/combat/Combat.ts,
 // src/audio/Radio.ts, src/audio/CrewChatter.ts, src/ui/RadioWidget.ts), kept as they were apart from:
@@ -19,6 +19,9 @@ const ACCEL = VMAX * 1.4;                 // CS: 120 + vmax * 0.9
 const VERT = 10;                          // vertical thrusters (R up, F down)
 const BOLT_SPEED = 90, BOLT_LIFE = 1.35;  // lasers: 9 shots/s, alternating muzzles
 const BASE = 'assets/rick/';
+// The radio and the crew's voice lines are switched off (no music or voices ship with the game for now); their code
+// stays so they can come back with new, owned content: set these to true and add the files under assets/rick/.
+const RADIO = false, VOICES = false;
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _z = new THREE.Vector3(0, 0, 1);
 
 const CSS = `
@@ -394,12 +397,12 @@ export class RickMode {
   buildHud() {
     const hud = document.getElementById('hud');
     // the button sits next to WORLD in the bottom bar
-    this.btn = document.createElement('span'); this.btn.id = 'rickBtn'; this.btn.title = 'Fly Rick\'s ship';
-    this.btn.innerHTML = '<span class="rk-portal"><i class="rk-swirl"></i><i class="rk-swirl s2"></i><i class="rk-core"></i><img class="rk-chars" src="assets/rick/rickmorty.png" alt=""><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i></span>RICK &amp; MORTY';
+    this.btn = document.createElement('span'); this.btn.id = 'rickBtn'; this.btn.title = 'Fly the Wublubdubdub ship';
+    this.btn.innerHTML = '<span class="rk-portal"><i class="rk-swirl"></i><i class="rk-swirl s2"></i><i class="rk-core"></i><b class="rk-chars" style="display:grid;place-items:center;font-size:22px">🛸</b><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i></span>RICK &amp; MORTY';
     document.getElementById('weapons').appendChild(this.btn);
     this.hud = document.createElement('div'); this.hud.id = 'rickHud';
     this.hud.innerHTML = `<div class="rk-reticle"></div><div class="rk-heat"><i></i></div>
-      <div class="rk-keys"><span><b class="key">Mouse</b>steer</span><span><b class="key">W</b>hold to fly</span><span><b class="key">S</b>brake / back</span><span><b class="key">A</b><b class="key">D</b>turn</span><span><b class="key">Q</b><b class="key">E</b>roll</span><span><b class="key">R</b><b class="key">F</b>up / down</span><span><b class="key">Shift</b>boost (2× to lock)</span><span><b class="key">Space</b>guns</span><span><b class="key">G</b>bomb</span><span><b class="key">P</b>radio</span><span><b class="key">V</b>camera</span><span><b class="key">Esc</b>leave ship</span></div>
+      <div class="rk-keys"><span><b class="key">Mouse</b>steer</span><span><b class="key">W</b>hold to fly</span><span><b class="key">S</b>brake / back</span><span><b class="key">A</b><b class="key">D</b>turn</span><span><b class="key">Q</b><b class="key">E</b>roll</span><span><b class="key">R</b><b class="key">F</b>up / down</span><span><b class="key">Shift</b>boost (2× to lock)</span><span><b class="key">Space</b>guns</span><span><b class="key">G</b>bomb</span><span><b class="key">V</b>camera</span><span><b class="key">Esc</b>leave ship</span></div>
       <div class="rk-tip">Click to grab the mouse and steer</div><div class="rk-lock">Boost locked · Shift to release</div><div class="crew-caption"></div>`;
     hud.appendChild(this.hud);
     this.reticle = this.hud.querySelector('.rk-reticle'); this.heatEl = this.hud.querySelector('.rk-heat'); this.heatBar = this.heatEl.querySelector('i');
@@ -411,7 +414,7 @@ export class RickMode {
       <div class="radio-now"><div class="radio-cover"><img class="radio-cover-img" alt=""></div><div class="radio-meta"><div class="radio-song"></div><div class="radio-artist"></div></div></div>
       <canvas class="radio-eq" width="120" height="28"></canvas>
       <div class="radio-keys"><span class="key">[</span><span class="key">]</span> station · <span class="key">\\</span> skip · <span class="key">P</span> off</div>`;
-    this.hud.appendChild(this.rw);
+    this.hud.appendChild(this.rw); if (!RADIO) this.rw.style.display = 'none';
     this.eq = this.rw.querySelector('canvas').getContext('2d'); this.levels = new Float32Array(18); this.eqData = new Uint8Array(128); this.rwKey = '';
   }
 
@@ -449,10 +452,10 @@ export class RickMode {
     if (c === 'KeyT' || c === 'KeyM' || c.startsWith('F')) return false;          // day/night and mute still work
     if (down && !e.repeat) {
       if (c === 'Escape') { this.exit(); return true; }
-      if (c === 'KeyP') this.radio.toggle();
-      if (c === 'BracketRight' || c === 'Period') this.radio.next(1);
-      if (c === 'BracketLeft' || c === 'Comma') this.radio.next(-1);
-      if (c === 'Backslash') this.radio.skip();
+      if (RADIO && c === 'KeyP') this.radio.toggle();
+      if (RADIO && (c === 'BracketRight' || c === 'Period')) this.radio.next(1);
+      if (RADIO && (c === 'BracketLeft' || c === 'Comma')) this.radio.next(-1);
+      if (RADIO && c === 'Backslash') this.radio.skip();
       if (c === 'KeyH') this.model.state.headlights = !this.model.state.headlights;
       if (c === 'KeyV') this.zoom = this.zoom > 1.2 ? 0.75 : this.zoom < 0.9 ? 1 : 1.6;
       if (c === 'KeyG' && this.secCd <= 0) this.dropBomb();
@@ -479,7 +482,7 @@ export class RickMode {
     G.progress && G.progress.vehicle('rick');
     sfx.unlock(); this.audio.init();
     this.build();
-    this.radio.load(); this.chatter.load();
+    if (RADIO) this.radio.load(); if (VOICES) this.chatter.load();
     const T = this.cam, B = G.buildings;
     // appear above where the camera was looking, facing the way the view faced
     const yaw = T.yaw, ground = B.surfaceAt(T.x, T.z, 999).y;
@@ -492,7 +495,7 @@ export class RickMode {
     document.body.classList.add('rick-on'); this.btn.classList.add('on');
     this.tip.style.opacity = 1;
     this.lock();
-    if (this.radio.wasOn) this.radio.load().then(() => this.active && this.radio.setOn(true));
+    if (RADIO && this.radio.wasOn) this.radio.load().then(() => this.active && this.radio.setOn(true));
     setTimeout(() => this.chatter.react('takeoff'), 900);
     setTimeout(() => this.active && G.news && G.news.rick('sighted', this.pos.x, this.pos.z), 2500);
   }

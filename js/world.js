@@ -131,7 +131,7 @@ export class World {
       case 'worker': return person([pick([0xf28c1c, 0xd8e03a]), 0x2a3448, 0xf2c230], (p) => { if (G.roles) return G.roles.hireAt(p, 'worker', x, z); hangAround(p, 3, false); p.state = 'wander'; p.target = { x: x + rand(-3, 3), z: z + rand(-3, 3) }; p.worker = true; });
       case 'security': return person([0x141414, 0x141414, 0x141414], (p) => { if (G.roles) return G.roles.hireAt(p, 'security', x, z); hangAround(p, 4, false); p.state = 'wander'; p.target = { x: x + rand(-4, 4), z: z + rand(-4, 4) }; });   // walks their post
       case 'gang': {
-        // London: roadmen, all in black (puffers, Nike Tech, balaclavas); knives, never guns
+        // London: roadmen, all in black (puffers, tech fleece, balaclavas); knives, never guns
         if (G.london) { for (let k = 0; k < 4; k++) person(null, (p) => { hangAround(p, 1, true); G.london.dressRoadman(p); p.gangSide = 'roadmen'; }); return true; }
         // a few colour-wearing members loitering together (blue or red by which side of town they're on)
         const Z = G.gangs && G.gangs.zones, side = Z ? (Math.abs(z - Z.red.z0) < Math.abs(z - Z.blue.z1) ? 'red' : 'blue') : pick(['red', 'blue']);

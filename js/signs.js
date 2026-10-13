@@ -23,9 +23,9 @@ const NAMES = {
     ['TATTOO', '#141414', '#ff5252'], ['SPORTSBOOK', '#0d2b52', '#7cf0ff'], ['ICE CREAM', '#ffd1e3', '#6b1f3a'], ['GENTLEMEN\'S CLUB', '#0a0a10', '#ff3fa4'],
   ],
   london: [
-    ['THE RED LION', '#5a1414', '#f2d27a'], ['TESCO EXPRESS', '#ffffff', '#00539f'], ['PRET', '#7a0019', '#ffffff'], ['BOOTS', '#05509e', '#ffffff'],
-    ['THE CROWN', '#0f2a1d', '#e8c060'], ['FISH & CHIPS', '#0e3d6b', '#ffffff'], ['PHONE REPAIRS', '#1d1d1d', '#5ce1e6'], ['CAFFE NERO', '#0e2b4a', '#ffffff'],
-    ['THE GEORGE', '#1a1a2a', '#e8d38a'], ['BARCLAYS', '#00aeef', '#ffffff'], ['GREGGS', '#00488d', '#fbb800'], ['THE KINGS ARMS', '#3a1f10', '#f0c674'],
+    ['THE RED LION', '#5a1414', '#f2d27a'], ['LESCO EXPRESS', '#ffffff', '#00539f'], ['PRETT', '#7a0019', '#ffffff'], ['BOOTZ', '#05509e', '#ffffff'],
+    ['THE CROWN', '#0f2a1d', '#e8c060'], ['FISH & CHIPS', '#0e3d6b', '#ffffff'], ['PHONE REPAIRS', '#1d1d1d', '#5ce1e6'], ['CAFFE NERA', '#0e2b4a', '#ffffff'],
+    ['THE GEORGE', '#1a1a2a', '#e8d38a'], ['BARKLAYS', '#00aeef', '#ffffff'], ['GREGS', '#00488d', '#fbb800'], ['THE KINGS ARMS', '#3a1f10', '#f0c674'],
     ['CHICKEN & CHIPS', '#c8102e', '#ffe14a'], ['BOOKIES', '#0e3a1e', '#f2d24a'], ['KEBAB', '#b3120f', '#ffe08a'], ['OFF LICENCE', '#123a1e', '#f5e7b8'],
   ],
   cairo: [
@@ -35,7 +35,7 @@ const NAMES = {
     ['مطعم أبو علي', '#8a1a1a', '#ffffff'], ['كوافير', '#f7e6ee', '#8a2455'], ['قهوة البلد', '#2a1a0a', '#e8c070'], ['ورشة سيارات', '#1a1a1a', '#f2a21a'],
   ],
   greenland: [
-    ['PILERSUISOQ', '#c8102e', '#ffffff'], ['BRUGSEN', '#1f3f8a', '#ffffff'], ['KIOSK', '#f2c230', '#1a1a1a'], ['CAFE', '#2a1a10', '#f2d27a'],
+    ['PILERSUISOK', '#c8102e', '#ffffff'], ['BRUGSEM', '#1f3f8a', '#ffffff'], ['KIOSK', '#f2c230', '#1a1a1a'], ['CAFE', '#2a1a10', '#f2d27a'],
     ['FISH & HALIBUT', '#0e3d6b', '#ffffff'], ['POST', '#d8222a', '#ffffff'], ['HOTEL SISIMIUT', '#14243a', '#e8d38a'], ['BAKERY', '#5a3a1a', '#f5e7b8'],
     ['SPORT & OUTDOOR', '#2a6a3a', '#ffffff'], ['PHARMACY', '#ffffff', '#1e8a3a'], ['HARDWARE', '#3a3f46', '#f2c230'], ['PIZZA', '#b3120f', '#ffe08a'],
     ['BANK', '#0e2b4a', '#ffffff'], ['BOOKS', '#20304a', '#f1ede4'], ['KAYAK CLUB', '#e86a1a', '#ffffff'], ['GALLERY', '#f2f2ee', '#c8102e'],

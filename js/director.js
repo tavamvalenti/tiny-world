@@ -107,7 +107,7 @@ export class Director {
     if (!N) return;
     const S = {
       downtown: [['LOCAL', 'Crane work continues on downtown construction sites'], ['LOCAL', 'Trolley running on schedule through the Gaslamp Quarter'], ...(clear ? [['LOCAL', 'Sunny afternoon brings crowds to the waterfront']] : [])],
-      suburbs: [['SPORTS', 'Streetball game under way by the courts'], ['LOCAL', 'Construction crews busy on the South Side'], ...(G.concert && G.concert.phase === 'active' ? [['FESTIVAL', 'Summer Smash crowd packed in front of the main stage']] : [])],
+      suburbs: [['SPORTS', 'Streetball game under way by the courts'], ['LOCAL', 'Construction crews busy on the South Side'], ...(G.concert && G.concert.phase === 'active' ? [['FESTIVAL', 'Music Festival crowd packed in front of the main stage']] : [])],
       vegas: [['LOCAL', 'Bellagio fountains drawing crowds on the Strip'], ['LOCAL', 'Heavy traffic on Las Vegas Boulevard tonight'], ['LOCAL', 'Sphere lights up the skyline'], ['LOCAL', 'Record weekend for Strip casinos']],
       cairo: [['TRAFFIC ALERT', 'Gridlock on the 6th of October Bridge'], ['LOCAL', 'Crowds fill Khan el-Khalili'], ['LOCAL', 'Feluccas out on the Nile at sunset'], ['LOCAL', 'Tourists flock to the Giza pyramids'], ['WEATHER', 'Hot and hazy across Cairo'], ['LOCAL', 'Microbus fares unchanged this month']],
       greenland: [['LOCAL', 'Trawlers return with the halibut catch'], ['LOCAL', 'Icebergs drifting close to the harbour'], ['SPORTS', 'Football match on the town pitch draws a crowd'], ['WEATHER', 'Light snow across Sisimiut'], ['LOCAL', 'Northern lights expected tonight'], ['LOCAL', 'Supply ship arrives from Nuuk']],

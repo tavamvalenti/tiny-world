@@ -1,5 +1,5 @@
-// Summer Smash: a stadium festival in Chicago that never stops. Stage with the blue Summer Smash banner and
-// the Lyrical Lemonade carton logo, LED walls, line arrays, giant carton inflatables, a grandstand, a gate
+// Chicago Music Festival: a stadium festival in Chicago that never stops. Stage with the blue Chicago Music Festival banner and
+// the festival carton logo, LED walls, line arrays, giant carton inflatables, a grandstand, a gate
 // plaza with food trucks, thousands of fans jumping on the beat, rappers running the stage, sweeping
 // beams and pyro on the drops. Music comes from audio.js (music), whose beat clock drives everything here.
 import * as THREE from 'three';
@@ -34,11 +34,14 @@ function canvasTex(w, h, draw) {
 function plane(w, h, tex, glow = 0.25) {
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: glow, roughness: 0.6, side: THREE.DoubleSide }));
 }
-const logo = new Image();
-let logoReady = false;
+// the festival badge (drawn here, no image): a yellow disc with a music note and CMF
+const logo = document.createElement('canvas'); logo.width = logo.height = 256;
+{ const x = logo.getContext('2d'); x.fillStyle = '#f7e531'; x.fillRect(0, 0, 256, 256); x.fillStyle = '#111';
+  x.beginPath(); x.ellipse(96, 170, 34, 26, -0.4, 0, 6.283); x.fill(); x.fillRect(122, 52, 14, 120);
+  x.beginPath(); x.moveTo(136, 52); x.quadraticCurveTo(200, 70, 190, 130); x.quadraticCurveTo(180, 95, 136, 92); x.fill();
+  x.font = '900 46px Inter, Arial Black, sans-serif'; x.textAlign = 'center'; x.fillText('CMF', 128, 240); }
+const logoReady = true;
 const onLogo = [];
-logo.onload = () => { logoReady = true; for (const f of onLogo) f(); };
-logo.src = 'assets/lyrical-lemonade.jpg';
 function drawLogo(x, cx, cy, size, round = 0.18) {
   if (!logoReady) return;
   x.save();
@@ -47,7 +50,7 @@ function drawLogo(x, cx, cy, size, round = 0.18) {
   x.restore();
 }
 
-// Summer Smash banner: blue band, white rounded bold wordmark, the carton logo on the left
+// Chicago Music Festival banner: blue band, white rounded bold wordmark, the carton logo on the left
 function drawBanner(x, w, h) {
   const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2a5ff0'); g.addColorStop(1, '#1b43c0');
   x.fillStyle = g; x.fillRect(0, 0, w, h);
@@ -55,7 +58,7 @@ function drawBanner(x, w, h) {
   drawLogo(x, h * 0.62, h / 2, h * 0.78);
   x.fillStyle = '#fff'; x.font = `800 ${h * 0.5}px Inter, "Arial Rounded MT Bold", Arial, sans-serif`;
   x.textBaseline = 'middle'; x.textAlign = 'left';
-  x.fillText('Summer Smash', h * 1.25, h * 0.54);
+  x.fillText('Chicago Music Festival', h * 1.25, h * 0.54);
 }
 function drawFence(x, w, h) {
   const seg = w / 4;
@@ -64,7 +67,7 @@ function drawFence(x, w, h) {
     x.fillStyle = blue ? BLUE : YELLOW; x.fillRect(i * seg, 0, seg, h);
     drawLogo(x, i * seg + h * 0.6, h / 2, h * 0.8, 0.12);
     x.fillStyle = blue ? '#fff' : '#111'; x.font = `800 ${h * 0.46}px Inter, Arial, sans-serif`; x.textBaseline = 'middle'; x.textAlign = 'left';
-    x.fillText(blue ? 'SUMMER SMASH' : 'LYRICAL LEMONADE', i * seg + h * 1.2, h * 0.54);
+    x.fillText(blue ? 'CHICAGO MUSIC FESTIVAL' : 'LIVE ALL DAY', i * seg + h * 1.2, h * 0.54);
   }
 }
 // carton inflatable faces, drawn after the logo's style
@@ -73,9 +76,9 @@ function drawCartonFront(x, w, h) {
   x.lineWidth = w * 0.03; x.strokeStyle = '#111'; x.strokeRect(0, 0, w, h);
   x.fillStyle = '#fff'; x.strokeStyle = '#111'; x.lineWidth = w * 0.02;
   x.font = `900 ${w * 0.3}px Inter, Arial Black, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
-  for (const [t, y] of [['LYRI', 0.2], ['CAL', 0.43]]) { x.strokeText(t, w / 2, h * y); x.fillText(t, w / 2, h * y); }
+  for (const [t, y] of [['MUS', 0.2], ['IC', 0.43]]) { x.strokeText(t, w / 2, h * y); x.fillText(t, w / 2, h * y); }
   x.fillStyle = YELLOW; x.fillRect(0, h * 0.58, w, h * 0.13); x.strokeRect(0, h * 0.58, w, h * 0.13);
-  x.fillStyle = '#111'; x.font = `800 ${w * 0.12}px Inter, Arial, sans-serif`; x.fillText('LEMONADE', w / 2, h * 0.65);
+  x.fillStyle = '#111'; x.font = `800 ${w * 0.12}px Inter, Arial, sans-serif`; x.fillText('FESTIVAL', w / 2, h * 0.65);
   x.fillStyle = YELLOW; x.beginPath(); x.arc(w / 2, h, w * 0.36, Math.PI, 0); x.fill(); x.stroke();
   x.strokeStyle = '#111'; x.lineWidth = w * 0.012;
   for (let k = 1; k < 8; k++) { const a = Math.PI + (k / 8) * Math.PI; x.beginPath(); x.moveTo(w / 2, h); x.lineTo(w / 2 + Math.cos(a) * w * 0.34, h + Math.sin(a) * w * 0.34); x.stroke(); }
@@ -180,7 +183,7 @@ export class Concert {
     for (let x = x0 - 2; x < x1 + 2; x += 1) P.push(box(0.95, 1.0, 0.1, x + 0.5, 0.5, z1 + 2.6, 0x9aa0a4));
     const stage = new THREE.Mesh(mergeGeometries(P), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 }));
     stage.castShadow = stage.receiveShadow = true; scene.add(stage);
-    // Summer Smash banner across the roof front (as in the photo), glowing at night
+    // Chicago Music Festival banner across the roof front (as in the photo), glowing at night
     this.banner = canvasTex(1024, 160, drawBanner); onLogo.push(() => this.banner.redraw());
     const bn = plane(26, 4.06, this.banner, 0.35); bn.position.set(cx, 14.4, z1 + 0.6); scene.add(bn);
     const bnBack = box(26.4, 4.4, 0.4, cx, 14.4, z1 + 0.35, 0x1b43c0);
@@ -223,14 +226,14 @@ export class Concert {
       x.fillStyle = `rgba(160,20,16,${0.25 + (1 - f) * 0.25})`; x.fillRect(0, 0, w, h);
       x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillStyle = '#c42a22'; x.font = `900 ${h * 0.34}px Impact, "Arial Black", sans-serif`;
-      x.fillText('CHUCKYY', w / 2, h * 0.38);
+      x.fillText('LIVE NOW', w / 2, h * 0.38);
       // distressed print
       x.fillStyle = '#0b0b0c';
       for (let k = 0; k < 140; k++) { const px = ((k * 73.1) % 1) * w, py = h * 0.2 + ((k * 37.7) % 1) * h * 0.36; x.fillRect((px + k * 11) % w, py, 2 + (k % 3), 1 + (k % 2)); }
       x.fillStyle = '#f2ede4'; x.font = `800 ${h * 0.1}px Inter, Arial, sans-serif`;
       x.fillText('PERFORMING LIVE', w / 2, h * 0.66);
       x.font = `700 ${h * 0.07}px Inter, Arial, sans-serif`; x.fillStyle = '#f7e531';
-      x.fillText('SUMMER SMASH  ·  CHICAGO', w / 2, h * 0.84);
+      x.fillText('CHICAGO MUSIC FESTIVAL', w / 2, h * 0.84);
       return;
     }
     const hue = (bar * 47) % 360;
@@ -243,7 +246,7 @@ export class Concert {
     const s = h * (0.62 + (1 - f) * 0.08);
     drawLogo(x, w / 2, h * 0.46, s, 0.14);
     x.fillStyle = '#fff'; x.font = `800 ${h * 0.11}px Inter, Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillText('SUMMER SMASH', w / 2, h * 0.9);
+    x.fillText('CHICAGO MUSIC FESTIVAL', w / 2, h * 0.9);
   }
   buildStands(scene) {
     const S = this.site, P = [];
@@ -282,7 +285,7 @@ export class Concert {
   }
   buildPlaza(scene, city) {
     const S = this.site, cx = this.cx, P = [];
-    // perimeter fence wrapped in Summer Smash / Lyrical Lemonade banners, gap for the gate
+    // perimeter fence wrapped in Chicago Music Festival / festival banners, gap for the gate
     const fence = canvasTex(1024, 64, drawFence); fence.wrapS = THREE.RepeatWrapping; onLogo.push(() => fence.redraw());
     const fm = new THREE.MeshStandardMaterial({ map: fence, emissiveMap: fence, emissive: 0xffffff, emissiveIntensity: 0.15, side: THREE.DoubleSide, roughness: 0.7 });
     this.mats.push(fm);
@@ -350,7 +353,7 @@ export class Concert {
   festNews(text) { G.world && G.world.raise('FESTIVAL_EVENT', this.cx, this.site.z1, { news: text, life: 10 }); }
   endShow() {
     this.phase = 'ending';
-    this.festNews(pick(['Summer Smash wraps up; heavy foot traffic on nearby streets.', 'Show over at Summer Smash as crowds head for the exits.']));
+    this.festNews(pick(['Chicago Music Festival wraps up; heavy foot traffic on nearby streets.', 'Show over at Chicago Music Festival as crowds head for the exits.']));
     this.evacuate(this.cx, this.site.z0 - 30, true);
     // the streets round the venue fill with pickups and rideshares
     const A = G.agents;
@@ -358,7 +361,7 @@ export class Concert {
   }
   beginCleanup() {
     this.phase = 'cleanup'; this.phaseT = rand(40, 55); this.evac = null; this.resetT = null;
-    this.festNews('Cleanup crews at work on the Summer Smash grounds.');
+    this.festNews('Cleanup crews at work on the Chicago Music Festival grounds.');
   }
   beginSetup() {
     this.phase = 'setup'; this.phaseT = 75;
@@ -369,7 +372,7 @@ export class Concert {
     this.jump.fill(0); for (const a of this.aJump) a.needsUpdate = true;
     for (const m of this.parts) m.instanceMatrix.needsUpdate = true;
     this.arrival = Array.from({ length: this.N }, (_, i) => i).sort(() => Math.random() - 0.5); this.arrived = 0;
-    this.festNews(pick(['Crews setting up at Summer Smash; gates open soon.', 'Summer Smash gates opening; fans lining up outside.']));
+    this.festNews(pick(['Crews setting up at Chicago Music Festival; gates open soon.', 'Chicago Music Festival gates opening; fans lining up outside.']));
   }
   // fans arrive through the setup: each appears a few steps back and walks to their spot
   arrive(count) {
@@ -386,7 +389,7 @@ export class Concert {
     this.arrive(this.N);
     this.phase = 'active'; this.phaseT = rand(300, 420); this.halt = 0;
     this.jump.set(this.origJump); for (const a of this.aJump) a.needsUpdate = true;
-    this.festNews(pick(['Summer Smash is live: Chuckyy takes the stage.', 'Summer Smash under way; big crowd on the South Side.']));
+    this.festNews(pick(['Chicago Music Festival is live: the headliner takes the stage.', 'Chicago Music Festival under way; big crowd on the South Side.']));
   }
   updateDay(dt) {
     this.phaseT -= dt;
@@ -469,7 +472,7 @@ export class Concert {
   buildPerformers(scene) {
     const mat = (c, r = 0.7) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
     // headliner first, then two hype men and the DJ
-    this.acts = [this.makeChuckyy(scene, mat)];
+    this.acts = [this.makeHeadliner(scene, mat)];
     const outfits = [[0xd23b2e, 0x2b3a55], [0x1c1d20, 0x1c1d20], [0xf7e531, 0x3a3f46]];
     outfits.forEach(([shirt, pants], k) => {
       const g = new THREE.Group();
@@ -488,70 +491,37 @@ export class Concert {
       this.acts.push(p);
     });
   }
-  // Chuckyy, the headliner: a bobblehead-proportioned figure (big head on a small body) after the collectible —
-  // red-brown dreads, neck tattoos, grey hoodie over a white tee, gold and silver chains, grey pants, tan boots
-  makeChuckyy(scene, mat) {
+  // the headliner: a generic rapper (nobody in particular) - black hoodie, cargo pants, white sneakers, a gold chain,
+  // dark shades and a short fade; ordinary proportions, a little bigger than the hype men
+  makeHeadliner(scene, mat) {
     const g = new THREE.Group();
-    const skin = mat(0xb87a52, 0.6), grey = mat(0x9a9ca1, 0.85), greyD = mat(0x7d7f84, 0.85), white = mat(0xf4f4f0), boot = mat(0xd9962e, 0.6);
-    const gold = new THREE.MeshStandardMaterial({ color: 0xf2c14e, metalness: 0.9, roughness: 0.25 }), silver = new THREE.MeshStandardMaterial({ color: 0xd8dde2, metalness: 0.9, roughness: 0.25 });
+    const skin = mat(pick(SKIN), 0.6), hood = mat(0x17181c, 0.85), pants = mat(0x4a4f3a, 0.85), shoe = mat(0xf4f4f0, 0.5), hair = mat(0x1a1410, 0.95);
+    const gold = new THREE.MeshStandardMaterial({ color: 0xf2c14e, metalness: 0.9, roughness: 0.25 });
     const add = (parent, geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); parent.add(o); return o; };
-    // legs + boots
     const legs = [-1, 1].map((s) => {
-      const p = new THREE.Group(); p.position.set(s * 0.075, 0.36, 0); g.add(p);
-      add(p, new THREE.CylinderGeometry(0.058, 0.052, 0.3, 8).translate(0, -0.15, 0), greyD);
-      add(p, new THREE.BoxGeometry(0.12, 0.08, 0.19), boot, 0, -0.31, 0.03);
+      const p = new THREE.Group(); p.position.set(s * 0.045, 0.33, 0); g.add(p);
+      add(p, new THREE.CylinderGeometry(0.036, 0.03, 0.31, 7).translate(0, -0.155, 0), pants);
+      add(p, new THREE.BoxGeometry(0.07, 0.045, 0.12), shoe, 0, -0.31, 0.02);
       return p;
     });
-    // hoodie body (open at the front over a white tee), hood bunched behind the neck
-    add(g, new THREE.CylinderGeometry(0.15, 0.165, 0.36, 12).scale(1, 1, 0.72), grey, 0, 0.55, 0);
-    add(g, new THREE.BoxGeometry(0.11, 0.33, 0.02), white, 0, 0.56, 0.115);
-    add(g, new THREE.CylinderGeometry(0.17, 0.17, 0.05, 12).scale(1, 1, 0.74), greyD, 0, 0.38, 0);   // waistband
-    add(g, new THREE.TorusGeometry(0.1, 0.035, 6, 12).scale(1, 0.6, 0.8), grey, 0, 0.73, -0.06);        // hood
-    // neck with tattoos, chains
-    add(g, new THREE.CylinderGeometry(0.055, 0.06, 0.09, 10), mat(0x7a4a32, 0.7), 0, 0.77, 0);
-    for (const [r, y, m, t] of [[0.085, 0.69, gold, 0.013], [0.1, 0.64, gold, 0.011], [0.12, 0.6, silver, 0.006]]) {
-      const c = add(g, new THREE.TorusGeometry(r, t, 5, 20), m, 0, y, 0.035); c.rotation.x = Math.PI / 2 - 0.5; c.scale.set(1, 0.85, 1);
-    }
-    // arms in hoodie sleeves, hands
+    add(g, new THREE.CylinderGeometry(0.085, 0.075, 0.28, 10).scale(1, 1, 0.68), hood, 0, 0.47, 0);
+    add(g, new THREE.TorusGeometry(0.055, 0.02, 6, 10).scale(1, 0.6, 0.8), hood, 0, 0.6, -0.04);          // hood down
+    const c = add(g, new THREE.TorusGeometry(0.06, 0.008, 5, 18), gold, 0, 0.57, 0.035); c.rotation.x = Math.PI / 2 - 0.5;
     const arms = [-1, 1].map((s) => {
-      const p = new THREE.Group(); p.position.set(s * 0.17, 0.68, 0); g.add(p);
-      add(p, new THREE.CylinderGeometry(0.05, 0.045, 0.3, 8).translate(0, -0.15, 0), grey);
-      add(p, new THREE.SphereGeometry(0.04, 8, 6), skin, 0, -0.32, 0);
+      const p = new THREE.Group(); p.position.set(s * 0.095, 0.58, 0); g.add(p);
+      add(p, new THREE.CylinderGeometry(0.026, 0.022, 0.26, 6).translate(0, -0.13, 0), hood);
+      add(p, new THREE.SphereGeometry(0.022, 6, 5), skin, 0, -0.27, 0);
       return p;
     });
-    const mic = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.014, 0.12, 6), mat(0x111111)); mic.position.set(0, -0.37, 0.03); arms[1].add(mic);
-    // the bobble head: pivots on the neck
-    const head = new THREE.Group(); head.position.set(0, 0.82, 0); g.add(head);
-    add(head, new THREE.SphereGeometry(0.2, 18, 14).scale(0.92, 1.08, 0.95), skin, 0, 0.19, 0);
-    for (const s of [-1, 1]) {
-      add(head, new THREE.SphereGeometry(0.03, 8, 6).scale(1.2, 0.55, 0.5), mat(0xf2ede4), s * 0.07, 0.21, 0.172);       // heavy-lidded eyes
-      add(head, new THREE.SphereGeometry(0.016, 6, 5), mat(0x2a1a12), s * 0.07, 0.205, 0.186);
-      add(head, new THREE.BoxGeometry(0.07, 0.014, 0.02), mat(0x2a1a12), s * 0.07, 0.255, 0.17);                           // brows
-      add(head, new THREE.SphereGeometry(0.035, 8, 6), skin, s * 0.185, 0.18, 0);                                             // ears
-    }
-    add(head, new THREE.SphereGeometry(0.035, 8, 6).scale(1, 0.8, 0.9), skin, 0, 0.15, 0.195);                               // nose
-    add(head, new THREE.SphereGeometry(0.05, 10, 6).scale(1, 0.45, 0.4), mat(0x6e3a2e), 0, 0.075, 0.18);                    // mouth
-    add(head, new THREE.BoxGeometry(0.035, 0.012, 0.01), white, 0, 0.078, 0.2);                                               // teeth
-    // dreads: a thick crown plus locs hanging all round, clear of the face
-    const locs = [];
-    const locCols = [0x9a3a22, 0x8a321e, 0xa8452a, 0x7a2c1a, 0xb04e30];
-    locs.push(tint(new THREE.SphereGeometry(0.215, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.45).scale(0.95, 1.1, 1).translate(0, 0.19, -0.01), 0x8e3620));
-    for (let k = 0; k < 46; k++) {
-      const a = (k / 46) * Math.PI * 2 + rand(-0.06, 0.06);
-      const front = Math.cos(a);                       // +z is the face
-      const bang = front > 0.55, len = bang ? rand(0.08, 0.13) : rand(0.3, 0.46);
-      const r0 = 0.2, y0 = (bang ? 0.37 : 0.3) + rand(-0.02, 0.04);
-      // negative X tilt + Y turn points each loc outward from the head
-      const geo = new THREE.CylinderGeometry(0.02, 0.013, len, 5).translate(0, -len / 2, 0)
-        .rotateX(bang ? -1.1 : -0.22).rotateY(a).translate(Math.sin(a) * r0 * 0.95, y0, Math.cos(a) * r0 * 0.9);
-      locs.push(tint(geo, pick(locCols)));
-    }
-    add(head, mergeGeometries(locs), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }));
-    g.scale.setScalar(2.6);
+    const mic = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.009, 0.08, 6), mat(0x111111)); mic.position.set(0, -0.3, 0.02); arms[1].add(mic);
+    const head = new THREE.Group(); head.position.set(0, 0.63, 0); g.add(head);
+    add(head, new THREE.SphereGeometry(0.06, 12, 10), skin, 0, 0.05, 0);
+    add(head, new THREE.SphereGeometry(0.062, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), hair, 0, 0.055, -0.004);   // short fade
+    add(head, new THREE.BoxGeometry(0.085, 0.018, 0.01), mat(0x050505, 0.2), 0, 0.058, 0.058);                        // shades
+    g.scale.setScalar(3.1);
     g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
     scene.add(g);
-    const p = { g, legs, arms, head, star: true, sp: 2.8, x: this.cx, z: this.stage.z1 - 2, tx: this.cx, tz: this.stage.z1 - 2, wait: 1, phase: 0, yaw: 0 };
-    return p;
+    return { g, legs, arms, head, star: true, sp: 2.8, x: this.cx, z: this.stage.z1 - 2, tx: this.cx, tz: this.stage.z1 - 2, wait: 1, phase: 0, yaw: 0 };
   }
   updatePerformers(dt, beat) {
     const st = this.stage, f = beat % 1;

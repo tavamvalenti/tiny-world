@@ -1,7 +1,7 @@
 // Baseball at Petco Park: two nine-man teams play a real (simplified) game on the field, in the manner of the
 // Chicago streetball courts: pitches, swings and misses, fouls, grounders fielded and thrown to first, line
 // drives and fly balls caught or dropping in, runners going round the bases, home runs, three outs and the teams
-// change over, and the scoreboard keeps up. The stands hold an instanced crowd (the Summer Smash approach) that
+// change over, and the scoreboard keeps up. The stands hold an instanced crowd (the concert approach) that
 // sways, jumps and roars on big plays, groans when the visitors score, and does the wave in quiet spells.
 // It follows Petco's game-day schedule (pregame warm-ups, the game, walking off, an empty park).
 import * as THREE from 'three';

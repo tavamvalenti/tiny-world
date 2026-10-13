@@ -281,7 +281,7 @@ export class Playa {
       x.fillStyle = '#f2b705'; x.fillRect(0, 0, w, h);
       x.fillStyle = '#d7141c'; x.fillRect(0, h * 0.12, w, h * 0.76);
       x.fillStyle = '#fff'; x.font = `900 ${h * 0.58}px Arial Black, Inter, Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.fillText('OXXO', w / 2, h * 0.53);
+      x.fillText('MOXXO', w / 2, h * 0.53);
     });
     const oxxoMat = new THREE.MeshStandardMaterial({ map: oxxoTex, emissiveMap: oxxoTex, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.6 });
     this.signMats = [oxxoMat];
@@ -421,8 +421,7 @@ export class Playa {
   update(dt) {
     const T = G.camTarget, t = G.time, n = G.night || 0;
     // the beach speakers: start the music once audio is up, ring lights cycle and pulse, the sitters nod along
-    if (!this.radioOn && this.radioSpots && this.radioSpots.length) { beachRadio.start(this.radioSpots); this.radioOn = !!beachRadio.out; }
-    beachRadio.update();
+    // (no beach music for now: the speakers stay, silent)
     const playing = beachRadio.on;
     for (const s of this.spk || []) {
       if (!s.alive) continue;

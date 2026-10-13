@@ -599,7 +599,7 @@ export function suburbs(B) {
   const ctx = makeCtx({ xs: P, zs: P, roadW: 4.2, sw: 1.3, half: 66, extent: 112, centerLine: null, lights: false, noCrosswalks: false, baseColor: '#5d6442' }, B);
   const { city, g } = ctx;
   const alleyW = 1.8;
-  // Summer Smash takes the 2x2 site north-west of the start (blocks 0..1 x 2..3); streets through it close
+  // Chicago Music Festival takes the 2x2 site north-west of the start (blocks 0..1 x 2..3); streets through it close
   const outer = { x0: P[0] + 2.1, x1: P[2] - 2.1, z0: P[2] + 2.1, z1: P[4] - 2.1 };
   const site = { x0: outer.x0 + 1.3, x1: outer.x1 - 1.3, z0: outer.z0 + 1.3, z1: outer.z1 - 1.3 };
   {

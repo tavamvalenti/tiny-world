@@ -420,7 +420,7 @@ export class Greenland {
     const t = topOf(factory);
     hangOn(factory, [this.sign(5, 0.8, (c, w, h) => { c.fillStyle = '#1f3f8a'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = `800 ${h * 0.5}px Arial`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('HALIBUT & SHRIMP CO.', w / 2, h / 2, w * 0.95); }, t.ax - 0.06, factory.baseY + 3.2, t.cz, -Math.PI / 2, 0.3)]);
     const s = topOf(store);
-    hangOn(store, [this.sign(4, 0.7, (c, w, h) => { c.fillStyle = '#c8102e'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = `800 ${h * 0.55}px Arial`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('PILERSUISOQ', w / 2, h / 2, w * 0.95); }, s.cx, store.baseY + 1.9, s.bz + 0.06, 0, 0.4)]);
+    hangOn(store, [this.sign(4, 0.7, (c, w, h) => { c.fillStyle = '#c8102e'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = `800 ${h * 0.55}px Arial`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('PILERSUISOK', w / 2, h / 2, w * 0.95); }, s.cx, store.baseY + 1.9, s.bz + 0.06, 0, 0.4)]);
   }
   // the little football pitch: goals, a low fence, two floodlights; a five-a-side game on
   pitch() {

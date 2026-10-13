@@ -212,8 +212,8 @@ export class Chains {
       x.moveTo(70, 70); x.quadraticCurveTo(110, 40, 200, 42); x.lineTo(360, 42); x.lineTo(360, 22); x.lineTo(432, 70); x.lineTo(360, 118); x.lineTo(360, 96);
       x.lineTo(205, 96); x.quadraticCurveTo(130, 96, 70, 70); x.closePath(); x.fill(); x.stroke();
       x.font = '900 92px "Arial Black", Impact, Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.lineJoin = 'round'; x.lineWidth = 10; x.strokeStyle = '#ffffff'; x.strokeText('IN-N-OUT', w / 2, 178);
-      x.fillStyle = '#d2202a'; x.fillText('IN-N-OUT', w / 2, 178);
+      x.lineJoin = 'round'; x.lineWidth = 10; x.strokeStyle = '#ffffff'; x.strokeText('OUT-N-IN', w / 2, 178);
+      x.fillStyle = '#d2202a'; x.fillText('OUT-N-IN', w / 2, 178);
       x.font = '800 30px Arial, sans-serif'; x.fillStyle = '#d2202a'; x.fillText('BURGER', w / 2, 232);
     });
   }
@@ -225,8 +225,8 @@ export class Chains {
       x.strokeStyle = '#1a1a1a'; x.lineWidth = 4; x.beginPath(); x.ellipse(cx, cy, 236, 128, -0.06, 0, 6.283); x.stroke();
       x.save(); x.translate(cx, cy + 12); x.rotate(-0.08);
       x.font = 'italic 900 128px "Georgia", "Times New Roman", serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.lineWidth = 12; x.strokeStyle = '#1a1a1a'; x.lineJoin = 'round'; x.strokeText("Cane's", 6, 0);
-      x.fillStyle = '#ffffff'; x.fillText("Cane's", 6, 0);
+      x.lineWidth = 12; x.strokeStyle = '#1a1a1a'; x.lineJoin = 'round'; x.strokeText("Kane's", 6, 0);
+      x.fillStyle = '#ffffff'; x.fillText("Kane's", 6, 0);
       x.font = 'italic 800 40px Georgia, serif'; x.fillStyle = '#f5c518'; x.lineWidth = 6; x.strokeText('Raising', -110, -78); x.fillText('Raising', -110, -78);
       x.restore();
       // CHICKEN FINGERS on a yellow strip under the oval

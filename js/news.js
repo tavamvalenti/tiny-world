@@ -88,7 +88,7 @@ const K_EN = {
   hurt: ['{i} people injured {w}; ambulances on the way', 'Multiple injuries reported {w}: at least {i} hurt'],
   total: ['Death toll across {c} climbs to {N}', '{c} reeling: {N} dead so far', 'Officials confirm {N} deaths across {c}; residents told to shelter'],
   explosion: ['Explosion kills {n} {w}', 'Deadly blast {w}: {n} dead'], meteor: ['Meteor strike kills {n} {w}', 'Sky falls {w}: {n} killed'],
-  laser: ['Mysterious beam kills {n} {w}'], rick: ['Rick and Morty rampage {w}: {n} dead', '{n} killed {w} as Rick and Morty strike again', 'Rick and Morty attack leaves {n} dead {w}'], wind: ['Freak winds leave {n} dead {w}'], shooting: ['Deadly shooting {w}: {n} killed', 'Gunfire {w} leaves {n} dead'], stabbing: ['Fatal stabbing {w}: {n} dead', 'Knife attack {w} leaves {n} dead'],
+  laser: ['Mysterious beam kills {n} {w}'], rick: ['The saucer crew rampage {w}: {n} dead', '{n} killed {w} as the saucer crew strike again', 'The saucer crew attack leaves {n} dead {w}'], wind: ['Freak winds leave {n} dead {w}'], shooting: ['Deadly shooting {w}: {n} killed', 'Gunfire {w} leaves {n} dead'], stabbing: ['Fatal stabbing {w}: {n} dead', 'Knife attack {w} leaves {n} dead'],
 };
 const K_ES = {
   one: ['Muere una persona {w}', 'Reportan una persona sin vida {w}', 'Confirman un fallecido {w}'],
@@ -98,27 +98,27 @@ const K_ES = {
   rise: ['Sube a {n} la cifra de muertos {w}', 'Ya son {n} los muertos {w}'],
   hurt: ['{i} heridos {w}; ambulancias en camino', 'Reportan al menos {i} heridos {w}'],
   total: ['Sube a {N} la cifra de muertos en La Playa', 'La Playa en duelo: {N} muertos hasta ahora'],
-  explosion: ['Explosión deja {n} muertos {w}'], meteor: ['Meteorito deja {n} muertos {w}'], laser: ['Misterioso rayo deja {n} muertos {w}'], rick: ['Ataque de Rick y Morty deja {n} muertos {w}', '{n} muertos {w}: Rick y Morty atacan de nuevo'],
+  explosion: ['Explosión deja {n} muertos {w}'], meteor: ['Meteorito deja {n} muertos {w}'], laser: ['Misterioso rayo deja {n} muertos {w}'], rick: ['Ataque de los del platillo verde deja {n} muertos {w}', '{n} muertos {w}: los del platillo verde atacan de nuevo'],
   wind: ['Vientos dejan {n} muertos {w}'], shooting: ['Balacera deja {n} muertos {w}', 'Ataque armado {w}: {n} muertos'],
 };
-// ---------- Rick and Morty: regulars in the news. Everyone in town knows the green saucer by now ----------
+// ---------- the saucer crew: regulars in the news. Everyone in town knows the green saucer by now ----------
 const RM_EN = {
-  sighted: ['Rick and Morty spotted over {w} again; residents told to stay indoors', "Here we go again: Rick Sanchez's saucer seen {w}", 'Green portal opens {w}; witnesses say it\'s Rick and Morty. Again', 'Rick and Morty are back {w}; police say they are "monitoring the situation"', "Rick Sanchez's ship hovering {w}; schools on lockdown, as usual"],
-  laser: ['Rick and Morty open fire {w}', 'Green laser fire {w}: witnesses blame Rick and Morty, again', 'Rick Sanchez shooting up {w}; Morty reportedly "really not okay with this"', 'Laser blasts rake {w}; Rick and Morty suspected, as always', 'Rick and Morty strafe {w}; insurers stop answering the phone'],
-  bomb: ['Rick and Morty drop a bomb {w}', 'Another Rick and Morty bombing {w}; officials "not even surprised anymore"', 'Bomb falls from Rick Sanchez\'s saucer {w}', 'Explosion {w}; the green saucer seen speeding away', 'Rick and Morty level part of {w}; city council calls an emergency session, again'],
-  collapse: ['Building comes down {w}; Rick and Morty seen flying off', 'Collapse {w} as Rick and Morty\'s rampage goes on', 'Structure falls {w}; residents: "it\'s Rick and Morty, it\'s always Rick and Morty"'],
-  crash: ["Rick and Morty's saucer clips a building {w}; witnesses say the pilot looked drunk", 'Flying saucer bounces off a building {w}; Rick Sanchez seen swigging from a flask', "Rick's ship scrapes the rooftops {w}; Morty heard screaming"],
-  damage: ['Rick and Morty damage bill climbs {w}: {n} building sections destroyed', '{n} sections down {w}; city adds it to the Rick Sanchez tab', 'Mayor: Rick and Morty have now destroyed {n} sections {w}'],
-  gone: ["Rick and Morty's saucer vanishes; cleanup crews move in", 'The green saucer is gone, for now; residents start sweeping up', 'Rick and Morty leave town; officials expect them back by the weekend'],
+  sighted: ['The saucer crew spotted over {w} again; residents told to stay indoors', "Here we go again: the green saucer seen {w}", 'Green portal opens {w}; witnesses say it\'s the saucer crew. Again', 'The saucer crew are back {w}; police say they are "monitoring the situation"', "The green saucer hovering {w}; schools on lockdown, as usual"],
+  laser: ['The saucer crew open fire {w}', 'Green laser fire {w}: witnesses blame the saucer crew, again', 'The saucer pilot shooting up {w}; his passenger reportedly "really not okay with this"', 'Laser blasts rake {w}; the saucer crew suspected, as always', 'The saucer crew strafe {w}; insurers stop answering the phone'],
+  bomb: ['The saucer crew drop a bomb {w}', 'Another the saucer crew bombing {w}; officials "not even surprised anymore"', 'Bomb falls from the green saucer {w}', 'Explosion {w}; the green saucer seen speeding away', 'The saucer crew level part of {w}; city council calls an emergency session, again'],
+  collapse: ['Building comes down {w}; the saucer crew seen flying off', 'Collapse {w} as the saucer crew\'s rampage goes on', 'Structure falls {w}; residents: "it\'s the saucer crew, it\'s always the saucer crew"'],
+  crash: ["The green saucer clips a building {w}; witnesses say the pilot looked drunk", 'Flying saucer bounces off a building {w}; the saucer pilot seen swigging from a flask', "The green saucer scrapes the rooftops {w}; a passenger heard screaming"],
+  damage: ['The saucer crew damage bill climbs {w}: {n} building sections destroyed', '{n} sections down {w}; city adds it to the saucer crew tab', 'Mayor: the saucer crew have now destroyed {n} sections {w}'],
+  gone: ["The green saucer vanishes; cleanup crews move in", 'The green saucer is gone, for now; residents start sweeping up', 'The saucer crew leave town; officials expect them back by the weekend'],
 };
 const RM_ES = {
-  sighted: ['Avistan otra vez a Rick y Morty {w}; piden no salir de casa', 'Ahí van de nuevo: el platillo de Rick Sánchez {w}', 'Se abre un portal verde {w}; testigos dicen que son Rick y Morty, otra vez'],
-  laser: ['Rick y Morty abren fuego {w}', 'Rayos verdes {w}: culpan de nuevo a Rick y Morty', 'Rick Sánchez dispara {w}; Morty "no está de acuerdo", dicen testigos'],
-  bomb: ['Rick y Morty sueltan una bomba {w}', 'Otro bombardeo de Rick y Morty {w}; autoridades "ya ni se sorprenden"', 'Cae una bomba del platillo de Rick Sánchez {w}'],
-  collapse: ['Se derrumba un edificio {w}; ven a Rick y Morty alejarse', 'Derrumbe {w}: "siempre son Rick y Morty", dicen vecinos'],
-  crash: ['El platillo de Rick y Morty choca con un edificio {w}; el piloto parecía ebrio', 'La nave de Rick roza los techos {w}; se escuchan gritos de Morty'],
-  damage: ['Crece la factura de Rick y Morty {w}: {n} secciones destruidas', '{n} secciones destruidas {w}; todo a la cuenta de Rick Sánchez'],
-  gone: ['Desaparece el platillo de Rick y Morty; comienza la limpieza', 'Rick y Morty se van de La Playa; esperan que vuelvan pronto'],
+  sighted: ['Avistan otra vez a los del platillo verde {w}; piden no salir de casa', 'Ahí van de nuevo: el platillo verde {w}', 'Se abre un portal verde {w}; testigos dicen que son los del platillo verde, otra vez'],
+  laser: ['Los del platillo verde abren fuego {w}', 'Rayos verdes {w}: culpan de nuevo a los del platillo verde', 'El piloto del platillo dispara {w}; su copiloto "no está de acuerdo", dicen testigos'],
+  bomb: ['Los del platillo verde sueltan una bomba {w}', 'Otro bombardeo de los del platillo verde {w}; autoridades "ya ni se sorprenden"', 'Cae una bomba del platillo verde {w}'],
+  collapse: ['Se derrumba un edificio {w}; ven a los del platillo verde alejarse', 'Derrumbe {w}: "siempre son los del platillo verde", dicen vecinos'],
+  crash: ['El platillo verde choca con un edificio {w}; el piloto parecía ebrio', 'La nave verde roza los techos {w}; se escuchan gritos a bordo'],
+  damage: ['Crece la factura de los del platillo verde {w}: {n} secciones destruidas', '{n} secciones destruidas {w}; todo a la cuenta del platillo verde'],
+  gone: ['Desaparece el platillo verde; comienza la limpieza', 'Los del platillo verde se van de La Playa; esperan que vuelvan pronto'],
 };
 const MILESTONES = [10, 25, 50, 100, 200, 350, 500, 750, 1000];
 
@@ -224,18 +224,18 @@ export class News {
         if (l.kind === 'emerald') for (const t of l.towers) bld(t, LM('The Westin San Diego Bayview', 'the Westin San Diego Bayview'));
         if (l.kind === 'hyatt') for (const t of l.towers) bld(t, LM('The Manchester Grand Hyatt San Diego', 'the Manchester Grand Hyatt San Diego'));
       }
-      for (const c of C.chains || []) L.push({ ...LM('In-N-Out', 'an In-N-Out'), street: true, x0: c.lot.lx0, x1: c.lot.lx1, z0: c.lot.lz0, z1: c.lot.lz1 });
+      for (const c of C.chains || []) L.push({ ...LM('Out-N-In', 'an Out-N-In'), street: true, x0: c.lot.lx0, x1: c.lot.lx1, z0: c.lot.lz0, z1: c.lot.lz1 });
       rect(C.petco, LM('Petco Park'), 3);
       rect(hq, LM('San Diego Police Headquarters'));
     } else if (this.map === 'suburbs') {
-      for (const c of C.chains || []) L.push({ ...LM("Raising Cane's", "a Raising Cane's"), street: true, x0: c.x0 - 0.5, x1: c.px + c.pw / 2 + 0.5, z0: c.z0 - 0.5, z1: c.front + 1.5 });
-      rect(C.concert, LM('Summer Smash', 'the Summer Smash grounds'), 2);
+      for (const c of C.chains || []) L.push({ ...LM("Raising Kane's", "a Raising Kane's"), street: true, x0: c.x0 - 0.5, x1: c.px + c.pw / 2 + 0.5, z0: c.z0 - 0.5, z1: c.front + 1.5 });
+      rect(C.concert, LM('Chicago Music Festival', 'the festival grounds'), 2);
       rect(C.court, LM('The streetball courts', 'the streetball courts'), 1);
       rect(C.school, LM('Washington Park Elementary'));
       rect(hq, LM('The Chicago Police district station', 'the Chicago Police district station'));
     } else {
       const P = C.playa || {};
-      for (const o of P.oxxo || []) L.push({ ...(o.gas ? LM('OXXO Gas', 'an OXXO Gas station', 'una gasolinera OXXO') : LM('OXXO', 'an OXXO', 'un OXXO')), street: true, x0: o.x - o.w / 2, x1: o.x + o.w / 2, z0: o.z, z1: o.z + 3.6 });
+      for (const o of P.oxxo || []) L.push({ ...(o.gas ? LM('MOXXO Gas', 'a MOXXO Gas station', 'una gasolinera MOXXO') : LM('MOXXO', 'a MOXXO', 'un MOXXO')), street: true, x0: o.x - o.w / 2, x1: o.x + o.w / 2, z0: o.z, z1: o.z + 3.6 });
       (P.hotels || []).forEach((h, k) => { const n = RESORTS[k % RESORTS.length]; bld(h, LM(n, n, 'el ' + n)); });
       for (const f of P.food || []) L.push({ ...(f.kind === 'taco' ? LM('A taco stand', 'a taco stand', 'un puesto de tacos') : LM('A fruit stand', 'a fruit stand', 'un puesto de fruta')), street: true, x0: f.x - 1, x1: f.x + 1, z0: f.z - 1, z1: f.z + 1 });
       for (const p of P.piers || []) L.push({ ...LM('The pier', 'the pier', 'el muelle'), x0: p.x - 1, x1: p.x + 1, z0: Math.min(p.z0, p.z1), z1: Math.max(p.z0, p.z1) });
@@ -349,7 +349,7 @@ export class News {
     if (!text) return;
     this.post(tag, text, ['WEATHER_EVENT', 'FESTIVAL_EVENT', 'DISTURBANCE', 'TRAFFIC_JAM'].includes(T) ? 1.5 : 2, T);
   }
-  // Rick and Morty in town: their own stories ('sighted', 'crash', 'gone'), and everything they wreck is theirs
+  // the saucer crew in town: their own stories ('sighted', 'crash', 'gone'), and everything they wreck is theirs
   get rickOn() { return !!(G.rick && G.rick.active); }
   rick(kind, x, z, n) {
     const t = (this.es ? RM_ES : RM_EN)[kind]; if (!t) return;
@@ -381,7 +381,7 @@ export class News {
   }
   // ---------- casualties ----------
   // n killed / i hurt at (x, z): gathered into one incident per place and moment, reported once it settles,
-  // with follow-ups as the toll rises (the crowds at Petco and Summer Smash report theirs here too)
+  // with follow-ups as the toll rises (the crowds at Petco and the music festival report theirs here too)
   casualty(x, z, n = 1, i = 0) {
     const inc = (this.incs ||= []).find((c) => Math.hypot(c.x - x, c.z - z) < 35 && G.time - c.last < 90);
     if (inc) { inc.dead += n; inc.hurt += i; inc.last = G.time; if (n) inc.lastDead = G.time; }

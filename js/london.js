@@ -650,7 +650,7 @@ export function london(B) {
 // ====================================================================================================
 const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _m3 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), _e = new THREE.Euler();
 const UP = new THREE.Vector3(0, 1, 0), ONE = new THREE.Vector3(1, 1, 1), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
-const DRILL_SET = ['assets/drill-welcome-to-brixton.mp4', 'assets/drill-david-blaine.mp4', 'assets/drill-lotteryy.mp4', 'assets/drill-leon.mp4', 'assets/drill-ls.mp4', 'assets/drill-link-up.mp4'];
+const DRILL_SET = [];   // no music in London for now (the speakers stay, silent)
 // an extruded outline, built flat in (u, y) and stood up: along x (extruded across z) or along z (extruded across x)
 function standUp(shape, depth, axis, at) {
   const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 18 });
@@ -1933,7 +1933,7 @@ export class London {
     if (G.gore && G.gore.on) { G.gore.shot(v.pos.x, v.pos.z, dx / d, dz / d); A.pTorso.setColorAt(v.i, G.gore.stain(new THREE.Color().fromArray(A.pTorso.instanceColor.array, v.i * 3), 0.45)); A.pTorso.instanceColor.needsUpdate = true; }
     sfx.yelp && sfx.yelp(v.pos.x, v.pos.z);
   }
-  // the WORLD menu's "Roadmen": black puffers and Nike Tech, balaclavas; knives, no guns
+  // the WORLD menu's "Roadmen": black puffers and tech fleece, balaclavas; knives, no guns
   dressRoadman(p) {
     const A = G.agents, blk = [0x0c0c0e, 0x111214, 0x16171a, 0x1c1d20], c = new THREE.Color(pick(blk)), l = new THREE.Color(pick([0x0c0c0e, 0x16171a, 0x2a2b2e, 0x3a3b3e]));
     for (const m of [A.pTorso, A.pArmL, A.pArmR]) m.setColorAt(p.i, c);
@@ -1987,7 +1987,7 @@ export class London {
   // the sounds of London: drill from the roadmen's speakers, the anthem at the palace, Big Ben on the hour and quarters
   sounds(dt) {
     if (!sfx.ready && sfx.ready !== undefined) return;
-    if (this.L.speakers.length && !this.radioOn) {
+    if (DRILL_SET.length && this.L.speakers.length && !this.radioOn) {
       // whoever holds each speaker: the music stops when they're down
       if (!this.holders && G.agents) { this.holders = new Map(); for (const s of this.L.speakers) { const p = G.agents.peds.find((q) => q.speakerHold && q.group && Math.abs(q.group.x - s.x) < 0.01 && Math.abs(q.group.z - s.z) < 0.01); if (p) this.holders.set(s, p); } }
       beachRadio.setList(DRILL_SET); beachRadio.start(this.L.speakers); this.radioOn = !!beachRadio.out;

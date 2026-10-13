@@ -90,6 +90,22 @@ function graffitiTex() {
   });
 }
 
+const cnv = (w, h, f) => { const c = document.createElement('canvas'); c.width = w; c.height = h; f(c.getContext('2d'), w, h); return c; };
+const seams = (x, cx, cy, r, lw) => { x.strokeStyle = '#141414'; x.lineWidth = lw; x.beginPath(); x.arc(cx, cy, r, 0, 6.283); x.stroke();
+  x.beginPath(); x.moveTo(cx - r, cy); x.lineTo(cx + r, cy); x.moveTo(cx, cy - r); x.lineTo(cx, cy + r); x.stroke();
+  for (const s of [-1, 1]) { x.beginPath(); x.ellipse(cx + s * r * 0.95, cy, r * 0.55, r * 0.92, 0, s > 0 ? Math.PI * 0.5 : -Math.PI * 0.5, s > 0 ? Math.PI * 1.5 : Math.PI * 0.5); x.stroke(); } };
+function ballLogo() { return cnv(900, 905, (x, w, h) => { x.fillStyle = '#fff'; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#ce1141'; x.beginPath(); x.arc(w / 2, h / 2, 420, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.beginPath(); x.arc(w / 2, h / 2, 380, 0, 6.283); x.fill();
+  x.fillStyle = '#ee6b1f'; x.beginPath(); x.arc(w / 2, h / 2 - 40, 250, 0, 6.283); x.fill(); seams(x, w / 2, h / 2 - 40, 250, 16);
+  x.fillStyle = '#141414'; x.font = '900 92px Impact, "Arial Black", sans-serif'; x.textAlign = 'center'; x.fillText('CHICAGO', w / 2, h / 2 + 330); }); }
+function leagueTag() { return cnv(700, 394, (x, w, h) => { x.fillStyle = '#fff'; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#17408b'; x.fillRect(270, 5, 80, 385); x.fillStyle = '#c9082a'; x.fillRect(350, 5, 80, 385);
+  x.fillStyle = '#fff'; x.beginPath(); x.arc(350, 120, 42, 0, 6.283); x.fill(); x.fillRect(338, 170, 24, 190); x.fillStyle = '#ee6b1f'; x.beginPath(); x.arc(350, 120, 34, 0, 6.283); x.fill(); seams(x, 350, 120, 34, 4); }); }
+function southPoster() { return cnv(750, 1000, (x, w, h) => { x.fillStyle = '#f2f2f2'; x.fillRect(0, 0, w, h); x.fillStyle = '#0a0a0a'; x.fillRect(0, 50, w, 900);
+  x.fillStyle = '#fff'; x.textAlign = 'center'; x.font = '900 150px "Old English Text MT", "UnifrakturMaguntia", Georgia, serif'; x.fillText('South', w / 2, 270); x.fillText('Side', w / 2, 420);
+  x.fillStyle = '#bde3fb'; x.fillRect(125, 460, 500, 48); x.fillRect(125, 612, 500, 48);
+  x.fillStyle = '#e8352a'; for (let i = 0; i < 4; i++) { const cx = 245 + i * 87, cy = 560; x.beginPath(); for (let k = 0; k < 12; k++) { const r = k % 2 ? 13 : 32, a = -Math.PI / 2 + k * Math.PI / 6; x.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } x.fill(); }
+  x.fillStyle = '#fff'; x.font = 'italic 700 130px "Brush Script MT", "Snell Roundhand", cursive'; x.fillText('Chicago', w / 2, 820); }); }
 const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 function cropTex(img, sx, sy, sw, sh, bg = null) {
   return canvasTex(256, Math.round(256 * sh / sw), (x, w, h) => { if (bg) { x.fillStyle = bg; x.fillRect(0, 0, w, h); } x.drawImage(img, sx, sy, sw, sh, 0, 0, w, h); });
@@ -387,10 +403,12 @@ export class Court {
     this.decorate(scene, layout, boardMat);
   }
 
-  // Bulls / NBA / South Side Chicago dressing: center-court logos, backboard logos, wall murals, fence and pole banners
+  // basketball / South Side Chicago dressing (all drawn here, generic): center-court logos, backboard logos, wall murals, fence and pole banners
   decorate(scene, layout, boardMat) {
     const { x0, x1, z0, z1 } = this.area;
-    Promise.all(['assets/bulls.png', 'assets/nba.png', 'assets/southside.png'].map(loadImg)).then(([bulls, nba, south]) => {
+    // the logos are drawn here (generic, no team or league marks): a basketball crest for centre court and banners,
+    // a red / blue league-style tag for the backboards, and a South Side Chicago poster for the murals
+    Promise.resolve([ballLogo(), leagueTag(), southPoster()]).then(([bulls, nba, south]) => {
       const g = this.ground;
       if (g && bulls) {
         const X = g.x;
