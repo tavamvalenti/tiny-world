@@ -8,6 +8,7 @@ import { icon, TAB_STYLE, installGlassUI } from '../ui-glass.js';
 import { REASONS } from './account.js';
 import { readAvatar, avatarHtml } from './avatar.js';
 import { openInvite } from './invite-ui.js';
+import { openFriends } from './friends-ui.js';
 
 const CSS = `
 #progChip{position:absolute;left:16px;top:calc(4.2vh + 70px);display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;cursor:pointer;pointer-events:auto;user-select:none;
@@ -221,6 +222,7 @@ export class ProgressUI {
     const a = t.dataset.a;
     if (a && a.startsWith('acc-')) { this.accountAction(a); return; }
     if (a === 'invite') { openInvite(this.p); return; }
+    if (a === 'friends') { openFriends(this.p); return; }
     if (a === 'close') this.close();
     if (a === 'name') {
       const v = this.panel.querySelector('#ppName').value, msg = this.panel.querySelector('#ppNameMsg');
@@ -241,7 +243,7 @@ export class ProgressUI {
     const visited = Object.keys(S.maps).length, places = Object.values(S.discovered).reduce((a, b) => a + b.length, 0);
     const fav = Object.entries(S.mapStats).sort((a, b) => (b[1].time || 0) - (a[1].time || 0))[0];
     const h = Math.floor(S.time / 3600), m = Math.floor((S.time % 3600) / 60);
-    return `${this.accountBox()}${this.p.referral && this.p.referral.available ? `<div class="it inv" data-a="invite" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin:2px 0 12px"><span style="font-size:24px">🎁</span><span style="flex:1"><b>Invite friends</b><p>Earn up to $13,000 Cash when friends join with your link and play.</p></span><span style="color:#ff9f0a;font-weight:800">›</span></div>` : ''}<div class="row"><input id="ppName" value="${esc(P.name)}" maxlength="18" aria-label="Display name"><button data-a="name">SAVE NAME</button><span id="ppNameMsg" class="note">${P.nameStatus === 'taken' ? 'Your name is taken by another player: choose a new one to keep sending scores.' : 'Your name on the leaderboards (each name is unique). No real names needed.'}</span></div>
+    return `${this.accountBox()}${this.p.referral && this.p.referral.available ? `<div class="it inv" data-a="friends" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin:2px 0 8px"><span style="font-size:24px">👥</span><span style="flex:1"><b>Friends</b><p>Friend requests and private messages</p></span><span style="opacity:.6">›</span></div><div class="it inv" data-a="invite" style="cursor:pointer;display:flex;align-items:center;gap:12px;margin:2px 0 12px"><span style="font-size:24px">🎁</span><span style="flex:1"><b>Invite friends</b><p>Earn up to $13,000 Cash when friends join with your link and play.</p></span><span style="color:#ff9f0a;font-weight:800">›</span></div>` : ''}<div class="row"><input id="ppName" value="${esc(P.name)}" maxlength="18" aria-label="Display name"><button data-a="name">SAVE NAME</button><span id="ppNameMsg" class="note">${P.nameStatus === 'taken' ? 'Your name is taken by another player: choose a new one to keep sending scores.' : 'Your name on the leaderboards (each name is unique). No real names needed.'}</span></div>
       <h4>RANK</h4><div class="it"><b>${esc(p.rank.name)} · ${P.xp.toLocaleString()} XP</b><div class="pb"><i style="width:${n ? Math.min(100, ((P.xp - p.rank.xp) / (n.xp - p.rank.xp)) * 100) : 100}%"></i></div><div class="meta"><span>${n ? `${(n.xp - P.xp).toLocaleString()} XP to ${esc(n.name)}` : 'Top rank'}</span><span>${p.unlockedCount} / ${D.ACHIEVEMENTS.length} achievements</span></div></div>
       <h4>LIFETIME</h4><div class="grid">
         ${[['Blocks destroyed', S.cells.toLocaleString()], ['Property damage', money(S.damage)], ['Landmarks brought down', Object.values(S.landmarks).reduce((a, b) => a + b.length, 0)], ['Boats sunk', S.boats], ['Cities visited', `${visited} / ${D.ALL_MAPS.length}`], ['Places discovered', places], ['Challenges completed', S.challengesDone], ['Time played', `${h}h ${m}m`], ['Favourite city', fav ? D.MAP_LABELS[fav[0]] : '—']].map(([k, v]) => `<div class="it"><p>${k}</p><b>${v}</b></div>`).join('')}</div>

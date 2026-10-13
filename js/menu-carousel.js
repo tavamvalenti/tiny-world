@@ -1,4 +1,4 @@
-// PHONE MENU: profile, players, invite friends and world chat share one small strip above the destinations, sliding
+// PHONE MENU: profile, players, invite friends, friends and world chat share one small strip above the destinations, sliding
 // to the next card every few seconds (swipe to flip by hand). Each card opens the same thing as its desktop bubble.
 const CSS = `
 #mCar{display:none}
@@ -19,7 +19,8 @@ const CSS = `
   .gm-row{padding:8px 0!important} .gm-row .t b{font-size:14px!important} .gm-row .t small{font-size:10.5px!important;margin-top:1px!important}
   .gm-row .go{width:26px!important;height:26px!important} .gm-dest .gm-k{margin-bottom:4px}
 }`;
-export function setupMenuCarousel(progress, { menu, profile, players, invite }) {
+import { friendsState } from './progress/friends-ui.js';
+export function setupMenuCarousel(progress, { menu, profile, players, invite, friends }) {
   const dest = menu.querySelector('.gm-dest'); if (!dest) return;
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const car = document.createElement('div'); car.id = 'mCar';
@@ -27,6 +28,7 @@ export function setupMenuCarousel(progress, { menu, profile, players, invite }) 
     { k: 'p', e: '👤', t: 'PROFILE', a: 'rgba(10,132,255,.42)', b: 'rgba(94,92,230,.36)', go: () => profile.click() },
     { k: 'n', e: '🌍', t: 'PLAYERS', a: 'rgba(255,159,10,.4)', b: 'rgba(255,90,40,.32)', go: () => players.click() },
     { k: 'i', e: '🎁', t: 'INVITE FRIENDS', a: 'rgba(48,209,88,.38)', b: 'rgba(20,150,110,.32)', go: () => invite.click() },
+    { k: 'f', e: '👥', t: 'FRIENDS', a: 'rgba(191,90,242,.4)', b: 'rgba(120,60,230,.32)', go: () => friends() },
     { k: 'c', e: '💬', t: 'WORLD CHAT', a: 'rgba(100,210,255,.36)', b: 'rgba(40,120,255,.32)', go: () => { const c = document.getElementById('menuChat'); if (c) c.click(); } },
   ];
   car.innerHTML = `<div class="tr">${S.map((s) => `<div class="sl" data-k="${s.k}" style="--a:${s.a};--b:${s.b}"><span class="e">${s.e}</span><span class="x"><b>${s.t}</b><small></small></span><span class="g">›</span></div>`).join('')}</div><div class="dots">${S.map(() => '<i></i>').join('')}</div>`;
@@ -41,6 +43,8 @@ export function setupMenuCarousel(progress, { menu, profile, players, invite }) 
     const n = txt('#menuPlayers .mpl-n'), on = txt('#menuPlayers .mpl-o span');
     set('n', n && n !== '0' ? `${n} players${on ? ` · ${on}` : ''}` : 'Everyone who has played');
     set('i', 'Earn up to $13,000 in Cash');
+    const fi = friendsState.incoming || 0, fu = friendsState.unread || 0, fl = (friendsState.friends || []).length;
+    set('f', fu ? `${fu} new message${fu > 1 ? 's' : ''}` : fi ? `${fi} friend request${fi > 1 ? 's' : ''}` : fl ? `${friendsState.online || 0} of ${fl} online` : 'Add friends and message them');
     const last = txt('#menuChat small'); set('c', last || 'Talk to everyone playing');
   };
   let idx = 0, touched = 0;

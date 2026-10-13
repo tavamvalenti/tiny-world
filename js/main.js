@@ -56,6 +56,7 @@ import { avatarHtml } from './progress/avatar.js';
 import { startGlobe } from './hall-globe.js';
 import { openInvite } from './progress/invite-ui.js';
 import { setupChat } from './chat.js';
+import { setupFriendsBubble, openFriends } from './progress/friends-ui.js';
 import { setupMenuCarousel } from './menu-carousel.js';
 if (document.fonts && document.fonts.load) for (const f of ['700 40px Cairo', '900 40px Cairo', '700 40px "Reem Kufi"']) document.fonts.load(f, 'القاهرة').catch(() => {});
 MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland; MAPS.cairo = cairo;
@@ -800,14 +801,15 @@ initMenu();                                                    // the title scre
   box.addEventListener('click', (e) => { e.stopPropagation(); progressUI.open(e.target.closest('[data-gl]') ? 'lb' : 'profile'); });
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
   document.getElementById('menu').appendChild(box); document.getElementById('menu').appendChild(pl); document.getElementById('menu').appendChild(inv); setTimeout(placeInv, 0);
-  setupChat(progress, { menu: document.getElementById('menu'), below: () => (getComputedStyle(inv).display === 'none' ? null : inv) });
+  setupChat(progress, { menu: document.getElementById('menu'), below: () => (getComputedStyle(inv).display === 'none' ? null : inv), busy: () => !!((rick && rick.active) || (veh && veh.active) || (hub && hub.active)) });
+  const frBub = setupFriendsBubble(progress, { menu: document.getElementById('menu'), below: () => document.getElementById('menuChat') });
   // the bubbles under the profile appear only once they've settled in place (no jumping while the counts load)
-  { const st2 = document.createElement('style'); st2.textContent = '#menuInvite:not(.rdy),#menuChat:not(.rdy){opacity:0!important;pointer-events:none} #menuInvite.rdy,#menuChat.rdy{transition:opacity .6s ease,top .45s cubic-bezier(.2,.8,.2,1),transform .25s!important}'; document.head.appendChild(st2);
+  { const st2 = document.createElement('style'); st2.textContent = '#menuInvite:not(.rdy),#menuChat:not(.rdy),#menuFriends:not(.rdy){opacity:0!important;pointer-events:none} #menuInvite.rdy,#menuChat.rdy,#menuFriends.rdy{transition:opacity .6s ease,top .45s cubic-bezier(.2,.8,.2,1),transform .25s!important}'; document.head.appendChild(st2);
     let last = '', same = 0, t0 = Date.now();
     const iv = setInterval(() => { const c = document.getElementById('menuChat'), k = `${inv.style.top}|${c ? c.style.top : ''}|${pl.classList.contains('on')}`;
       same = k === last ? same + 1 : 0; last = k;
-      if ((same >= 3 && (pl.classList.contains('on') || Date.now() - t0 > 2500)) || Date.now() - t0 > 5000) { inv.classList.add('rdy'); if (c) c.classList.add('rdy'); clearInterval(iv); } }, 150); }
-  setupMenuCarousel(progress, { menu: document.getElementById('menu'), profile: box, players: pl, invite: inv });
+      if ((same >= 3 && (pl.classList.contains('on') || Date.now() - t0 > 2500)) || Date.now() - t0 > 5000) { inv.classList.add('rdy'); if (c) c.classList.add('rdy'); const fb = document.getElementById('menuFriends'); if (fb) fb.classList.add('rdy'); clearInterval(iv); } }, 150); }
+  setupMenuCarousel(progress, { menu: document.getElementById('menu'), profile: box, players: pl, invite: inv, friends: () => openFriends(progress) });
 }
 
 // allow ?map=downtown for quick testing

@@ -3,7 +3,7 @@
 import { SF, icon } from '../ui-glass.js';
 import { REWARDS, DEFAULT_MSG } from './referral.js';
 
-const CSS = `
+export const CSS = `
 #invitePanel{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(4,6,12,.55);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);font-family:${SF};color:#f5f5f7}
 #invitePanel.open{display:flex;animation:ivFade .25s ease-out}
 @keyframes ivFade{from{opacity:0}to{opacity:1}}
