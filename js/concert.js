@@ -1,5 +1,5 @@
 // Chicago Music Festival: a stadium festival in Chicago that never stops. Stage with the blue Chicago Music Festival banner and
-// the festival carton logo, LED walls, line arrays, giant carton inflatables, a grandstand, a gate
+// the festival badge, LED walls, line arrays, a grandstand, a gate
 // plaza with food trucks, thousands of fans jumping on the beat, rappers running the stage, sweeping
 // beams and pyro on the drops. Music comes from audio.js (music), whose beat clock drives everything here.
 import * as THREE from 'three';
@@ -8,7 +8,7 @@ import { G, rand, pick } from './core.js';
 import { music, sfx } from './audio.js';
 import { settings } from './settings.js';
 
-const BLUE = '#1f4fd6', YELLOW = '#f7e531', CARTON = '#74cdea';
+const BLUE = '#141824', YELLOW = '#2a1640';   // the festival's dark navy and deep purple
 const SHIRTS = [0xf2f2f0, 0x1c1d20, 0xf7e531, 0x74cdea, 0xd23b2e, 0x2a6fb5, 0xe88a2e, 0x6b4a8a, 0x2f7a45, 0xf2a0b5, 0x8a9096, 0x111111, 0xffffff];
 const SKIN = [0x8d5524, 0xc68642, 0xe0ac69, 0xf1c27d, 0xffdbac, 0x6b3e1f, 0x4a2c17];
 const PANTS = [0x2b3a55, 0x1c1d20, 0x3a3f46, 0x6b6f76, 0x4a3b2c, 0x20283a];
@@ -36,7 +36,7 @@ function plane(w, h, tex, glow = 0.25) {
 }
 // the festival badge (drawn here, no image): a yellow disc with a music note and CMF
 const logo = document.createElement('canvas'); logo.width = logo.height = 256;
-{ const x = logo.getContext('2d'); x.fillStyle = '#f7e531'; x.fillRect(0, 0, 256, 256); x.fillStyle = '#111';
+{ const x = logo.getContext('2d'); x.fillStyle = '#12131a'; x.fillRect(0, 0, 256, 256); x.fillStyle = '#f2c14e';
   x.beginPath(); x.ellipse(96, 170, 34, 26, -0.4, 0, 6.283); x.fill(); x.fillRect(122, 52, 14, 120);
   x.beginPath(); x.moveTo(136, 52); x.quadraticCurveTo(200, 70, 190, 130); x.quadraticCurveTo(180, 95, 136, 92); x.fill();
   x.font = '900 46px Inter, Arial Black, sans-serif'; x.textAlign = 'center'; x.fillText('CMF', 128, 240); }
@@ -50,15 +50,15 @@ function drawLogo(x, cx, cy, size, round = 0.18) {
   x.restore();
 }
 
-// Chicago Music Festival banner: blue band, white rounded bold wordmark, the carton logo on the left
+// Chicago Music Festival banner: a dark band, white bold wordmark (squeezed to fit), the badge on the left
 function drawBanner(x, w, h) {
-  const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2a5ff0'); g.addColorStop(1, '#1b43c0');
+  const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#1c2030'); g.addColorStop(1, '#0b0c12');
   x.fillStyle = g; x.fillRect(0, 0, w, h);
-  x.fillStyle = 'rgba(255,255,255,.18)'; x.fillRect(0, h - 6, w, 6);
+  x.fillStyle = '#f2c14e'; x.fillRect(0, h - 6, w, 6);
   drawLogo(x, h * 0.62, h / 2, h * 0.78);
   x.fillStyle = '#fff'; x.font = `800 ${h * 0.5}px Inter, "Arial Rounded MT Bold", Arial, sans-serif`;
   x.textBaseline = 'middle'; x.textAlign = 'left';
-  x.fillText('Chicago Music Festival', h * 1.25, h * 0.54);
+  x.fillText('Chicago Music Festival', h * 1.25, h * 0.54, w - h * 1.25 - h * 0.25);
 }
 function drawFence(x, w, h) {
   const seg = w / 4;
@@ -66,34 +66,10 @@ function drawFence(x, w, h) {
     const blue = i % 2 === 0;
     x.fillStyle = blue ? BLUE : YELLOW; x.fillRect(i * seg, 0, seg, h);
     drawLogo(x, i * seg + h * 0.6, h / 2, h * 0.8, 0.12);
-    x.fillStyle = blue ? '#fff' : '#111'; x.font = `800 ${h * 0.46}px Inter, Arial, sans-serif`; x.textBaseline = 'middle'; x.textAlign = 'left';
-    x.fillText(blue ? 'CHICAGO MUSIC FESTIVAL' : 'LIVE ALL DAY', i * seg + h * 1.2, h * 0.54);
+    x.fillStyle = blue ? '#fff' : '#f2c14e'; x.font = `800 ${h * 0.46}px Inter, Arial, sans-serif`; x.textBaseline = 'middle'; x.textAlign = 'left';
+    x.fillText(blue ? 'CHICAGO MUSIC FESTIVAL' : 'LIVE ALL DAY', i * seg + h * 1.2, h * 0.54, seg - h * 1.2 - h * 0.3);
   }
 }
-// carton inflatable faces, drawn after the logo's style
-function drawCartonFront(x, w, h) {
-  x.fillStyle = CARTON; x.fillRect(0, 0, w, h);
-  x.lineWidth = w * 0.03; x.strokeStyle = '#111'; x.strokeRect(0, 0, w, h);
-  x.fillStyle = '#fff'; x.strokeStyle = '#111'; x.lineWidth = w * 0.02;
-  x.font = `900 ${w * 0.3}px Inter, Arial Black, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
-  for (const [t, y] of [['MUS', 0.2], ['IC', 0.43]]) { x.strokeText(t, w / 2, h * y); x.fillText(t, w / 2, h * y); }
-  x.fillStyle = YELLOW; x.fillRect(0, h * 0.58, w, h * 0.13); x.strokeRect(0, h * 0.58, w, h * 0.13);
-  x.fillStyle = '#111'; x.font = `800 ${w * 0.12}px Inter, Arial, sans-serif`; x.fillText('FESTIVAL', w / 2, h * 0.65);
-  x.fillStyle = YELLOW; x.beginPath(); x.arc(w / 2, h, w * 0.36, Math.PI, 0); x.fill(); x.stroke();
-  x.strokeStyle = '#111'; x.lineWidth = w * 0.012;
-  for (let k = 1; k < 8; k++) { const a = Math.PI + (k / 8) * Math.PI; x.beginPath(); x.moveTo(w / 2, h); x.lineTo(w / 2 + Math.cos(a) * w * 0.34, h + Math.sin(a) * w * 0.34); x.stroke(); }
-}
-function drawCartonSide(x, w, h) {
-  x.fillStyle = CARTON; x.fillRect(0, 0, w, h);
-  x.lineWidth = w * 0.03; x.strokeStyle = '#111'; x.strokeRect(0, 0, w, h);
-  x.fillStyle = '#fff'; x.fillRect(w * 0.35, 0, w * 0.2, h); x.strokeRect(w * 0.35, 0, w * 0.2, h);
-  x.save(); x.translate(w / 2, h * 0.45); x.rotate(-0.12);
-  x.fillStyle = '#fff'; x.fillRect(-w * 0.34, -h * 0.12, w * 0.68, h * 0.24); x.lineWidth = w * 0.02; x.strokeRect(-w * 0.34, -h * 0.12, w * 0.68, h * 0.24);
-  x.fillStyle = '#111'; x.font = `900 ${w * 0.15}px Inter, Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.fillText('100%', 0, -h * 0.05); x.fillText('REAL', 0, h * 0.06);
-  x.restore();
-}
-
 // a fan in one low-poly mesh (~60 triangles): aPart marks shirt / skin / pants so each instance can
 // carry three colours and the whole crowd draws in a single call; ~0.65 tall like the street crowd
 function fanGeo() {
@@ -166,7 +142,7 @@ export class Concert {
     const { x0, x1, z0, z1, y } = this.stage, cx = this.cx;
     const P = [];
     P.push(box(x1 - x0, y, z1 - z0, cx, y / 2, (z0 + z1) / 2, 0x4a4d53));                 // deck
-    P.push(box(x1 - x0 + 0.1, 0.12, 0.1, cx, y - 0.06, z1, 0xf7e531));                  // yellow deck edge
+    P.push(box(x1 - x0 + 0.1, 0.12, 0.1, cx, y - 0.06, z1, 0xf2c14e));                  // yellow deck edge
     for (const x of [x0, x1]) for (const z of [z0 + 0.3, z1 - 0.4]) P.push(box(0.6, 12, 0.6, x, 6, z, 0x2b2e33)); // towers
     P.push(box(x1 - x0 + 1.2, 0.9, z1 - z0 + 1.2, cx, 11.6, (z0 + z1) / 2, 0x3a3d42));  // roof truss
     P.push(box(x1 - x0 + 2, 0.25, z1 - z0 + 2.4, cx, 12.2, (z0 + z1) / 2 - 0.2, 0x2f3236)); // roof skin
@@ -178,7 +154,7 @@ export class Concert {
       for (let k = 0; k < 2; k++) P.push(box(1.5, 0.8, 1.2, cx + s * 14.4, 0.4 + k * 0.82, z1 + 1.2, 0x1a1b1e));
     }
     // DJ riser + booth
-    P.push(box(5, 0.6, 2.4, cx, y + 0.3, z0 + 2.4, 0x2b2e33), box(3.2, 1.0, 0.8, cx, y + 1.1, z0 + 3.2, 0xf7e531));
+    P.push(box(5, 0.6, 2.4, cx, y + 0.3, z0 + 2.4, 0x2b2e33), box(3.2, 1.0, 0.8, cx, y + 1.1, z0 + 3.2, 0xf2c14e));
     // pit barricade
     for (let x = x0 - 2; x < x1 + 2; x += 1) P.push(box(0.95, 1.0, 0.1, x + 0.5, 0.5, z1 + 2.6, 0x9aa0a4));
     const stage = new THREE.Mesh(mergeGeometries(P), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 }));
@@ -196,22 +172,6 @@ export class Concert {
       const scr = plane(6.4, 3.6, this.screenTex, 1); scr.position.set(cx + s * 18.5, 8, z1 - 0.5); scene.add(scr);
       const frame = new THREE.Mesh(mergeGeometries([box(6.8, 4, 0.3, 0, 8, -0.2, 0x1a1b1e), box(0.4, 6, 0.4, 0, 3, -0.3, 0x2b2e33)]), new THREE.MeshStandardMaterial({ vertexColors: true }));
       frame.position.set(cx + s * 18.5, 0, z1 - 0.5); scene.add(frame);
-    }
-    // giant carton inflatables flanking the stage
-    const front = canvasTex(256, 384, drawCartonFront), side = canvasTex(256, 384, drawCartonSide);
-    const fm = new THREE.MeshStandardMaterial({ map: front, roughness: 0.5 }), sm = new THREE.MeshStandardMaterial({ map: side, roughness: 0.5 });
-    const topM = new THREE.MeshStandardMaterial({ color: 0x74cdea, roughness: 0.5 });
-    for (const s of [-1, 1]) {
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(3.2, 4.8, 3.2), [sm, sm, topM, topM, fm, fm]);
-      body.position.y = 2.4; g.add(body);
-      const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 2.3, 1.4, 4, 1).rotateY(Math.PI / 4).scale(1, 1, 1), topM);
-      roof.position.y = 5.5; g.add(roof);
-      const straw = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 8), new THREE.MeshStandardMaterial({ color: 0xe8453c }));
-      straw.position.set(0.5, 6.6, 0.3); straw.rotation.z = -0.35; g.add(straw);
-      g.position.set(cx + s * 22.5, 0, z1 - 1); g.rotation.y = -s * 0.25;
-      g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
-      scene.add(g);
     }
     // front-of-house mix tent in the middle of the crowd
     const foh = new THREE.Mesh(mergeGeometries([box(4, 1.2, 3, 0, 0.6, 0, 0x2b2e33), box(4.6, 0.15, 3.6, 0, 2.3, 0, 0xf2f2ee),
@@ -232,7 +192,7 @@ export class Concert {
       for (let k = 0; k < 140; k++) { const px = ((k * 73.1) % 1) * w, py = h * 0.2 + ((k * 37.7) % 1) * h * 0.36; x.fillRect((px + k * 11) % w, py, 2 + (k % 3), 1 + (k % 2)); }
       x.fillStyle = '#f2ede4'; x.font = `800 ${h * 0.1}px Inter, Arial, sans-serif`;
       x.fillText('PERFORMING LIVE', w / 2, h * 0.66);
-      x.font = `700 ${h * 0.07}px Inter, Arial, sans-serif`; x.fillStyle = '#f7e531';
+      x.font = `700 ${h * 0.07}px Inter, Arial, sans-serif`; x.fillStyle = '#f2c14e';
       x.fillText('CHICAGO MUSIC FESTIVAL', w / 2, h * 0.84);
       return;
     }
