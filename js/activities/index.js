@@ -3,6 +3,7 @@
 import { TrafficCutUp, TRAFFIC_CFG } from './traffic.js';
 import { SnowmobileTrial } from './sled.js';
 import { Casino } from './casino.js';
+import { DroneCombat } from './dogfight.js';
 
 export const ACTIVITY_DEFS = [
   {
@@ -49,5 +50,20 @@ export const ACTIVITY_DEFS = [
     note: 'Every spin is decided and paid the moment you press SPIN, then the reels show it, so nothing can pay twice. The odds are fixed and shown on each machine (I). Cash is game money only: never bought, never cashed out.',
     at: () => ({ x: -17, z: -38, tagH: 6 }),
     minimap: false, make: Casino,
+  },
+  {
+    id: 'dogfight', map: '*', where: 'any city', name: 'Drone Combat', icon: '🛸', tag: 'Dogfight enemy drones over the city',
+    desc: 'Take the armed drone up against AI drones over whichever city you\'re in. They hunt you, circle, fire back and dodge your missiles. Machine gun with aim assist, lock-on missiles, and the Hornet: a boss with its own attacks.',
+    modes: [
+      { id: 'survival', name: 'Survival waves', desc: 'Wave after wave, each a little sharper. Shot down and it\'s over.' },
+      { id: 'time', name: '2-minute time attack', desc: 'As many kills as you can in two minutes. Shot down costs points, then you\'re back.' },
+      { id: 'boss', name: 'The Hornet', desc: 'A heavy gunship with escorts. Watch for the glow: a fan of fire, homing rockets, or a dash it lines up first.' },
+    ],
+    controls: [['Mouse', 'aim · point up or down to climb or dive'], ['W S', 'fly where you point'], ['A D', 'strafe'], ['Space', 'rise'], ['Shift', 'boost'], ['Click', 'machine gun (aim assist near targets)'], ['Right click / G', 'missile, once LOCKED'], ['V', 'camera'], ['R', 'restart'], ['Esc', 'leave']],
+    hudKeys: [],
+    medals: { survival: { bronze: 4, silver: 7, gold: 10, unit: 'waves', better: 'high' }, time: { bronze: 8, silver: 15, gold: 24, unit: 'kills', better: 'high' }, boss: { bronze: 150, silver: 100, gold: 70, unit: 's', better: 'low' } },
+    records: ['dogfight_wave', 'dogfight_kills', 'dogfight_boss', 'dogfight_score'],
+    note: 'To lock: keep an enemy inside the box round your crosshair until it turns red, then fire. Enemies can break hard or drop flares, so a missile isn\'t a sure kill. Red diamonds show where they are; they hug the edge of the screen when they\'re behind you.',
+    at: null, usesVehicle: true, minimap: true, make: DroneCombat,
   },
 ];

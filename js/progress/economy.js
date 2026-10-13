@@ -20,6 +20,7 @@ export const ECONOMY = {
   traffic: { complete: 100, perThousand: 12, perKm: 45, nearMiss: 2, nearMissMax: 150, combo: 8, clean500: 20, collision: -10 },
   sled: { complete: 150, perJumpMetre: 1.5, perfect: 20, perfectMax: 10, shortcut: 100, clean: 150, stuntPerThousand: 15 },
   casino: { challengeBuyIn: 500, jackpotSeed: 25000 },
+  dogfight: { complete: 100, perKill: 20, killMax: 60, perWave: 50, missileKill: 10, boss: 600, accurate: 100 },
 };
 
 export class Wallet {
@@ -101,6 +102,14 @@ export function runPayout(id, mode, r, medal) {
     if (s.shortcut) add('Took the shortcut', T.shortcut);
     if (s.clean) add('Clean lap', T.clean);
     if (mode === 'stunt' && s.stunt) add(`Stunt score ${s.stunt.toLocaleString()}`, s.stunt / 1000 * T.stuntPerThousand);
+  }
+  if (id === 'dogfight') {
+    const T = E.dogfight;
+    add(mode === 'boss' ? 'The Hornet destroyed' : 'Sortie flown', mode === 'boss' ? T.boss : T.complete);
+    if (s.kills) add(`${s.kills} drone${s.kills > 1 ? 's' : ''} destroyed`, Math.min(T.killMax, s.kills) * T.perKill);
+    if (s.missileKills) add(`${s.missileKills} missile kill${s.missileKills > 1 ? 's' : ''}`, Math.min(T.killMax, s.missileKills) * T.missileKill);
+    if (s.waves > 1) add(`${s.waves - 1} wave${s.waves > 2 ? 's' : ''} survived`, (s.waves - 1) * T.perWave);
+    if (s.accuracy >= 40 && s.kills) add(`Sharp shooting (${s.accuracy}%)`, T.accurate);
   }
   let total = lines.reduce((a, l) => a + l[1], 0);
   if (medal && total > 0) { const k = E.tierMult[medal]; add(`${medal[0].toUpperCase() + medal.slice(1)} medal x${k}`, total * (k - 1)); total = lines.reduce((a, l) => a + l[1], 0); }

@@ -42,6 +42,10 @@ export const RECORDS = {
   casino_jackpot: { label: 'Casino: biggest single win', unit: 'cash', better: 'high', perMap: false, board: true, max: 1e7, icon: 'chip', group: 'Casino' },
   casino_session: { label: 'Casino: most won in the 50-spin challenge', unit: 'cash', better: 'high', perMap: false, board: true, max: 1e7, icon: 'chip', group: 'Casino' },
   casino_streak: { label: 'Casino: longest win streak', unit: 'wins', better: 'high', perMap: false, board: true, max: 200, icon: 'chip', group: 'Casino' },
+  dogfight_wave: { label: 'Drone Combat: highest survival wave', unit: 'waves', better: 'high', perMap: false, board: true, max: 500, icon: 'target', group: 'Drone Combat' },
+  dogfight_kills: { label: 'Drone Combat: most kills in 2 minutes', unit: 'kills', better: 'high', perMap: false, board: true, max: 500, icon: 'target', group: 'Drone Combat' },
+  dogfight_boss: { label: 'Drone Combat: fastest Hornet takedown', unit: 's', better: 'low', perMap: false, board: true, min: 15, max: 1200, icon: 'target', group: 'Drone Combat' },
+  dogfight_score: { label: 'Drone Combat: best combat score', unit: 'pts', better: 'high', perMap: false, board: true, max: 5e6, icon: 'target', group: 'Drone Combat' },
   boats_session: { label: 'Boats sunk in one visit', unit: 'boats', better: 'high', perMap: true, board: false, max: 500, icon: 'boat' },
 };
 
@@ -93,6 +97,11 @@ export const ACHIEVEMENTS = [
   { id: 'casino_streak', name: 'Hot Streak', desc: 'Win 5 spins in a row.', cat: 'Mini-games', xp: 150, test: (S) => [Math.round(S.best.casino_streak || 0), 5] },
   { id: 'casino_jp', name: 'JACKPOT!', desc: "Hit the Dragon's Hoard progressive jackpot.", cat: 'Mini-games', xp: 500, test: (S) => [Math.round((((S.acts || {}).casino || {}).totals || {}).jackpots || 0), 1] },
   { id: 'casino_regular', name: 'Regular', desc: 'Spin 1,000 times.', cat: 'Mini-games', xp: 200, test: (S) => [Math.round((((S.acts || {}).casino || {}).totals || {}).spins || 0), 1000] },
+  { id: 'dog_first', name: 'Wings Up', desc: 'Fly a Drone Combat sortie.', cat: 'Mini-games', xp: 40, test: (S) => [Math.round((((S.acts || {}).dogfight || {}).runs || 0)), 1] },
+  { id: 'dog_ace', name: 'Ace', desc: 'Shoot down 50 enemy drones.', cat: 'Mini-games', xp: 300, test: (S) => [Math.round((((S.acts || {}).dogfight || {}).totals || {}).kills || 0), 50] },
+  { id: 'dog_wave', name: 'Last Drone Standing', desc: 'Reach wave 10 in survival.', cat: 'Mini-games', xp: 350, test: (S) => [Math.round(S.best.dogfight_wave || 0), 10] },
+  { id: 'dog_boss', name: 'Hornet Hunter', desc: 'Destroy the Hornet.', cat: 'Mini-games', xp: 400, test: (S) => [Math.round((((S.acts || {}).dogfight || {}).totals || {}).boss || 0), 1] },
+  { id: 'dog_missile', name: 'Fox Two', desc: 'Get 25 missile kills.', cat: 'Mini-games', xp: 200, test: (S) => [Math.round((((S.acts || {}).dogfight || {}).totals || {}).missileKills || 0), 25] },
   // landmarks with their own events
   { id: 'eye_down', name: 'Eye Sore', desc: 'Topple the London Eye.', cat: 'Landmarks', xp: 300, test: (S) => [S.events.london_eye || 0, 1] },
   { id: 'big_ben', name: 'Time Out', desc: "Bring down Big Ben.", cat: 'Landmarks', xp: 250, test: (S) => [(S.landmarks.london || []).includes('Big Ben') ? 1 : 0, 1] },
@@ -196,6 +205,8 @@ export const REWARDS = [
   { id: 'b_racer', slot: 'badge', label: 'Highway Star', icon: 'car', how: { ach: 'cutup_score' } },
   { id: 'b_bigair', slot: 'badge', label: 'Big Air', icon: 'sled', how: { ach: 'sled_big' } },
   { id: 'b_jackpot', slot: 'badge', label: 'Jackpot', icon: 'chip', how: { ach: 'casino_jp' } },
+  { id: 'b_ace', slot: 'badge', label: 'Ace', icon: 'target', how: { ach: 'dog_ace' } },
+  { id: 'p_drone_hornet', slot: 'drone_paint', label: 'Hornet Yellow', value: 0xe8b81a, how: { ach: 'dog_boss' } },
   // ---------- the shop: bought with Cash (how.buy is the price). Every one of these is used in the game ----------
   // the Highway Cut-Up sports car
   { id: 'p_car_orange', slot: 'car_paint', label: 'Sunset Orange', value: 0xff5a1f, how: { rank: 0 } },

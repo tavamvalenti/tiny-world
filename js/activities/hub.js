@@ -288,6 +288,7 @@ export class ActivityHub {
       if (!this.resultsUp && c === 'KeyR' && !(this.cur.usesR)) { this.restart(); return true; }
     }
     if (this.resultsUp) return true;
+    if (this.cur.passKeys) { if (this.cur.key) this.cur.key(e, down); return false; }   // a game flown with a vehicle's own controls
     const used = this.cur.key ? this.cur.key(e, down) : false;
     if (used !== false) e.preventDefault();
     return true;

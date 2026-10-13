@@ -725,6 +725,17 @@ export const sfx = {
     else if (kind === 'coin') { tone(ch.input, t, { type: 'sine', f: 2400, f1: 2100, a: 0.001, peak: 0.12, d: 0.12 }); tone(ch.input, t + 0.05, { type: 'sine', f: 3200, a: 0.001, peak: 0.06, d: 0.1 }); }
     else if (kind === 'button') tone(ch.input, t, { type: 'square', f: 880, a: 0.001, peak: 0.05, d: 0.03 });
   },
+  // the combat drone's targeting computer and launcher: a tick while a lock builds (faster as it closes), the steady
+  // locked tone, the missile leaving the rail, and the warning when something is homing on you
+  lock(kind, x, z, k = 0) {
+    if (!init()) return;
+    const t = now(), ch = chain(x, z, { vol: 0.4, bus: sfxBus });
+    if (kind === 'tick') tone(ch.input, t, { type: 'square', f: 900 + k * 700, a: 0.002, peak: 0.05, d: 0.04 });
+    else if (kind === 'locked') { tone(ch.input, t, { type: 'square', f: 1760, a: 0.003, peak: 0.06, d: 0.12 }); tone(ch.input, t + 0.14, { type: 'square', f: 1760, a: 0.003, peak: 0.06, d: 0.12 }); }
+    else if (kind === 'launch') { burst(ch.input, t, { buf: pink, type: 'bandpass', f: 900, q: 0.8, a: 0.01, peak: 0.7, d: 0.9, sweep: 300 }); tone(ch.input, t, { type: 'sawtooth', f: 180, f1: 90, a: 0.005, peak: 0.12, d: 0.5 }); }
+    else if (kind === 'warn') { for (let i = 0; i < 3; i++) tone(ch.input, t + i * 0.16, { type: 'square', f: i % 2 ? 980 : 1240, a: 0.002, peak: 0.07, d: 0.12 }); }
+    else if (kind === 'hit') tone(ch.input, t, { type: 'triangle', f: 2600, f1: 1800, a: 0.001, peak: 0.08, d: 0.05 });
+  },
   // Tyre squeal leading into a collision
   skid(x, z, d = 0.6) {
     if (!init()) return;

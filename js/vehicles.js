@@ -110,7 +110,7 @@ export class EngineSynth {
     if (this.kind === 'chair' || this.kind === 'sled') { const lfo = (this.lfo = ctx.createOscillator()), lg = ctx.createGain(); lfo.frequency.value = 9; lg.gain.value = 0.1; lfo.connect(lg); lg.connect(out.gain); lfo.start(); }
   }
   set(level, pitch) {
-    if (!this.ctx) return;
+    if (!this.ctx || !Number.isFinite(level) || !Number.isFinite(pitch)) return;
     const t = this.ctx.currentTime, base = { drone: 150, chair: 120, car: 42, sled: 78 }[this.kind] || 55;
     this.osc.frequency.setTargetAtTime(base * (1 + pitch * 0.9), t, 0.08);
     this.lp.frequency.setTargetAtTime(500 + pitch * 1800, t, 0.1);
@@ -265,7 +265,9 @@ export class VehicleMode {
   // the direction through the crosshair (from the last frame's camera): pointing steers up and down
   lookDir() {
     const cam = this.camera; cam.updateMatrixWorld();
-    return new THREE.Vector3(0, 0.08, -1).unproject(cam).sub(cam.position).normalize();
+    const d = new THREE.Vector3(0, 0.08, -1).unproject(cam).sub(cam.position).normalize();
+    // a zero-sized view (a hidden or just-opened window) gives no direction: fly straight ahead instead
+    return Number.isFinite(d.x + d.y + d.z) ? d : new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
   }
   // ---------------- per frame (before Tiny World's camera update)
   update(dt) {
