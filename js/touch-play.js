@@ -18,13 +18,21 @@ const CSS = `
 #tpBtns{display:none}
 html.touch #tpBtns{display:flex;position:absolute;left:calc(14px + var(--sl,0px));bottom:calc(var(--sb,0px) + 96px);gap:10px;pointer-events:auto;z-index:8}
 html.touch body.veh-on #tpBtns,html.touch body.act-on #tpBtns,html.touch body.rick-on #tpBtns{display:none}
-#tpBtns .tb{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(14px) saturate(170%);-webkit-backdrop-filter:blur(14px) saturate(170%);box-shadow:0 8px 22px -8px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.3);color:#fff;position:relative}
-#tpBtns .tb svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* the round buttons, in the WORLD button's style: a see-through gradient, a coloured rim, a glow and a passing sheen */
+#tpBtns .tb{--a:rgba(255,159,10,.5);--b:rgba(255,69,58,.42);--rim:rgba(255,190,120,.7);--glow:rgba(255,140,60,.75);
+  width:60px;height:60px;border-radius:50%;display:grid;place-items:center;position:relative;overflow:visible;color:#fff;
+  background:linear-gradient(135deg,var(--a),var(--b));border:1px solid var(--rim);backdrop-filter:blur(14px) saturate(170%);-webkit-backdrop-filter:blur(14px) saturate(170%);
+  box-shadow:0 0 18px -3px var(--glow),0 10px 22px -10px rgba(0,0,0,.65),inset 0 0 14px rgba(255,255,255,.18),inset 0 1px 0 rgba(255,255,255,.45);
+  animation:tpGlow 2.8s ease-in-out infinite;transition:transform .18s cubic-bezier(.2,1.4,.4,1),filter .18s}
+#tpBtns .tb::after{content:'';position:absolute;inset:0;border-radius:50%;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.4) 50%,transparent 70%);background-size:250% 100%;animation:tpSheen 4.5s ease-in-out infinite;pointer-events:none}
+@keyframes tpSheen{0%,55%{background-position:120% 0}100%{background-position:-120% 0}}
+@keyframes tpGlow{50%{box-shadow:0 0 26px 0 var(--glow),0 10px 22px -10px rgba(0,0,0,.65),inset 0 0 16px rgba(255,255,255,.25),inset 0 1px 0 rgba(255,255,255,.45)}}
+#tpBtns .tb svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(255,255,255,.7))}
 #tpBtns .tb[data-t="play"] svg{fill:#fff;stroke:none}
-#tpBtns .tb.ride{background:linear-gradient(180deg,rgba(255,159,10,.85),rgba(200,90,10,.85))}
-#tpBtns .tb.play{background:linear-gradient(180deg,rgba(48,209,88,.9),rgba(30,150,60,.9))}
-#tpBtns .tb small{position:absolute;bottom:-15px;left:50%;transform:translateX(-50%);font:800 8.5px -apple-system,Inter,sans-serif;letter-spacing:.14em;color:#fff;text-shadow:0 1px 3px #000}
-#tpBtns .tb:active{transform:scale(.92)}
+#tpBtns .tb.ride{--a:rgba(255,179,64,.55);--b:rgba(255,69,58,.45);--rim:rgba(255,200,130,.75);--glow:rgba(255,140,60,.8)}
+#tpBtns .tb.play{--a:rgba(48,209,88,.55);--b:rgba(20,170,160,.45);--rim:rgba(140,255,190,.75);--glow:rgba(48,209,88,.8)}
+#tpBtns .tb small{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font:800 8.5px -apple-system,Inter,sans-serif;letter-spacing:.16em;color:#fff;text-shadow:0 0 8px var(--glow),0 1px 3px #000}
+#tpBtns .tb:active{transform:scale(.9);filter:brightness(1.25)}
 /* the sheet */
 #tpSheet{display:none;position:fixed;inset:0;z-index:62;background:rgba(0,0,0,.35)}
 #tpSheet.open{display:block}
@@ -43,17 +51,25 @@ html.touch body.veh-on #tpBtns,html.touch body.act-on #tpBtns,html.touch body.ri
 #tpPad{display:none;position:fixed;inset:0;z-index:9;pointer-events:none;font-family:-apple-system,'SF Pro Text',Inter,sans-serif}
 html.touch #tpPad.on{display:block}
 #tpPad .look{position:absolute;inset:0;pointer-events:auto;touch-action:none}
-#tpPad .k{position:absolute;pointer-events:auto;touch-action:none;display:grid;place-items:center;border-radius:50%;color:#fff;font:800 11px -apple-system,Inter,sans-serif;letter-spacing:.08em;user-select:none;-webkit-user-select:none;
-  background:rgba(20,22,28,.42);border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 16px -8px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.22);transition:transform .08s,background .08s}
-#tpPad .k.down{transform:scale(.9);background:rgba(255,255,255,.3)}
-#tpPad .k svg{width:24px;height:24px;fill:#fff}
-#tpPad .k.fire{background:rgba(255,55,95,.55);border-color:rgba(255,120,140,.7)} #tpPad .k.fire.down{background:rgba(255,55,95,.85)}
-#tpPad .k.alt{background:rgba(255,159,10,.5)} #tpPad .k.gas{background:rgba(48,209,88,.55);border-radius:22px} #tpPad .k.gas.down{background:rgba(48,209,88,.85)}
-#tpPad .k.brake{background:rgba(255,69,58,.45);border-radius:18px} #tpPad .k.boost{background:rgba(10,132,255,.5)} #tpPad .k.boost.down{background:rgba(10,132,255,.85)}
-#tpPad .k.steer{border-radius:24px}
-#tpPad .top{position:absolute;left:50%;top:calc(var(--st,0px) + 10px);transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
-#tpPad .top span{padding:9px 16px;border-radius:999px;font:700 12px -apple-system,Inter,sans-serif;color:#fff;background:rgba(20,22,28,.55);border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
-#tpPad .top span.x{background:rgba(255,69,58,.55)}
+#tpPad .k{--a:rgba(120,140,170,.34);--b:rgba(60,70,100,.3);--rim:rgba(220,230,255,.5);--glow:rgba(150,180,255,.45);
+  position:absolute;pointer-events:auto;touch-action:none;display:grid;place-items:center;border-radius:50%;color:#fff;font:800 10.5px -apple-system,Inter,sans-serif;letter-spacing:.1em;text-shadow:0 0 6px rgba(255,255,255,.5),0 1px 2px rgba(0,0,0,.6);user-select:none;-webkit-user-select:none;overflow:hidden;
+  background:linear-gradient(135deg,var(--a),var(--b));border:1px solid var(--rim);backdrop-filter:blur(14px) saturate(170%);-webkit-backdrop-filter:blur(14px) saturate(170%);
+  box-shadow:0 0 14px -4px var(--glow),0 8px 18px -8px rgba(0,0,0,.7),inset 0 0 12px rgba(255,255,255,.14),inset 0 1px 0 rgba(255,255,255,.4);transition:transform .08s,filter .08s,box-shadow .12s}
+#tpPad .k::after{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.3) 50%,transparent 70%);background-size:250% 100%;animation:tpSheen 5.5s ease-in-out infinite;pointer-events:none}
+#tpPad .k.down{transform:scale(.9);filter:brightness(1.4) saturate(1.2);box-shadow:0 0 24px 2px var(--glow),inset 0 0 18px rgba(255,255,255,.3)}
+#tpPad .k svg{width:24px;height:24px;fill:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.7))}
+#tpPad .k.fire{--a:rgba(255,55,95,.6);--b:rgba(200,20,60,.5);--rim:rgba(255,150,170,.8);--glow:rgba(255,55,95,.85);font-size:12px}
+#tpPad .k.alt{--a:rgba(255,179,64,.55);--b:rgba(255,120,20,.45);--rim:rgba(255,210,150,.75);--glow:rgba(255,159,10,.8)}
+#tpPad .k.boost{--a:rgba(10,132,255,.55);--b:rgba(94,92,230,.45);--rim:rgba(150,200,255,.8);--glow:rgba(10,132,255,.85)}
+#tpPad .k.gas{--a:rgba(48,209,88,.6);--b:rgba(20,160,90,.5);--rim:rgba(150,255,190,.8);--glow:rgba(48,209,88,.85);border-radius:24px}
+#tpPad .k.brake{--a:rgba(255,69,58,.5);--b:rgba(180,30,30,.42);--rim:rgba(255,160,150,.75);--glow:rgba(255,69,58,.8);border-radius:20px}
+#tpPad .k.steer{--a:rgba(120,150,255,.42);--b:rgba(150,70,255,.36);--rim:rgba(190,200,255,.7);--glow:rgba(130,140,255,.75);border-radius:26px}
+#tpPad .top{position:absolute;left:calc(10px + var(--sl,0px));top:calc(var(--st,0px) + 10px);display:flex;gap:7px;pointer-events:auto}
+#tpPad .top span.ic{width:40px;height:40px;padding:0;display:grid;place-items:center;font-size:17px}
+#tpPad .top span{padding:9px 16px;border-radius:999px;font:700 12px -apple-system,Inter,sans-serif;color:#fff;text-shadow:0 0 6px rgba(255,255,255,.4);
+  background:linear-gradient(120deg,rgba(40,110,255,.4),rgba(150,70,255,.36));border:1px solid rgba(170,190,255,.6);backdrop-filter:blur(14px) saturate(170%);-webkit-backdrop-filter:blur(14px) saturate(170%);
+  box-shadow:0 0 14px -4px rgba(120,140,255,.7),0 8px 18px -8px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.35)}
+#tpPad .top span.x{background:linear-gradient(120deg,rgba(255,69,58,.55),rgba(255,55,120,.45));border-color:rgba(255,160,160,.7);box-shadow:0 0 14px -4px rgba(255,69,58,.8),0 8px 18px -8px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.35)}
 #tpPad .top span:active{transform:scale(.93)}
 #tpPad .hint{position:absolute;left:50%;top:38%;transform:translateX(-50%);padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.45);font:600 12px -apple-system,Inter,sans-serif;color:#fff;opacity:0;transition:opacity .4s;white-space:nowrap}
 #tpPad .hint.on{opacity:1}
@@ -76,7 +92,7 @@ html.touch .dg-bot{bottom:calc(var(--sb,0px) + 188px)!important;transform:transl
 html.touch #actHud .ah-pop{top:30%;right:12px}
 html.touch #progChip,html.touch #cashChip{z-index:7}
 html.touch body.veh-on #progChip,html.touch body.act-on #progChip,html.touch body.rick-on #progChip,html.touch body.veh-on #cashChip,html.touch body.act-on #cashChip,html.touch body.rick-on #cashChip{display:none}
-html.touch body.veh-on #mapname,html.touch body.act-on #mapname,html.touch body.rick-on #mapname{opacity:.6}
+html.touch body.veh-on #mapname,html.touch body.act-on #mapname,html.touch body.rick-on #mapname{display:none}
 /* the casino on a phone: the panel wraps, every button finger-sized */
 html.touch .cs{bottom:calc(var(--sb,0px) + 12px)!important;padding:10px 12px!important}
 html.touch .cs-row{grid-template-columns:repeat(2,1fr)!important}
@@ -178,7 +194,7 @@ export class TouchPlay {
       html = `${btn(tri(-90), 'KeyA', 'steer', `left:calc(14px + ${sl});bottom:calc(${sb} + 24px)`, 76)}${btn(tri(90), 'KeyD', 'steer', `left:calc(100px + ${sl});bottom:calc(${sb} + 24px)`, 76)}
         ${btn('GAS', 'KeyW', 'gas', `right:calc(14px + ${sr});bottom:calc(${sb} + 24px);height:110px`, 76)}${btn('BRAKE', 'KeyS', 'brake', `right:calc(100px + ${sr});bottom:calc(${sb} + 24px)`, 64)}
         ${btn('BOOST', 'ShiftLeft', 'boost', `right:calc(100px + ${sr});bottom:calc(${sb} + 98px)`, 58)}${btn('DRIFT', 'Space', '', `right:calc(14px + ${sr});bottom:calc(${sb} + 144px)`, 54)}
-        <div class="top"><span data-k="Escape" class="x">✕ Exit</span><span data-k="KeyR">↻ Restart</span><span data-k="KeyV">Camera</span></div>`;
+        <div class="top"><span data-k="Escape" class="x">✕ Exit</span><span data-k="KeyR" class="ic" title="Restart">↻</span><span data-k="KeyV" class="ic" title="Camera">◐</span></div>`;
     } else if (mode === 'casino') {
       html = `<div class="top"><span data-k="Escape" class="x">✕ Leave the casino</span></div>`;
     } else {
@@ -189,7 +205,7 @@ export class TouchPlay {
         ${btn(F.up[0], F.up[1], '', `left:calc(14px + ${sl});bottom:calc(${sb} + 196px)`, 56)}${F.down ? btn(F.down[0], F.down[1], '', `left:calc(76px + ${sl});bottom:calc(${sb} + 196px)`, 56) : ''}
         ${btn(F.fire, 'Mouse0', 'fire', `right:calc(18px + ${sr});bottom:calc(${sb} + 30px)`, 86)}${btn(F.alt[0], F.alt[1], 'alt', `right:calc(116px + ${sr});bottom:calc(${sb} + 26px)`, 62)}
         ${btn('BOOST', 'ShiftLeft', 'boost', `right:calc(30px + ${sr});bottom:calc(${sb} + 132px)`, 60)}
-        <div class="top"><span data-k="Escape" class="x">✕ Exit</span>${this.hub && this.hub.active ? '<span data-k="KeyR">↻ Restart</span>' : ''}<span data-k="KeyV">Camera</span></div>
+        <div class="top"><span data-k="Escape" class="x">✕ Exit</span>${this.hub && this.hub.active ? '<span data-k="KeyR" class="ic" title="Restart">↻</span>' : ''}<span data-k="KeyV" class="ic" title="Camera">◐</span></div>
         <div class="hint on">Drag anywhere to aim</div>`;
     }
     P.innerHTML = html;
