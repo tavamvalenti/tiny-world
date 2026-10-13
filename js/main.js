@@ -801,6 +801,12 @@ initMenu();                                                    // the title scre
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
   document.getElementById('menu').appendChild(box); document.getElementById('menu').appendChild(pl); document.getElementById('menu').appendChild(inv); setTimeout(placeInv, 0);
   setupChat(progress, { menu: document.getElementById('menu'), below: () => (getComputedStyle(inv).display === 'none' ? null : inv) });
+  // the bubbles under the profile appear only once they've settled in place (no jumping while the counts load)
+  { const st2 = document.createElement('style'); st2.textContent = '#menuInvite:not(.rdy),#menuChat:not(.rdy){opacity:0!important;pointer-events:none} #menuInvite.rdy,#menuChat.rdy{transition:opacity .6s ease,top .45s cubic-bezier(.2,.8,.2,1),transform .25s!important}'; document.head.appendChild(st2);
+    let last = '', same = 0, t0 = Date.now();
+    const iv = setInterval(() => { const c = document.getElementById('menuChat'), k = `${inv.style.top}|${c ? c.style.top : ''}|${pl.classList.contains('on')}`;
+      same = k === last ? same + 1 : 0; last = k;
+      if ((same >= 3 && (pl.classList.contains('on') || Date.now() - t0 > 2500)) || Date.now() - t0 > 5000) { inv.classList.add('rdy'); if (c) c.classList.add('rdy'); clearInterval(iv); } }, 150); }
   setupMenuCarousel(progress, { menu: document.getElementById('menu'), profile: box, players: pl, invite: inv });
 }
 

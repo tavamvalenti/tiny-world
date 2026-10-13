@@ -37,7 +37,7 @@ export function setupChat(progress, { menu, below }) {
   const bub = document.createElement('div'); bub.id = 'menuChat'; bub.innerHTML = '<span style="font-size:20px">💬</span><div><b>WORLD CHAT</b><small>Talk to everyone playing</small></div>';
   menu.appendChild(bub);
   const place = () => { const a = below(); if (a) bub.style.top = `${a.offsetTop + a.offsetHeight + 10}px`; };
-  setInterval(place, 1000); setTimeout(place, 0);
+  setInterval(place, 200); place();
 
   const render = () => {
     const me = progress.P.id;
