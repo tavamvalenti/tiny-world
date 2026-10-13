@@ -113,6 +113,11 @@ const CSS = `
 #progPanel .acc-top b{font:700 18px ${SF}} #progPanel .acc-top small{display:block;font:500 12px ${SF};color:rgba(235,235,245,.65);margin-top:3px}
 #progPanel .acc-top .aid{font:700 12.5px ui-monospace,'SF Mono',Menlo,monospace;color:#fff;letter-spacing:.04em}
 #progPanel .acc-top .sync{color:#64d2ff}
+#progPanel .av-wrap{position:relative;display:inline-block;cursor:pointer;border-radius:50%;box-shadow:0 6px 16px -6px rgba(10,132,255,.8);transition:transform .15s}
+#progPanel .av-wrap:hover{transform:scale(1.05)} #progPanel .av-wrap .avi{border:2px solid rgba(255,255,255,.8)}
+#progPanel .av-wrap i{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 12px ${SF};font-style:normal;color:#fff;background:#0a84ff;border:2px solid #1c1e26}
+#progPanel .acc-photo-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#progPanel .acc-ph{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0 2px}
 #progPanel .acc-msg{margin:10px 0 0;font:600 13px ${SF};color:#ff9f0a} #progPanel .acc-msg.ok{color:#30d158}
 /* ---------- settings ---------- */
 #settings .sp{width:min(540px,100%)!important}

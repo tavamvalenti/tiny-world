@@ -19,7 +19,13 @@ class SupabaseProvider {
   }
   claim(player, name) { return this.rpc('claim_name', { p_player: player, p_name: name }); }
   submit(s) { return this.rpc('submit_score', { p_player: s.player, p_name: s.name, p_category: s.category, p_map: s.map || '', p_value: s.value, p_evidence: s.evidence || {}, p_version: VERSION }); }
-  top(category, map, limit) { return this.rpc('top_scores', { p_category: category, p_map: map || '', p_limit: limit }); }
+  // the boards with pictures (server/avatars.sql); the plain ones if that isn't set up
+  async top(category, map, limit) {
+    const body = { p_category: category, p_map: map || '', p_limit: limit };
+    if (this.noV2) return this.rpc('top_scores', body);
+    try { return await this.rpc('top_scores_v2', body); } catch (e) { if (e.status === 404 || /top_scores_v2/.test(e.message)) { this.noV2 = true; return this.rpc('top_scores', body); } throw e; }
+  }
+  accountAvatar(player, token, avatar) { return this.rpc('account_set_avatar', { p_player: player, p_token: token, p_avatar: avatar }); }
   mine(category, map, player) { return this.rpc('my_rank', { p_category: category, p_map: map || '', p_player: player }); }
   // accounts (server/accounts.sql)
   accountCreate(player, name, secret, kind, profile) { return this.rpc('account_create', { p_player: player, p_name: name, p_secret: secret, p_kind: kind, p_profile: profile }); }
@@ -41,6 +47,8 @@ export class Leaderboard {
     this.status = this.provider ? 'ready' : 'off';       // off | ready | offline | error
     this.lastError = '';
     if (this.provider) { setTimeout(() => this.flush(), 5000); addEventListener('online', () => this.flush()); }
+    // the player count: say hello when the game opens, and every two minutes while it's open (for "online now")
+    if (this.provider) { setTimeout(() => this.hello(), 1200); setInterval(() => this.hello(), 120000); }
   }
   get configured() { return !!this.provider; }
   get pending() { return this.progress.P.pending; }
@@ -97,6 +105,10 @@ export class Leaderboard {
       }
     } finally { this.flushing = false; this.progress.touch(true); }
     if (P.pending.length) { clearTimeout(this.retryT); this.retryT = setTimeout(() => this.flush(), 120000); }
+  }
+  async hello() {
+    if (!this.provider) return null;
+    try { const r = await this.provider.rpc('hello', { p_player: this.progress.P.id }); if (r && r.players) { this.counts = r; this.progress.emit('players', r); } return r; } catch { return null; }
   }
   async top(category, map, limit = 10) { if (!this.provider) throw new Error('not configured'); return (await this.provider.top(category, map, limit)) || []; }
   async mine(category, map) { if (!this.provider) throw new Error('not configured'); return this.provider.mine(category, map, this.progress.P.id); }

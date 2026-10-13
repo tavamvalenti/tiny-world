@@ -11,7 +11,7 @@ export const REASONS = {
   'bad pin': 'A PIN is 4 to 8 digits.', 'bad password': 'A password is 4 to 64 characters.',
   taken: 'That username belongs to someone else.', exists: 'This profile already has an account. Sign in instead.',
   'no account': 'No account with that username.', wrong: 'That password or PIN isn\'t right.', locked: 'Too many tries. Wait a minute and try again.',
-  'slow down': 'Too many tries at once. Wait a moment.', 'signed out': 'You were signed out (the password or PIN was changed elsewhere). Sign in again.',
+  'slow down': 'Too many tries at once. Wait a moment.', 'bad picture': 'That picture couldn\'t be used. Try another (JPG or PNG).', 'signed out': 'You were signed out (the password or PIN was changed elsewhere). Sign in again.',
   offline: 'Can\'t reach the server right now. Check your connection and try again.',
 };
 
@@ -42,6 +42,7 @@ export class Account {
     if (!r.ok) return r;
     this.a = { player: r.player, name: r.name, token: r.token, kind }; write(this.a);
     const P = this.p.P; P.name = r.name; P.nameClaimed = r.name; P.nameStatus = 'ok'; this.p.touch(true);
+    if (P.avatar) this.call('accountAvatar', r.player, r.token, P.avatar);       // a picture chosen before: up it goes
     return r;
   }
   // sign in: this browser takes on the account's progress (the progress that was here is kept aside, not lost)
@@ -65,6 +66,19 @@ export class Account {
     const r = await this.call('accountChange', this.a.player, this.a.token, oldS, newS, kind);
     if (r.ok) { this.a.token = r.token; this.a.kind = kind; write(this.a); }
     return r;
+  }
+  // the profile picture: kept in the profile (so it travels with it) and, with an account, shown on the boards
+  async setAvatar(dataUrl) {
+    this.p.P.avatar = dataUrl || null; this.p.P.avatarWaiting = true; this.p.touch(true);
+    if (!this.signedIn) return { ok: true, local: true };
+    return this.sendAvatar();
+  }
+  // up to the account (for the boards); if that can't happen now, it's sent the next time the game connects
+  async sendAvatar() {
+    if (!this.signedIn) return { ok: false, reason: 'signed out' };
+    const r = await this.call('accountAvatar', this.a.player, this.a.token, this.p.P.avatar || null);
+    if (r.ok) { this.p.P.avatarWaiting = false; this.p.touch(true); return r; }
+    return r.reason === 'bad picture' ? r : { ok: true, waiting: true };
   }
   // delete the account (and its scores and name) for good; this browser starts over as a guest
   async deleteAccount() {
@@ -112,5 +126,6 @@ export class Account {
       if (this.p.adopt(prof)) { this.p.save(); this.p.emit('toast', { text: 'Progress loaded from your account' }); }
     }
     if (r.name && r.name !== this.a.name) { this.a.name = r.name; write(this.a); }
+    if (this.p.P.avatarWaiting) this.sendAvatar();
   }
 }

@@ -51,6 +51,7 @@ import { vegas, Vegas } from './vegas.js';
 import { london, London } from './london.js';
 import { greenland, Greenland, terrainH as glTerrainH } from './greenland.js';
 import { cairo, Cairo, terrainH as caTerrainH } from './cairo.js';
+import { avatarHtml } from './progress/avatar.js';
 if (document.fonts && document.fonts.load) for (const f of ['700 40px Cairo', '900 40px Cairo', '700 40px "Reem Kufi"']) document.fonts.load(f, 'القاهرة').catch(() => {});
 MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland; MAPS.cairo = cairo;
 
@@ -634,16 +635,41 @@ initMenu();                                                    // the title scre
     #menu.diving #menuProfile{opacity:0;pointer-events:none}
     @media (max-width: 760px), (max-height: 520px) { #menuProfile{top:calc(4.2vh + 52px);width:170px;padding:9px 11px} #menuProfile .mp-s{display:none} }
     @media (max-width: 520px) { #menuProfile{display:none} }
-    html.touch #menuProfile{top:calc(var(--st, 0px) + 52px)}`;
+    html.touch #menuProfile{top:calc(var(--st, 0px) + 52px)}
+    #menuPlayers{position:absolute;right:var(--pad);z-index:7;width:210px;padding:12px 14px;border-radius:10px;text-align:left;display:none;
+      background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 26px -16px var(--shadow);font-family:-apple-system,'SF Pro Display',Inter,system-ui,sans-serif;color:var(--fg);transition:opacity .4s}
+    #menuPlayers.on{display:block}
+    #menuPlayers .mpl-n{font:800 34px -apple-system,'SF Pro Display',Inter,sans-serif;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums;background:linear-gradient(90deg,#ffd46b,#ff9f0a);-webkit-background-clip:text;background-clip:text;color:transparent}
+    #menuPlayers .mpl-k{font:700 9.5px Inter;letter-spacing:.24em;color:var(--faint);margin-top:2px}
+    #menuPlayers .mpl-o{display:flex;align-items:center;gap:7px;margin-top:8px;font:600 11.5px -apple-system,Inter,sans-serif;color:var(--dim)}
+    #menuPlayers .mpl-o i{width:8px;height:8px;border-radius:50%;background:#30d158;box-shadow:0 0 0 0 rgba(48,209,88,.6);animation:mplPing 2s infinite}
+    @keyframes mplPing{70%{box-shadow:0 0 0 7px rgba(48,209,88,0)}100%{box-shadow:0 0 0 0 rgba(48,209,88,0)}}
+    #menu.diving #menuPlayers{opacity:0}
+    @media (max-width: 760px), (max-height: 520px) { #menuPlayers{width:170px;padding:9px 11px} #menuPlayers .mpl-n{font-size:26px} }
+    @media (max-width: 520px) { #menuPlayers{display:none!important} }`;
   document.head.appendChild(st);
   const box = document.createElement('div'); box.id = 'menuProfile'; box.title = 'Your profile';
+  // the player count, under the profile card: everyone who has opened the game, and who's on right now
+  const pl = document.createElement('div'); pl.id = 'menuPlayers'; pl.title = 'Everyone who has played Tiny World';
+  pl.innerHTML = '<div class="mpl-n">0</div><div class="mpl-k">PLAYERS SO FAR</div><div class="mpl-o"><i></i><span></span></div>';
+  let shownN = 0;
+  const placePl = () => { pl.style.top = `${box.offsetTop + box.offsetHeight + 10}px`; };
+  progress.on((t, d) => {
+    if (t !== 'players') return;
+    pl.classList.add('on'); placePl();
+    const target = d.players, from = shownN, t0 = performance.now();
+    const step = (now) => { const k = Math.min(1, (now - t0) / 1200), e = 1 - Math.pow(1 - k, 3); shownN = Math.round(from + (target - from) * e); pl.querySelector('.mpl-n').textContent = shownN.toLocaleString(); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+    pl.querySelector('.mpl-o span').textContent = `${(d.online || 1).toLocaleString()} online now`;
+  });
+  addEventListener('resize', placePl);
   const draw = () => {
     const P = progress.P, r = progress.rank, n = progress.nextRank, pct = n ? Math.min(100, ((P.xp - r.xp) / (n.xp - r.xp)) * 100) : 100;
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     // the best global placing across every board you're on
     const xr = ((P.global || {})['xp_total:'] || {}).rank, ranks = Object.values(P.global || {}).map((g) => g && g.rank).filter((r) => r > 0), best = xr || (ranks.length ? Math.min(...ranks) : 0);   // the Total XP rank first
     const badge = progress.lb.configured ? `<span class="mp-rank ${best ? '' : 'none'}" title="Your global rank on Total XP">${best ? `GLOBAL #${best}` : 'UNRANKED'}</span>` : '';
-    box.innerHTML = `<div class="mp-top"><span class="mp-k">PROFILE</span>${badge}</div><div class="mp-n">${esc(P.name)}</div><div class="mp-r">${esc((progress.equipped('title') || r.name).toUpperCase())}</div>
+    box.innerHTML = `<div class="mp-top"><span class="mp-k">PROFILE</span>${badge}</div><div class="mp-n" style="display:flex;align-items:center;gap:10px">${avatarHtml(P.avatar, P.name, 34)}<span>${esc(P.name)}</span></div><div class="mp-r">${esc((progress.equipped('title') || r.name).toUpperCase())}</div>
       <div class="mp-b"><i style="width:${pct}%"></i></div><div class="mp-s"><span>${P.xp.toLocaleString()} XP</span><span style="color:#7ff0a8;font-weight:800">$${(progress.wallet ? progress.wallet.cash : 0).toLocaleString()}</span><span>${progress.unlockedCount} achievements</span></div>${progress.lb.configured ? '<button class="mp-gl" data-gl="1">GLOBAL RANKINGS</button>' : ''}`;
   };
   // once, when the menu opens: send anything waiting and refresh where you stand on each board (others may have passed you)
@@ -655,10 +681,10 @@ initMenu();                                                    // the title scre
       progress.touch(true);
     } catch { /* the boards can wait */ }
   })();
-  draw(); progress.on((t) => { if (t === 'change') draw(); });
+  draw(); progress.on((t) => { if (t === 'change') { draw(); if (pl.classList.contains('on')) placePl(); } });
   box.addEventListener('click', (e) => { e.stopPropagation(); progressUI.open(e.target.closest('[data-gl]') ? 'lb' : 'profile'); });
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
-  document.getElementById('menu').appendChild(box);
+  document.getElementById('menu').appendChild(box); document.getElementById('menu').appendChild(pl);
 }
 
 // allow ?map=downtown for quick testing

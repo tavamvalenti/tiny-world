@@ -23,7 +23,8 @@ function defaults() {
     periods: { day: null, week: null },
     unlocked: {}, equipped: { title: null, drone_paint: 'p_drone_black', jetpack_paint: 'p_jet_red', chair_balloons: 'p_bal_party', car_paint: 'p_car_orange', car_flame: 'f_flame_fire', sled_paint: 'p_sled_red', drone_tracer: 'tr_amber', card_theme: 'ct_night', badges: [] },
     pending: [],          // leaderboard submissions waiting for the service
-    casino: { credits: 1000, day: null, topUpAt: 0, pot: 50000 },   // fictional casino credits: never bought, never cashed out, separate from XP
+    casino: { credits: 1000, day: null, topUpAt: 0, pot: 50000 },
+    avatar: null,          // the profile picture: a small square JPEG (js/progress/avatar.js)   // fictional casino credits: never bought, never cashed out, separate from XP
   };
 }
 // fill in anything missing (older saves, partial data) without throwing away what's there

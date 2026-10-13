@@ -6,11 +6,14 @@ import { sfx } from '../audio.js';
 import * as D from './defs.js';
 import { icon, TAB_STYLE, installGlassUI } from '../ui-glass.js';
 import { REASONS } from './account.js';
+import { readAvatar, avatarHtml } from './avatar.js';
 
 const CSS = `
 #progChip{position:absolute;left:16px;top:calc(4.2vh + 70px);display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;cursor:pointer;pointer-events:auto;user-select:none;
   background:rgba(12,14,18,.55);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);font:600 10px Inter;letter-spacing:.16em;color:#f2f4f6;transition:transform .2s,border-color .2s}
 #progChip:hover{transform:translateY(-1px);border-color:rgba(255,214,120,.6)}
+#progChip .em.pic{position:relative;background:none;box-shadow:0 0 0 2px #ffd46b,0 0 10px rgba(255,180,80,.5);width:26px;height:26px}
+#progChip .em.pic b{position:absolute;right:-5px;bottom:-4px;min-width:14px;height:14px;border-radius:7px;display:grid;place-items:center;font:800 8.5px Inter;color:#14161a;background:linear-gradient(135deg,#ffd46b,#f08a2a)}
 #progChip .em{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:800 11px Inter;color:#14161a;background:linear-gradient(135deg,#ffd46b,#f08a2a);box-shadow:0 0 10px rgba(255,180,80,.5)}
 #progChip .xpb{display:block;width:84px;height:3px;border-radius:2px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:4px}
 #progChip .xpb i{display:block;height:100%;background:linear-gradient(90deg,#ffd46b,#ff7a3a);transition:width .6s}
@@ -106,6 +109,16 @@ export class ProgressUI {
     this.chip.addEventListener('click', (e) => { e.stopPropagation(); this.open(); });
     this.panel.addEventListener('click', (e) => this.click(e));
     this.panel.addEventListener('change', (e) => this.change(e));
+    this.panel.addEventListener('change', async (e) => {
+      if (e.target.id !== 'accPhoto' && e.target.id !== 'accPhotoCam') return;
+      const file = e.target.files && e.target.files[0]; if (!file) return;
+      this.accMsg = { text: 'Preparing your photo…', ok: true }; this.render();
+      try {
+        const url = await readAvatar(file), r = await this.p.account.setAvatar(url);
+        this.accMsg = r.ok ? { text: r.local ? 'Photo set. It goes up with your account when you create one.' : r.waiting ? 'Photo set. It goes up to your account as soon as the server can be reached.' : 'Photo saved: it shows by your name on the leaderboards.', ok: true } : { text: REASONS[r.reason] || 'Couldn\'t save the photo. Try again.', ok: false };
+      } catch (err) { this.accMsg = { text: /too big/.test(err.message) ? 'That file is too big (over 25 MB).' : 'Couldn\'t read that image. Try a JPG or PNG.', ok: false }; }
+      this.renderChip(); this.render();
+    });
     this.form = {};
     this.panel.addEventListener('input', (e) => { if (e.target.id && e.target.id.startsWith('acc')) { if (e.target.dataset.pin) e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8); this.form[e.target.id] = e.target.value; } });
     this.panel.addEventListener('keydown', (e) => { if (e.key !== 'Enter' || !e.target.id || !e.target.id.startsWith('acc')) return; const b = this.panel.querySelector('[data-a^="acc-go"]'); if (b) b.click(); });
@@ -118,7 +131,7 @@ export class ProgressUI {
     const p = this.p, r = p.rank, n = p.nextRank, xp = p.P.xp;
     const pct = n ? Math.min(100, ((xp - r.xp) / (n.xp - r.xp)) * 100) : 100;
     this.renderCash();
-    this.chip.innerHTML = `<span class="em">${p.rankIndex + 1}</span><span>${r.name.toUpperCase()}<span class="xpb"><i style="width:${pct}%"></i></span><small>${xp.toLocaleString()} XP${n ? ` · ${(n.xp - xp).toLocaleString()} to ${n.name}` : ''}</small></span>`;
+    this.chip.innerHTML = `${p.P.avatar ? `<span class="em pic">${avatarHtml(p.P.avatar, p.P.name, 26)}<b>${p.rankIndex + 1}</b></span>` : `<span class="em">${p.rankIndex + 1}</span>`}<span>${r.name.toUpperCase()}<span class="xpb"><i style="width:${pct}%"></i></span><small>${xp.toLocaleString()} XP${n ? ` · ${(n.xp - xp).toLocaleString()} to ${n.name}` : ''}</small></span>`;
   }
   renderCash() {
     if (!this.cashChip || !this.p.wallet) return;
@@ -223,15 +236,20 @@ export class ProgressUI {
     const secret = (id, kind, ph) => `<div class="sec"><input id="${id}" ${kind === 'pin' ? 'data-pin="1" inputmode="numeric" pattern="[0-9]*" maxlength="8" class="pinbox"' : 'maxlength="64"'} type="${this.accShow ? 'text' : 'password'}" placeholder="${ph}" value="${esc(f[id] || '')}" autocomplete="${id === 'accSecret' && this.accMode === 'login' ? 'current-password' : 'new-password'}"><button class="eye" data-a="acc-eye" title="${this.accShow ? 'Hide' : 'Show'}">${this.accShow ? '◉' : '◎'}</button></div>`;
     if (A.signedIn) {
       const ago = A.lastCloud ? Math.max(0, Math.round((Date.now() - A.lastCloud) / 1000)) : null;
-      return `<div class="acc in"><div class="acc-top"><span class="av">${esc((A.name || '?')[0].toUpperCase())}</span><div><b>${esc(A.name)}</b><small>Account ID <span class="aid">${A.accountId}</span> <button class="mini" data-a="acc-copy" title="Copy the account ID">Copy</button> · signs in with a ${A.kind === 'pin' ? 'PIN' : 'password'}</small><small class="sync">${ago == null ? 'Saved to your account as you play' : `Saved to your account ${ago < 60 ? 'just now' : `${Math.round(ago / 60)} min ago`}`}</small></div></div>
+      return `<div class="acc in"><div class="acc-top"><span class="av-wrap" data-a="acc-photo" title="Change your photo">${avatarHtml(this.p.P.avatar, A.name, 56)}<i>✎</i></span><div><b>${esc(A.name)}</b><small>Account ID <span class="aid">${A.accountId}</span> <button class="mini" data-a="acc-copy" title="Copy the account ID">Copy</button> · signs in with a ${A.kind === 'pin' ? 'PIN' : 'password'}</small><span class="acc-ph">${this.photoControls()}</span><small class="sync">${ago == null ? 'Saved to your account as you play' : `Saved to your account ${ago < 60 ? 'just now' : `${Math.round(ago / 60)} min ago`}`}</small></div></div>
         ${this.accChange ? `<div class="acc-form"><label>Current ${A.kind === 'pin' ? 'PIN' : 'password'}</label>${secret('accOld', A.kind, A.kind === 'pin' ? '••••' : 'current password')}<label>New</label>${kindSeg('accNewKind')}${secret('accNew', this.accNewKind || 'pin', (this.accNewKind || 'pin') === 'pin' ? '4–8 digits' : 'at least 4 characters')}<div class="row"><button data-a="acc-go-change" class="go">Save new ${(this.accNewKind || 'pin') === 'pin' ? 'PIN' : 'password'}</button><button data-a="acc-cancel" class="ghost">Cancel</button></div></div>`
         : `<div class="row"><button data-a="acc-change">${icon('tag', 14)} Change ${A.kind === 'pin' ? 'PIN' : 'password'}</button><button data-a="acc-signout" class="ghost">Sign out</button><button data-a="acc-delete" class="ghost danger">${this.accDel ? 'Tap again to delete for good' : 'Delete account'}</button></div>`}${msg}</div>`;
     }
     const mode = this.accMode || 'create', kind = this.accKind || 'pin';
     return `<div class="acc"><div class="acc-head"><b>${icon('person', 16)} ${mode === 'create' ? 'Save your progress with an account' : 'Sign in to your account'}</b><div class="seg"><span data-a="acc-mode|create" class="${mode === 'create' ? 'on' : ''}">Create account</span><span data-a="acc-mode|login" class="${mode === 'login' ? 'on' : ''}">Sign in</span></div></div>
-      <div class="acc-form"><label>Username</label><input id="accName" maxlength="18" placeholder="your name on the leaderboards" value="${esc(f.accName ?? (mode === 'create' ? this.p.P.name : ''))}" autocomplete="username">
+      <div class="acc-form">${mode === 'create' ? `<label>Profile picture</label><div class="acc-photo-row"><span class="av-wrap" data-a="acc-photo" title="Choose a photo">${avatarHtml(this.p.P.avatar, f.accName ?? this.p.P.name, 52)}<i>+</i></span>${this.photoControls()}</div>` : ''}<label>Username</label><input id="accName" maxlength="18" placeholder="your name on the leaderboards" value="${esc(f.accName ?? (mode === 'create' ? this.p.P.name : ''))}" autocomplete="username">
       <label>${mode === 'create' ? 'Choose a PIN or a password' : 'PIN or password'}</label>${kindSeg('accKind')}${secret('accSecret', kind, kind === 'pin' ? (mode === 'create' ? '4–8 digits' : 'your PIN') : (mode === 'create' ? 'at least 4 characters' : 'your password'))}
       <div class="row"><button data-a="acc-go-${mode}" class="go">${mode === 'create' ? 'Create account' : 'Sign in'}</button><span class="note">${mode === 'create' ? 'Your progress so far, Cash and purchases go with it. Sign in on any device to carry on.' : 'This browser switches to the account\'s progress; what\'s here now is kept aside.'}</span></div></div>${msg}</div>`;
+  }
+  photoControls() {
+    const has = !!this.p.P.avatar, touch = document.documentElement.classList.contains('touch') || matchMedia('(pointer: coarse)').matches;
+    return `<input type="file" id="accPhoto" accept="image/*" hidden><input type="file" id="accPhotoCam" accept="image/*" capture="user" hidden>
+      <button class="mini" data-a="acc-photo">${has ? 'Change photo' : 'Choose photo'}</button>${touch ? '<button class="mini" data-a="acc-photo-cam">Take a photo</button>' : ''}${has ? '<button class="mini" data-a="acc-photo-remove">Remove</button>' : ''}`;
   }
   async accountAction(a) {
     const A = this.p.account, f = this.form, say = (text, ok = false) => { this.accMsg = { text, ok }; this.render(); };
@@ -241,6 +259,8 @@ export class ProgressUI {
     if (act === 'acc-eye') { this.accShow = !this.accShow; return this.render(); }
     if (act === 'acc-change') { this.accChange = true; this.accMsg = null; return this.render(); }
     if (act === 'acc-cancel') { this.accChange = false; f.accOld = f.accNew = ''; return this.render(); }
+    if (act === 'acc-photo' || act === 'acc-photo-cam') { const i = this.panel.querySelector(act === 'acc-photo' ? '#accPhoto' : '#accPhotoCam'); if (i) i.click(); return; }
+    if (act === 'acc-photo-remove') { await A.setAvatar(null); return say('Photo removed.', true); }
     if (act === 'acc-copy') { try { await navigator.clipboard.writeText(A.accountId); say('Account ID copied.', true); } catch { say(`Your account ID is ${A.accountId}`, true); } return; }
     if (act === 'acc-delete') {
       if (!this.accDel) { this.accDel = true; return say('This deletes your account, its saved progress and its leaderboard scores. Tap again to confirm.'); }
@@ -341,7 +361,7 @@ export class ProgressUI {
       if (this.p.P.pending.length) await lb.flush();                 // send anything waiting first, so your own score is on it
       const [top, me] = await Promise.all([lb.top(cat, map, 10), lb.mine(cat, map)]);
       const box = { innerHTML: '' };
-      box.innerHTML = top.length ? `<table>${top.map((r) => `<tr class="${r.name.toLowerCase() === this.p.P.name.toLowerCase() ? 'me' : ''}"><td>#${r.rank}</td><td>${esc(r.name)}</td><td style="text-align:right">${fmt(r.value, def.unit)}</td><td style="text-align:right;opacity:.6">${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join('')}</table>` : '<p class="note">No scores yet. Be the first.</p>';
+      box.innerHTML = top.length ? `<table>${top.map((r) => `<tr class="${r.name.toLowerCase() === this.p.P.name.toLowerCase() ? 'me' : ''}"><td>#${r.rank}</td><td><span style="display:inline-flex;align-items:center;gap:9px">${avatarHtml(r.avatar || (r.name.toLowerCase() === this.p.P.name.toLowerCase() ? this.p.P.avatar : null), r.name, 24)}${esc(r.name)}</span></td><td style="text-align:right">${fmt(r.value, def.unit)}</td><td style="text-align:right;opacity:.6">${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join('')}</table>` : '<p class="note">No scores yet. Be the first.</p>';
       box.innerHTML += me && me.rank ? `<p class="note" style="color:#ffd46b">You: #${me.rank} of ${me.total} with ${fmt(me.value, def.unit)}</p>` : '<p class="note">You don\'t have a global score in this category yet.</p>';
       put(box.innerHTML);
     } catch (e) { put(`<p class="note">Couldn't reach the leaderboards right now (${esc(e.message)}). Your local scores are safe and will be sent later.</p>`); }
@@ -357,6 +377,7 @@ export class ProgressUI {
     c.strokeStyle = 'rgba(255,212,107,.5)'; c.lineWidth = 3; c.strokeRect(18, 18, W - 36, H - 36);
     c.fillStyle = '#ffd46b'; c.font = '700 22px Inter, sans-serif'; c.fillText('TINY WORLD', 60, 80);
     c.fillStyle = '#ffffff'; c.font = '600 64px "Playfair Display", serif'; c.fillText(P.name, 60, 160);
+    if (P.avatar) { const im = new Image(); im.onload = () => { const r = 92, cx = W - 160, cy = 150; c.save(); c.beginPath(); c.arc(cx, cy, r, 0, 6.283); c.clip(); c.drawImage(im, cx - r, cy - r, r * 2, r * 2); c.restore(); c.strokeStyle = '#ffd46b'; c.lineWidth = 6; c.beginPath(); c.arc(cx, cy, r + 3, 0, 6.283); c.stroke(); }; im.src = P.avatar; }
     const title = p.equipped('title') || p.rank.name; c.fillStyle = '#ffb35a'; c.font = '700 26px Inter, sans-serif'; c.fillText(title.toUpperCase(), 62, 205);
     c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '500 24px Inter, sans-serif'; c.fillText(`${p.rank.name} · ${P.xp.toLocaleString()} XP · ${p.unlockedCount}/${D.ACHIEVEMENTS.length} achievements`, 62, 250);
     // the best things they've done
