@@ -53,6 +53,7 @@ import { london, London } from './london.js';
 import { greenland, Greenland, terrainH as glTerrainH } from './greenland.js';
 import { cairo, Cairo, terrainH as caTerrainH } from './cairo.js';
 import { avatarHtml } from './progress/avatar.js';
+import { startGlobe } from './hall-globe.js';
 if (document.fonts && document.fonts.load) for (const f of ['700 40px Cairo', '900 40px Cairo', '700 40px "Reem Kufi"']) document.fonts.load(f, 'القاهرة').catch(() => {});
 MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland; MAPS.cairo = cairo;
 
@@ -659,19 +660,20 @@ initMenu();                                                    // the title scre
     #menuPlayers .mpl-top .mpl-k{flex:1;font:700 9px Inter;letter-spacing:.28em;color:var(--faint)}
     #menuPlayers .mpl-go{font:800 8.5px Inter;letter-spacing:.16em;color:#ffb340}
     /* the players' hall */
-    #playersHall{position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse at center,rgba(40,24,4,.55),rgba(0,0,0,.72));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+    #playersHall{position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse at center,rgba(10,16,34,.6),rgba(0,0,0,.78));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
     #playersHall.open{display:flex;animation:phFade .35s ease-out}
     @keyframes phFade{from{opacity:0}to{opacity:1}}
     #playersHall .ph{position:relative;width:min(680px,100%);max-height:calc(100% - 20px);overflow:auto;padding:26px 26px 22px;border-radius:28px;text-align:center;color:#fff;font-family:-apple-system,'SF Pro Display',Inter,sans-serif;
-      background:linear-gradient(180deg,rgba(60,44,18,.78),rgba(22,18,12,.9));border:1px solid rgba(255,214,107,.45);backdrop-filter:blur(26px) saturate(170%);-webkit-backdrop-filter:blur(26px) saturate(170%);
-      box-shadow:0 40px 100px -30px rgba(0,0,0,.8),0 0 80px -20px rgba(255,180,50,.55),inset 0 1px 0 rgba(255,240,200,.35);animation:phIn .6s cubic-bezier(.2,1.25,.35,1);transform-origin:85% 15%}
+      background:linear-gradient(180deg,rgba(22,30,54,.82),rgba(6,8,16,.92));border:1px solid rgba(220,232,255,.32);backdrop-filter:blur(26px) saturate(170%);-webkit-backdrop-filter:blur(26px) saturate(170%);
+      box-shadow:0 40px 100px -30px rgba(0,0,0,.85),0 0 80px -20px rgba(140,180,255,.45),inset 0 1px 0 rgba(255,255,255,.3);animation:phIn .6s cubic-bezier(.2,1.25,.35,1);transform-origin:85% 15%}
     @keyframes phIn{from{opacity:0;transform:scale(.55) translateY(-30px)}to{opacity:1;transform:none}}
     #playersHall .ph-x{position:absolute;right:16px;top:16px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:18px;cursor:pointer;transition:background .15s,transform .15s}
     #playersHall .ph-x:hover{background:rgba(255,255,255,.24);transform:rotate(90deg)}
-    #playersHall .ph-stage{position:relative;width:190px;height:190px;margin:0 auto 4px}
+    #playersHall .ph-stage{position:relative;width:220px;height:220px;margin:-6px auto 2px;animation:phRise .9s .1s cubic-bezier(.2,1.3,.35,1) both}
+    #playersHall .ph-globe{position:absolute;inset:0;width:100%;height:100%}
     #playersHall .ph-rays{position:absolute;inset:-60px;background:repeating-conic-gradient(from 0deg,rgba(255,214,107,.22) 0 8deg,transparent 8deg 22deg);-webkit-mask:radial-gradient(circle,#000 22%,transparent 68%);mask:radial-gradient(circle,#000 22%,transparent 68%);animation:phSpin 18s linear infinite}
     @keyframes phSpin{to{transform:rotate(360deg)}}
-    #playersHall .ph-glow{position:absolute;inset:20px;border-radius:50%;background:radial-gradient(circle,rgba(255,220,120,.6),transparent 70%);animation:phPulse 2.6s ease-in-out infinite}
+    #playersHall .ph-glow{position:absolute;inset:10px;border-radius:50%;background:radial-gradient(circle,rgba(150,190,255,.32),transparent 70%);animation:phPulse 2.6s ease-in-out infinite}
     @keyframes phPulse{50%{transform:scale(1.15);opacity:.7}}
     #playersHall .ph-trophy{position:absolute;inset:0;animation:phRise .9s .15s cubic-bezier(.2,1.4,.35,1) both}
     @keyframes phRise{from{opacity:0;transform:translateY(40px) scale(.6)}to{opacity:1;transform:none}}
@@ -680,28 +682,28 @@ initMenu();                                                    // the title scre
     @keyframes phShine{0%{transform:translateX(-160px)}45%,100%{transform:translateX(160px)}}
     #playersHall .ph-spark{position:absolute;width:10px;height:10px;background:radial-gradient(circle,#fff,rgba(255,220,120,0) 70%);border-radius:50%;animation:phTw 1.8s ease-in-out infinite}
     @keyframes phTw{0%,100%{opacity:0;transform:scale(.3)}50%{opacity:1;transform:scale(1.3)}}
-    #playersHall .ph-n{font:900 64px -apple-system,'SF Pro Display',Inter,sans-serif;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;background:linear-gradient(180deg,#fff6d6,#ffd46b 45%,#f0a020);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 12px rgba(255,170,40,.45))}
-    #playersHall .ph-k{margin-top:6px;font:700 11px Inter;letter-spacing:.34em;color:rgba(255,232,190,.8)}
+    #playersHall .ph-n{font:900 64px -apple-system,'SF Pro Display',Inter,sans-serif;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;background:linear-gradient(180deg,#ffffff,#dfe8ff 55%,#9db4ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 14px rgba(180,200,255,.55))}
+    #playersHall .ph-k{margin-top:6px;font:700 11px Inter;letter-spacing:.34em;color:rgba(220,230,255,.75)}
     #playersHall .ph-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0 6px}
-    #playersHall .ph-stats div{padding:12px 8px;border-radius:16px;background:rgba(255,255,255,.07);border:1px solid rgba(255,214,107,.18)}
+    #playersHall .ph-stats div{padding:12px 8px;border-radius:16px;background:rgba(255,255,255,.07);border:1px solid rgba(200,215,255,.16)}
     #playersHall .ph-stats b{display:block;font:800 24px -apple-system,Inter,sans-serif;font-variant-numeric:tabular-nums}
-    #playersHall .ph-stats span{font:600 11px -apple-system,Inter,sans-serif;color:rgba(255,232,190,.65)}
+    #playersHall .ph-stats span{font:600 11px -apple-system,Inter,sans-serif;color:rgba(220,230,255,.6)}
     #playersHall .ph-stats .on b{color:#30d158}
-    #playersHall h4{display:flex;align-items:center;gap:10px;margin:22px 4px 10px;font:600 12px -apple-system,Inter,sans-serif;letter-spacing:.06em;color:rgba(255,232,190,.7)}
-    #playersHall h4 i{flex:1;height:1px;background:rgba(255,214,107,.25)}
+    #playersHall h4{display:flex;align-items:center;gap:10px;margin:22px 4px 10px;font:600 12px -apple-system,Inter,sans-serif;letter-spacing:.06em;color:rgba(220,230,255,.7)}
+    #playersHall h4 i{flex:1;height:1px;background:rgba(200,215,255,.22)}
     #playersHall .ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;text-align:left}
     #playersHall .ph-p{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);animation:phPop .45s cubic-bezier(.2,1.4,.35,1) both;min-width:0}
     #playersHall .ph-p b{font:600 12.5px -apple-system,Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #playersHall .ph-p.me{border-color:rgba(255,214,107,.7);background:rgba(255,200,80,.12)}
     #playersHall .ph-p .dot{width:7px;height:7px;border-radius:50%;background:#30d158;flex:none;margin-left:auto;box-shadow:0 0 6px #30d158}
     @keyframes phPop{from{opacity:0;transform:translateY(10px) scale(.9)}to{opacity:1;transform:none}}
-    #playersHall .ph-note{margin:14px 0 0;font:500 12px -apple-system,Inter,sans-serif;color:rgba(255,232,190,.6)}
+    #playersHall .ph-note{margin:14px 0 0;font:500 12px -apple-system,Inter,sans-serif;color:rgba(220,230,255,.55)}
     @media (max-width: 520px) { #menuPlayers{display:none!important} }`;
   document.head.appendChild(st);
   const box = document.createElement('div'); box.id = 'menuProfile'; box.title = 'Your profile';
   // the player count, under the profile card: everyone who has opened the game, and who's on right now
   const pl = document.createElement('div'); pl.id = 'menuPlayers'; pl.title = 'Everyone who has played Tiny World';
-  pl.innerHTML = '<div class="mpl-top"><span class="mpl-cup">🏆</span><span class="mpl-k">PLAYERS</span><span class="mpl-go">VIEW ›</span></div><div class="mpl-n">0</div><div class="mpl-o"><i></i><span></span></div>';
+  pl.innerHTML = '<div class="mpl-top"><span class="mpl-cup">🌍</span><span class="mpl-k">PLAYERS</span><span class="mpl-go">VIEW ›</span></div><div class="mpl-n">0</div><div class="mpl-o"><i></i><span></span></div>';
   pl.title = 'Everyone who has played Tiny World: click for the players\' hall';
   let shownN = 0;
   // its own section on the left, between the intro and the destinations (or, if that's too tight, a small card on the right)
@@ -734,17 +736,19 @@ initMenu();                                                    // the title scre
     const P = progress.P, c = progress.lb.counts || {}, esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
     const sparks = Array.from({ length: 9 }, (_, i) => `<i class="ph-spark" style="left:${10 + (i * 37) % 170}px;top:${8 + (i * 53) % 160}px;animation-delay:${(i * 0.23).toFixed(2)}s"></i>`).join('');
     hall.innerHTML = `<div class="ph"><button class="ph-x" aria-label="Close">×</button>
-      <div class="ph-stage"><div class="ph-rays"></div><div class="ph-glow"></div><div class="ph-trophy">${TROPHY}</div>${sparks}</div>
+      <div class="ph-stage"><div class="ph-glow"></div><canvas class="ph-globe" width="440" height="440"></canvas></div>
       <div class="ph-n">0</div><div class="ph-k">PLAYERS HAVE VISITED TINY WORLD</div>
       <div class="ph-stats"><div class="on"><b>${(c.online || 1).toLocaleString()}</b><span>Online now</span></div><div><b class="ph-today">–</b><span>Joined today</span></div><div><b class="ph-named">–</b><span>Named players</span></div></div>
       <h4><span>THE PLAYERS</span><i></i></h4><div class="ph-grid"><p class="ph-note" style="grid-column:1/-1">Loading the players…</p></div><p class="ph-note ph-guests"></p></div>`;
     hall.classList.add('open');
+    if (hall.globe) hall.globe.stop();
+    hall.globe = startGlobe(hall.querySelector('.ph-globe'), c.players || 1);
     const roll = (el, to, ms = 1600) => { const t0 = performance.now(); const f = (now) => { const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 4); el.textContent = Math.round(to * e).toLocaleString(); if (k < 1) requestAnimationFrame(f); }; requestAnimationFrame(f); };
     setTimeout(() => roll(hall.querySelector('.ph-n'), c.players || 0), 350);
     progress.lb.overview(150).then((o) => {
       if (!hall.classList.contains('open')) return;
       if (!o) { hall.querySelector('.ph-grid').innerHTML = '<p class="ph-note" style="grid-column:1/-1">Couldn\'t load the players right now.</p>'; return; }
-      if (o.players && o.players !== c.players) roll(hall.querySelector('.ph-n'), o.players, 900);
+      if (o.players && o.players !== c.players) { roll(hall.querySelector('.ph-n'), o.players, 900); hall.globe && hall.globe.setPlayers(o.players); }
       hall.querySelector('.ph-today').textContent = (o.today || 0).toLocaleString(); hall.querySelector('.ph-named').textContent = (o.named || 0).toLocaleString();
       hall.querySelector('.on b').textContent = (o.online || 1).toLocaleString();
       const me = (P.name || '').toLowerCase();
@@ -753,10 +757,11 @@ initMenu();                                                    // the title scre
       hall.querySelector('.ph-guests').textContent = guests ? `+ ${guests.toLocaleString()} more who are playing without a name yet` : '';
     });
   }
-  hall.addEventListener('click', (e) => { if (e.target === hall || e.target.closest('.ph-x')) hall.classList.remove('open'); });
+  const closeHall = () => { hall.classList.remove('open'); if (hall.globe) { hall.globe.stop(); hall.globe = null; } };
+  hall.addEventListener('click', (e) => { if (e.target === hall || e.target.closest('.ph-x')) closeHall(); });
   hall.addEventListener('pointerdown', (e) => e.stopPropagation());
   hall.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
-  addEventListener('keydown', (e) => { if (e.code === 'Escape' && hall.classList.contains('open')) { hall.classList.remove('open'); e.stopPropagation(); } }, true);
+  addEventListener('keydown', (e) => { if (e.code === 'Escape' && hall.classList.contains('open')) { closeHall(); e.stopPropagation(); } }, true);
   const draw = () => {
     const P = progress.P, r = progress.rank, n = progress.nextRank, pct = n ? Math.min(100, ((P.xp - r.xp) / (n.xp - r.xp)) * 100) : 100;
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
