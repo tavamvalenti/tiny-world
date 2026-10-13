@@ -55,6 +55,7 @@ import { cairo, Cairo, terrainH as caTerrainH } from './cairo.js';
 import { avatarHtml } from './progress/avatar.js';
 import { startGlobe } from './hall-globe.js';
 import { openInvite } from './progress/invite-ui.js';
+import { setupChat } from './chat.js';
 if (document.fonts && document.fonts.load) for (const f of ['700 40px Cairo', '900 40px Cairo', '700 40px "Reem Kufi"']) document.fonts.load(f, 'القاهرة').catch(() => {});
 MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland; MAPS.cairo = cairo;
 
@@ -798,6 +799,7 @@ initMenu();                                                    // the title scre
   box.addEventListener('click', (e) => { e.stopPropagation(); progressUI.open(e.target.closest('[data-gl]') ? 'lb' : 'profile'); });
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
   document.getElementById('menu').appendChild(box); document.getElementById('menu').appendChild(pl); document.getElementById('menu').appendChild(inv); setTimeout(placeInv, 0);
+  setupChat(progress, { menu: document.getElementById('menu'), below: () => (getComputedStyle(inv).display === 'none' ? null : inv) });
 }
 
 // allow ?map=downtown for quick testing
