@@ -54,6 +54,7 @@ import { greenland, Greenland, terrainH as glTerrainH } from './greenland.js';
 import { cairo, Cairo, terrainH as caTerrainH } from './cairo.js';
 import { avatarHtml } from './progress/avatar.js';
 import { startGlobe } from './hall-globe.js';
+import { openInvite } from './progress/invite-ui.js';
 if (document.fonts && document.fonts.load) for (const f of ['700 40px Cairo', '900 40px Cairo', '700 40px "Reem Kufi"']) document.fonts.load(f, 'القاهرة').catch(() => {});
 MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland; MAPS.cairo = cairo;
 
@@ -698,7 +699,14 @@ initMenu();                                                    // the title scre
     #playersHall .ph-p .dot{width:7px;height:7px;border-radius:50%;background:#30d158;flex:none;margin-left:auto;box-shadow:0 0 6px #30d158}
     @keyframes phPop{from{opacity:0;transform:translateY(10px) scale(.9)}to{opacity:1;transform:none}}
     #playersHall .ph-note{margin:14px 0 0;font:500 12px -apple-system,Inter,sans-serif;color:rgba(220,230,255,.55)}
-    @media (max-width: 520px) { #menuPlayers{display:none!important} }`;
+    @media (max-width: 520px) { #menuPlayers{display:none!important} }
+    #menuInvite{position:absolute;right:var(--pad);z-index:7;width:210px;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;font-family:-apple-system,'SF Pro Text',Inter,sans-serif;color:var(--fg);
+      background:linear-gradient(135deg,rgba(255,159,10,.2),rgba(48,209,88,.14));border:1px solid rgba(255,190,90,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 26px -16px var(--shadow),0 0 18px -8px rgba(255,159,10,.6);transition:transform .25s,border-color .25s,box-shadow .25s,opacity .4s}
+    #menuInvite:hover{transform:translateY(-2px);border-color:rgba(255,200,110,.85);box-shadow:0 14px 30px -14px rgba(255,170,40,.7)}
+    #menuInvite .mi-ic{font-size:20px} #menuInvite b{display:block;font:800 10px Inter;letter-spacing:.2em} #menuInvite small{display:block;margin-top:3px;font:700 11.5px -apple-system,Inter,sans-serif;color:#30d158}
+    #menuInvite .mi-go{margin-left:auto;font:700 18px Inter;color:#ffb340}
+    #menu.diving #menuInvite{opacity:0;pointer-events:none}
+    @media (max-width: 520px) { #menuInvite{display:none} }`;
   document.head.appendChild(st);
   const box = document.createElement('div'); box.id = 'menuProfile'; box.title = 'Your profile';
   // the player count, under the profile card: everyone who has opened the game, and who's on right now
@@ -708,7 +716,13 @@ initMenu();                                                    // the title scre
   let shownN = 0;
   // its own section on the left, between the intro and the destinations (or, if that's too tight, a small card on the right)
   // a bubble under the profile card; click it for the players' hall
-  const placePl = () => { pl.classList.add('card'); pl.style.top = `${box.offsetTop + box.offsetHeight + 10}px`; };
+  // invite friends: a gift bubble under the players bubble (or under the profile until the count arrives)
+  const inv = document.createElement('div'); inv.id = 'menuInvite'; inv.title = 'Invite friends and earn Cash';
+  inv.innerHTML = '<span class="mi-ic">🎁</span><span><b>INVITE FRIENDS</b><small>Earn up to $13,000</small></span><span class="mi-go">›</span>';
+  inv.addEventListener('click', (e) => { e.stopPropagation(); sfx.unlock(); openInvite(progress); });
+  inv.addEventListener('pointerdown', (e) => e.stopPropagation());
+  const placeInv = () => { const above = pl.classList.contains('on') ? pl : box; inv.style.top = `${above.offsetTop + above.offsetHeight + 10}px`; };
+  const placePl = () => { pl.classList.add('card'); pl.style.top = `${box.offsetTop + box.offsetHeight + 10}px`; placeInv(); };
   pl.addEventListener('click', (e) => { e.stopPropagation(); sfx.unlock(); openHall(); });
   pl.addEventListener('pointerdown', (e) => e.stopPropagation());
   progress.on((t, d) => {
@@ -780,10 +794,10 @@ initMenu();                                                    // the title scre
       progress.touch(true);
     } catch { /* the boards can wait */ }
   })();
-  draw(); progress.on((t) => { if (t === 'change') { draw(); if (pl.classList.contains('on')) placePl(); } });
+  draw(); progress.on((t) => { if (t === 'change') { draw(); if (pl.classList.contains('on')) placePl(); else placeInv(); } });
   box.addEventListener('click', (e) => { e.stopPropagation(); progressUI.open(e.target.closest('[data-gl]') ? 'lb' : 'profile'); });
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
-  document.getElementById('menu').appendChild(box); document.getElementById('menu').appendChild(pl);
+  document.getElementById('menu').appendChild(box); document.getElementById('menu').appendChild(pl); document.getElementById('menu').appendChild(inv); setTimeout(placeInv, 0);
 }
 
 // allow ?map=downtown for quick testing

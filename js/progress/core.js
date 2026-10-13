@@ -8,6 +8,7 @@ import * as D from './defs.js';
 import { Leaderboard } from './leaderboard.js';
 import { Wallet, ECONOMY, runPayout, diminishFor } from './economy.js';
 import { Account } from './account.js';
+import { Referral } from './referral.js';
 import { funnyName, isAutoName } from './names.js';
 
 const KEY = 'tinyworld.profile', VERSION = 1;
@@ -58,6 +59,7 @@ export class Progress {
     this.ensurePeriods();
     this.unlockRewards(true);
     this.wallet = new Wallet(this); this.wallet.open();
+    this.referral = new Referral(this);
     this.account = new Account(this);
     G.progress = this;
     addEventListener('beforeunload', () => this.save());
