@@ -41,7 +41,7 @@ export class Account {
     const r = await this.call('accountCreate', this.p.P.id, name, secret, kind, this.p.P);
     if (!r.ok) return r;
     this.a = { player: r.player, name: r.name, token: r.token, kind }; write(this.a);
-    const P = this.p.P; P.name = r.name; P.nameClaimed = r.name; P.nameStatus = 'ok'; this.p.touch(true);
+    const P = this.p.P; P.name = r.name; P.nameAuto = false; P.nameClaimed = r.name; P.nameStatus = 'ok'; this.p.touch(true);
     if (P.avatar) this.call('accountAvatar', r.player, r.token, P.avatar);       // a picture chosen before: up it goes
     return r;
   }

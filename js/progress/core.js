@@ -8,6 +8,7 @@ import * as D from './defs.js';
 import { Leaderboard } from './leaderboard.js';
 import { Wallet, ECONOMY, runPayout, diminishFor } from './economy.js';
 import { Account } from './account.js';
+import { funnyName, isAutoName } from './names.js';
 
 const KEY = 'tinyworld.profile', VERSION = 1;
 const STYLE_VALUE = { office: 42000, concrete: 36000, glass: 52000, gothic: 140000, limestone: 260000, islamic: 120000, brick: 18000, house: 14000, stucco: 16000, flat: 15000, cairo: 9000, cairobrick: 7000, nordic: 12000, boarded: 6000, garage: 8000, site: 10000 };
@@ -15,7 +16,7 @@ const STYLE_VALUE = { office: 42000, concrete: 36000, glass: 52000, gothic: 1400
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); }));
 function defaults() {
   return {
-    v: VERSION, id: uuid(), name: `Player-${Math.floor(1000 + Math.random() * 9000)}`, created: Date.now(), xp: 0,
+    v: VERSION, id: uuid(), name: funnyName(), nameAuto: true, created: Date.now(), xp: 0,
     stats: { cells: 0, damage: 0, time: 0, maps: {}, discovered: {}, mapPlaces: {}, tools: {}, vehicles: {}, landmarks: {}, boats: 0, splats: 0, events: {}, best: {}, recordMaps: {}, mapStats: {}, challengesDone: 0, acts: {} },
     records: {},          // id or id:map -> { value, prev, date, map }
     ach: {},              // achievement id -> date unlocked
@@ -47,6 +48,7 @@ export class Progress {
   constructor() {
     this.listeners = [];
     this.P = this.load();
+    if (isAutoName(this.P.name)) { this.P.name = funnyName(); this.P.nameAuto = true; this.P.nameClaimed = null; }
     this.lb = new Leaderboard(this);
     this.map = null; this.frameCells = 0; this.frameDamage = 0;
     this.burst = { n: 0, last: -99 }; this.buckets = new Array(60).fill(0); this.bucketT = 0; this.bucketI = 0;
@@ -71,7 +73,8 @@ export class Progress {
       let p = JSON.parse(raw);
       while (p && p.v < VERSION && MIGRATIONS[p.v]) p = MIGRATIONS[p.v](p);
       if (!p || typeof p !== 'object' || typeof p.xp !== 'number' || !isFinite(p.xp) || p.xp < 0) throw new Error('bad profile');
-      return merge(defaults(), p);
+      const out = merge(defaults(), p); out.nameAuto = p.nameAuto === true;   // only a name the game gave out counts as automatic
+      return out;
     } catch {
       try { localStorage.setItem(`${KEY}.corrupt-${Date.now()}`, raw); } catch { /* nowhere to keep it */ }
       return defaults();
@@ -480,7 +483,7 @@ export class Progress {
     if (clean.toLowerCase() === (this.P.nameClaimed || '').toLowerCase() && clean === this.P.name) return { ok: true };
     const r = await this.lb.claimName(clean);
     if (!r.ok) return r;
-    this.P.name = clean; this.P.nameStatus = r.local || r.offline ? 'unchecked' : 'ok'; if (r.local || r.offline) this.P.nameClaimed = null;
+    this.P.name = clean; this.P.nameAuto = false; this.P.nameStatus = r.local || r.offline ? 'unchecked' : 'ok'; if (r.local || r.offline) this.P.nameClaimed = null;
     this.touch(true); this.lb.flush();
     return r;
   }

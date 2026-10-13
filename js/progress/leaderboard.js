@@ -3,6 +3,7 @@
 // service is available; nothing in the game waits on it. Local records are never shown as global rankings.
 import { LEADERBOARD } from './config.js';
 import { RECORDS } from './defs.js';
+import { funnyName } from './names.js';
 
 const VERSION = 'tw-1';
 
@@ -77,7 +78,7 @@ export class Leaderboard {
     for (let k = 0; k < 6; k++) {
       const r = await this.claimName(P.name);
       if (r.ok) { if (!r.offline) P.nameStatus = 'ok'; return !r.offline; }
-      if (r.reason === 'taken' && /^Player-\d+$/.test(P.name)) { P.name = `Player-${Math.floor(1000 + Math.random() * 9000)}${k > 2 ? Math.floor(Math.random() * 10) : ''}`; continue; }
+      if (r.reason === 'taken' && (P.nameAuto || /^Player-\d+$/.test(P.name))) { P.name = funnyName(); P.nameAuto = true; continue; }   // a given name someone already has: another one
       P.nameStatus = 'taken'; this.status = 'name'; this.lastError = 'That name belongs to another player: choose a different one in your profile.'; return false;
     }
     return false;
