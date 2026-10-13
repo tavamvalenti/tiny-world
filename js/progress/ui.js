@@ -76,6 +76,22 @@ body.rick-on #cashChip,body.veh-on #cashChip,body.act-on #cashChip{opacity:.6}
 #progPanel .card{max-width:100%;border-radius:6px;margin-top:10px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 #progPanel .sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px;border:1px solid rgba(255,255,255,.3)}
 `;
+// every badge its own symbol (24 x 24 path data, drawn as lines)
+export const BADGE_D = {
+  wrecking: 'M12 2v6M12 8l-4 4M5 13a4 4 0 1 0 8 0a4 4 0 1 0 -8 0M15 22v-8h6v8M14 22h8M17 17h2',
+  globe2: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18',
+  shipwreck: 'M4 13l13-3 1 3-3 4H6zM10 11V4l6 5M2 21c2-1 3-1 5 0s3 1 5 0 3-1 5 0 3 1 5 0',
+  eiffel: 'M12 2l-1.5 6h3zM10.5 8l-3.5 14M13.5 8l3.5 14M8.6 15h6.8M6 22h12M9.5 11h5',
+  drone2: 'M3 7h7M14 7h7M7 7l3 5h4l3-5M9 12h6v4H9zM12 16v3',
+  burst: 'M12 2l2 6 6-3-3 6 6 2-6 2 3 6-6-3-2 6-2-6-6 3 3-6-6-2 6-2-3-6 6 3z',
+  crown2: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5zM5 19h14',
+  racecar: 'M3 15l2-5c.5-1.2 1.5-2 3-2h8c1.5 0 2.5.8 3 2l2 5v3H3zM5.9 18a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M14.9 18a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M1 11h3M1 14h2',
+  bigair: 'M2 21l7-9 4 4 3-3 6 8zM5 9c3-4 8-5 13-3M16 3l2.5 3-3 1.5',
+  slot7: 'M4 3h16v18H4zM8 7h8l-5 10M4 13h16',
+  ace: 'M12 3a9 9 0 1 0 .01 0M12 8a4 4 0 1 0 .01 0M12 1v4M12 19v4M1 12h4M19 12h4',
+  cashstack: 'M3 8h18v10H3zM5 5h14M7 2h10M12 10.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5M6 11v4M18 11v4',
+  diamond: 'M6 3h12l4 6-10 12L2 9zM2 9h20M9 3l3 18M15 3l-3 18',
+};
 const ICON = {
   boom: '<path d="M12 2l2 6 6-3-3 6 6 2-6 2 3 6-6-3-2 6-2-6-6 3 3-6-6-2 6-2-3-6 6 3z"/>', fire: '<path d="M12 22c-4 0-7-3-7-7 0-4 4-6 4-10 3 2 5 5 5 8 1-1 2-3 2-4 2 2 3 4 3 6 0 4-3 7-7 7z"/>',
   hand: '<path d="M7 12V6a1.5 1.5 0 013 0v5M10 11V4a1.5 1.5 0 013 0v7M13 11V5a1.5 1.5 0 013 0v8M16 9a1.5 1.5 0 013 0v5c0 4-3 8-7 8-3 0-5-2-6-4l-3-5a1.5 1.5 0 012.5-1.5L7 14"/>',
@@ -85,6 +101,7 @@ const ICON = {
   cash: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 9v6M18 9v6"/>',
   sled: '<path d="M3 17h13l5-3M6 17l2-5h6l3 3M9 12l1-4h3"/><path d="M2 20h14"/>', chip: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/>', target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>', crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 12H5z"/>',
 };
+Object.entries(BADGE_D).forEach(([k, d]) => { ICON[k] = `<path d="${d}"/>`; });
 const svg = (k, s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICON[k] || ICON.boom}</svg>`;
 const fmt = (v, unit) => {
   if (unit === 'm') return v >= 1000 ? `${(v / 1000).toFixed(2)} km` : `${(+v).toFixed(1)} m`;
@@ -93,7 +110,7 @@ const fmt = (v, unit) => {
   if (unit === 'cash') return `$${Math.round(v).toLocaleString()}`;
   return `${Math.round(v).toLocaleString()} ${unit}`;
 };
-const money = (v) => (v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3)}K`);
+const money = (v) => (v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class ProgressUI {
@@ -369,24 +386,59 @@ export class ProgressUI {
   // ---------- the profile card: drawn on a canvas in the game's own look ----------
   drawCard(cv = this.panel.querySelector('#ppCard')) {
     if (!cv) return null;
-    const c = cv.getContext('2d'), W = cv.width, H = cv.height, p = this.p, P = p.P, S = P.stats;
+    const c = cv.getContext('2d'), W = cv.width, H = cv.height, p = this.p, P = p.P, S = P.stats, F = '-apple-system, "SF Pro Display", Inter, sans-serif';
+    const rr = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+    const fit = (text, max, size, weight, family = F) => { let s2 = size; do { c.font = `${weight} ${s2}px ${family}`; s2 -= 2; } while (c.measureText(text).width > max && s2 > 14); };
+    // background: the chosen theme, a few stars, a low skyline
     const th = D.CARD_THEMES[p.equipped('card_theme') || 'night'] || D.CARD_THEMES.night, g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, th[0]); g.addColorStop(0.55, th[1]); g.addColorStop(1, th[2]); c.fillStyle = g; c.fillRect(0, 0, W, H);
-    for (let i = 0; i < 140; i++) { c.fillStyle = `rgba(255,255,255,${Math.random() * 0.5})`; c.fillRect(Math.random() * W, Math.random() * H * 0.6, 2, 2); }
-    // a little skyline along the bottom
-    c.fillStyle = 'rgba(0,0,0,.45)'; let x = 0; while (x < W) { const w = 30 + Math.random() * 60, h = 40 + Math.random() * 140; c.fillRect(x, H - h, w - 4, h); x += w; }
-    c.strokeStyle = 'rgba(255,212,107,.5)'; c.lineWidth = 3; c.strokeRect(18, 18, W - 36, H - 36);
-    c.fillStyle = '#ffd46b'; c.font = '700 22px Inter, sans-serif'; c.fillText('TINY WORLD', 60, 80);
-    c.fillStyle = '#ffffff'; c.font = '600 64px "Playfair Display", serif'; c.fillText(P.name, 60, 160);
-    if (P.avatar) { const im = new Image(); im.onload = () => { const r = 92, cx = W - 160, cy = 150; c.save(); c.beginPath(); c.arc(cx, cy, r, 0, 6.283); c.clip(); c.drawImage(im, cx - r, cy - r, r * 2, r * 2); c.restore(); c.strokeStyle = '#ffd46b'; c.lineWidth = 6; c.beginPath(); c.arc(cx, cy, r + 3, 0, 6.283); c.stroke(); }; im.src = P.avatar; }
-    const title = p.equipped('title') || p.rank.name; c.fillStyle = '#ffb35a'; c.font = '700 26px Inter, sans-serif'; c.fillText(title.toUpperCase(), 62, 205);
-    c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '500 24px Inter, sans-serif'; c.fillText(`${p.rank.name} · ${P.xp.toLocaleString()} XP · ${p.unlockedCount}/${D.ACHIEVEMENTS.length} achievements`, 62, 250);
-    // the best things they've done
-    const recs = Object.entries(D.RECORDS).map(([id, r]) => P.records[id] && { r, v: P.records[id].value }).filter(Boolean).slice(0, 3);
-    const lines = [[`${S.cells.toLocaleString()}`, 'blocks destroyed'], [money(S.damage), 'property damage'], ...recs.map((o) => [fmt(o.v, o.r.unit), o.r.label.toLowerCase()])].slice(0, 4);
-    lines.forEach(([v, l], i) => { const bx = 62 + i * 270; c.fillStyle = '#ffffff'; c.font = '700 34px Inter, sans-serif'; c.fillText(v, bx, 340); c.fillStyle = 'rgba(255,255,255,.6)'; c.font = '500 17px Inter, sans-serif'; c.fillText(l.length > 26 ? l.slice(0, 25) + '…' : l, bx, 368); });
-    const badges = P.equipped.badges.map((id) => D.REWARDS.find((r) => r.id === id)).filter(Boolean);
-    badges.forEach((b, i) => { const bx = W - 120 - i * 96; c.beginPath(); c.arc(bx, 120, 38, 0, 6.283); c.fillStyle = 'rgba(255,200,90,.18)'; c.fill(); c.strokeStyle = '#ffd46b'; c.lineWidth = 2; c.stroke(); c.fillStyle = '#ffd46b'; c.font = '700 13px Inter'; c.textAlign = 'center'; c.fillText(b.label.split(' ')[0].toUpperCase(), bx, 175); c.textAlign = 'left'; });
-    c.fillStyle = 'rgba(255,255,255,.45)'; c.font = '500 16px Inter, sans-serif'; c.fillText(`${Object.keys(S.maps).length} cities · ${Object.values(S.discovered).reduce((a, b) => a + b.length, 0)} places discovered · tavamadethis.com`, 62, H - 50);
+    let sd = 7; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 120; i++) { c.fillStyle = `rgba(255,255,255,${rnd() * 0.45})`; c.fillRect(rnd() * W, rnd() * H * 0.55, 2, 2); }
+    c.fillStyle = 'rgba(0,0,0,.35)'; let x = 0; while (x < W) { const w = 30 + rnd() * 60, h = 30 + rnd() * 90; c.fillRect(x, H - h, w - 4, h); x += w; }
+    c.strokeStyle = 'rgba(255,212,107,.55)'; c.lineWidth = 3; rr(20, 20, W - 40, H - 40, 26); c.stroke();
+    // top line: the game and the account id
+    c.textBaseline = 'alphabetic'; c.fillStyle = '#ffd46b'; c.font = `800 20px ${F}`; c.fillText('TINY WORLD', 56, 70);
+    if (p.account && p.account.signedIn) { c.textAlign = 'right'; c.fillStyle = 'rgba(255,255,255,.5)'; c.font = `600 16px ${F}`; c.fillText(p.account.accountId, W - 56, 70); c.textAlign = 'left'; }
+    // left: the picture, then name, title, rank and XP
+    const ax = 136, ay = 186, ar = 74;
+    c.save(); c.beginPath(); c.arc(ax, ay, ar, 0, 6.283); c.closePath(); c.fillStyle = 'rgba(255,255,255,.08)'; c.fill(); c.restore();
+    const ring = () => { c.strokeStyle = '#ffd46b'; c.lineWidth = 5; c.beginPath(); c.arc(ax, ay, ar + 3, 0, 6.283); c.stroke(); };
+    if (P.avatar) { const im = new Image(); im.onload = () => { c.save(); c.beginPath(); c.arc(ax, ay, ar, 0, 6.283); c.clip(); c.drawImage(im, ax - ar, ay - ar, ar * 2, ar * 2); c.restore(); ring(); }; im.src = P.avatar; }
+    else { c.fillStyle = '#ffd46b'; c.font = `800 64px ${F}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText((P.name || '?')[0].toUpperCase(), ax, ay + 2); c.textAlign = 'left'; c.textBaseline = 'alphabetic'; }
+    ring();
+    const tx = 236, tw = 470;
+    c.fillStyle = '#ffffff'; fit(P.name, tw, 56, 700); c.fillText(P.name, tx, 160);
+    const title = p.equipped('title') || p.rank.name; c.fillStyle = '#ffb35a'; c.font = `800 20px ${F}`; c.fillText(title.toUpperCase().split('').join(String.fromCharCode(8202)), tx, 196);
+    c.fillStyle = 'rgba(255,255,255,.8)'; c.font = `600 19px ${F}`; c.fillText(`${p.rank.name} · ${P.xp.toLocaleString()} XP`, tx, 232);
+    const n = p.nextRank, pct = n ? Math.min(1, (P.xp - p.rank.xp) / (n.xp - p.rank.xp)) : 1;
+    c.fillStyle = 'rgba(255,255,255,.15)'; rr(tx, 248, tw - 40, 10, 5); c.fill();
+    const bg = c.createLinearGradient(tx, 0, tx + tw, 0); bg.addColorStop(0, '#ffd46b'); bg.addColorStop(1, '#ff7a3a'); c.fillStyle = bg; rr(tx, 248, Math.max(10, (tw - 40) * pct), 10, 5); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.55)'; c.font = `500 15px ${F}`; c.fillText(n ? `${(n.xp - P.xp).toLocaleString()} XP to ${n.name} · ${p.unlockedCount}/${D.ACHIEVEMENTS.length} achievements` : `Top rank · ${p.unlockedCount}/${D.ACHIEVEMENTS.length} achievements`, tx, 282);
+    // right: the badges, in their own panel (up to three), each with its own symbol
+    const bx0 = 770, bw = 374, badges = P.equipped.badges.map((id) => D.REWARDS.find((r) => r.id === id)).filter(Boolean);
+    c.fillStyle = 'rgba(0,0,0,.25)'; rr(bx0, 96, bw, 200, 22); c.fill(); c.strokeStyle = 'rgba(255,212,107,.25)'; c.lineWidth = 1.5; c.stroke();
+    c.fillStyle = 'rgba(255,212,107,.8)'; c.font = `700 14px ${F}`; c.fillText('BADGES', bx0 + 22, 126);
+    if (!badges.length) { c.fillStyle = 'rgba(255,255,255,.45)'; c.font = `500 16px ${F}`; c.fillText('Earn badges with achievements', bx0 + 22, 206); }
+    badges.forEach((b, i) => {
+      const cx = bx0 + 66 + i * 121, cy = 196, r = 40;
+      const gg = c.createRadialGradient(cx - 12, cy - 14, 4, cx, cy, r); gg.addColorStop(0, 'rgba(255,224,140,.5)'); gg.addColorStop(1, 'rgba(255,170,60,.14)');
+      c.fillStyle = gg; c.beginPath(); c.arc(cx, cy, r, 0, 6.283); c.fill(); c.strokeStyle = '#ffd46b'; c.lineWidth = 2.5; c.stroke();
+      const d = BADGE_D[b.icon]; if (d) { c.save(); c.translate(cx - 21, cy - 21); c.scale(42 / 24, 42 / 24); c.strokeStyle = '#ffe9b0'; c.lineWidth = 1.7; c.lineCap = 'round'; c.lineJoin = 'round'; c.shadowColor = 'rgba(255,200,90,.9)'; c.shadowBlur = 6; c.stroke(new Path2D(d)); c.restore(); }
+      c.fillStyle = '#ffe2a0'; c.font = `700 13px ${F}`; c.textAlign = 'center'; c.fillText(b.label.length > 15 ? b.label.slice(0, 14) + '…' : b.label, cx, cy + r + 24); c.textAlign = 'left';
+    });
+    // the middle: four stat tiles
+    const recs = Object.entries(D.RECORDS).filter(([, r]) => !r.main).map(([id, r]) => P.records[id] && { r, v: P.records[id].value }).filter(Boolean).slice(0, 2);
+    const tiles = [[S.cells.toLocaleString(), 'Blocks destroyed'], [money(S.damage), 'Property damage'], ...recs.map((o) => [fmt(o.v, o.r.unit), o.r.label.replace(/^[^:]*: /, '')])];
+    while (tiles.length < 4) tiles.push([`${Object.keys(S.maps).length}`, 'Cities visited']);
+    const tw2 = (W - 112 - 3 * 16) / 4;
+    tiles.slice(0, 4).forEach(([v, l], i) => {
+      const x0 = 56 + i * (tw2 + 16), y0 = 330;
+      c.fillStyle = 'rgba(255,255,255,.07)'; rr(x0, y0, tw2, 118, 18); c.fill(); c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1.5; c.stroke();
+      c.fillStyle = '#ffffff'; fit(String(v), tw2 - 40, 34, 800); c.fillText(String(v), x0 + 20, y0 + 58);
+      c.fillStyle = 'rgba(255,255,255,.6)'; c.font = `600 15px ${F}`; const lab = l.charAt(0).toUpperCase() + l.slice(1); c.fillText(lab.length > 26 ? lab.slice(0, 25) + '…' : lab, x0 + 20, y0 + 90);
+    });
+    // footer
+    c.fillStyle = 'rgba(255,255,255,.5)'; c.font = `500 16px ${F}`; const nc = Object.keys(S.maps).length, np = Object.values(S.discovered).reduce((a, b) => a + b.length, 0); c.fillText(`${nc} ${nc === 1 ? 'city' : 'cities'} · ${np} ${np === 1 ? 'place' : 'places'} discovered`, 56, H - 52);
+    c.textAlign = 'right'; c.fillStyle = 'rgba(255,212,107,.75)'; c.font = `700 16px ${F}`; c.fillText('tavamadethis.com', W - 56, H - 52); c.textAlign = 'left';
     return cv;
   }
   downloadCard() {
