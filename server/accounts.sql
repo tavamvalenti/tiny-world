@@ -106,6 +106,10 @@ begin
   if a.player is null or a.token <> p_token then return jsonb_build_object('ok', false, 'reason', 'signed out'); end if;
   if length(p_profile::text) > 400000 then return jsonb_build_object('ok', false, 'reason', 'too big'); end if;
   if a.profile_at is not null and a.profile_at > now() - interval '3 seconds' then return jsonb_build_object('ok', false, 'reason', 'slow down'); end if;
+  -- never go backwards: a copy older than the one already kept (another device has played since) is refused
+  if a.profile is not null and coalesce((a.profile->>'savedAt')::float8, 0) > coalesce((p_profile->>'savedAt')::float8, 0) then
+    return jsonb_build_object('ok', false, 'reason', 'older');
+  end if;
   update tw_accounts set profile = p_profile, profile_at = now() where player = p_player;
   return jsonb_build_object('ok', true, 'at', now());
 end $$;
@@ -141,3 +145,17 @@ grant execute on function public.account_login(text, text) to anon;
 grant execute on function public.account_save(uuid, uuid, jsonb) to anon;
 grant execute on function public.account_load(uuid, uuid) to anon;
 grant execute on function public.account_change_secret(uuid, uuid, text, text, text) to anon;
+
+-- delete my account: the account, its saved progress, its scores and its name (needs the sign-in token)
+create or replace function public.account_delete(p_player uuid, p_token uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare a record;
+begin
+  select * into a from tw_accounts where player = p_player;
+  if a.player is null or a.token <> p_token then return jsonb_build_object('ok', false, 'reason', 'signed out'); end if;
+  delete from tw_scores where player = p_player;
+  delete from tw_accounts where player = p_player;
+  delete from tw_players where player = p_player;
+  return jsonb_build_object('ok', true);
+end $$;
+grant execute on function public.account_delete(uuid, uuid) to anon;

@@ -66,6 +66,16 @@ export class Account {
     if (r.ok) { this.a.token = r.token; this.a.kind = kind; write(this.a); }
     return r;
   }
+  // delete the account (and its scores and name) for good; this browser starts over as a guest
+  async deleteAccount() {
+    if (!this.signedIn) return { ok: false, reason: 'signed out' };
+    const r = await this.call('accountDelete', this.a.player, this.a.token);
+    if (!r.ok) return r;
+    try { const cur = localStorage.getItem(PKEY); if (cur) localStorage.setItem(`${PKEY}.deleted-${Date.now()}`, cur); localStorage.removeItem(PKEY); } catch { /* ignore */ }
+    this.a = null; write(null); this.p.save = () => {};
+    setTimeout(() => location.reload(), 900);
+    return r;
+  }
   // sign out: the progress stays safe in the account; this browser starts over as a guest
   signOut() {
     this.cloudSave(true);
@@ -87,6 +97,7 @@ export class Account {
     this.saving = false;
     if (!r.ok) {
       if (r.reason === 'signed out') { this.a = null; write(null); this.p.emit('change'); return; }
+      if (r.reason === 'older') { this.pull(); return; }                 // another device has played since: take its progress
       this.cloudDirty = true; clearTimeout(this.cloudT); this.cloudT = setTimeout(() => this.cloudSave(), 30000);   // try again later
     } else { this.lastCloud = Date.now(); this.p.emit('change'); }
   }

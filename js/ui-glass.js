@@ -106,6 +106,7 @@ const CSS = `
 #progPanel .seg span:hover{color:#fff;background:rgba(255,255,255,.08)} #progPanel .seg span.on{background:#0a84ff;color:#fff;box-shadow:0 4px 12px -4px rgba(10,132,255,.9)}
 #progPanel .acc button.go{background:linear-gradient(180deg,#3ee06a,#25b34a)!important;box-shadow:0 6px 16px -8px rgba(48,209,88,.9)!important;padding:10px 20px!important;font-size:14px!important}
 #progPanel .acc button.ghost{background:rgba(255,255,255,.12)!important;box-shadow:none!important}
+#progPanel .acc button.danger{color:#ff6961!important}
 #progPanel .acc button.mini{padding:3px 10px!important;font-size:11px!important;background:rgba(255,255,255,.14)!important;box-shadow:none!important;vertical-align:1px}
 #progPanel .acc-top{display:flex;gap:14px;align-items:center;margin-bottom:12px}
 #progPanel .acc-top .av{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font:700 20px ${SF};color:#fff;background:linear-gradient(135deg,#30d158,#0a84ff);box-shadow:0 6px 16px -6px rgba(10,132,255,.8)}

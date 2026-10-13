@@ -225,7 +225,7 @@ export class ProgressUI {
       const ago = A.lastCloud ? Math.max(0, Math.round((Date.now() - A.lastCloud) / 1000)) : null;
       return `<div class="acc in"><div class="acc-top"><span class="av">${esc((A.name || '?')[0].toUpperCase())}</span><div><b>${esc(A.name)}</b><small>Account ID <span class="aid">${A.accountId}</span> <button class="mini" data-a="acc-copy" title="Copy the account ID">Copy</button> · signs in with a ${A.kind === 'pin' ? 'PIN' : 'password'}</small><small class="sync">${ago == null ? 'Saved to your account as you play' : `Saved to your account ${ago < 60 ? 'just now' : `${Math.round(ago / 60)} min ago`}`}</small></div></div>
         ${this.accChange ? `<div class="acc-form"><label>Current ${A.kind === 'pin' ? 'PIN' : 'password'}</label>${secret('accOld', A.kind, A.kind === 'pin' ? '••••' : 'current password')}<label>New</label>${kindSeg('accNewKind')}${secret('accNew', this.accNewKind || 'pin', (this.accNewKind || 'pin') === 'pin' ? '4–8 digits' : 'at least 4 characters')}<div class="row"><button data-a="acc-go-change" class="go">Save new ${(this.accNewKind || 'pin') === 'pin' ? 'PIN' : 'password'}</button><button data-a="acc-cancel" class="ghost">Cancel</button></div></div>`
-        : `<div class="row"><button data-a="acc-change">${icon('tag', 14)} Change ${A.kind === 'pin' ? 'PIN' : 'password'}</button><button data-a="acc-signout" class="ghost">Sign out</button></div>`}${msg}</div>`;
+        : `<div class="row"><button data-a="acc-change">${icon('tag', 14)} Change ${A.kind === 'pin' ? 'PIN' : 'password'}</button><button data-a="acc-signout" class="ghost">Sign out</button><button data-a="acc-delete" class="ghost danger">${this.accDel ? 'Tap again to delete for good' : 'Delete account'}</button></div>`}${msg}</div>`;
     }
     const mode = this.accMode || 'create', kind = this.accKind || 'pin';
     return `<div class="acc"><div class="acc-head"><b>${icon('person', 16)} ${mode === 'create' ? 'Save your progress with an account' : 'Sign in to your account'}</b><div class="seg"><span data-a="acc-mode|create" class="${mode === 'create' ? 'on' : ''}">Create account</span><span data-a="acc-mode|login" class="${mode === 'login' ? 'on' : ''}">Sign in</span></div></div>
@@ -242,6 +242,10 @@ export class ProgressUI {
     if (act === 'acc-change') { this.accChange = true; this.accMsg = null; return this.render(); }
     if (act === 'acc-cancel') { this.accChange = false; f.accOld = f.accNew = ''; return this.render(); }
     if (act === 'acc-copy') { try { await navigator.clipboard.writeText(A.accountId); say('Account ID copied.', true); } catch { say(`Your account ID is ${A.accountId}`, true); } return; }
+    if (act === 'acc-delete') {
+      if (!this.accDel) { this.accDel = true; return say('This deletes your account, its saved progress and its leaderboard scores. Tap again to confirm.'); }
+      this.accDel = false; say('Deleting…', true); const r = await A.deleteAccount(); return say(r.ok ? 'Account deleted.' : (REASONS[r.reason] || 'Couldn\'t delete it. Try again.'), !!r.ok);
+    }
     if (act === 'acc-signout') { say('Signing out… your progress is safe in your account.', true); return A.signOut(); }
     const why = (r) => REASONS[r.reason] || 'Something went wrong. Try again.';
     if (act === 'acc-go-create' || act === 'acc-go-login') {

@@ -26,6 +26,7 @@ class SupabaseProvider {
   accountLogin(name, secret) { return this.rpc('account_login', { p_name: name, p_secret: secret }); }
   accountSave(player, token, profile, keepalive) { return this.rpc('account_save', { p_player: player, p_token: token, p_profile: profile }, keepalive); }
   accountLoad(player, token) { return this.rpc('account_load', { p_player: player, p_token: token }); }
+  accountDelete(player, token) { return this.rpc('account_delete', { p_player: player, p_token: token }); }
   accountChange(player, token, oldS, newS, kind) { return this.rpc('account_change_secret', { p_player: player, p_token: token, p_old: oldS, p_new: newS, p_kind: kind }); }
 }
 
@@ -33,7 +34,10 @@ export class Leaderboard {
   constructor(progress) {
     this.progress = progress;
     const c = LEADERBOARD;
-    this.provider = c.provider === 'supabase' && c.url && c.anonKey ? new SupabaseProvider(c) : null;
+    // a copy of the game running on the developer's own computer (localhost) never touches the live boards or
+    // accounts, unless ?boards=1 is in the address on purpose
+    const local = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && !/[?&]boards=1/.test(location.search);
+    this.provider = c.provider === 'supabase' && c.url && c.anonKey && !local ? new SupabaseProvider(c) : null;
     this.status = this.provider ? 'ready' : 'off';       // off | ready | offline | error
     this.lastError = '';
     if (this.provider) { setTimeout(() => this.flush(), 5000); addEventListener('online', () => this.flush()); }
