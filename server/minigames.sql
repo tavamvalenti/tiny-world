@@ -30,7 +30,9 @@ language sql immutable as $$
     ('dogfight_wave',     true, 500::float8,     false),
     ('dogfight_kills',    true, 500::float8,     false),
     ('dogfight_boss',     false, 1200::float8,   false),
-    ('dogfight_score',    true, 5000000::float8, false)
+    ('dogfight_score',    true, 5000000::float8, false),
+    -- the main board: total XP across every map
+    ('xp_total',          true, 50000000::float8, false)
   ) as c(cat, higher, max_value, per_map) where c.cat = p_category
 $$;
 

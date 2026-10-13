@@ -7,6 +7,7 @@ import { G } from '../core.js';
 import * as D from './defs.js';
 import { Leaderboard } from './leaderboard.js';
 import { Wallet, ECONOMY, runPayout, diminishFor } from './economy.js';
+import { Account } from './account.js';
 
 const KEY = 'tinyworld.profile', VERSION = 1;
 const STYLE_VALUE = { office: 42000, concrete: 36000, glass: 52000, gothic: 140000, limestone: 260000, islamic: 120000, brick: 18000, house: 14000, stucco: 16000, flat: 15000, cairo: 9000, cairobrick: 7000, nordic: 12000, boarded: 6000, garage: 8000, site: 10000 };
@@ -54,8 +55,10 @@ export class Progress {
     this.ensurePeriods();
     this.unlockRewards(true);
     this.wallet = new Wallet(this); this.wallet.open();
+    this.account = new Account(this);
     G.progress = this;
     addEventListener('beforeunload', () => this.save());
+    this.watchStorage();
   }
 
   // ---------- storage ----------
@@ -73,9 +76,38 @@ export class Progress {
       return defaults();
     }
   }
-  save() { try { localStorage.setItem(KEY, JSON.stringify(this.P)); this.dirty = false; } catch { /* not persisted */ } }
+  // Saving never goes backwards: every save carries a revision number, and a page that finds a newer save than the
+  // one it has (the game open in another tab, or a page brought back with the Back button) takes that one on instead
+  // of writing its older copy over it. Purchases, Cash and progress made in one place can't be wiped by another.
+  save() {
+    try {
+      const raw = localStorage.getItem(KEY), m = raw && /"__rev":(\d+)/.exec(raw), stored = m ? +m[1] : 0;
+      if (stored > (this.P.__rev || 0)) { this.adopt(raw); return; }
+      this.P.__rev = stored + 1; this.P.savedAt = Date.now();
+      localStorage.setItem(KEY, JSON.stringify(this.P)); this.dirty = false;
+      this.afterSave && this.afterSave();
+    } catch { /* not persisted */ }
+  }
+  // take on a newer saved profile (from another tab, or from the cloud)
+  adopt(raw) {
+    try {
+      const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!p || typeof p.xp !== 'number') return false;
+      this.P = merge(defaults(), p); this.dirty = false;
+      this.ensurePeriods(); this.emit('change'); this.emit('adopted');
+      return true;
+    } catch { return false; }
+  }
+  watchStorage() {
+    addEventListener('storage', (e) => { if (e.key === KEY && e.newValue) { const m = /"__rev":(\d+)/.exec(e.newValue); if (m && +m[1] > (this.P.__rev || 0)) this.adopt(e.newValue); } });
+    // a page restored from the browser's back / forward cache: catch up with what was saved meanwhile
+    addEventListener('pageshow', (e) => { if (e.persisted) { try { const raw = localStorage.getItem(KEY); if (raw) this.adopt(raw); } catch { /* ignore */ } } });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') { if (this.dirty) this.save(); return; } try { const raw = localStorage.getItem(KEY), m = raw && /"__rev":(\d+)/.exec(raw); if (m && +m[1] > (this.P.__rev || 0)) this.adopt(raw); } catch { /* ignore */ } });
+  }
   touch(now = false) { this.dirty = true; if (now) this.save(); this.emit('change'); }
 
+  // the Total XP board: send the XP total when it has grown (at most every 45 s, so the board isn't flooded)
+  offerXp() { if (this.P.xp > 0 && this.P.xp !== this.xpOffered) { this.xpOffered = this.P.xp; this.lb.offer('xp_total', this.P.xp, null, { rank: this.rankIndex }); } }
   // ---------- notifications to the UI ----------
   on(fn) { this.listeners.push(fn); }
   emit(type, data) { for (const f of this.listeners) { try { f(type, data); } catch (e) { console.error(e); } } }
@@ -186,6 +218,7 @@ export class Progress {
     if ((this.lmT -= dt) <= 0) { this.lmT = 2; this.landmarkCheck(); }
     if ((this.checkT -= dt) <= 0) { this.checkT = 1; this.ensurePeriods(); this.checkAchievements(); this.checkChallenges(); }
     if ((this.saveT -= dt) <= 0) { this.saveT = 5; if (this.dirty) this.save(); }
+    if ((this.xpOfferT = (this.xpOfferT ?? 8) - dt) <= 0) { this.xpOfferT = 45; this.offerXp(); }
   }
   endBurst() {
     const n = this.burst.n; this.burst.open = false; this.burst.n = 0;

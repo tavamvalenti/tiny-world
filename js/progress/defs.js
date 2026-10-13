@@ -23,6 +23,8 @@ export const M_PER_UNIT = 2.33;
 // ---------- personal records (and which ones go on the global boards) ----------
 // better: 'high' or 'low'; perMap: kept per map as well as overall; max: anything above is impossible and rejected
 export const RECORDS = {
+  // the main board: everyone's total XP across every map (sent now and then as it grows; not a personal record)
+  xp_total: { label: 'Total XP (all maps)', unit: 'XP', better: 'high', perMap: false, board: true, max: 5e7, icon: 'crown', group: 'Overall', main: true },
   destruction_event: { label: 'Biggest destruction event', unit: 'blocks', better: 'high', perMap: true, board: true, max: 60000, icon: 'boom' },
   rampage_60: { label: 'Most destruction in 60 seconds', unit: 'blocks', better: 'high', perMap: true, board: true, max: 60000, icon: 'fire' },
   car_throw: { label: 'Longest Free Hand car throw', unit: 'm', better: 'high', perMap: false, board: true, max: 900, icon: 'hand' },

@@ -90,6 +90,29 @@ const CSS = `
 #progPanel select,#progPanel input{font:500 13px ${SF}!important;border-radius:10px!important;background:rgba(255,255,255,.08)!important;border:1px solid rgba(255,255,255,.14)!important;padding:8px 10px!important;color:#fff!important;cursor:pointer}
 #progPanel input{cursor:text}
 #progPanel select:hover,#progPanel input:hover{border-color:rgba(10,132,255,.7)!important}
+/* ---------- the account box ---------- */
+#progPanel .acc{border-radius:20px;padding:16px 18px;margin-bottom:6px;background:linear-gradient(135deg,rgba(10,132,255,.16),rgba(94,92,230,.12));border:1px solid rgba(100,170,255,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+#progPanel .acc.in{background:linear-gradient(135deg,rgba(48,209,88,.14),rgba(100,210,255,.1));border-color:rgba(48,209,88,.35)}
+#progPanel .acc-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+#progPanel .acc-head b{display:flex;align-items:center;gap:7px;font:600 15px ${SF}}
+#progPanel .acc-form{display:flex;flex-direction:column;gap:7px;max-width:420px}
+#progPanel .acc-form label{font:600 12px ${SF};color:rgba(235,235,245,.65);margin-top:4px}
+#progPanel .acc-form input{font:500 16px ${SF}!important;padding:11px 14px!important;border-radius:12px!important}
+#progPanel .acc-form input.pinbox{font:700 24px ${SF}!important;letter-spacing:.5em;text-align:center;padding:10px 14px!important}
+#progPanel .sec{position:relative;display:flex} #progPanel .sec input{flex:1;padding-right:48px!important}
+#progPanel .sec .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%)!important;width:36px;height:36px;padding:0!important;font-size:16px!important;background:rgba(255,255,255,.1)!important;box-shadow:none!important}
+#progPanel .seg{display:inline-flex;padding:3px;border-radius:12px;background:rgba(255,255,255,.08);gap:2px;align-self:flex-start}
+#progPanel .seg span{padding:6px 14px;border-radius:9px;font:600 12.5px ${SF};color:rgba(235,235,245,.7);cursor:pointer;transition:background .15s,color .15s}
+#progPanel .seg span:hover{color:#fff;background:rgba(255,255,255,.08)} #progPanel .seg span.on{background:#0a84ff;color:#fff;box-shadow:0 4px 12px -4px rgba(10,132,255,.9)}
+#progPanel .acc button.go{background:linear-gradient(180deg,#3ee06a,#25b34a)!important;box-shadow:0 6px 16px -8px rgba(48,209,88,.9)!important;padding:10px 20px!important;font-size:14px!important}
+#progPanel .acc button.ghost{background:rgba(255,255,255,.12)!important;box-shadow:none!important}
+#progPanel .acc button.mini{padding:3px 10px!important;font-size:11px!important;background:rgba(255,255,255,.14)!important;box-shadow:none!important;vertical-align:1px}
+#progPanel .acc-top{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+#progPanel .acc-top .av{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font:700 20px ${SF};color:#fff;background:linear-gradient(135deg,#30d158,#0a84ff);box-shadow:0 6px 16px -6px rgba(10,132,255,.8)}
+#progPanel .acc-top b{font:700 18px ${SF}} #progPanel .acc-top small{display:block;font:500 12px ${SF};color:rgba(235,235,245,.65);margin-top:3px}
+#progPanel .acc-top .aid{font:700 12.5px ui-monospace,'SF Mono',Menlo,monospace;color:#fff;letter-spacing:.04em}
+#progPanel .acc-top .sync{color:#64d2ff}
+#progPanel .acc-msg{margin:10px 0 0;font:600 13px ${SF};color:#ff9f0a} #progPanel .acc-msg.ok{color:#30d158}
 /* ---------- settings ---------- */
 #settings .sp{width:min(540px,100%)!important}
 #settings .sp h2{padding:22px 24px 10px!important}

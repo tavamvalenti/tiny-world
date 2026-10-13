@@ -8,10 +8,10 @@ const VERSION = 'tw-1';
 
 class SupabaseProvider {
   constructor(cfg) { this.url = cfg.url.replace(/\/$/, ''); this.key = cfg.anonKey; }
-  async rpc(fn, body) {
+  async rpc(fn, body, keepalive = false) {
     const ac = new AbortController(), t = setTimeout(() => ac.abort(), 8000);
     try {
-      const r = await fetch(`${this.url}/rest/v1/rpc/${fn}`, { method: 'POST', signal: ac.signal, headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch(`${this.url}/rest/v1/rpc/${fn}`, { method: 'POST', signal: ac.signal, keepalive, headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const txt = await r.text(); let data = null; try { data = txt ? JSON.parse(txt) : null; } catch { data = txt; }
       if (!r.ok) { const e = new Error((data && data.message) || `HTTP ${r.status}`); e.status = r.status; throw e; }
       return data;
@@ -21,6 +21,12 @@ class SupabaseProvider {
   submit(s) { return this.rpc('submit_score', { p_player: s.player, p_name: s.name, p_category: s.category, p_map: s.map || '', p_value: s.value, p_evidence: s.evidence || {}, p_version: VERSION }); }
   top(category, map, limit) { return this.rpc('top_scores', { p_category: category, p_map: map || '', p_limit: limit }); }
   mine(category, map, player) { return this.rpc('my_rank', { p_category: category, p_map: map || '', p_player: player }); }
+  // accounts (server/accounts.sql)
+  accountCreate(player, name, secret, kind, profile) { return this.rpc('account_create', { p_player: player, p_name: name, p_secret: secret, p_kind: kind, p_profile: profile }); }
+  accountLogin(name, secret) { return this.rpc('account_login', { p_name: name, p_secret: secret }); }
+  accountSave(player, token, profile, keepalive) { return this.rpc('account_save', { p_player: player, p_token: token, p_profile: profile }, keepalive); }
+  accountLoad(player, token) { return this.rpc('account_load', { p_player: player, p_token: token }); }
+  accountChange(player, token, oldS, newS, kind) { return this.rpc('account_change_secret', { p_player: player, p_token: token, p_old: oldS, p_new: newS, p_kind: kind }); }
 }
 
 export class Leaderboard {

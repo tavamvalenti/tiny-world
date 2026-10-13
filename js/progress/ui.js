@@ -5,6 +5,7 @@ import { G } from '../core.js';
 import { sfx } from '../audio.js';
 import * as D from './defs.js';
 import { icon, TAB_STYLE, installGlassUI } from '../ui-glass.js';
+import { REASONS } from './account.js';
 
 const CSS = `
 #progChip{position:absolute;left:16px;top:calc(4.2vh + 70px);display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;cursor:pointer;pointer-events:auto;user-select:none;
@@ -105,6 +106,9 @@ export class ProgressUI {
     this.chip.addEventListener('click', (e) => { e.stopPropagation(); this.open(); });
     this.panel.addEventListener('click', (e) => this.click(e));
     this.panel.addEventListener('change', (e) => this.change(e));
+    this.form = {};
+    this.panel.addEventListener('input', (e) => { if (e.target.id && e.target.id.startsWith('acc')) { if (e.target.dataset.pin) e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8); this.form[e.target.id] = e.target.value; } });
+    this.panel.addEventListener('keydown', (e) => { if (e.key !== 'Enter' || !e.target.id || !e.target.id.startsWith('acc')) return; const b = this.panel.querySelector('[data-a^="acc-go"]'); if (b) b.click(); });
     progress.on((type, d) => this.onEvent(type, d));
     this.renderChip();
     installGlassUI();
@@ -148,6 +152,7 @@ export class ProgressUI {
       return;
     }
     if (type === 'bought') this.toast(`<span class="k">BOUGHT</span><b>${esc(d.label)}</b> · balance $${this.p.wallet.cash.toLocaleString()}`, { life: 3.5, color: '#7ff0a8' });
+    if (type === 'toast') this.toast(`<b>${esc(d.text)}</b>`, { life: 3, color: '#64d2ff' });
     if (type === 'xp') { const now = performance.now(); if (now - (this.lastXp || 0) > 700 || d.xp >= 50) { this.toast(`<b>+${d.xp} XP</b> ${esc(d.reason)}`, { xp: true, life: 2.2 }); this.lastXp = now; } }
     if (type === 'rankup') { this.toast(`<span class="k">RANK UP</span><b>${esc(d.rank.name.toUpperCase())}</b>`, { big: true, life: 4.5 }); sfx.cheer && sfx.cheer(T.x, T.z, 0.4); }
     if (type === 'achievement') { this.toast(`<span class="k">ACHIEVEMENT</span><b>${esc(d.name)}</b>${d.xp ? ` +${d.xp} XP` : ''}`, { life: 4 }); sfx.bell && sfx.bell(T.x, T.z); }
@@ -163,8 +168,11 @@ export class ProgressUI {
   toggle() { this.panel.classList.contains('open') ? this.close() : this.open(); }
   get isOpen() { return this.panel.classList.contains('open'); }
   render() {
+    // keep the scroll where it was when the same tab redraws (buying or equipping mustn't jump back to the top)
+    const old = this.panel.querySelector('.body'), keep = old && this.renderedTab === this.tab ? old.scrollTop : 0;
     const tabs = [['profile', 'Profile'], ['shop', 'Shop'], ['wallet', 'Wallet'], ['ach', 'Achievements'], ['chal', 'Challenges'], ['rec', 'Records'], ['rew', 'Rewards'], ['lb', 'Leaderboards']];
     this.panel.innerHTML = `<div class="pp"><header><h2>${{ profile: 'Profile', shop: 'Shop', wallet: 'Wallet', ach: 'Achievements', chal: 'Challenges', rec: 'Records', rew: 'Rewards', lb: 'Leaderboards' }[this.tab]}</h2><span class="x" data-a="close">×</span></header><nav>${tabs.map(([k, l]) => `<span data-tab="${k}" class="${k === this.tab ? 'on' : ''}" style="--tc:${TAB_STYLE[k][1]}">${icon(TAB_STYLE[k][0], 15)}${l}</span>`).join('')}</nav><div class="body">${this['tab_' + this.tab]()}</div></div>`;
+    this.renderedTab = this.tab; const body = this.panel.querySelector('.body'); if (body && keep) body.scrollTop = keep;
     if (this.tab === 'lb') this.loadBoard();
     if (this.tab === 'profile') this.drawCard();
   }
@@ -180,6 +188,7 @@ export class ProgressUI {
     }
     if (t.dataset.eq) { const [slot, id] = t.dataset.eq.split('|'); this.p.equip(slot, id); this.render(); return; }
     const a = t.dataset.a;
+    if (a && a.startsWith('acc-')) { this.accountAction(a); return; }
     if (a === 'close') this.close();
     if (a === 'name') {
       const v = this.panel.querySelector('#ppName').value, msg = this.panel.querySelector('#ppNameMsg');
@@ -200,11 +209,62 @@ export class ProgressUI {
     const visited = Object.keys(S.maps).length, places = Object.values(S.discovered).reduce((a, b) => a + b.length, 0);
     const fav = Object.entries(S.mapStats).sort((a, b) => (b[1].time || 0) - (a[1].time || 0))[0];
     const h = Math.floor(S.time / 3600), m = Math.floor((S.time % 3600) / 60);
-    return `<div class="row"><input id="ppName" value="${esc(P.name)}" maxlength="18" aria-label="Display name"><button data-a="name">SAVE NAME</button><span id="ppNameMsg" class="note">${P.nameStatus === 'taken' ? 'Your name is taken by another player: choose a new one to keep sending scores.' : 'Your name on the leaderboards (each name is unique). No real names needed.'}</span></div>
+    return `${this.accountBox()}<div class="row"><input id="ppName" value="${esc(P.name)}" maxlength="18" aria-label="Display name"><button data-a="name">SAVE NAME</button><span id="ppNameMsg" class="note">${P.nameStatus === 'taken' ? 'Your name is taken by another player: choose a new one to keep sending scores.' : 'Your name on the leaderboards (each name is unique). No real names needed.'}</span></div>
       <h4>RANK</h4><div class="it"><b>${esc(p.rank.name)} · ${P.xp.toLocaleString()} XP</b><div class="pb"><i style="width:${n ? Math.min(100, ((P.xp - p.rank.xp) / (n.xp - p.rank.xp)) * 100) : 100}%"></i></div><div class="meta"><span>${n ? `${(n.xp - P.xp).toLocaleString()} XP to ${esc(n.name)}` : 'Top rank'}</span><span>${p.unlockedCount} / ${D.ACHIEVEMENTS.length} achievements</span></div></div>
       <h4>LIFETIME</h4><div class="grid">
         ${[['Blocks destroyed', S.cells.toLocaleString()], ['Property damage', money(S.damage)], ['Landmarks brought down', Object.values(S.landmarks).reduce((a, b) => a + b.length, 0)], ['Boats sunk', S.boats], ['Cities visited', `${visited} / ${D.ALL_MAPS.length}`], ['Places discovered', places], ['Challenges completed', S.challengesDone], ['Time played', `${h}h ${m}m`], ['Favourite city', fav ? D.MAP_LABELS[fav[0]] : '—']].map(([k, v]) => `<div class="it"><p>${k}</p><b>${v}</b></div>`).join('')}</div>
       <h4>PROFILE CARD</h4><canvas id="ppCard" class="card" width="1200" height="630" style="width:100%;max-width:600px"></canvas><div class="row" style="margin-top:8px"><button data-a="card">DOWNLOAD CARD</button></div>`;
+  }
+  // ---------- the account: create / sign in, or who you are and how to change your PIN or password ----------
+  accountBox() {
+    const A = this.p.account, f = this.form, msg = this.accMsg ? `<p class="acc-msg ${this.accMsg.ok ? 'ok' : ''}">${esc(this.accMsg.text)}</p>` : '';
+    if (!A || !A.available) return '';
+    const kindSeg = (key) => { const k = this[key] || 'pin'; return `<div class="seg"><span data-a="acc-kind|${key}|pin" class="${k === 'pin' ? 'on' : ''}">PIN</span><span data-a="acc-kind|${key}|password" class="${k === 'password' ? 'on' : ''}">Password</span></div>`; };
+    const secret = (id, kind, ph) => `<div class="sec"><input id="${id}" ${kind === 'pin' ? 'data-pin="1" inputmode="numeric" pattern="[0-9]*" maxlength="8" class="pinbox"' : 'maxlength="64"'} type="${this.accShow ? 'text' : 'password'}" placeholder="${ph}" value="${esc(f[id] || '')}" autocomplete="${id === 'accSecret' && this.accMode === 'login' ? 'current-password' : 'new-password'}"><button class="eye" data-a="acc-eye" title="${this.accShow ? 'Hide' : 'Show'}">${this.accShow ? '◉' : '◎'}</button></div>`;
+    if (A.signedIn) {
+      const ago = A.lastCloud ? Math.max(0, Math.round((Date.now() - A.lastCloud) / 1000)) : null;
+      return `<div class="acc in"><div class="acc-top"><span class="av">${esc((A.name || '?')[0].toUpperCase())}</span><div><b>${esc(A.name)}</b><small>Account ID <span class="aid">${A.accountId}</span> <button class="mini" data-a="acc-copy" title="Copy the account ID">Copy</button> · signs in with a ${A.kind === 'pin' ? 'PIN' : 'password'}</small><small class="sync">${ago == null ? 'Saved to your account as you play' : `Saved to your account ${ago < 60 ? 'just now' : `${Math.round(ago / 60)} min ago`}`}</small></div></div>
+        ${this.accChange ? `<div class="acc-form"><label>Current ${A.kind === 'pin' ? 'PIN' : 'password'}</label>${secret('accOld', A.kind, A.kind === 'pin' ? '••••' : 'current password')}<label>New</label>${kindSeg('accNewKind')}${secret('accNew', this.accNewKind || 'pin', (this.accNewKind || 'pin') === 'pin' ? '4–8 digits' : 'at least 4 characters')}<div class="row"><button data-a="acc-go-change" class="go">Save new ${(this.accNewKind || 'pin') === 'pin' ? 'PIN' : 'password'}</button><button data-a="acc-cancel" class="ghost">Cancel</button></div></div>`
+        : `<div class="row"><button data-a="acc-change">${icon('tag', 14)} Change ${A.kind === 'pin' ? 'PIN' : 'password'}</button><button data-a="acc-signout" class="ghost">Sign out</button></div>`}${msg}</div>`;
+    }
+    const mode = this.accMode || 'create', kind = this.accKind || 'pin';
+    return `<div class="acc"><div class="acc-head"><b>${icon('person', 16)} ${mode === 'create' ? 'Save your progress with an account' : 'Sign in to your account'}</b><div class="seg"><span data-a="acc-mode|create" class="${mode === 'create' ? 'on' : ''}">Create account</span><span data-a="acc-mode|login" class="${mode === 'login' ? 'on' : ''}">Sign in</span></div></div>
+      <div class="acc-form"><label>Username</label><input id="accName" maxlength="18" placeholder="your name on the leaderboards" value="${esc(f.accName ?? (mode === 'create' ? this.p.P.name : ''))}" autocomplete="username">
+      <label>${mode === 'create' ? 'Choose a PIN or a password' : 'PIN or password'}</label>${kindSeg('accKind')}${secret('accSecret', kind, kind === 'pin' ? (mode === 'create' ? '4–8 digits' : 'your PIN') : (mode === 'create' ? 'at least 4 characters' : 'your password'))}
+      <div class="row"><button data-a="acc-go-${mode}" class="go">${mode === 'create' ? 'Create account' : 'Sign in'}</button><span class="note">${mode === 'create' ? 'Your progress so far, Cash and purchases go with it. Sign in on any device to carry on.' : 'This browser switches to the account\'s progress; what\'s here now is kept aside.'}</span></div></div>${msg}</div>`;
+  }
+  async accountAction(a) {
+    const A = this.p.account, f = this.form, say = (text, ok = false) => { this.accMsg = { text, ok }; this.render(); };
+    const [act, x, y] = a.split('|');
+    if (act === 'acc-mode') { this.accMode = x; this.accMsg = null; return this.render(); }
+    if (act === 'acc-kind') { this[x] = y; const id = x === 'accKind' ? 'accSecret' : 'accNew'; f[id] = ''; return this.render(); }
+    if (act === 'acc-eye') { this.accShow = !this.accShow; return this.render(); }
+    if (act === 'acc-change') { this.accChange = true; this.accMsg = null; return this.render(); }
+    if (act === 'acc-cancel') { this.accChange = false; f.accOld = f.accNew = ''; return this.render(); }
+    if (act === 'acc-copy') { try { await navigator.clipboard.writeText(A.accountId); say('Account ID copied.', true); } catch { say(`Your account ID is ${A.accountId}`, true); } return; }
+    if (act === 'acc-signout') { say('Signing out… your progress is safe in your account.', true); return A.signOut(); }
+    const why = (r) => REASONS[r.reason] || 'Something went wrong. Try again.';
+    if (act === 'acc-go-create' || act === 'acc-go-login') {
+      const name = (f.accName ?? (act === 'acc-go-create' ? this.p.P.name : '')).trim(), sec = f.accSecret || '', kind = this.accKind || 'pin';
+      if (name.length < 3) return say('Enter a username (at least 3 characters).');
+      if (kind === 'pin' && !/^\d{4,8}$/.test(sec) && act === 'acc-go-create') return say(REASONS['bad pin']);
+      if (sec.length < 4) return say(kind === 'pin' ? REASONS['bad pin'] : REASONS['bad password']);
+      say(act === 'acc-go-create' ? 'Creating your account…' : 'Signing in…', true);
+      const r = act === 'acc-go-create' ? await A.create(name, sec, kind) : await A.login(name, sec);
+      if (!r.ok) return say(why(r));
+      f.accSecret = '';
+      return say(act === 'acc-go-create' ? `Account created. Welcome, ${r.name}! Your account ID is ${A.accountId}.` : `Signed in as ${r.name}. Loading your progress…`, true);
+    }
+    if (act === 'acc-go-change') {
+      const kind = this.accNewKind || 'pin', o = f.accOld || '', nw = f.accNew || '';
+      if (kind === 'pin' && !/^\d{4,8}$/.test(nw)) return say(REASONS['bad pin']);
+      if (nw.length < 4) return say(REASONS['bad password']);
+      say('Saving…', true);
+      const r = await A.changeSecret(o, nw, kind);
+      if (!r.ok) return say(why(r));
+      this.accChange = false; f.accOld = f.accNew = '';
+      return say(`Done. You now sign in with your new ${kind === 'pin' ? 'PIN' : 'password'}.`, true);
+    }
   }
   tab_ach() {
     const cats = [...new Set(D.ACHIEVEMENTS.map((a) => a.cat))];
@@ -242,8 +302,8 @@ export class ProgressUI {
   }
   tab_rec() {
     const P = this.p.P;
-    const groups = [...new Set(Object.values(D.RECORDS).map((r) => r.group || 'Sandbox'))];
-    return groups.map((grp) => `<h4>${esc(grp.toUpperCase())}</h4><div class="grid">${Object.entries(D.RECORDS).filter(([, r]) => (r.group || 'Sandbox') === grp).map(([id, r]) => { const rec = P.records[id]; const perMap = r.perMap ? D.ALL_MAPS.map((m) => P.records[`${id}:${m}`] ? `${D.MAP_LABELS[m]}: ${fmt(P.records[`${id}:${m}`].value, r.unit)}` : null).filter(Boolean) : [];
+    const groups = [...new Set(Object.values(D.RECORDS).filter((r) => !r.main).map((r) => r.group || 'Sandbox'))];
+    return groups.map((grp) => `<h4>${esc(grp.toUpperCase())}</h4><div class="grid">${Object.entries(D.RECORDS).filter(([, r]) => !r.main && (r.group || 'Sandbox') === grp).map(([id, r]) => { const rec = P.records[id]; const perMap = r.perMap ? D.ALL_MAPS.map((m) => P.records[`${id}:${m}`] ? `${D.MAP_LABELS[m]}: ${fmt(P.records[`${id}:${m}`].value, r.unit)}` : null).filter(Boolean) : [];
       return `<div class="it ${rec ? 'done' : 'locked'}"><b>${svg(r.icon, 14)} ${esc(r.label)}</b>${rec ? `<p style="font-size:16px;color:#fff;margin-top:6px">${fmt(rec.value, r.unit)}</p><div class="meta"><span>${rec.map ? D.MAP_LABELS[rec.map] || '' : ''} · ${new Date(rec.date).toLocaleDateString()}</span><span>${rec.prev != null ? `was ${fmt(rec.prev, r.unit)}` : ''}</span></div>${perMap.length > 1 ? `<p>${perMap.join(' · ')}</p>` : ''}${this.globalLine(id, r, rec)}` : '<p>No record yet.</p>'}</div>`; }).join('')}</div>`).join('');
   }
   // the global standing of a record, from the last time it was sent (or still waiting to go)
@@ -261,8 +321,8 @@ export class ProgressUI {
   }
   tab_lb() {
     const lb = this.p.lb, P = this.p.P, cats = Object.entries(D.RECORDS).filter(([, r]) => r.board);
-    this.lbCat ||= cats[0][0]; const def = D.RECORDS[this.lbCat]; this.lbMap ||= this.p.map || 'downtown';
-    const local = def.perMap ? P.records[`${this.lbCat}:${this.lbMap}`] : P.records[this.lbCat];
+    this.lbCat ||= 'xp_total'; const def = D.RECORDS[this.lbCat]; this.lbMap ||= this.p.map || 'downtown';
+    const local = this.lbCat === 'xp_total' ? { value: P.xp } : def.perMap ? P.records[`${this.lbCat}:${this.lbMap}`] : P.records[this.lbCat];
     const pend = P.pending.length;
     return `<div class="row"><select id="lbCat">${[...new Set(cats.map(([, r]) => r.group || 'Sandbox'))].map((g) => `<optgroup label="${esc(g)}">${cats.filter(([, r]) => (r.group || 'Sandbox') === g).map(([k, r]) => `<option value="${k}" ${k === this.lbCat ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</optgroup>`).join('')}</select>${def.perMap ? `<select id="lbMap">${D.ALL_MAPS.map((m) => `<option value="${m}" ${m === this.lbMap ? 'selected' : ''}>${D.MAP_LABELS[m]}</option>`).join('')}</select>` : ''}</div>
       <h4>GLOBAL TOP 10 · PLAYERS EVERYWHERE</h4><div id="lbBox">${lb.configured ? (this.lbCache && this.lbCache[`${this.lbCat}:${def.perMap ? this.lbMap : ''}`] || '<p class="note">Loading…</p>') : `<p class="note">Global leaderboards aren't switched on yet. Your best scores are kept here${pend ? ` (${pend} waiting to be sent)` : ''} and will be sent automatically as soon as they are.</p>`}</div>

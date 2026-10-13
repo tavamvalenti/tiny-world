@@ -641,8 +641,8 @@ initMenu();                                                    // the title scre
     const P = progress.P, r = progress.rank, n = progress.nextRank, pct = n ? Math.min(100, ((P.xp - r.xp) / (n.xp - r.xp)) * 100) : 100;
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     // the best global placing across every board you're on
-    const ranks = Object.values(P.global || {}).map((g) => g && g.rank).filter((r) => r > 0), best = ranks.length ? Math.min(...ranks) : 0;
-    const badge = progress.lb.configured ? `<span class="mp-rank ${best ? '' : 'none'}" title="Your best global leaderboard placing">${best ? `GLOBAL #${best}` : 'UNRANKED'}</span>` : '';
+    const xr = ((P.global || {})['xp_total:'] || {}).rank, ranks = Object.values(P.global || {}).map((g) => g && g.rank).filter((r) => r > 0), best = xr || (ranks.length ? Math.min(...ranks) : 0);   // the Total XP rank first
+    const badge = progress.lb.configured ? `<span class="mp-rank ${best ? '' : 'none'}" title="Your global rank on Total XP">${best ? `GLOBAL #${best}` : 'UNRANKED'}</span>` : '';
     box.innerHTML = `<div class="mp-top"><span class="mp-k">PROFILE</span>${badge}</div><div class="mp-n">${esc(P.name)}</div><div class="mp-r">${esc((progress.equipped('title') || r.name).toUpperCase())}</div>
       <div class="mp-b"><i style="width:${pct}%"></i></div><div class="mp-s"><span>${P.xp.toLocaleString()} XP</span><span style="color:#7ff0a8;font-weight:800">$${(progress.wallet ? progress.wallet.cash : 0).toLocaleString()}</span><span>${progress.unlockedCount} achievements</span></div>${progress.lb.configured ? '<button class="mp-gl" data-gl="1">GLOBAL RANKINGS</button>' : ''}`;
   };
