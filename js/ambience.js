@@ -56,8 +56,8 @@ export class Ambience {
     }).catch((e) => console.warn('city ambience unavailable', e));
     // surf: a deep rumble plus a soft, muffled wash (no bright white-noise hiss, which read as static)
     this.surf = [bed(I.brown, 'lowpass', 360, 0.6, -0.3), bed(I.pink, 'lowpass', 1100, 0.5, 0.3)];
-    // crowd murmur: two decorrelated loops for width
-    this.murmur = [-0.5, 0.5].map((pan) => {
+    // crowd murmur: removed by request (2026-10-26); the looped crowd-voice bed is off on every map
+    this.murmur = [].map((pan) => {
       const s = ctx.createBufferSource(); s.buffer = I.voicePool.murmur; s.loop = true;
       const bp = I.filt('bandpass', 900, 0.5), lp = I.filt('lowpass', 2400), g = I.amp(0), p = ctx.createStereoPanner();
       p.pan.value = pan; s.playbackRate.value = pan < 0 ? 0.97 : 1.04;
