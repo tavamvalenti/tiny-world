@@ -12,7 +12,7 @@ export const RANKS = [
   { name: 'City Legend', xp: 20000 },
 ];
 
-export const MAP_LABELS = { downtown: 'Gaslamp District', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London', greenland: 'Sisimiut', cairo: 'Cairo' };
+export const MAP_LABELS = { downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London', greenland: 'Sisimiut', cairo: 'Cairo' };
 export const ALL_MAPS = Object.keys(MAP_LABELS);
 export const TOOLS = ['hand', 'laser', 'bomb', 'wind', 'meteor'];
 export const VEHICLES = ['rick', 'drone', 'chair', 'jetpack'];
@@ -132,7 +132,7 @@ const common = (map, label) => [
   { id: 'landmarks', name: `Tourist Trap`, desc: `Bring down 3 landmarks in ${label}.`, xp: 300, test: (S) => [lmk(map)(S), 3] },
 ];
 export const MAP_CHALLENGES = [
-  ...MC('downtown', [...common('downtown', 'the Gaslamp'), { id: 'harbor', name: 'Harbour Patrol', desc: 'Sink 5 boats in San Diego Bay.', xp: 200, test: (S) => [md('downtown', 'boats')(S), 5] }]),
+  ...MC('downtown', [...common('downtown', 'San Diego'), { id: 'harbor', name: 'Harbour Patrol', desc: 'Sink 5 boats in San Diego Bay.', xp: 200, test: (S) => [md('downtown', 'boats')(S), 5] }, { id: 'cbridge', name: 'Bridge Out', desc: 'Drop a span of the Coronado Bridge into the bay.', xp: 400, test: (S) => [S.events.coronado_bridge || 0, 1] }]),
   ...MC('suburbs', [...common('suburbs', 'Chicago'), { id: 'throw', name: 'Windy City', desc: 'Throw a car 40 m with the Free Hand in Chicago.', xp: 200, test: (S) => [Math.round(md('suburbs', 'carThrow')(S)), 40] }]),
   ...MC('tropical', [...common('tropical', 'La Playa'), { id: 'fleet', name: 'Gone Fishing', desc: 'Sink 8 boats off La Playa.', xp: 200, test: (S) => [md('tropical', 'boats')(S), 8] }]),
   ...MC('vegas', [...common('vegas', 'Las Vegas'), { id: 'strip', name: 'House Always Loses', desc: 'Destroy 5,000 blocks on the Strip.', xp: 350, test: (S) => [md('vegas', 'cells')(S), 5000] }]),

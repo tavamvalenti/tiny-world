@@ -25,6 +25,12 @@ const LOOKS = {
   performer: [[0xff2a6a, 0x2ad4ff, 0xffd200, 0x8a2aff, 0x2aff8a, 0xff7a00], 'torso', [0x111111, 0xf2f2ee, 0x2a2a6a], [0x1a1410, 0xffd200, 0xff2a6a]],
   busker: [[0x3a3a3e, 0x6b5a45, 0x2b3445], 'torso', 0x1c1d22, null],
   fisher: [[0xf2c21a, 0xe8601a, 0xf26a1a, 0x2a5aa8, 0xe8601a], 'torso', [0xf2c21a, 0xe8601a, 0x1c1d22], null],
+  // San Diego: sailors (working uniform, whites, khakis), flight deck crews in their coloured jerseys, Marines, MPs,
+  // Barrio Logan's cholos, the Hotel del's staff
+  navy: [0x2d3e5e, 'torso', 0x2d3e5e, null], navywhite: [0xf4f4f0, 'torso', 0xf4f4f0, null], khaki: [0xc9b48a, 'torso', 0x2a2a2e, null],
+  flightdeck: [[0xe8c81a, 0x2f8a3a, 0xc8201a, 0x6a2a8a, 0x3a6ac8, 0xf2f2ee, 0x8a5a2a], 'torso', 0x6b6248, 0xe8e8e2], marine: [0x8b7d5a, 'torso', 0x8b7d5a, null],
+  mp: [0x2d3e5e, 'torso', 0x2d3e5e, 0x111111, 1], cholo: [[0xf6f6f2, 0xf6f6f2, 0x1c1d20, 0x2a3a6a, 0x5a1a1a], 'torso', [0x8a7d5e, 0x1c1d20, 0x3a3a3e], 0x0e0e0e],
+  hotelstaff: [0xf2f2ee, 'torso', 0x1c1d22, null],
   roadman: [[0x0c0c0e, 0x111214, 0x16171a, 0x1c1d20, 0x0c0c0e], 'torso', [0x0c0c0e, 0x16171a, 0x2a2b2e, 0x3a3b3e], 0x0a0a0a], commuter: [[0x1c1d22, 0x2b3445, 0x4a4a4e, 0x6b5a45], 'torso', [0x1c1d22, 0x2a3448], null],
 };
 const HAIR = [0x1a1410, 0x2e2118, 0x5a3b22, 0x8a6a3a, 0xc9a86a, 0x6b6b6b, 0x0e0e0e];
@@ -152,6 +158,8 @@ export class Agents {
     this.pace = 1; this.frame = 0;
 
     for (let i = 0; i < opts.cars; i++) this.spawnCar(i);
+    // San Diego: some of the traffic starts out on the Coronado Bridge (js/sdbay.js lays them along the deck)
+    if (city.bridgeEdge && G.sdbay) for (let i = 0; i < Math.min(opts.cars, 22); i++) G.sdbay.placeOnBridge(this.cars[i], i / 22);
     city.parked.forEach((p, i) => this.spawnParked(opts.cars + i, p));
     for (let i = 0; i < E; i++) this.spawnEmergency(opts.cars + city.parked.length + i, EMERG_TYPES[i]);
     // police posted at events: parked with lights going, sirens silent, never dispatched
@@ -201,7 +209,7 @@ export class Agents {
     if (V && V.bus && c.scale[2] > 2) { const b = pick(V.bus.kinds); c.color = new THREE.Color(b.color); c.scale = [1.15, b.h || 1.7, b.len || 3.2]; c.len = 0.8 * c.scale[2]; this.carBody.setColorAt(i, c.color); }
     else if (V && V.limo && !c.moto && c.scale[1] < 1.2 && Math.random() < V.limo.p) { c.color = new THREE.Color(pick(V.limo.colors)); c.scale = [1, 0.95, 1.9]; c.len = 0.8 * 1.9; this.carBody.setColorAt(i, c.color); }
     const C = this.city;
-    let edges = [...C.edges.values()].filter((e) => !e.blocked);
+    let edges = [...C.edges.values()].filter((e) => !e.blocked && !e.bridge);
     const hs = C.hotspot;
     if (hs && Math.random() < 0.5) {
       const near = edges.filter((e) => Math.hypot((C.nodes[e.a].x + C.nodes[e.b].x) / 2 - hs.x, (C.nodes[e.a].z + C.nodes[e.b].z) / 2 - hs.z) < hs.r);
@@ -291,7 +299,9 @@ export class Agents {
   }
   planTurn(c, nextId) {
     const C = this.city, A = C.nodes[c.from], B = C.nodes[c.to], N = C.nodes[nextId];
-    const p0 = { x: c.pos.x, z: c.pos.z }, p2 = this.entryPoint(B, N);
+    const onto = C.edge(B.id, nextId);
+    const deck = onto && onto.bridge && G.sdbay ? G.sdbay.bridgePath(B.id, c) : null;       // the Coronado Bridge: follow its curve
+    const p0 = { x: c.pos.x, z: c.pos.z }, p2 = deck ? deck[0] : this.entryPoint(B, N);
     let ctrl;
     if (nextId === c.from) {
       const d = this.laneDir(A, B);
@@ -307,9 +317,10 @@ export class Agents {
       pts.push({ x: u * u * p0.x + 2 * u * t * ctrl.x + t * t * p2.x, z: u * u * p0.z + 2 * u * t * ctrl.z + t * t * p2.z });
     }
     c.from = c.to; c.to = nextId;
-    c.queue = [...pts, this.stopPoint(B, N)];
+    c.queue = deck ? [...pts, ...deck] : [...pts, this.stopPoint(B, N)];
   }
   uTurn(c) {
+    if (c.deck && G.sdbay && G.sdbay.uTurnOnBridge(c)) return;                          // turn round on the bridge deck, not across the bay
     const C = this.city, A = C.nodes[c.from], B = C.nodes[c.to];
     const d = this.laneDir(A, B), off = C.roadW / 4 * (C.side || 1);
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
@@ -358,6 +369,7 @@ export class Agents {
       this.planTurn(c, n);
     }
     const wp = c.queue[0];
+    c.deck = !!wp.deck;
     const dx = wp.x - c.pos.x, dz = wp.z - c.pos.z, dist = Math.hypot(dx, dz);
     let target = c.maxSpeed * (c.flee > 0 ? 1.6 : 1);
     if (wp.stop) {
@@ -390,7 +402,7 @@ export class Agents {
       }
     }
     for (const o of this.cars) {
-      if (o === c || o.state === 'hidden') continue;
+      if (o === c || o.state === 'hidden' || Math.abs(o.pos.y - c.pos.y) > 1.5) continue;     // (the bridge deck is over the streets)
       const ox = o.pos.x - c.pos.x, oz = o.pos.z - c.pos.z;
       const along = ox * fx + oz * fz;
       if (along <= 0 || along > 4) continue;
@@ -404,10 +416,10 @@ export class Agents {
     }
     const hx = c.pos.x + fx * 1.2, hz = c.pos.z + fz * 1.2;
     const cell = this.grid.get(this.gk(hx, hz));
-    if (cell) for (const p of cell) if (p.state !== 'air' && Math.hypot(p.pos.x - hx, p.pos.z - hz) < 0.8) target = Math.min(target, 0);
+    if (cell) for (const p of cell) if (p.state !== 'air' && Math.abs(p.pos.y - c.pos.y) < 1.5 && Math.hypot(p.pos.x - hx, p.pos.z - hz) < 0.8) target = Math.min(target, 0);
     // yield to trolleys at the transit-mall crossings
     if (G.trains && (G.trains.blocks(c.pos.x + fx * 1.8, c.pos.z + fz * 1.8) || G.trains.blocks(c.pos.x + fx * 3.6, c.pos.z + fz * 3.6))) target = 0;
-    const obs = C.obstacleNear(c.pos.x + fx * 2, c.pos.z + fz * 2, 0.7);
+    const obs = C.obstacleNear(c.pos.x + fx * 2, c.pos.z + fz * 2, 0.7) && (!c.deck || C.obstacles.some((o) => o.kind === 'gap' && Math.hypot(o.x - c.pos.x - fx * 2, o.z - c.pos.z - fz * 2) < o.r + 0.7));
     if (obs) target = 0;
     if (target < 0.1 && (obs || c.speed < 0.1)) {
       c.stuck += dt;
@@ -421,6 +433,9 @@ export class Agents {
   moveCar(c, dt) {
     c.pos.x += Math.sin(c.heading) * c.speed * dt;
     c.pos.z += Math.cos(c.heading) * c.speed * dt;
+    // up and over the Coronado Bridge: the deck carries the car (and drops it if a span has gone)
+    if (c.deck && G.sdbay) { const y = G.sdbay.deckAt(c.pos.x, c.pos.z); if (y == null) { if (c.pos.y > 0.5) this.launch(c, { x: Math.sin(c.heading), z: Math.cos(c.heading) }, c.speed, 0, true, 2); } else c.pos.y = y; }
+    else if (c.pos.y !== 0 && c.state === 'drive') c.pos.y = 0;
   }
 
   updateAir(a, dt, isCar) {
@@ -435,7 +450,8 @@ export class Agents {
       a.pos.sub(_v); a.vel.x *= -0.3; a.vel.z *= -0.3;
       if (isCar) B.damage(hitCell, Math.min(60, a.vel.length() * 8), 0, a.pos);
     }
-    const floor = B.surfaceAt(a.pos.x, a.pos.z, a.pos.y + 0.2).y;
+    let floor = B.surfaceAt(a.pos.x, a.pos.z, a.pos.y + 0.2).y;
+    if (G.sdbay) { const d = G.sdbay.deckAt(a.pos.x, a.pos.z); if (d != null && a.pos.y >= d - 0.4) floor = Math.max(floor, d); }   // landing on the bridge deck
     if (a.pos.y <= floor) {
       a.pos.y = floor;
       if (a.vel.y < -3) {
@@ -460,6 +476,12 @@ export class Agents {
       // set down gently by the Free Hand: upright, parked, still a working car
       a.gentle = false; a.flipped = false; a.airborneBefore = false; a.state = 'parked'; a.speed = 0; a.q.setFromAxisAngle(UP, a.heading);
       return;
+    }
+    if (isCar && a.pos.y < 0.3 && this.city.deepWater && this.city.deepWater(a.pos.x, a.pos.z)) {
+      // into the bay: a splash and it's gone
+      if (G.sdbay) G.sdbay.splash(a.pos.x, a.pos.z, 1.3);
+      if (a.driver) { const d = a.driver; a.driver = null; d.car = null; d.pos.set(a.pos.x, 0, a.pos.z); this.drown(d); }
+      a.state = 'hidden'; a.deck = false; a.pos.y = 0; return;
     }
     if (isCar) {
       a.state = 'wreck';
@@ -859,7 +881,7 @@ export class Agents {
         for (const off of [0, 0.8, -0.8, 1.6, -1.6, 2.6]) {
           const h = want + off, sp = p.speed * 3.2;
           const nx = p.pos.x + Math.sin(h) * sp * dt * 6, nz = p.pos.z + Math.cos(h) * sp * dt * 6;
-          if (!G.buildings.inside(_p.set(nx, 0.3, nz)) && !C.obstacleNear(nx, nz, 0.2) && Math.abs(nx) < C.half + 10 && Math.abs(nz) < C.half + 10) {
+          if (!G.buildings.inside(_p.set(nx, 0.3, nz)) && !C.obstacleNear(nx, nz, 0.2) && (C.inBounds ? C.inBounds(nx, nz) : Math.abs(nx) < C.half + 10 && Math.abs(nz) < C.half + 10)) {
             p.heading = h; p.pos.x += Math.sin(h) * sp * dt; p.pos.z += Math.cos(h) * sp * dt; moved = true; break;
           }
         }

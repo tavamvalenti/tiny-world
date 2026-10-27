@@ -9,8 +9,9 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 // ---------- ground painter ----------
 export class Ground {
-  constructor(extent, res = 4096) {
-    this.E = extent; this.res = res;
+  // cx, cz: the centre of the patch it covers (a map's main ground sits at 0, 0; San Diego's bay is a second one)
+  constructor(extent, res = 4096, cx = 0, cz = 0) {
+    this.E = extent; this.res = res; this.cx = cx; this.cz = cz;
     this.c = canvas(res, res);
     this.x = this.c.getContext('2d');
     this.k = res / (extent * 2);
@@ -19,19 +20,23 @@ export class Ground {
     this.tex.anisotropy = 16;
     this.dirtyT = -1;
   }
-  px(x) { return (x + this.E) * this.k; }
-  rect(x0, z0, x1, z1, style) { this.x.fillStyle = style; this.x.fillRect(this.px(x0), this.px(z0), (x1 - x0) * this.k, (z1 - z0) * this.k); }
+  px(x) { return (x - this.cx + this.E) * this.k; }
+  pz(z) { return (z - this.cz + this.E) * this.k; }
+  rect(x0, z0, x1, z1, style) { this.x.fillStyle = style; this.x.fillRect(this.px(x0), this.pz(z0), (x1 - x0) * this.k, (z1 - z0) * this.k); }
   line(x0, z0, x1, z1, w, style, dash = null) {
     const x = this.x;
     x.strokeStyle = style; x.lineWidth = w * this.k; x.setLineDash(dash ? dash.map((d) => d * this.k) : []);
-    x.beginPath(); x.moveTo(this.px(x0), this.px(z0)); x.lineTo(this.px(x1), this.px(z1)); x.stroke();
+    x.beginPath(); x.moveTo(this.px(x0), this.pz(z0)); x.lineTo(this.px(x1), this.pz(z1)); x.stroke();
     x.setLineDash([]);
   }
-  circle(cx, cz, r, style) { const x = this.x; x.fillStyle = style; x.beginPath(); x.arc(this.px(cx), this.px(cz), r * this.k, 0, 6.283); x.fill(); }
-  grainRect(x0, z0, x1, z1, a = 0.25, s = 40) { grain(this.x, this.px(x0), this.px(z0), (x1 - x0) * this.k, (z1 - z0) * this.k, a, 128, s); }
+  circle(cx, cz, r, style) { const x = this.x; x.fillStyle = style; x.beginPath(); x.arc(this.px(cx), this.pz(cz), r * this.k, 0, 6.283); x.fill(); }
+  // a filled polygon [[x, z], ...]
+  poly(pts, style) { const x = this.x; x.fillStyle = style; x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(this.px(a), this.pz(b)) : x.moveTo(this.px(a), this.pz(b)))); x.closePath(); x.fill(); }
+  grainRect(x0, z0, x1, z1, a = 0.25, s = 40) { grain(this.x, this.px(x0), this.pz(z0), (x1 - x0) * this.k, (z1 - z0) * this.k, a, 128, s); }
   // Persistent scorch decal painted into the ground texture.
   scorch(cx, cz, r, a = 0.8) {
-    const x = this.x, X = this.px(cx), Z = this.px(cz), R = r * this.k;
+    const x = this.x, X = this.px(cx), Z = this.pz(cz), R = r * this.k;
+    if (X < -R || Z < -R || X > this.res + R || Z > this.res + R) return;
     const g = x.createRadialGradient(X, Z, 0, X, Z, R);
     g.addColorStop(0, `rgba(12,10,8,${a})`); g.addColorStop(0.55, `rgba(20,16,12,${a * 0.6})`); g.addColorStop(1, 'rgba(20,16,12,0)');
     x.fillStyle = g; x.beginPath(); x.arc(X, Z, R, 0, 6.283); x.fill();

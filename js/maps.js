@@ -6,6 +6,8 @@ import { petcoLayout, paintPetco } from './petco.js';
 import { paintCourts } from './court.js';
 import { buildHills } from './playa.js';
 import { buildLandmarks } from './sandiego.js';
+import { SD_XS, SD_ZS, sdLive, sdSkipEdge, sdExtension } from './sdworld.js';
+import { BRIDGE, BRIDGE_ENDS } from './sdgeo.js';
 
 export const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace);
 export const TINT = {
@@ -32,7 +34,8 @@ function outskirts(ctx, kind) {
   for (let a = 0; a + 1 < X.length; a++) for (let b = 0; b + 1 < Z.length; b++) {
     const x0 = X[a] + hw, x1 = X[a + 1] - hw, z0 = Z[b] + hw, z1 = Z[b + 1] - hw;
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-    const inner = cx > city.xs[0] && cx < city.xs[city.xs.length - 1] && cz > city.zs[0] && cz < city.zs[city.zs.length - 1];
+    const K = ctx.core || { x0: city.xs[0], x1: city.xs[city.xs.length - 1], z0: city.zs[0], z1: city.zs[city.zs.length - 1] };
+    const inner = cx > K.x0 && cx < K.x1 && cz > K.z0 && cz < K.z1;
     if (inner || (ctx.skipOuter && ctx.skipOuter(cx, cz))) continue;
     const blk = { x0, x1, z0, z1 };
     city.paintSidewalk(g, blk);
@@ -134,8 +137,25 @@ export function policeHQ(ctx, b) {
 // ================= DOWNTOWN =================
 export function downtown(B) {
   const P = [-66, -44, -22, 0, 22, 44, 66];
-  const ctx = makeCtx({ xs: P, zs: P, roadW: 5, sw: 1.7, half: 66, extent: 112, centerLine: 'yellow' }, B);
+  // one street grid for the whole bay (js/sdworld.js): the Gaslamp is its -66..66 core; Barrio Logan carries on south
+  // and Coronado's village sits across the water. Corners off the land are dropped.
+  const ctx = makeCtx({ xs: SD_XS, zs: SD_ZS, roadW: 5, sw: 1.7, half: 66, extent: 112, centerLine: 'yellow',
+    skipNode: (i, j) => !sdLive(SD_XS[i], SD_ZS[j]), skipEdge: sdSkipEdge }, B);
   const { city, g } = ctx;
+  ctx.core = { x0: -66, x1: 66, z0: -66, z1: 66 };
+  city.coreXs = P;
+  const I0 = SD_XS.indexOf(-66), extBlocks = [];
+  // the Coronado Bridge is one long street between its two ends (cars follow its curve, js/sdbay.js)
+  {
+    const nodeAt = ([x, z]) => city.nodes.find((n) => n.x === x && n.z === z && !n.dead);
+    const A = nodeAt(BRIDGE_ENDS[0]), Bn = nodeAt(BRIDGE_ENDS[1]);
+    A.edges.push(Bn.id); Bn.edges.push(A.id);
+    city.edges.set(city.ek(A.id, Bn.id), { a: A.id, b: Bn.id, blocked: false, rubble: 0, bridge: true });
+    city.bridgeEdge = city.edge(A.id, Bn.id); city.bridgeNodes = [A.id, Bn.id];
+    A.lit = Bn.lit = false;
+    city.bridgePath = BRIDGE.map(([x, , z]) => [x, z]);
+    city.ownBridge = true;
+  }
   // the real skyline: One America Plaza and Emerald Plaza on Broadway by the depot, the Grand Hyatt on the Marina (js/sandiego.js)
   const special = { '2,3': 'park', '0,4': 'hyatt', '0,5': 'hyatt', '4,1': 'parking', '3,2': 'plaza', '5,5': 'petco', '4,4': 'petco', '5,4': 'petco', '4,5': 'petco', '0,3': 'oneAmerica', '1,3': 'emerald', '5,1': 'innout', '2,5': 'innout', '0,1': 'innout' };
   const landmarkBlocks = {};
@@ -143,9 +163,10 @@ export function downtown(B) {
   // light rail runs down the street at z = 0 (a trolley-only transit mall), with two stations
   // the harbour is the west edge: seawall at x = -74, open water beyond (see harbor.js)
   city.shoreX = -74;
+  city.harborZ1 = 66;                                        // the seawall promenade stops where Barrio Logan begins
   city.deepWater = (x) => x < city.shoreX - 1;              // the bay: nobody walks on it
   city.bridgeClear = [{ x: -45, z: 124, r: 22 }, { x: -62, z: 112, r: 16 }];
-  ctx.skipOuter = (x, z) => x < -70;
+  ctx.skipOuter = (x, z) => x < -70 || z > 66;
   city.rail = { z: 0, stations: [{ x: 11, name: 'CIVIC CENTER' }, { x: -33, name: 'GASLAMP QUARTER' }] };
   city.towers = [];
   // Petco Park takes a 2x2 block site in the south-east; the streets through it are closed
@@ -176,9 +197,11 @@ export function downtown(B) {
     city.closeArea(outer);
   }
   for (const b of city.blocks) {
-    const kind = special[`${b.i},${b.j}`];
+    if (!(b.x0 >= -66 && b.x1 <= 66 && b.z0 >= -66 && b.z1 <= 66)) { extBlocks.push(b); continue; }
+    const key = `${b.i - I0},${b.j}`;
+    const kind = special[key];
     if (kind === 'petco' || kind === 'hyatt') { b.closed = true; continue; }
-    if (`${b.i},${b.j}` === '1,1') { city.paintSidewalk(g, b); policeHQ(ctx, b); continue; }
+    if (key === '1,1') { city.paintSidewalk(g, b); policeHQ(ctx, b); continue; }
     city.paintSidewalk(g, b);
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     city.lampsAlongBlock(b, 7.5);
@@ -207,7 +230,7 @@ export function downtown(B) {
     } else if (kind === 'tower') {
       // supertall: full-block podium, then a slimmer shaft with setbacks; the tallest gets a crown (see signs.js)
       g.rect(b.lx0 - 0.6, b.lz0 - 0.6, b.lx1 + 0.6, b.lz1 + 0.6, '#9b968d');
-      const floors = towerFloors[`${b.i},${b.j}`], W = b.lx1 - b.lx0 + 1.2, D = b.lz1 - b.lz0 + 1.2;
+      const floors = towerFloors[key], W = b.lx1 - b.lx0 + 1.2, D = b.lz1 - b.lz0 + 1.2;
       const style = floors >= 55 ? 'office' : pick(['office', 'concrete']);
       const t = B.add({ x: cx, z: cz, w: W - 0.4, d: D - 0.4, floors, style, tint: TINT.office(), cell: 2.1, fh: 1.05, gh: 1.9,
         setbacks: [{ f: 6, n: 1 }, { f: Math.round(floors * 0.55), n: 2 }, { f: floors - 6, n: 3 }] });
@@ -260,7 +283,9 @@ export function downtown(B) {
   }
   buildLandmarks(ctx, landmarkBlocks);
   outskirts(ctx, 'city');
-  return { ...ctx, agents: { cars: 60, peds: 400, wanderFrac: 0.1 }, fog: 0xc6cdd3, start: { x: 0, z: 8 }, water: { shore: -74, axis: 'x' }, xMin: -110 };
+  const ext = sdExtension(ctx, extBlocks);
+  return { ...ctx, agents: { cars: 96, peds: 620, wanderFrac: 0.12 }, fog: 0xc6cdd3, start: { x: 0, z: 8 }, water: { mask: true },
+    g2: ext.g2, groundCut: 68.5, xMin: -290, xMax: 104, zMin: -100, zMax: 300, maxD: 230 };
 }
 
 // ================= TROPICAL: LA PLAYA =================
@@ -428,7 +453,7 @@ const chicagoBrick = () => {
   return hsl(0.1, 0.05, rand(0.62, 0.72));                                       // painted grey
 };
 // age a building: grimy/cracked cells, the odd boarded window; abandoned ones are boarded up and fire-scarred
-function weather(b, abandoned = false) {
+export function weather(b, abandoned = false) {
   const scorched = abandoned && Math.random() < 0.5, fireFloor = Math.floor(rand(0, b.floors));
   for (const c of b.cells) {
     if (abandoned) {
@@ -443,7 +468,7 @@ function weather(b, abandoned = false) {
   }
   return b;
 }
-function junk(city, x, z) {
+export function junk(city, x, z) {
   city.addProp('junk', x, z, rand(0, 6.28), rand(0.6, 1.4));
   city.props[city.props.length - 1].color = hsl(rand(0.05, 0.6), rand(0, 0.12), rand(0.25, 0.5));
 }

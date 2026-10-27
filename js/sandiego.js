@@ -162,7 +162,7 @@ export class SanDiego {
         }
       }
     }
-    this.coronado(scene);
+    if (!city.ownBridge) this.coronado(scene);           // the bay is part of the map now (js/sdworld.js, js/sdbay.js)
   }
   hexRing(x, y, z, R) {
     const segs = [];

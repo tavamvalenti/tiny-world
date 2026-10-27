@@ -128,7 +128,10 @@ const MILESTONES = [10, 25, 50, 100, 200, 350, 500, 750, 1000];
 // Plaza and the Westin sit on Broadway at Kettner, as they do); Chicago's are South Side streets; La Playa's are
 // the kind of names every Mexican beach town has.
 const STREETS = {
-  downtown: { x: ['Kettner Boulevard', 'India Street', 'Columbia Street', 'Union Street', 'Front Street', 'Fourth Avenue', 'Fifth Avenue'], z: ['Ash Street', 'A Street', 'B Street', 'C Street', 'Broadway', 'Market Street', 'Harbor Drive'] },
+  // San Diego's grid runs from Coronado (x -264) to Barrio Logan (x 88), and south to z 198; Coronado has its own names
+  downtown: { x: [null, null, null, null, null, null, null, null, null, 'Kettner Boulevard', 'India Street', 'Columbia Street', 'Union Street', 'Front Street', 'Fourth Avenue', 'Fifth Avenue', 'Sampson Street'],
+    z: ['Ash Street', 'A Street', 'B Street', 'C Street', 'Broadway', 'Market Street', 'Harbor Drive', 'Imperial Avenue', 'National Avenue', 'Logan Avenue', 'Newton Avenue', 'Main Street', 'Harbor Drive'],
+    alt: { test: (x, z) => x < -140, x: ['Ocean Boulevard', 'Alameda Boulevard', 'F Avenue', 'Orange Avenue', 'C Avenue', 'Glorietta Boulevard'], x0: -264, z: { 110: 'First Street', 132: 'Third Street', 154: 'Fifth Street', 176: 'Seventh Street', 198: 'Ninth Street' } } },
   suburbs: { x: ['Wentworth Avenue', 'State Street', 'Michigan Avenue', 'King Drive', 'Cottage Grove Avenue'], z: ['Pershing Road', '43rd Street', '47th Street', '51st Street', 'Garfield Boulevard'] },
   vegas: { x: ['Frank Sinatra Drive', 'Las Vegas Boulevard', 'Koval Lane', 'Paradise Road'], z: ['Desert Inn Road', 'Sands Avenue', 'Flamingo Road', 'Harmon Avenue', 'Tropicana Avenue', 'Mandalay Bay Road', 'Russell Road'] },
   cairo: { x: ['Faisal Street', 'Pyramids Road', 'Murad Street', 'the Giza Corniche', 'Corniche el-Nil', 'Talaat Harb', 'Mohamed Farid', 'Port Said Street', 'Al-Muizz Street', 'Salah Salem', 'Al-Azhar Street', 'Mohammed Ali Street'], z: ['Ramses Street', '26th of July', 'Al-Galaa', 'Abdel Khalek Tharwat', 'Qasr al-Nil', 'Tahrir Street', 'Al-Azhar Street', 'Sheikh Rihan', 'Qasr al-Aini', 'Al-Saliba', 'Sayeda Zeinab', 'Magra al-Oyoun'] },
@@ -257,6 +260,14 @@ export class News {
   street(x, z) {
     const S = STREETS[this.map], C = this.city;
     if (!S || !C.xs || !C.zs) return null;
+    if (S.alt && S.alt.test(x, z)) {
+      // Coronado's own streets
+      const A = S.alt, i = Math.round((x - A.x0) / 22), X = A.x[Math.max(0, Math.min(A.x.length - 1, i))], zk = Math.round((z + 66) / 22) * 22 - 66, Z = A.z[zk];
+      const dx = Math.abs(x - (A.x0 + i * 22)), dz = Math.abs(z - zk);
+      if (!X && !Z) return null;
+      if (X && Z && dx < 6 && dz < 6) return { at: [Z, X] };
+      return { on: (dx < dz && X) || !Z ? X : Z };
+    }
     const near = (arr, v) => arr.reduce((b, a, k) => (Math.abs(v - a) < b.d ? { k, d: Math.abs(v - a) } : b), { k: 0, d: 1e9 });
     const nx = near(C.xs, x), nz = near(C.zs, z), X = S.x[nx.k], Z = S.z[nz.k];
     if (!X || !Z) return null;

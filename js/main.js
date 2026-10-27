@@ -47,6 +47,7 @@ const progress = new Progress(), progressUI = new ProgressUI(progress);   // the
 const minimap = new Minimap();
 G.boatsOnBlast = boatsOnBlast; G.solidHit = solidHit;
 import { addRipples, gatherWakes, buildPools } from './water.js';
+import { SDBay, makeBayWater } from './sdbay.js';
 import { Chains } from './chains.js';
 import { vegas, Vegas } from './vegas.js';
 import { london, London } from './london.js';
@@ -62,7 +63,7 @@ if (document.fonts && document.fonts.load) for (const f of ['700 40px Cairo', '9
 MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland; MAPS.cairo = cairo;
 
 const TOUCH = document.documentElement.classList.contains('touch');   // phones and tablets (set in index.html)
-export const MAP_NAMES = { downtown: 'GASLAMP DISTRICT', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON', greenland: 'SISIMIUT', cairo: 'CAIRO' };
+export const MAP_NAMES = { downtown: 'SAN DIEGO, CA', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON', greenland: 'SISIMIUT', cairo: 'CAIRO' };
 
 const $ = (s) => document.querySelector(s);
 const canvasEl = $('#game');
@@ -165,6 +166,14 @@ function makeWater(shore, axis = 'z') {
   return { mesh: m, timeU };
 }
 
+// a rectangle of a ground patch (the patch's texture mapped onto it)
+function groundPiece(g, x0, x1, z0, z1, mat) {
+  const geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) - (g.cx - g.E)) / (2 * g.E), 1 - (pos.getZ(i) - (g.cz - g.E)) / (2 * g.E));
+  const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; return m;
+}
+
 // ---------- load a map ----------
 let running = false, water = null, mapName = '', tod = null, ambience = null, signs = null;
 function load(name) {
@@ -184,11 +193,24 @@ function load(name) {
   scene.fog = new THREE.Fog(map.fog, 100, 300);
 
   const gmat = new THREE.MeshStandardMaterial({ map: map.g.tex, roughness: 0.93, metalness: 0 });
-  G.groundMat = gmat; G.mapName = name;
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.g.E * 2, map.g.E * 2).rotateX(-Math.PI / 2), gmat);
-  ground.receiveShadow = true;
-  scene.add(ground);
-  if (map.water) { water = makeWater(map.water.shore, map.water.axis); scene.add(water.mesh); }
+  G.groundMat = gmat; G.mapName = name; G.groundMats = [gmat];
+  if (map.g2) {
+    // San Diego: the Gaslamp's ground stops at its south edge; the bay's own ground patch (js/sdworld.js) covers the rest
+    const g2mat = new THREE.MeshStandardMaterial({ map: map.g2.tex, roughness: 0.93, metalness: 0 });
+    G.groundMats.push(g2mat);
+    const E = map.g.E, cut = map.groundCut, g2 = map.g2;
+    scene.add(groundPiece(map.g, -E, E, -E, cut, gmat));
+    scene.add(groundPiece(g2, g2.cx - g2.E, -E, g2.cz - g2.E, g2.cz + g2.E, g2mat), groundPiece(g2, -E, g2.cx + g2.E, cut, g2.cz + g2.E, g2mat));
+    const D = map.g, sc = D.scorch.bind(D), up = D.update.bind(D);
+    D.scorch = (x, z, r, a) => { if (z < cut && x > -E) sc(x, z, r, a); else g2.scorch(x, z, r, a); };
+    D.update = (dt) => { up(dt); g2.update(dt); };
+    D.second = g2;
+  } else {
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.g.E * 2, map.g.E * 2).rotateX(-Math.PI / 2), gmat);
+    ground.receiveShadow = true;
+    scene.add(ground);
+  }
+  if (map.water) { water = map.water.mask ? makeBayWater() : makeWater(map.water.shore, map.water.axis); scene.add(water.mesh); }
   buildPools(scene, map.city.pools, map.city.ponds);                          // pools and ponds painted on the ground get real water
 
   B.finalize(scene);
@@ -197,6 +219,7 @@ function load(name) {
   map.city.build(scene);
   G.playa = map.city.playa ? new Playa(scene, map.city) : null;
   G.sandiego = map.city.landmarks ? new SanDiego(scene, map.city) : null;
+  G.sdbay = map.city.sd ? new SDBay(scene, map.city) : null;                 // San Diego Bay: the bridge, Coronado, the bases (js/sdbay.js)
   G.chains = map.city.chains ? new Chains(scene, map.city) : null;           // In-N-Out (Gaslamp), Raising Cane's (Chicago)
   G.vegas = map.city.vegas ? new Vegas(scene, map.city) : null;              // the Strip's landmarks, fountains, Sphere, mountains
   G.london = map.city.london ? new London(scene, map.city) : null;           // the Thames, the landmarks, the city around them
@@ -213,6 +236,7 @@ function load(name) {
   G.fx = new FX(scene);
   G.gore = new Gore(scene);
   G.agents = new Agents(scene, map.city, map.agents);
+  if (G.sdbay) G.sdbay.paintLowriders();
   G.chaos = new Chaos(G.agents);
   new Roles(scene, map.city, name, sites);                 // sets G.roles
   new Pets(scene, name, map.city);                          // dogs on walks, a groundskeeper mowing (sets G.pets)
@@ -227,7 +251,7 @@ function load(name) {
   for (const [id, ldn, def] of [['gang', 'Roadmen', 'Gang Member'], ['e-gang', 'Knife Fight', 'Gang Conflict']]) { const b = worldMenu.querySelector(`[data-id="${id}"]`); if (b) { b.textContent = name === 'london' ? ldn : def; b.dataset.label = b.textContent; } }
   G.weapons = new Weapons(scene, camera);
   cam.x = map.start.x; cam.z = map.start.z;
-  cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half; cam.zMax = map.zMax ?? map.city.half;
+  cam.half = map.city.half; cam.zMin = map.zMin ?? -map.city.half; cam.xMin = map.xMin ?? -map.city.half; cam.zMax = map.zMax ?? map.city.half; cam.xMax = map.xMax ?? map.city.half;
   cam.yaw = cam.yawT = cam.yaw0 = map.yaw ?? 0.32; cam.maxD = map.maxD ?? 200; cam.tilt = cam.tiltT = 0;
   if (camera.fov !== 24) { camera.fov = 24; camera.updateProjectionMatrix(); }
   $('#mapTitle').textContent = MAP_NAMES[name];
@@ -268,7 +292,7 @@ function updateCamera(dt) {
   const ease = 1 - Math.exp(-dt * 10), mx = drag.x * ease + drag.vx * dt, mz = drag.z * ease + drag.vz * dt;
   drag.x -= drag.x * ease; drag.z -= drag.z * ease;
   const fr = Math.exp(-dt * 4.5); drag.vx *= fr; drag.vz *= fr;
-  cam.x = clamp(cam.x + cam.vx * dt + mx, cam.xMin ?? -cam.half, cam.half);
+  cam.x = clamp(cam.x + cam.vx * dt + mx, cam.xMin ?? -cam.half, cam.xMax ?? cam.half);
   cam.z = clamp(cam.z + cam.vz * dt + mz, cam.zMin, cam.zMax ?? cam.half);
   const rs = 0.9 * settings.rotateSpeed / 100;
   // vertical view: R looks up toward the horizon, F back down (V or the RESET VIEW button returns to the locked view)
@@ -413,6 +437,7 @@ function step(dt) {
   G.playa && G.playa.update(dt);
   G.pets && G.pets.update(dt);
   G.sandiego && G.sandiego.update();
+  G.sdbay && G.sdbay.update(dt);
   G.chains && G.chains.update();
   G.vegas && G.vegas.update(dt);
   G.london && G.london.update(dt);
@@ -584,7 +609,7 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     }
     $('#loading').style.display = 'none';
     $('#hud').style.display = 'block';
-    rick = new RickMode(scene, camera, post, cam, renderer);              // Rick's ship (the RICK & MORTY button; RIDE on phones)
+    rick = new RickMode(scene, camera, post, cam, renderer);              // Rick's ship (the WUBLUBDUBDUB button; RIDE on phones)
     veh = new VehicleMode(scene, camera, post, cam, renderer);            // the VEHICLES button (RIDE on phones)
     hub = new ActivityHub(scene, camera, post, cam, renderer, ACTIVITY_DEFS);   // the PLAY button and the mini-games
     if (TOUCH) touchPlay = new TouchPlay({ rick, veh, hub });             // phones and tablets: RIDE / PLAY and the on-screen controls

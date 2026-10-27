@@ -398,7 +398,7 @@ export class RickMode {
     const hud = document.getElementById('hud');
     // the button sits next to WORLD in the bottom bar
     this.btn = document.createElement('span'); this.btn.id = 'rickBtn'; this.btn.title = 'Fly the Wublubdubdub ship';
-    this.btn.innerHTML = '<span class="rk-portal"><i class="rk-swirl"></i><i class="rk-swirl s2"></i><i class="rk-core"></i><b class="rk-chars" style="display:grid;place-items:center;font-size:22px">🛸</b><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i></span>RICK &amp; MORTY';
+    this.btn.innerHTML = '<span class="rk-portal"><i class="rk-swirl"></i><i class="rk-swirl s2"></i><i class="rk-core"></i><b class="rk-chars" style="display:grid;place-items:center;font-size:22px">🛸</b><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i></span>WUBLUBDUBDUB';
     document.getElementById('weapons').appendChild(this.btn);
     this.hud = document.createElement('div'); this.hud.id = 'rickHud';
     this.hud.innerHTML = `<div class="rk-reticle"></div><div class="rk-heat"><i></i></div>
@@ -516,7 +516,7 @@ export class RickMode {
     this.keys = {};
     // back to the normal view, over where the ship was
     const C = this.cam, fwd = _v.set(0, 0, -1).applyQuaternion(this.quat);
-    C.x = clamp(this.pos.x, C.xMin ?? -C.half, C.half); C.z = clamp(this.pos.z, C.zMin, C.zMax ?? C.half);
+    C.x = clamp(this.pos.x, C.xMin ?? -C.half, C.xMax ?? C.half); C.z = clamp(this.pos.z, C.zMin, C.zMax ?? C.half);
     C.yaw = C.yawT = Math.atan2(-fwd.x, -fwd.z); C.distT = 70; C.tiltT = 0;
   }
 

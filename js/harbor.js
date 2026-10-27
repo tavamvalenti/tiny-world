@@ -134,18 +134,19 @@ export class Harbor {
   constructor(scene, city, ground) {
     const X0 = city.shoreX; // seawall line; water lies at x < X0
     this.X0 = X0; this.boats = [];
-    const E = ground.E;
+    const E = ground.E, Z1 = city.harborZ1 ?? E, XC = (city.coreXs || city.xs)[0];   // San Diego: the promenade ends where the shore turns south-east
+    this.isLand = city.isLand || null;
     // ---- ground: promenade + seabed tint under the transparent water ----
     ground.rect(-E, -E, X0, E, '#23404f');
-    ground.rect(X0, -E, city.xs[0] - city.roadW / 2, E, '#b9b2a4');
-    for (let z = -E; z < E; z += 1.2) ground.line(X0, z, city.xs[0] - city.roadW / 2, z, 0.03, 'rgba(0,0,0,.08)');
-    ground.line(X0 + 0.1, -E, X0 + 0.1, E, 0.25, '#8d877c');
+    ground.rect(X0, -E, XC - city.roadW / 2, Z1, '#b9b2a4');
+    for (let z = -E; z < Z1; z += 1.2) ground.line(X0, z, XC - city.roadW / 2, z, 0.03, 'rgba(0,0,0,.08)');
+    ground.line(X0 + 0.1, -E, X0 + 0.1, Z1, 0.25, '#8d877c');
     ground.tex.needsUpdate = true;
-    for (let z = -E + 4; z < E - 2; z += 7) {
+    for (let z = -E + 4; z < Z1 - 6; z += 7) {
       city.addTree(X0 + 2.2, z + rand(-0.5, 0.5), 1, 'palm');
       city.addLamp(X0 + 0.6, z + 3.5, -Math.PI / 2);
     }
-    (city.wanderZones ||= []).push({ x0: X0 + 0.6, x1: city.xs[0] - city.roadW / 2 - 0.5, z0: -60, z1: 60 });
+    (city.wanderZones ||= []).push({ x0: X0 + 0.6, x1: XC - city.roadW / 2 - 0.5, z0: -60, z1: 60 });
     for (let i = 0; i < 8; i++) (city.crowds ||= []).push({ x: X0 + rand(1.5, 3.5), z: rand(-60, 60), r: 0.6, n: Math.round(rand(2, 5)) });
 
     const white = new THREE.MeshStandardMaterial({ color: 0xeef0f0, roughness: 0.55, side: THREE.DoubleSide });
@@ -240,7 +241,7 @@ export class Harbor {
     this.boatMesh.castShadow = true;
     scene.add(this.boatMesh);
 
-    this.buildBridge(scene, { white, blue, deckMat, dark });
+    if (!city.ownBridge) this.buildBridge(scene, { white, blue, deckMat, dark });          // San Diego's bridge is real now (js/sdbay.js)
   }
 
   buildBridge(scene, M) {
@@ -349,39 +350,8 @@ export class Harbor {
     scene.add(this.headL, this.tailL);
   }
 
-  updateShips(dt) {
-    const T = G.camTarget, far = this.X0 - 260;
-    for (const s of this.ships || []) {
-      s.t -= dt;
-      if (s.phase === 'boarding') {
-        // passengers walk down to the terminal (only bother while someone's watching)
-        if (G.roles && Math.hypot(s.door.x - T.x, s.door.z - T.z) < 70 && (s.inT = (s.inT || 0) - dt) <= 0) {
-          s.inT = rand(3, 6);
-          const p = G.agents.peds.find((q) => q.state === 'walk' && !q.role && !q.officer && Math.hypot(q.pos.x - s.door.x, q.pos.z - s.door.z) < 40);
-          if (p) { G.roles.look(p, 'TOURIST'); G.roles.visit(p, { x: s.door.x + rand(-0.8, 0.8), z: s.door.z }, rand(60, 120), true); }
-        }
-        if (s.t < 25 && !s.warned) { s.warned = true; G.news && G.news.post('LOCAL', 'Cruise ship preparing to depart the harbor.', 1, 'cruise-dep'); }
-        if (s.t <= 0) { s.phase = 'departing'; s.v = 0; s.warned = false; }
-      } else if (s.phase === 'departing') {
-        // out into the channel, swing round to the north and sail up the bay toward the sea
-        s.z ??= s.sz; s.yaw ??= Math.PI;
-        const lane = this.X0 - 58;
-        if (s.x > lane + 0.5) { s.v = Math.min(2.4, s.v + dt * 0.12); s.x -= s.v * dt; }
-        else { s.yaw += (Math.PI / 2 - s.yaw) * Math.min(1, dt * 0.35); s.v = Math.min(3.4, s.v + dt * 0.1); if (Math.abs(s.yaw - Math.PI / 2) < 0.3) s.z -= s.v * dt; }
-        if (s.z < -260) { s.phase = 'away'; s.t = rand(120, 260); s.g.visible = false; }
-      } else if (s.phase === 'away') {
-        if (s.t <= 0) { s.phase = 'arriving'; s.x = this.X0 - 58; s.z = -260; s.yaw = -Math.PI / 2; s.v = 3.2; s.g.visible = true; G.news && G.news.post('LOCAL', 'Cruise ship arriving at the downtown terminal.', 1, 'cruise-arr'); }
-      } else if (s.phase === 'arriving') {
-        // down the bay, turn at the pier, back in to the berth
-        if (s.z < s.sz - 0.1) { const d = s.sz - s.z; s.z += Math.max(0.4, Math.min(3.2, d * 0.04)) * dt; }
-        else { s.z = s.sz; s.yaw += (Math.PI - s.yaw) * Math.min(1, dt * 0.35); if (Math.abs(s.yaw - Math.PI) < 0.05) { const d = s.sx - s.x; s.x += Math.max(0.25, Math.min(1.6, d * 0.05)) * dt; if (d < 0.05) { s.x = s.sx; s.yaw = Math.PI; s.phase = 'boarding'; s.t = rand(150, 280); } } }
-      }
-      s.g.position.x = s.x; if (s.z != null) s.g.position.z = s.z; if (s.yaw != null) s.g.rotation.y = s.yaw;
-    }
-  }
-  update(dt) {
-    this.updateShips(dt);
-    const n = G.night || 0;
+  updateBridge(n) {
+    const dt = G.dt || 1 / 60;
     // vehicles keep a gap to the one ahead in their lane, and loop at the ends (both ends are far off-screen)
     const byLane = {};
     for (const c of this.cars) (byLane[c.lane] ||= []).push(c);
@@ -417,16 +387,57 @@ export class Harbor {
     this.headL.instanceMatrix.needsUpdate = this.tailL.instanceMatrix.needsUpdate = true;
     this.headL.material.color.setRGB(0.55 + n * 3.2, 0.55 + n * 3.0, 0.5 + n * 2.4);
     this.tailL.material.color.setRGB(0.5 + n * 2.6, 0.04, 0.03);
+  }
+  updateShips(dt) {
+    const T = G.camTarget, far = this.X0 - 260;
+    for (const s of this.ships || []) {
+      s.t -= dt;
+      if (s.phase === 'boarding') {
+        // passengers walk down to the terminal (only bother while someone's watching)
+        if (G.roles && Math.hypot(s.door.x - T.x, s.door.z - T.z) < 70 && (s.inT = (s.inT || 0) - dt) <= 0) {
+          s.inT = rand(3, 6);
+          const p = G.agents.peds.find((q) => q.state === 'walk' && !q.role && !q.officer && Math.hypot(q.pos.x - s.door.x, q.pos.z - s.door.z) < 40);
+          if (p) { G.roles.look(p, 'TOURIST'); G.roles.visit(p, { x: s.door.x + rand(-0.8, 0.8), z: s.door.z }, rand(60, 120), true); }
+        }
+        if (s.t < 25 && !s.warned) { s.warned = true; G.news && G.news.post('LOCAL', 'Cruise ship preparing to depart the harbor.', 1, 'cruise-dep'); }
+        if (s.t <= 0) { s.phase = 'departing'; s.v = 0; s.warned = false; }
+      } else if (s.phase === 'departing') {
+        // out into the channel, swing round to the north and sail up the bay toward the sea
+        s.z ??= s.sz; s.yaw ??= Math.PI;
+        const lane = this.X0 - 58;
+        if (s.x > lane + 0.5) { s.v = Math.min(2.4, s.v + dt * 0.12); s.x -= s.v * dt; }
+        else { s.yaw += (Math.PI / 2 - s.yaw) * Math.min(1, dt * 0.35); s.v = Math.min(3.4, s.v + dt * 0.1); if (Math.abs(s.yaw - Math.PI / 2) < 0.3) s.z -= s.v * dt; }
+        if (s.z < -260) { s.phase = 'away'; s.t = rand(120, 260); s.g.visible = false; }
+      } else if (s.phase === 'away') {
+        if (s.t <= 0) { s.phase = 'arriving'; s.x = this.X0 - 58; s.z = -260; s.yaw = -Math.PI / 2; s.v = 3.2; s.g.visible = true; G.news && G.news.post('LOCAL', 'Cruise ship arriving at the downtown terminal.', 1, 'cruise-arr'); }
+      } else if (s.phase === 'arriving') {
+        // down the bay, turn at the pier, back in to the berth
+        if (s.z < s.sz - 0.1) { const d = s.sz - s.z; s.z += Math.max(0.4, Math.min(3.2, d * 0.04)) * dt; }
+        else { s.z = s.sz; s.yaw += (Math.PI - s.yaw) * Math.min(1, dt * 0.35); if (Math.abs(s.yaw - Math.PI) < 0.05) { const d = s.sx - s.x; s.x += Math.max(0.25, Math.min(1.6, d * 0.05)) * dt; if (d < 0.05) { s.x = s.sx; s.yaw = Math.PI; s.phase = 'boarding'; s.t = rand(150, 280); } } }
+      }
+      s.g.position.x = s.x; if (s.z != null) s.g.position.z = s.z; if (s.yaw != null) s.g.rotation.y = s.yaw;
+    }
+  }
+  update(dt) {
+    this.updateShips(dt);
+    const n = G.night || 0;
+    if (this.cars) this.updateBridge(n);
     for (const m of this.shipMats) m.emissiveIntensity = n * 1.3;
     this.termMat.emissiveIntensity = n * 1.1;
-    this.lampHeads.material.color.setRGB(0.6 + n * 3, 0.55 + n * 2.6, 0.45 + n * 2);
+    if (this.lampHeads) this.lampHeads.material.color.setRGB(0.6 + n * 3, 0.55 + n * 2.6, 0.45 + n * 2);
     // boats wander the bay, staying off the seawall
     this.boats.forEach((b, i) => {
       if (b.dead) return;                                                       // wrecked (js/boats.js sinks it)
       b.a += b.turn * dt;
       b.x += Math.cos(b.a) * b.sp * dt; b.z += Math.sin(b.a) * b.sp * dt;
-      if (b.x > this.X0 - 8) b.a = Math.PI - b.a, b.x = this.X0 - 8;
-      if (b.x < this.X0 - 84 || Math.abs(b.z) > 150) b.a += Math.PI;               // stay in the bay (Coronado is over there)
+      if (this.isLand) {
+        // the whole bay: turn away from any shore (and the bridge's piers), stay inside the map
+        const ax = b.x + Math.cos(b.a) * 4, az = b.z + Math.sin(b.a) * 4;
+        if (this.isLand(ax, az) || ax < -295 || az < -100 || az > 300 || (G.sdbay && G.sdbay.blocksBoat(ax, az))) { b.a += Math.PI * rand(0.6, 1.4); b.x -= Math.cos(b.a) * 0.2; }
+      } else {
+        if (b.x > this.X0 - 8) b.a = Math.PI - b.a, b.x = this.X0 - 8;
+        if (b.x < this.X0 - 84 || Math.abs(b.z) > 150) b.a += Math.PI;               // stay in the bay (Coronado is over there)
+      }
       _m.compose(_p.set(b.x, 0.03 + Math.sin(G.time * 2 + i) * 0.03, b.z), _q.setFromAxisAngle(UP, -b.a), _s.set(b.s, b.s, b.s));
       this.boatMesh.setMatrixAt(i, _m);
       if (Math.random() < dt * 5) G.fx.bits.emit(b.x - Math.cos(b.a) * b.s, 0.1, b.z - Math.sin(b.a) * b.s, 0, 0.3, 0, 0.18, 2, 0.95, 0.97, 1, 1);

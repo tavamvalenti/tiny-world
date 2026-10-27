@@ -238,7 +238,7 @@ export class VehicleMode {
     if (switching) return;
     document.body.classList.remove('veh-on'); this.btn.classList.remove('on');
     const C = this.cam;
-    C.x = clamp(this.pos.x, C.xMin ?? -C.half, C.half); C.z = clamp(this.pos.z, C.zMin ?? -C.half, C.zMax ?? C.half);
+    C.x = clamp(this.pos.x, C.xMin ?? -C.half, C.xMax ?? C.half); C.z = clamp(this.pos.z, C.zMin ?? -C.half, C.zMax ?? C.half);
     C.yaw = C.yawT = this.yaw; C.distT = 70; C.tiltT = 0;
   }
   dispose(root) { root.traverse((o) => { if (o.isMesh && o.geometry && !o.userData.shared) o.geometry.dispose(); }); }

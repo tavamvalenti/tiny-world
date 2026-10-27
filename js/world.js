@@ -349,7 +349,7 @@ export class World {
     this.updateSnow(dt);
     const r = this.rain, on = r > 0.02;
     G.wet = Math.max(0, Math.min(1, (G.wet || 0) + (r > 0.2 ? dt / 20 : -dt / 60)));   // roads stay wet a while after
-    if (G.groundMat) { G.groundMat.roughness = 0.93 - G.wet * 0.45; G.groundMat.color.setScalar(1 - G.wet * 0.18); }
+    for (const m of G.groundMats || (G.groundMat ? [G.groundMat] : [])) { m.roughness = 0.93 - G.wet * 0.45; m.color.setScalar(1 - G.wet * 0.18); }
     this.rainLines.visible = on;
     sfx.rain(r);
     if (on) {

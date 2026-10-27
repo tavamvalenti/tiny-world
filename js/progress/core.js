@@ -182,7 +182,7 @@ export class Progress {
     if (died) { this.P.stats.splats++; this.touch(); return; }
     const m = dropUnits * D.M_PER_UNIT; if (m > 4) this.setRecord('jetpack_fall', Math.round(m * 10) / 10, this.map, { silentBelow: 8 });
   }
-  event(id) { const S = this.P.stats; S.events[id] = (S.events[id] || 0) + 1; this.award(id === 'london_eye' ? 200 : 60, id === 'london_eye' ? 'The London Eye toppled' : 'Iceberg broken up'); this.checkAchievements(); }
+  event(id) { const S = this.P.stats; S.events[id] = (S.events[id] || 0) + 1; const T = { london_eye: [200, 'The London Eye toppled'], coronado_bridge: [200, 'The Coronado Bridge cut'] }[id] || [60, 'Iceberg broken up']; this.award(T[0], T[1]); this.checkAchievements(); }
 
   ms() { const S = this.P.stats; return (S.mapStats[this.map] ||= {}); }
 
