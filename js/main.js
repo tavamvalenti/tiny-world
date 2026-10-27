@@ -609,7 +609,7 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     }
     $('#loading').style.display = 'none';
     $('#hud').style.display = 'block';
-    rick = new RickMode(scene, camera, post, cam, renderer);              // Rick's ship (the WUBLUBDUBDUB button; RIDE on phones)
+    rick = new RickMode(scene, camera, post, cam, renderer);              // Rick's ship (the WUBBA LUBBA DUB-DUB button; RIDE on phones)
     veh = new VehicleMode(scene, camera, post, cam, renderer);            // the VEHICLES button (RIDE on phones)
     hub = new ActivityHub(scene, camera, post, cam, renderer, ACTIVITY_DEFS);   // the PLAY button and the mini-games
     if (TOUCH) touchPlay = new TouchPlay({ rick, veh, hub });             // phones and tablets: RIDE / PLAY and the on-screen controls

@@ -75,7 +75,7 @@ export const ACHIEVEMENTS = [
   { id: 'cartographer', name: 'Cartographer', desc: 'Discover every named place on one map.', cat: 'Exploration', xp: 300, test: (S) => [Object.keys(S.discovered || {}).some((m) => S.mapPlaces[m] && S.discovered[m].length >= S.mapPlaces[m]) ? 1 : 0, 1] },
   { id: 'globetrotter', name: 'Globetrotter', desc: 'Visit all seven cities.', cat: 'Exploration', xp: 350, test: (S) => [cnt(S.maps), ALL_MAPS.length] },
   // vehicles and stunts
-  { id: 'wubba', name: 'Wublubdubdub', desc: 'Fly the Wublubdubdub ship.', cat: 'Vehicles', xp: 50, test: (S) => [S.vehicles.rick ? 1 : 0, 1] },
+  { id: 'wubba', name: 'Wubba Lubba Dub-Dub', desc: 'Fly the Wubba Lubba Dub-Dub ship.', cat: 'Vehicles', xp: 50, test: (S) => [S.vehicles.rick ? 1 : 0, 1] },
   { id: 'licensed', name: 'Licensed to Fly', desc: 'Fly the drone, the balloon chair and the jetpack.', cat: 'Vehicles', xp: 150, test: (S) => [['drone', 'chair', 'jetpack'].filter((k) => S.vehicles[k]).length, 3] },
   { id: 'kamikaze', name: 'Kamikaze', desc: 'Destroy 60 blocks with a single drone crash.', cat: 'Vehicles', xp: 200, test: (S) => [S.best.drone_kamikaze || 0, 60] },
   { id: 'up_up', name: 'Up, Up and Away', desc: 'Take the balloon chair above 150 m.', cat: 'Vehicles', xp: 150, test: (S) => [Math.round(S.best.chair_altitude || 0), 150] },
@@ -149,7 +149,7 @@ export const DAILY_POOL = [
   { id: 'd_discover', name: 'New Places', desc: 'Discover 3 places you haven\'t been before.', key: 'discover', target: 3, xp: 150, needsUndiscovered: 3 },
   { id: 'd_boats', name: 'Man Overboard', desc: 'Sink 3 boats.', key: 'boats', target: 3, xp: 150 },
   { id: 'd_throw', name: 'Toss It', desc: 'Throw a car 25 m with the Free Hand.', key: 'carThrow25', target: 1, xp: 150 },
-  { id: 'd_vehicles', name: 'Joyride', desc: 'Fly two different vehicles (the Wublubdubdub ship counts).', key: 'vehicles', target: 2, xp: 150 },
+  { id: 'd_vehicles', name: 'Joyride', desc: 'Fly two different vehicles (the Wubba Lubba Dub-Dub ship counts).', key: 'vehicles', target: 2, xp: 150 },
   { id: 'd_landmark', name: 'Tear It Down', desc: 'Bring down a landmark.', key: 'landmarks', target: 1, xp: 200 },
   { id: 'd_record', name: 'Personal Best', desc: 'Beat one of your own records.', key: 'records', target: 1, xp: 200 },
   { id: 'd_minigame', name: 'Game On', desc: 'Finish 3 mini-game runs.', key: 'actRuns', target: 3, xp: 150 },

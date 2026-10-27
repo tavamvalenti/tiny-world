@@ -151,7 +151,7 @@ export class TouchPlay {
     const item = (go, em, name, sub, off) => `<div class="it ${off ? 'off' : ''}" data-go="${go}"><span class="em">${em}</span><span><b>${name}</b><small>${sub}</small></span></div>`;
     let html = '';
     if (t === 'ride') {
-      html = `<h3>Ride</h3>${this.rick ? item('rick:', '🛸', 'Wublubdubdub ship', 'Fly the space cruiser · lasers and bombs') : ''}
+      html = `<h3>Ride</h3>${this.rick ? item('rick:', '🛸', 'Wubba Lubba Dub-Dub ship', 'Fly the space cruiser · lasers and bombs') : ''}
         <h4>Vehicles</h4>${item('veh:drone', '🚁', 'Armed drone', 'Machine gun and grenades · rams explode')}${item('veh:chair', '🎈', 'Balloon chair', 'Fireballs and a firework · rise and sink')}${item('veh:jetpack', '🚀', 'Jetpack', 'Real gravity · machine gun and grenades')}`;
     } else {
       const H = this.hub, here = H ? H.defs : [], other = H ? H.others : [];

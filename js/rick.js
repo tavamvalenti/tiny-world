@@ -1,4 +1,4 @@
-// THE WUBLUBDUBDUB SHIP: fly the green saucer (two cartoon crew aboard) through Tiny World. A crossover from Cosmic Solitude:
+// THE WUBBA LUBBA DUB-DUB SHIP: fly the green saucer (two cartoon crew aboard) through Tiny World. A crossover from Cosmic Solitude:
 // the ship, the crew, the flight model, the guns and bombs, the intergalactic radio, the crew's voice lines and the
 // ship's own sounds all come from there (src/entities/ship/Ship.ts, src/gameplay/CameraRig.ts, src/combat/Combat.ts,
 // src/audio/Radio.ts, src/audio/CrewChatter.ts, src/ui/RadioWidget.ts), kept as they were apart from:
@@ -397,8 +397,8 @@ export class RickMode {
   buildHud() {
     const hud = document.getElementById('hud');
     // the button sits next to WORLD in the bottom bar
-    this.btn = document.createElement('span'); this.btn.id = 'rickBtn'; this.btn.title = 'Fly the Wublubdubdub ship';
-    this.btn.innerHTML = '<span class="rk-portal"><i class="rk-swirl"></i><i class="rk-swirl s2"></i><i class="rk-core"></i><b class="rk-chars" style="display:grid;place-items:center;font-size:22px">🛸</b><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i></span>WUBLUBDUBDUB';
+    this.btn = document.createElement('span'); this.btn.id = 'rickBtn'; this.btn.title = 'Fly the Wubba Lubba Dub-Dub ship';
+    this.btn.innerHTML = '<span class="rk-portal"><i class="rk-swirl"></i><i class="rk-swirl s2"></i><i class="rk-core"></i><b class="rk-chars" style="display:grid;place-items:center;font-size:22px">🛸</b><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i><i class="rk-spark"></i></span>WUBBA LUBBA DUB-DUB';
     document.getElementById('weapons').appendChild(this.btn);
     this.hud = document.createElement('div'); this.hud.id = 'rickHud';
     this.hud.innerHTML = `<div class="rk-reticle"></div><div class="rk-heat"><i></i></div>
