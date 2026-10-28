@@ -235,7 +235,7 @@ export class Weapons {
       for (let s = 1; s <= steps && !hit; s++) {
         const q = prev.clone().addScaledVector(pr.vel, (dt * s) / steps);
         if (q.y <= 0) { q.y = 0; hit = q; }
-        else if (B.inside(q)) hit = q;
+        else if (B.inside(q) || (G.projHit && G.projHit(q))) hit = q;           // also aircraft, jets, the bridge deck
       }
       if (hit) {
         this.scene.remove(m);

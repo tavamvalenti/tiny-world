@@ -315,7 +315,11 @@ function updateCamera(dt) {
   // a phone held upright sees a narrow slice at the desktop lens: widen it so the city doesn't feel squeezed
   const fov0 = camera.aspect < 1 ? lerp(24, 38, clamp((1 - camera.aspect) / 0.55, 0, 1)) : 24;
   const fov = lerp(fov0, 44, pano);
-  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  // the near plane moves out as the view pulls back: keeps depth precise far out, so the ground, the water and the
+  // backdrop never fight over the same pixels (the flicker when zoomed right out over San Diego Bay)
+  const chase = (rick && rick.active) || (veh && veh.active) || (hub && hub.active);       // their chase cameras sit close
+  const near = chase ? 0.5 : clamp(cam.dist * 0.035, 0.5, 8);
+  if (Math.abs(camera.fov - fov) > 0.01 || Math.abs(camera.near - near) > 0.05) { camera.fov = fov; camera.near = near; camera.updateProjectionMatrix(); }
   // gentle hover drift, like a massive craft holding position
   const hx = Math.sin(G.time * 0.31) * 0.25, hy = Math.sin(G.time * 0.23) * 0.3;
   const sh = G.shake * settings.shake / 100;

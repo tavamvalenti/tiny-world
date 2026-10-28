@@ -4,7 +4,7 @@
 // its birds trail with a little noise. Everything is a few instanced/merged meshes.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { G, rand, pick } from './core.js';
+import { G, rand, pick, blast } from './core.js';
 import { sfx } from './audio.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler();
@@ -163,7 +163,18 @@ export class Sky {
     for (const m of this.birdParts) m.instanceColor.needsUpdate = true;
     this.flocks.push(f);
   }
-  onBlast(x, y, z, r, power) {
+  // aircraft can be shot down: a hit (laser, bomb, meteor, gunfire) sets them alight and they fall out of the sky
+  hitTest(p) {
+    for (const c of this.craft) if (!c.down) { const rr = c.kind === 'airliner' ? 4 : c.kind === 'small' ? 2.2 : 1.8; if (Math.hypot(c.x - p.x, c.y - p.y, c.z - p.z) < rr) return c; }
+    return null;
+  }
+  shootDown(c) {
+    if (c.down) return; c.down = { vy: 0, spin: rand(-1.5, 1.5), t: 0 };
+    G.fx.explosion(c.x, c.y, c.z, c.kind === 'airliner' ? 1.6 : 1, null, 'bomb'); sfx.boom && sfx.boom(c.x, c.z, 0.8, 'bomb');
+    G.news && G.news.post && G.news.post('BREAKING', c.kind === 'heli' ? 'Helicopter shot down over the city.' : 'Plane hit, goes down in flames.', 3, 'craft-down');
+  }
+  onBlast(x, y, z, r, power, kind) {
+    for (const c of this.craft) if (!c.down && Math.hypot(c.x - x, c.y - y, c.z - z) < ({ laser: 3, bomb: 6, meteor: 10 }[kind] || 4)) this.shootDown(c);
     if (power < 2) return;
     for (const f of this.flocks) if (Math.hypot(f.x - x, f.z - z) < r * 2.5 + 20) {
       f.scatter = 2.5; f.life = Math.min(f.life, 6); f.h = Math.atan2(f.z - z, f.x - x); f.sp = 10;
@@ -188,6 +199,20 @@ export class Sky {
     if ((this.t.flock -= dt) <= 0) { this.t.flock = M.flock * rand(0.6, 1.5); if (this.flocks.length < 2) this.flock(); }
     // aircraft along their lines (helicopters sent to a scene circle it for a while first)
     for (const c of [...this.craft]) {
+      if (c.down) {
+        // falling: nose down, trailing fire and smoke, and an explosion where it hits (on a roof, the ground or the water)
+        const d = c.down; d.t += dt; d.vy += 12 * dt; c.y -= d.vy * dt; c.x += c.dir.x * c.speed * 0.7 * dt; c.z += c.dir.z * c.speed * 0.7 * dt;
+        c.m.position.set(c.x, c.y, c.z); c.m.rotation.set(Math.min(1.2, d.t * 0.6), Math.atan2(c.dir.x, c.dir.z) + d.t * d.spin, d.t * d.spin * 0.6, 'YXZ');
+        for (let k = 0; k < 4; k++) G.fx.fire.emit(c.x + rand(-0.4, 0.4), c.y, c.z + rand(-0.4, 0.4), 0, 1, 0, rand(0.8, 1.6), 0.4);
+        if (Math.random() < 0.6) G.fx.smokePuff(c.x, c.y, c.z, 1.2, 0.08, 6);
+        const floor = G.buildings.surfaceAt(c.x, c.z, c.y).y;
+        if (c.y <= Math.max(0, floor)) {
+          blast(c.x, Math.max(0, floor), c.z, 22, c.kind === 'airliner' ? 14 : 8, 'bomb'); G.fx.explosion(c.x, Math.max(0, floor), c.z, c.kind === 'airliner' ? 2 : 1.2, null, 'bomb');
+          G.buildings.damageSphere(c.x, Math.max(0, floor) + 0.5, c.z, c.kind === 'airliner' ? 6 : 3.5, 900, 1, 1);
+          c.m.visible = false; this.craft.splice(this.craft.indexOf(c), 1); if (c.kind !== 'heli') this.beacon.visible = false;
+        }
+        continue;
+      }
       if (c.over && c.orbit > 0) {
         c.orbit -= dt; c.a += dt * 0.35;
         const tx = c.over.x + Math.cos(c.a) * 14, tz = c.over.z + Math.sin(c.a) * 14, dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz);

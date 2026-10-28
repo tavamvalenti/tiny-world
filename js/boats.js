@@ -44,6 +44,7 @@ export function boatTargets() {
     out.push({ obj: u, x: m.position.x, y: m.position.y + 0.4, z: m.position.z, r: u.r, dead: () => !!u.dead, kill: () => { u.dead = true; return objSink(m); } });
   }
   // San Diego's warships at the piers (North Island's carriers, Naval Base San Diego's destroyers and amphibs)
+  if (G.sdbay) for (const b of G.sdbay.jetskis || []) if (!b.sunk) out.push({ obj: b, x: b.m.position.x, y: 0.4, z: b.m.position.z, r: 1, dead: () => b.sunk, kill: () => { b.sunk = true; return objSink(b.m); } });
   const SB = G.sdbay; if (SB && SB.ships) for (const b of SB.ships) if (!b.sunk) out.push({ obj: b, x: b.m.position.x, y: 1.2, z: b.m.position.z, r: b.len * 0.42, dead: () => b.sunk, kill: () => { b.sunk = true; return objSink(b.m); } });
   // the Venetian's gondolas
   const VG = G.vegas; if (VG && VG.gondolas) for (const gd of VG.gondolas) if (!gd.dead) out.push({ obj: gd, x: gd.m.position.x, y: gd.m.position.y + 0.2, z: gd.m.position.z, r: 1.2, dead: () => gd.dead, kill: () => { gd.dead = true; return objSink(gd.m); } });

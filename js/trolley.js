@@ -9,7 +9,7 @@ const SEC_L = 4.4, SEC_W = 0.86, SEC_H = 1.3, GAP = 0.12, SECS = 4; // two 2-sec
 const TRACK = 0.62;                                                  // track offset from street centreline
 const SPEED = 4.6;
 
-function sideTexture(num) {
+export function sideTexture(num) {
   const c = document.createElement('canvas'); c.width = 512; c.height = 128;
   const x = c.getContext('2d');
   x.fillStyle = '#c8141c'; x.fillRect(0, 0, 512, 128);                           // body red
@@ -32,7 +32,7 @@ function sideTexture(num) {
   const et = new THREE.CanvasTexture(e); et.colorSpace = THREE.SRGBColorSpace;
   return [t, et];
 }
-function frontTexture() {
+export function frontTexture() {
   const c = document.createElement('canvas'); c.width = 128; c.height = 128;
   const x = c.getContext('2d');
   x.fillStyle = '#c8141c'; x.fillRect(0, 0, 128, 128);

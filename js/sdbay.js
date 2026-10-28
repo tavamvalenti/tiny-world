@@ -12,8 +12,9 @@ import { G, rand, pick, clamp } from './core.js';
 import { sfx } from './audio.js';
 import { addRipples } from './water.js';
 import { solids } from './solids.js';
-import { tint, box, cyl, cone, hipRoof, canvasTex, cutoutOn, topOf } from './mapkit.js';
-import { BRIDGE, BRIDGE_W, CORONADO, onCoronado, sdShoreX, isLand, WORLD, NAS_FENCE, HOTEL } from './sdgeo.js';
+import { tint, box, cyl, cone, sph, hipRoof, canvasTex, cutoutOn, topOf } from './mapkit.js';
+import { sideTexture, frontTexture } from './trolley.js';
+import { BRIDGE, BRIDGE_W, RAMPS, CORONADO, SOUTHBAY, onCoronado, sdShoreX, isLand, WORLD, NAS_FENCE, HOTEL } from './sdgeo.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -21,7 +22,7 @@ const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace)
 const vc = (o = {}) => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, ...o });
 
 // ---------- the water: a mask of the land (red: land, green: a little blurred, blue: well blurred = depth) ----------
-const MASK = { x0: WORLD.x0 - 120, x1: WORLD.x1 + 30, z0: WORLD.z0 - 120, z1: WORLD.z1 + 120 };
+const MASK = { x0: WORLD.x0 - 120, x1: WORLD.x1 + 30, z0: WORLD.z0 - 120, z1: WORLD.z1 + 320 };
 function maskTexture() {
   const S = 1024, k = S / (MASK.x1 - MASK.x0), kz = S / (MASK.z1 - MASK.z0);
   const layer = (blur) => {
@@ -30,6 +31,7 @@ function maskTexture() {
     x.fillStyle = '#fff';
     const P = (a, b) => [(a - MASK.x0) * k, (b - MASK.z0) * kz];
     x.beginPath(); CORONADO.forEach(([a, b], i) => { const [u, v] = P(a, b); i ? x.lineTo(u, v) : x.moveTo(u, v); }); x.closePath(); x.fill();
+    x.beginPath(); SOUTHBAY.forEach(([a, b], i) => { const [u, v] = P(a, b); i ? x.lineTo(u, v) : x.moveTo(u, v); }); x.closePath(); x.fill();
     x.beginPath(); let first = true;
     for (let z = MASK.z0 - 20; z <= MASK.z1 + 20; z += 3) { const [u, v] = P(sdShoreX(z), z); first ? x.moveTo(u, v) : x.lineTo(u, v); first = false; }
     const [ue] = P(MASK.x1 + 40, 0); x.lineTo(ue, S + 60); x.lineTo(ue, -60); x.closePath(); x.fill();
@@ -46,6 +48,7 @@ function maskTexture() {
 }
 export function makeBayWater() {
   const timeU = { value: 0 }, mask = maskTexture();
+  G.bayMask = { tex: mask, box: new THREE.Vector4(MASK.x0, MASK.z0, MASK.x1 - MASK.x0, MASK.z1 - MASK.z0) };   // the backdrop paints seabed under the water with it
   const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0, specularIntensity: 0.45, transparent: true, envMapIntensity: 0.55, depthWrite: false });
   mat.customProgramCacheKey = () => 'sdbay-water';
   mat.onBeforeCompile = (sh) => {
@@ -68,7 +71,7 @@ export function makeBayWater() {
         float edge = near + 0.06 * sin(dot(vW.xz, vec2(0.3, 0.2)) + uTime * 1.2);
         float foam = smoothstep(0.12, 0.0, abs(edge - 0.35)) * (0.55 + 0.45 * sin(vW.x * 1.7 + vW.z * 1.3 + uTime * 3.0));
         foam += smoothstep(0.1, 0.0, abs(edge - 0.16 - 0.05 * sin(uTime * 0.8 + vW.x * 0.2))) * 0.4;
-        foam *= mix(0.22, 1.0, ocean);
+        foam *= mix(0.22, 1.0, ocean) * smoothstep(0.02, 0.1, near);   // surf only along the shore, never speckles on open water
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95), clamp(foam, 0., 1.) * 0.85);
         diffuseColor.a = max(diffuseColor.a, clamp(foam, 0., 1.) * 0.9);
         diffuseColor.a *= 1.0 - smoothstep(0.45, 0.6, land);`)
@@ -77,7 +80,7 @@ export function makeBayWater() {
         normal = normalize(normal + (viewMatrix * vec4(wv.x, 0., wv.y, 0.)).xyz * 0.6);`);
     addRipples(sh, { flow: [0.05, 0.3], scale: 0.9, amp: 0.8, gloss: [0.14, 0.34] });
   };
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1700).rotateX(-Math.PI / 2), mat);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000).rotateX(-Math.PI / 2), mat);
   m.position.set(-300, 0.05, 100); m.renderOrder = 1;
   return { mesh: m, timeU };
 }
@@ -163,9 +166,18 @@ function shipGeo(kind) {
     // an amphibious assault ship: a flat deck end to end, the island, helicopters and Ospreys
     P.push(...hull(34, 5.6, 3.4), box(34, 0.3, 6.4, 0, 2.95, -0.2, DECK), box(5, 3.2, 1.4, 2, 4.7, 2.3, GREY), box(2, 1.4, 1, 2, 6.9, 2.3, DGREY), box(0.16, 2.4, 0.16, 2, 8.6, 2.3, DGREY));
     for (let k = 0; k < 6; k++) P.push(box(1.6, 0.4, 0.5, -14 + k * 5, 3.3, -1.2, 0x5a6066), box(2.2, 0.03, 0.12, -14 + k * 5, 3.62, -1.2, 0x2a2c2e));
+    // deck markings, the elevators, the island's radars and masts, Ospreys folded on deck, rails and boats along the hull
+    P.push(box(33, 0.012, 0.12, 0, 3.11, -0.2, 0xf2f2ea));
+    for (let k = 0; k < 9; k++) P.push(box(0.9, 0.012, 0.9, -15 + k * 3.6, 3.11, -1.8, 0xe8c040));
+    P.push(box(3, 0.05, 2, -8, 3.1, 3.2, 0x55595e), box(3, 0.05, 2, 9, 3.1, -3.4, 0x55595e));
+    P.push(box(0.9, 0.9, 0.9, 2, 7.9, 2.3, GREY), cyl(0.5, 0.5, 0.15, 2.8, 8.5, 2.3, 0xf2f2ea, 10), box(0.08, 1.4, 1.6, 0.6, 9.4, 2.3, DGREY), box(1.4, 0.06, 0.06, 2, 9.6, 2.3, DGREY));
+    for (let k = 0; k < 4; k++) { const x = 6 + k * 2.6; P.push(box(1.4, 0.35, 0.45, x, 3.35, 1.4, 0x6a6e72), box(0.08, 0.04, 1.9, x - 0.4, 3.6, 1.4, 0x2a2c2e), box(0.08, 0.04, 1.9, x + 0.4, 3.6, 1.4, 0x2a2c2e)); }
+    for (const sd of [-1, 1]) { P.push(box(32, 0.12, 0.04, 0, 3.25, sd * 3.25, 0xc8ccd0)); for (let k = 0; k < 6; k++) P.push(cyl(0.18, 0.18, 0.6, -12 + k * 4.5, 2.2, sd * 2.9, 0xe8e8e2, 8)); }
   } else if (kind === 'lpd') {
     // a San Antonio class: the hull rising to a tall slab of superstructure with two enclosed masts, a flight deck aft
     P.push(...hull(28, 4.4, 2.6), box(13, 2.6, 4.2, 1, 3.3, 0, GREY), box(5, 4.2, 1.6, 4, 6.6, 0, DGREY, 0), cone(0.9, 3, 4, 9.6, 0, DGREY, 6), cone(0.9, 3, -2, 9, 0, DGREY, 6), box(10, 0.2, 4.2, -9, 2.1, 0, DECK));
+    P.push(box(10, 0.012, 0.1, -9, 2.22, 0, 0xf2f2ea), cyl(1.1, 1.1, 0.012, -10, 2.22, 0, 0xe8c040, 16), box(2.2, 1.4, 3.6, -3.5, 2.7, 0, GREY), box(0.6, 0.6, 0.6, 9, 2.2, 0, DGREY), box(1.4, 0.08, 0.1, 9.9, 2.4, 0, DGREY));
+    for (const sd of [-1, 1]) P.push(box(26, 0.1, 0.04, 0, 2.05, sd * 2.25, 0xc8ccd0), box(1.2, 0.5, 0.5, -3, 4.8, sd * 1.9, 0xe8e8e2));
   } else if (kind === 'zumwalt') {
     // the stealth destroyer: tumblehome hull, the angular deckhouse, no masts
     P.push(...hull(30, 4.2, 1.6, 0x7c8288));
@@ -179,8 +191,14 @@ function shipGeo(kind) {
     P.push(...hull(L, 3.6, 1.6));
     P.push(box(5.5, 2.2, 3, 2.2, 2.3, 0, GREY), box(2.4, 1.2, 2.4, 3.4, 4, 0, DGREY), box(0.18, 3.2, 0.18, 2.4, 6, 0, DGREY), box(1.6, 0.12, 0.12, 2.4, 6.6, 0, DGREY));
     P.push(box(1.4, 1.6, 1.4, -1.6, 2.6, 0, DGREY), box(1.2, 1.6, 1.2, -4.4, 2.6, 0, DGREY), box(0.7, 0.5, 0.7, L * 0.36, 1.35, 0, GREY), box(1.6, 0.08, 0.12, L * 0.36 + 0.9, 1.5, 0, DGREY));
-    if (kind === 'cg') P.push(box(4, 1.8, 2.6, -7, 2.1, 0, GREY));
+    if (kind === 'cg') P.push(box(4, 1.8, 2.6, -7, 2.1, 0, GREY), box(1.6, 0.8, 1.6, -7, 3.4, 0, DGREY));
     for (let k = 0; k < 8; k++) P.push(box(0.4, 0.06, 0.4, L * 0.22 + (k % 4) * 0.45 - 0.7, 1.03, (k < 4 ? -0.45 : 0.45), 0x3a3e42));
+    // the radar faces on the bridge block, CIWS mounts, the helicopter deck aft with its markings, rails, life-raft canisters
+    for (const sd of [-1, 1]) P.push(box(1.1, 1.1, 0.06, 3.4, 3.1, sd * 1.52, 0x4e5459), box(0.06, 1.1, 1.1, 4.62, 3.1, sd * 0.7, 0x4e5459));
+    P.push(cyl(0.22, 0.22, 0.35, 0.6, 3.6, 0, 0xf2f2ea, 8), cyl(0.2, 0.2, 0.3, -5.6, 3.5, 0, 0xf2f2ea, 8));
+    P.push(box(5, 0.012, 3.2, -L * 0.38, 1.03, 0, 0x4a4f54), cyl(1.1, 1.1, 0.014, -L * 0.38, 1.05, 0, 0xf2f2ea, 18), cyl(0.95, 0.95, 0.016, -L * 0.38, 1.055, 0, 0x4a4f54, 18), box(4.4, 0.016, 0.06, -L * 0.38, 1.06, 0, 0xe8c040));
+    for (const sd of [-1, 1]) { P.push(box(L * 0.85, 0.1, 0.04, -L * 0.02, 1.2, sd * 1.82, 0xc8ccd0)); for (let k = 0; k < 4; k++) P.push(cyl(0.12, 0.12, 0.4, -1 + k * 0.5, 1.6, sd * 1.65, 0xe8e8e2, 6)); }
+    P.push(box(0.12, 1.2, 0.12, 2.4, 7.2, 0, DGREY), box(1, 0.08, 0.08, 2.4, 7.4, 0, DGREY), box(0.4, 0.3, 0.4, 2.4, 7.9, 0, 0xf2f2ea));
   }
   return mergeGeometries(P.map((g) => (g.index ? g.toNonIndexed() : g)));
 }
@@ -213,7 +231,10 @@ export class SDBay {
     this.chicano(scene);
     this.hotel(scene);
     this.coastline(scene);
+    this.strandFar(scene);
     this.yards(scene);
+    this.jetSkiFleet(scene);
+    this.blueLine(scene);
     this.northIsland(scene);
     this.navalBase(scene);
     this.label = { on: null };
@@ -272,7 +293,7 @@ export class SDBay {
     const pierAt = (u) => {
       const p = curve.getPointAt(u), t = curve.getTangentAt(u), side = new THREE.Vector3(-t.z, 0, t.x).normalize(), yaw = Math.atan2(t.x, t.z);
       const h = p.y - GD; if (h < 1.1) return;
-      const inPark = p.x > -2 && p.x < 46 && p.z > 106 && p.z < 134;
+      const inPark = p.x > -2 && p.x < 46 && p.z > 86 && p.z < 140;
       const grp = new THREE.Group(), parts = [];
       for (const sgn of [-1, 1]) {
         const cx = p.x + side.x * 1.2 * sgn, cz = p.z + side.z * 1.2 * sgn;
@@ -323,8 +344,43 @@ export class SDBay {
     }
     // aim at it: the laser and everything else that raycasts finds the deck
     const prev = G.rayExtra;
-    G.rayExtra = (p) => { const y = this.deckAt(p.x, p.z); if (y != null && p.y <= y + 0.02 && p.y > y - GD) return { point: p.clone().setY(y), cell: null, normal: new THREE.Vector3(0, 1, 0), bridge: true }; return prev ? prev(p) : null; };
+    G.rayExtra = (p) => {
+      const y = this.deckAt(p.x, p.z); if (y != null && p.y <= y + 0.02 && p.y > y - GD) return { point: p.clone().setY(y), cell: null, normal: new THREE.Vector3(0, 1, 0), bridge: true };
+      if (this.airHit(p)) return { point: p.clone(), cell: null, normal: new THREE.Vector3(0, 1, 0), air: true };     // aim at a jet, a plane, a helicopter
+      return prev ? prev(p) : null;
+    };
+    G.projHit = (q) => { const y = this.deckAt(q.x, q.z); return (y != null && q.y <= y + 0.2 && q.y > y - GD) || !!this.airHit(q); };
     G.city.bridgeEdge && (G.city.bridgeEdge.deck = true);
+    for (const r of RAMPS) this.rampDeck(scene, r, 3.4, deckMat, white);
+  }
+  // a freeway ramp over Chicano Park: concrete deck and parapets on mural-painted columns with cap beams; it breaks
+  // in spans like the bridge (and anything standing on it lands on its deck)
+  rampDeck(scene, pts, W, deckMat, white) {
+    const curve = new THREE.CatmullRomCurve3(pts.map(([x, y, z]) => new THREE.Vector3(x, y, z)), false, 'centripetal');
+    const L = curve.getLength(), N = Math.ceil(L / 0.7), S = [];
+    for (let i = 0; i <= N; i++) { const u = i / N, p = curve.getPointAt(u), t = curve.getTangentAt(u), sd = new THREE.Vector3(-t.z, 0, t.x).normalize(); S.push({ x: p.x, y: p.y, z: p.z, sx: sd.x, sz: sd.z }); }
+    const nSeg = Math.max(1, Math.ceil(L / 6)), GD = 0.8, base = this.segs.length;
+    for (let k = 0; k < nSeg; k++) {
+      const i0 = Math.floor(k / nSeg * N), i1 = Math.min(N, Math.floor((k + 1) / nSeg * N) + 1), fr = S.slice(i0, i1 + 1);
+      const ribbon = (y0, hw) => { const pos = [], id = []; fr.forEach((s, i) => { pos.push(s.x + s.sx * hw, s.y + y0, s.z + s.sz * hw, s.x - s.sx * hw, s.y + y0, s.z - s.sz * hw); if (i) { const q = (i - 1) * 2; id.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(id); g.computeVertexNormals(); return g; };
+      const wall = (hw, yT, yB) => { const pos = [], id = []; fr.forEach((s, i) => { for (const sg of [1, -1]) pos.push(s.x + s.sx * hw * sg, s.y + yT, s.z + s.sz * hw * sg, s.x + s.sx * hw * sg, s.y + yB, s.z + s.sz * hw * sg); if (i) { const q = (i - 1) * 4, r = i * 4; id.push(q, r, q + 1, q + 1, r, r + 1, q + 2, q + 3, r + 2, q + 3, r + 3, r + 2); } }); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(id); g.computeVertexNormals(); return g; };
+      const c = fr[Math.floor(fr.length / 2)], grp = new THREE.Group();
+      for (const [geo, mat] of [[ribbon(0, W / 2), deckMat], [mergeGeometries([wall(W / 2 - 0.1, -0.02, -GD), ribbon(-GD, W / 2 - 0.1)]), white], [wall(W / 2, 0.35, 0), white]]) { geo.translate(-c.x, -c.y, -c.z); const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = true; grp.add(m); }
+      grp.position.set(c.x, c.y, c.z); scene.add(grp);
+      this.segs.push({ k: base + k, grp, alive: true, hp: 300, ramp: true, samples: fr, i0: 0, i1: fr.length - 1, cx: c.x, cy: c.y, cz: c.z, fall: null });
+      for (const s of fr) for (let o = -W / 2 - 0.2; o <= W / 2 + 0.2; o += 0.3) { const key = Math.floor(s.x + s.sx * o) * 4096 + Math.floor(s.z + s.sz * o), e = this.deckGrid.get(key); if (!e || e.y < s.y) this.deckGrid.set(key, { y: s.y, seg: base + k }); }
+    }
+    // columns: a painted pillar under each side of the deck with a cap beam across, every few units
+    for (let u = 0.08; u < 0.98; u += 5 / L) {
+      const p = curve.getPointAt(u), t = curve.getTangentAt(u), sd = new THREE.Vector3(-t.z, 0, t.x).normalize(), yaw = Math.atan2(t.x, t.z), h = p.y - GD;
+      if (h < 1.3) continue;
+      const grp = new THREE.Group();
+      for (const sg of [-1, 1]) { const m = new THREE.Mesh(new THREE.BoxGeometry(1.1, h, 1.1).rotateY(yaw).translate(sd.x * 1.05 * sg, h / 2, sd.z * 1.05 * sg), pick(this.muralMats)); m.castShadow = true; grp.add(m); }
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(W + 0.6, 0.45, 1.3).rotateY(yaw).translate(0, h - 0.2, 0), white); cap.castShadow = true; grp.add(cap);
+      grp.position.set(p.x, 0, p.z); scene.add(grp);
+      const seg = this.segs[base + Math.min(nSeg - 1, Math.floor(u * nSeg))];
+      this.piers.push({ x: p.x, z: p.z, h, grp, alive: true, hp: 260, seg: seg.k, yaw });
+    }
   }
   deckAt(x, z) {
     const e = this.deckGrid.get(Math.floor(x) * 4096 + Math.floor(z));
@@ -379,6 +435,7 @@ export class SDBay {
       const e = this.deckGrid.get(Math.floor(car.pos.x) * 4096 + Math.floor(car.pos.z));
       if (e && e.seg === sg.k) G.agents.launch(car, { x: rand(-0.3, 0.3), z: rand(-0.3, 0.3) }, rand(0.5, 2), rand(0, 2), true, 2);
     }
+    if (sg.ramp) { for (const pr of this.piers) if (pr.seg === sg.k && pr.alive && Math.random() < 0.5) this.breakPier(pr); return; }
     // the road is cut: no more routes over it, and traffic on the deck stops at the edge
     const C = this.city;
     if (C.bridgeEdge) { C.bridgeEdge.blocked = true; C.bridgeEdge.closed = true; }
@@ -401,13 +458,7 @@ export class SDBay {
     const P = this.sd.chicano; if (!P) return;
     // freestanding mural pillars and walls round the park (the old ramp supports), and the kiosko
     const mats = this.muralMats;
-    for (let k = 0; k < 14; k++) {
-      const x = rand(P.x0 + 3, P.x1 - 3), z = rand(P.z0 + 3, P.z1 - 3);
-      if (Math.hypot(x - P.kx, z - P.kz) < 5) continue;
-      const h = rand(3, 6.5), m = new THREE.Mesh(new THREE.BoxGeometry(1.1, h, 1.1).translate(x, h / 2, z), pick(mats)); m.castShadow = true; scene.add(m);
-      const top = new THREE.Mesh(new THREE.BoxGeometry(4, 0.6, 1.4).translate(x, h + 0.3, z), new THREE.MeshStandardMaterial({ color: 0xcfcac0, roughness: 0.9 })); top.castShadow = true; scene.add(top);
-      this.sd.murals.push({ solid: m });
-    }
+    // (the mural pillars are the ramps' own supports: rampDeck below)
     // the kiosko: an octagonal pavilion with a tiled roof
     const kx = P.kx, kz = P.kz, K = [];
     for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283; K.push(cyl(0.1, 0.1, 2.2, kx + Math.cos(a) * 2, 1.1, kz + Math.sin(a) * 2, 0xe8c040, 6)); }
@@ -439,7 +490,7 @@ export class SDBay {
   // ================= the Hotel del Coronado =================
   hotel(scene) {
     const H = this.sd.hotel; if (!H) return;
-    const red = 0xb8342a, redD = 0x8e2620, white = 0xf4f2ec, P = [];
+    const red = 0x8c2326, redD = 0x6e1a1e, white = 0xf4f2ec, P = [];          // the Del's deep barn red (not orange)
     const roofOn = (b, h = 1.6) => { const t = topOf(b); P.push({ b, g: tint(hipRoof(t.w + 0.5, t.d + 0.5, h).translate(t.cx, t.y, t.cz), red) }); return t; };
     for (const k of ['north', 'south', 'east', 'west']) {
       const t = roofOn(H[k], 1.8);
@@ -461,7 +512,19 @@ export class SDBay {
     const cr = topOf(H.crown);
     P.push({ b: H.crown, g: cyl(3.6, 3.6, 0.5, cr.cx, cr.y + 0.25, cr.cz, white, 16) });
     for (let k = 0; k < 8; k++) P.push({ b: H.crown, g: tint(new THREE.ConeGeometry(4.2, 4.4, 8, 1, true, k * Math.PI / 4, Math.PI / 4).translate(cr.cx, cr.y + 2.7, cr.cz), red) });
-    P.push({ b: H.crown, g: cyl(0.6, 0.7, 1, cr.cx, cr.y + 5.2, cr.cz, white, 8) }, { b: H.crown, g: cone(0.8, 1.4, cr.cx, cr.y + 6.4, cr.cz, red, 8) }, { b: H.crown, g: cyl(0.03, 0.03, 1, cr.cx, cr.y + 7.5, cr.cz, 0x333333, 4) });
+    // a ring of little gabled dormers round the cone, the white lantern with its balcony and windows, the top cone,
+    // the flagpole and the Stars and Stripes (as in the photo from Orange Avenue)
+    for (let k = 0; k < 8; k++) for (const [r0, y0] of [[2.9, 1.6], [1.9, 2.9]]) {
+      const a = (k + (y0 > 2 ? 0.5 : 0)) / 8 * Math.PI * 2, x = cr.cx + Math.cos(a) * r0, z = cr.cz + Math.sin(a) * r0;
+      P.push({ b: H.crown, g: box(0.5, 0.35, 0.4, x, cr.y + y0, z, white, -a) }, { b: H.crown, g: tint(new THREE.ConeGeometry(0.38, 0.35, 4).rotateY(Math.PI / 4).translate(x, cr.y + y0 + 0.33, z), white) });
+    }
+    P.push({ b: H.crown, g: cyl(1.05, 1.05, 1.3, cr.cx, cr.y + 5.3, cr.cz, white, 10) }, { b: H.crown, g: cyl(1.35, 1.35, 0.1, cr.cx, cr.y + 4.75, cr.cz, white, 12) });
+    for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; P.push({ b: H.crown, g: box(0.05, 0.4, 0.05, cr.cx + Math.cos(a) * 1.3, cr.y + 5, cr.cz + Math.sin(a) * 1.3, white) }); }
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; P.push({ b: H.crown, g: box(0.32, 0.4, 0.04, cr.cx + Math.cos(a) * 1.07, cr.y + 5.4, cr.cz + Math.sin(a) * 1.07, 0x2a3138, -a + Math.PI / 2) }); }
+    P.push({ b: H.crown, g: cone(1.25, 2.2, cr.cx, cr.y + 7.05, cr.cz, red, 8) }, { b: H.crown, g: cyl(0.03, 0.03, 3, cr.cx, cr.y + 9.6, cr.cz, 0xf2f2ee, 4) });
+    P.push({ b: H.crown, g: box(0.04, 0.5, 0.8, cr.cx, cr.y + 10.8, cr.cz + 0.42, 0xb22234) }, { b: H.crown, g: box(0.05, 0.27, 0.36, cr.cx, cr.y + 10.92, cr.cz + 0.2, 0x3c3b6e) });
+    // the round skirt roof of the ballroom under the cone
+    P.push({ b: H.crown, g: tint(new THREE.CylinderGeometry(4.3, 5.1, 0.7, 16, 1, true).translate(cr.cx, cr.y - 1.6, cr.cz), red) });
     // the tower over the ocean front: a tall square spire with a flagpole
     const tw = topOf(H.tower);
     P.push({ b: H.tower, g: tint(new THREE.ConeGeometry(2.3, 4, 4, 1).rotateY(Math.PI / 4).translate(tw.cx, tw.y + 2, tw.cz), red) }, { b: H.tower, g: cyl(0.03, 0.03, 2, tw.cx, tw.y + 5, tw.cz, 0x333333, 4) });
@@ -487,6 +550,10 @@ export class SDBay {
       if (!onCoronado(x, f.z)) continue;
       P.push(box(2, 1.2, 0.04, x + 1, 0.6, f.z, 0x9aa0a4), box(0.06, 1.4, 0.06, x, 0.7, f.z, 0x6a6e72));
     }
+    for (const f of this.sd.fenceLines || []) for (let i = 1; i < f.pts.length; i++) {
+      const [ax, az] = f.pts[i - 1], [bx, bz] = f.pts[i], L = Math.hypot(bx - ax, bz - az), yaw = Math.atan2(bz - az, bx - ax);
+      for (let d = 0; d < L - 0.5; d += 2) { const x = ax + (bx - ax) * (d + 1) / L, z = az + (bz - az) * (d + 1) / L; P.push(box(2, 1.2, 0.04, x, 0.6, z, 0x9aa0a4, -yaw), box(0.06, 1.45, 0.06, ax + (bx - ax) * d / L, 0.72, az + (bz - az) * d / L, 0x6a6e72), box(2, 0.04, 0.04, x, 1.38, z, 0x8a8e92, -yaw)); }
+    }
     for (const g of this.sd.gates) {
       P.push(box(1.8, 1.4, 1.4, g.x, 0.7, g.z, 0xd8d4c8), tint(hipRoof(2.2, 1.8, 0.4).translate(g.x, 1.4, g.z), 0x5a6066), box(4, 0.08, 0.08, g.x + 2.6, 0.8, g.z + (g.nbsd ? 2 : -1), 0xe8e8e2), box(0.5, 0.08, 0.08, g.x + 4.4, 0.8, g.z + (g.nbsd ? 2 : -1), 0xc8202a));
     }
@@ -500,6 +567,40 @@ export class SDBay {
     }
   }
 
+  // ================= the Silver Strand past the edge of the map: sand, dunes, the highway, fading into the haze =================
+  strandFar(scene) {
+    const i0 = CORONADO.findIndex(([a, b]) => a === -100 && b === 296), i1 = CORONADO.findIndex(([a, b]) => a === -122 && b === 298);
+    const pts = CORONADO.slice(i0, i1 + 1);
+    const shape = new THREE.Shape(pts.map(([a, b]) => new THREE.Vector2(a, -b)));
+    const geo = new THREE.ShapeGeometry(shape, 4).rotateX(-Math.PI / 2);
+    const tex = canvasTex(64, 512, (x, w, h) => {
+      x.fillStyle = '#d9c9a2'; x.fillRect(0, 0, w, h);
+      for (let k = 0; k < 900; k++) { x.fillStyle = k % 3 ? 'rgba(170,150,110,.18)' : 'rgba(110,130,70,.25)'; x.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 5, 2 + Math.random() * 5); }
+    });
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    const pos = geo.attributes.position, uv = geo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / 20, pos.getZ(i) / 60);
+    // and where it meets Imperial Beach: the beach runs on down the ocean side, dunes behind it
+    const ib = new THREE.ShapeGeometry(new THREE.Shape([[-56, 500], [-48, 522], [-50, 560], [-58, 640], [-72, 760], [-104, 760], [-82, 560], [-76, 520], [-70, 470]].map(([a, b]) => new THREE.Vector2(a, -b))), 4).rotateX(-Math.PI / 2);
+    const ipos = ib.attributes.position, iuv = ib.attributes.uv;
+    for (let i = 0; i < ipos.count; i++) iuv.setXY(i, ipos.getX(i) / 20, ipos.getZ(i) / 60);
+    const sm = new THREE.MeshStandardMaterial({ map: tex, roughness: 1 });
+    const sand = new THREE.Mesh(mergeGeometries([geo, ib]), sm); sand.position.y = -0.02; sand.receiveShadow = true; scene.add(sand);
+    // the highway carries on down the middle, with dune scrub and the odd palm either side
+    const road = [[-111, 296], [-104, 312], [-96, 340], [-87, 380], [-76, 440], [-65, 520], [-62, 560], [-70, 640]].map(([a, b]) => new THREE.Vector3(a, 0, b));
+    const curve = new THREE.CatmullRomCurve3(road), P = [];
+    const NS = Math.ceil(curve.getLength() / 1.6);
+    for (let k = 0; k <= NS; k++) {
+      const u = k / NS, p = curve.getPointAt(u), t = curve.getTangentAt(u), yaw = Math.atan2(t.x, t.z);
+      P.push(box(5.2, 0.02, 1.9, p.x, 0.0, p.z, 0x4a4b4d, yaw));
+      if (k % 2) P.push(box(0.08, 0.025, 0.9, p.x, 0.01, p.z, 0xe2ba3c, yaw));
+    }
+    const rm = new THREE.Mesh(mergeGeometries(P.map((g) => (g.index ? g.toNonIndexed() : g))), vc({ roughness: 0.9 })); rm.receiveShadow = true; scene.add(rm);
+    const trees = [];
+    for (let k = 0; k < 90; k++) { const u = Math.random(), p = curve.getPointAt(u), s = (Math.random() < 0.5 ? -1 : 1) * rand(4, 7); trees.push(cone(rand(0.5, 1.1), rand(0.6, 1.4), p.x + s, 0.4, p.z + rand(-2, 2), pick([0x6a7a42, 0x7d8a4e, 0x5a6a3a]), 6)); }
+    const tm = new THREE.Mesh(mergeGeometries(trees.map((g) => (g.index ? g.toNonIndexed() : g))), vc({ roughness: 1 })); scene.add(tm);
+  }
+
   // ================= the Barrio shipyards: container stacks and cranes =================
   yards(scene) {
     const cols = [0xc8352b, 0x1e5aa8, 0x2f7a45, 0xe0a020, 0x7a7d80, 0x8a3a1a, 0xf2f2ea, 0x1a6a7a];
@@ -509,10 +610,28 @@ export class SDBay {
       list.forEach((c, i) => { _m.makeTranslation(c.x, c.y, c.z); im.setMatrixAt(i, _m); im.setColorAt(i, new THREE.Color(c.col)); c.i = i; });
       im.castShadow = im.receiveShadow = true; scene.add(im); this.containers = { im, list };
     }
-    const P = [];
+    // shipyard gantry cranes: braced legs on rails, a portal deck, the machinery house with its cab, an A-frame and a
+    // lattice boom reaching out over the water with its cables and hook
+    const P = [], Y = 0xd8a020, YD = 0xb07a14, W = 0xe8e8e2, DK = 0x2a2c2e;
+    const strut = (a, b, r, c) => { const v = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), L = v.length(); const g = new THREE.BoxGeometry(r, L, r); g.translate(0, L / 2, 0); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize())); g.translate(a[0], a[1], a[2]); return tint(g, c); };
     for (const c of this.sd.cranes) {
-      for (const [a, b] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) P.push(box(0.4, 12, 0.4, c.x + a, 6, c.z + b, 0xd8a020));
-      P.push(box(4.4, 0.6, 4.4, c.x, 12.3, c.z, 0xd8a020), box(22, 0.8, 1.2, c.x - 7, 13, c.z, 0xd8a020), box(3, 2, 2.6, c.x + 3, 14, c.z, 0xe8e8e2));
+      const x = c.x, z = c.z, H = 11;
+      for (const [a, b] of [[-2.4, -2], [2.4, -2], [-2.4, 2], [2.4, 2]]) P.push(box(0.5, H, 0.5, x + a, H / 2, z + b, Y), box(1, 0.5, 1.2, x + a, 0.25, z + b, YD));
+      for (const sx of [-2.4, 2.4]) for (let y = 1; y < H - 1; y += 3) { P.push(strut([x + sx, y, z - 2], [x + sx, y + 3, z + 2], 0.14, Y), strut([x + sx, y, z + 2], [x + sx, y + 3, z - 2], 0.14, Y)); }
+      for (const sz of [-2, 2]) P.push(box(5.3, 0.6, 0.5, x, H - 0.3, z + sz, Y), box(5.3, 0.3, 0.3, x, 3, z + sz, Y));
+      for (const sz of [-2, 2]) P.push(box(30, 0.12, 0.2, x + 5, 0.06, z + sz, 0x6a6a6a));                         // the rails along the quay
+      P.push(box(5.6, 0.5, 4.8, x, H + 0.25, z, Y));
+      P.push(box(4, 2.6, 3.4, x + 0.8, H + 1.8, z, W), box(0.05, 0.6, 2.6, x + 2.82, H + 2.2, z, 0x2a3a48), box(1.6, 1.3, 1.4, x - 1.2, H + 1.15, z + 1.4, W), box(0.05, 0.7, 1.1, x - 2.02, H + 1.3, z + 1.4, 0x2a3a48));
+      P.push(box(3, 1.4, 3, x + 2.6, H + 3.6, z, 0x8a8a86));                                                      // counterweight
+      const top = [x + 0.5, H + 8, z];
+      for (const sz of [-1.2, 1.2]) { P.push(strut([x - 1.5, H + 3, z + sz], top, 0.3, Y), strut([x + 2.5, H + 3, z + sz], top, 0.3, Y)); }
+      // the boom: two lower chords and a top chord, braced, out over the bay (to the west)
+      const bx0 = x - 1, bx1 = x - 26, by0 = H + 3.2, by1 = H + 4.4;
+      for (const sz of [-0.7, 0.7]) P.push(strut([bx0, by0, z + sz], [bx1, by1, z + sz], 0.22, Y));
+      P.push(strut([bx0, by0 + 1.4, z], [bx1, by1 + 0.4, z], 0.22, Y));
+      for (let k = 0; k < 12; k++) { const u0 = k / 12, u1 = (k + 1) / 12, xa = bx0 + (bx1 - bx0) * u0, xb = bx0 + (bx1 - bx0) * u1, ya = by0 + (by1 - by0) * u0, yb = by0 + (by1 - by0) * u1; for (const sz of [-0.7, 0.7]) P.push(strut([xa, ya, z + sz], [xb, yb + 1.4 - 1 * u1, z], 0.08, Y)); }
+      P.push(strut(top, [bx1 + 6, by1 + 0.8, z], 0.06, DK), strut(top, [x - 12, by0 + 1.6, z], 0.06, DK));       // stays
+      P.push(box(1.2, 0.6, 1.2, bx1 + 3, by1 - 0.3, z, DK), strut([bx1 + 3, by1 - 0.6, z], [bx1 + 3, 3, z], 0.04, DK), box(0.5, 0.6, 0.4, bx1 + 3, 2.7, z, 0xc8352b));   // trolley, hoist rope, hook
     }
     if (P.length) { const m = new THREE.Mesh(mergeGeometries(P.map((g) => (g.index ? g.toNonIndexed() : g))), vc({ metalness: 0.3 })); m.castShadow = true; scene.add(m); }
   }
@@ -566,11 +685,18 @@ export class SDBay {
     }
     // a few that drive the base roads (loops round the apron and along the hangar line)
     this.drivers = [];
-    const loops = [[[-210, 78], [-152, 78], [-152, 2], [-210, 2]], [[-270, 90], [-232, 90], [-232, 10], [-270, 10]]];
-    for (let k = 0; k < 6; k++) {
+    const loops = [[[-210, 78], [-152, 78], [-152, 2], [-210, 2]], [[-270, 90], [-232, 90], [-232, 10], [-270, 10]], ...(sd.baseLoops || [])];
+    for (let k = 0; k < 12; k++) {
       const kd = pick(kinds), im = new THREE.InstancedMesh(milGeo(kd), mm, 1); im.castShadow = true; im.frustumCulled = false; scene.add(im);
-      this.drivers.push({ im, path: loops[k % 2], seg: k % 4, u: rand(0, 1), sp: rand(2.5, 4), alive: true, x: 0, z: 0 });
+      this.drivers.push({ im, path: loops[k % loops.length], seg: k % 4, u: rand(0, 1), sp: rand(2.5, 4), alive: true, x: 0, z: 0 });
     }
+    // the lines at the gates: military vehicles only, stopping for the guard one at a time
+    this.queues = (sd.queues || []).map((q) => {
+      const P = q.path, cum = [0]; for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const vs = [];
+      for (let k = 0; k < q.n; k++) { const kd = pick(kinds), im = new THREE.InstancedMesh(milGeo(kd), mm, 1); im.castShadow = true; im.frustumCulled = false; scene.add(im); vs.push({ im, s: cum[q.gate] - 1 - k * 2.6, v: 0, alive: true, hold: 0, x: 0, z: 0 }); }
+      return { P, cum, gateS: cum[q.gate], L: cum[cum.length - 1], vs, gateT: 0 };
+    });
   }
   navalBase(scene) { this.shipsAt(scene, this.sd.ships); }
   drawJet(j) {
@@ -603,6 +729,112 @@ export class SDBay {
   }
 
   // ================= the corner label, the boats, the sunk cars =================
+  // ================= jet skis: on looping lanes north of the bridge only (clear of the piers, the cruise ships and the
+  // naval base), each lane run one way so they never cross; they slow behind anything in front and blow up like boats
+  jetSkiFleet(scene) {
+    const lanes = [{ cx: -119, cz: -32, rx: 9, rz: 44 }, { cx: -120, cz: 62, rx: 8, rz: 27 }, { cx: -112, cz: -88, rx: 8, rz: 8 }];
+    const cols = [0xe8e8e2, 0x1e5aa8, 0xc8202a, 0xf2c21a, 0x2a2c2e, 0x16a38a];
+    this.jetskis = [];
+    lanes.forEach((L, li) => {
+      const n = li === 2 ? 1 : 3;
+      for (let k = 0; k < n; k++) {
+        const g = new THREE.Group(), col = pick(cols);
+        const parts = [box(1.0, 0.22, 0.42, 0, 0.11, 0, col), box(0.4, 0.14, 0.34, 0.15, 0.28, 0, 0x1c1d20), box(0.2, 0.18, 0.36, 0.42, 0.28, 0, col),
+          box(0.12, 0.3, 0.16, -0.05, 0.5, 0, pick([0xf26a1a, 0xf2c21a, 0xe8e8e2])), sph(0.06, -0.02, 0.72, 0, 0x6b4a32), box(0.05, 0.05, 0.36, 0.35, 0.45, 0, 0x2a2c2e)];
+        const m = new THREE.Mesh(mergeGeometries(parts.map((q) => (q.index ? q.toNonIndexed() : q))), vc({ roughness: 0.4 })); m.castShadow = true; g.add(m);
+        g.scale.setScalar(1.25); scene.add(g);
+        this.jetskis.push({ m: g, lane: L, a: (k / n) * Math.PI * 2 + li, sp: rand(0.11, 0.15), dir: li % 2 ? -1 : 1, x: 0, z: 0, sunk: false, len: 1.3 });
+      }
+    });
+  }
+  updateJetSkis(dt) {
+    for (const j of this.jetskis || []) {
+      if (j.sunk) continue;
+      const L = j.lane;
+      // keep a gap to the one ahead on the same lane, and stop for any harbour boat that wanders across
+      let slow = 1;
+      for (const o of this.jetskis) if (o !== j && !o.sunk && o.lane === L) { let d = (o.a - j.a) * j.dir; d = ((d % 6.283) + 6.283) % 6.283; if (d < 0.35) slow = Math.min(slow, d / 0.35); }
+      const hb = G.harbor && G.harbor.boats; if (hb) for (const b of hb) if (!b.dead && Math.hypot(b.x - j.x, b.z - j.z) < 4.5) slow = Math.min(slow, 0.25);
+      j.a += j.dir * j.sp * slow * dt * (1 + 0.15 * Math.sin(G.time * 0.7 + j.a));
+      const x = L.cx + Math.cos(j.a) * L.rx, z = L.cz + Math.sin(j.a) * L.rz, nx = L.cx + Math.cos(j.a + j.dir * 0.05) * L.rx, nz = L.cz + Math.sin(j.a + j.dir * 0.05) * L.rz;
+      j.x = x; j.z = z;
+      j.m.position.set(x, 0.04 + Math.abs(Math.sin(G.time * 6 + j.a * 3)) * 0.06, z);
+      j.m.rotation.set(0, -Math.atan2(nz - z, nx - x), j.dir * -0.25);
+      if (slow > 0.5 && Math.random() < dt * 22) G.fx.bits.emit(x - Math.cos(Math.atan2(nz - z, nx - x)) * 0.8, 0.12, z - Math.sin(Math.atan2(nz - z, nx - x)) * 0.8, rand(-0.6, 0.6), rand(0.6, 1.6), rand(-0.6, 0.6), rand(0.08, 0.16), 0.7, 0.9, 0.95, 1, 0.9);
+    }
+  }
+  // ================= the Blue Line: a second trolley line down Fifth Avenue, through Barrio Logan to the Naval Base =================
+  blueLine(scene) {
+    const C = this.city, X = 66, Z0 = -62, Z1 = 184, TR = 0.62, hw = C.roadW / 2;
+    // the street becomes trolley-only (cars cross it at the junctions, they don't drive along it)
+    for (const e of C.edges.values()) { const a = C.nodes[e.a], b = C.nodes[e.b]; if (a.x === X && b.x === X && Math.min(a.z, b.z) >= -66) { e.blocked = true; e.transit = true; } }
+    const grounds = [G.ground, G.ground && G.ground.second].filter(Boolean);
+    for (const gr of grounds) {
+      gr.rect(X - hw, Z0, X + hw, Z1 + 2, '#9d978c');
+      for (const s of [-1, 1]) { const tx = X + s * TR; gr.rect(tx - 0.34, Z0, tx + 0.34, Z1 + 2, '#6b665f'); for (let z = Z0; z < Z1 + 2; z += 0.45) gr.rect(tx - 0.3, z, tx + 0.3, z + 0.14, 'rgba(60,45,35,.55)'); for (const r of [-0.2, 0.2]) gr.line(tx + r, Z0, tx + r, Z1 + 2, 0.05, '#c9ccd0'); }
+      gr.rect(X - 1.6, Z1 + 2, X + 1.6, Z1 + 2.4, '#d8b21c');
+      gr.tex.needsUpdate = true;
+    }
+    // stations
+    const stations = [{ z: 30, name: 'PARK & MARKET' }, { z: 120, name: 'BARRIO LOGAN' }, { z: 176 + 5.5, name: '32ND ST · NAVAL BASE' }];
+    const P = [];
+    for (const st of stations) for (const s of [-1, 1]) {
+      const px = X + s * (hw - 0.62);
+      P.push(box(1.24, 0.1, 13, px, 0.05, st.z, 0xbdb7ab), box(0.16, 0.012, 13, X + s * (hw - 1.16), 0.106, st.z, 0xf2c21c), box(1.1, 0.06, 11, px, 1.42, st.z, 0xd9dde0));
+      for (let k = -2; k <= 2; k++) P.push(box(0.06, 1.3, 0.06, px + s * 0.35, 0.75, st.z + k * 2.6, 0x2a2d31));
+      (C.crowds ||= []); for (let k = 0; k < 2; k++) C.crowds.push({ x: px, z: st.z + rand(-4, 4), r: 0.45, n: Math.round(rand(2, 5)), look: st.z > 170 && Math.random() < 0.6 ? 'navy' : undefined });
+    }
+    for (let z = Z0 + 2; z < Z1; z += 7) { if (C.zs.some((v) => Math.abs(v - z) < hw + 0.6)) continue; P.push(cyl(0.05, 0.06, 2.3, X, 1.15, z, 0x2a2d31, 6), box(TR * 2 + 0.2, 0.04, 0.04, X, 2.2, z, 0x2a2d31)); }
+    for (const s of [-1, 1]) P.push(box(0.018, 0.018, Z1 - Z0, X + s * TR, 2.16, (Z0 + Z1) / 2, 0x1a1a1a));
+    const pm = new THREE.Mesh(mergeGeometries(P.map((g) => (g.index ? g.toNonIndexed() : g))), vc({ roughness: 0.6 })); pm.castShadow = true; pm.receiveShadow = true; scene.add(pm);
+    for (const st of stations) {
+      const t = canvasTex(256, 48, (x, w, h) => { x.fillStyle = '#1a3a6b'; x.fillRect(0, 0, w, h); x.fillStyle = '#2a6fd0'; x.fillRect(0, 0, 18, h); x.fillStyle = '#fff'; x.font = '700 18px Inter, Arial'; x.textBaseline = 'middle'; x.fillText(st.name, 26, 25, w - 30); });
+      const b = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.34), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); b.position.set(X + hw - 0.3, 1.75, st.z + 6); b.rotation.y = Math.PI / 2; scene.add(b);
+    }
+    // two trains: red, articulated, the Blue Line on their destination boards
+    const [side] = sideTexture(4062), front = frontTexture();
+    const body = new THREE.MeshStandardMaterial({ map: side, roughness: 0.4, metalness: 0.2 }), roof = new THREE.MeshStandardMaterial({ color: 0xb3141b, roughness: 0.5 }), nose = new THREE.MeshStandardMaterial({ map: front, roughness: 0.35 });
+    const geo = new THREE.BoxGeometry(0.86, 1.3, 4.4).translate(0, 0.77, 0);
+    this.blue = { X, Z0, Z1, TR, stations, trains: [] };
+    for (const [dir, z] of [[1, 40], [-1, 150]]) {
+      const secs = []; for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(geo, [body, body, roof, roof, nose, nose]); m.castShadow = true; scene.add(m); secs.push(m); }
+      this.blue.trains.push({ dir, z, speed: 4.4, dwell: 0, last: null, secs, derailed: false });
+    }
+  }
+  railBlocks(x1, z1, x2, z2) {
+    const B = this.blue; if (!B) return false;
+    for (const [x, z] of [[x1, z1], [x2, z2]]) {
+      if (Math.abs(x - B.X) > B.TR + 1.4) continue;
+      for (const t of B.trains) { const a = Math.min(t.z, t.z - t.dir * 18), b = Math.max(t.z, t.z - t.dir * 18); if (z > a - (t.dir > 0 ? 0.8 : 6) && z < b + (t.dir > 0 ? 6 : 0.8)) return true; }
+    }
+    return false;
+  }
+  updateBlue(dt) {
+    const B = this.blue; if (!B) return;
+    for (const t of B.trains) {
+      if (t.derailed) continue;
+      let target = 4.4;
+      for (const st of B.stations) {
+        if (t.last === st) continue;
+        const stopAt = st.z + t.dir * 9, ahead = (stopAt - t.z) * t.dir;
+        if (ahead > -0.2 && ahead < 14) target = Math.min(target, Math.sqrt(Math.max(0, ahead) * 4.4));
+        if (ahead < 0.1 && ahead > -0.6 && t.dwell <= 0) { t.dwell = rand(6, 10); t.last = st; t.speed = 0; }
+      }
+      if (t.dwell > 0) { t.dwell -= dt; target = 0; }
+      for (const c of G.agents.cars) if (c.state !== 'hidden' && Math.abs(c.pos.x - (B.X + t.dir * B.TR)) < 0.9 && (c.pos.z - t.z) * t.dir > 0 && (c.pos.z - t.z) * t.dir < 4) target = 0;
+      if (this.city.obstacleNear(B.X + t.dir * B.TR, t.z + t.dir * 3, 0.6)) target = 0;
+      t.speed += clamp(target - t.speed, -5 * dt, 1.6 * dt);
+      t.z += t.dir * t.speed * dt;
+      // the ends: run back on the other track
+      if ((t.dir > 0 && t.z > B.Z1) || (t.dir < 0 && t.z < B.Z0 + 18)) { t.z -= t.dir * 18; t.dir *= -1; t.last = null; t.dwell = rand(8, 12); }
+      const x = B.X + t.dir * B.TR;
+      t.secs.forEach((m, i) => m.position.set(x, 0, t.z - t.dir * (i * 4.52 + 2.2)));
+    }
+  }
+  airHit(p) {
+    for (const j of this.jets || []) if (j.alive && (j.y || 0) > 0.5 && Math.hypot(j.x - p.x, j.y - p.y, j.z - p.z) < 2.6) return j;
+    return G.sky && G.sky.hitTest ? G.sky.hitTest(p) : null;
+  }
   blocksBoat(x, z) {
     for (const pr of this.piers) if (pr.alive && Math.hypot(x - pr.x, z - pr.z) < 3) return true;
     for (const p of this.sd.piers) if (x > p.x0 - 2 && x < p.x1 + 2 && z > p.z0 - 8 && z < p.z1 + 8) return true;
@@ -618,7 +850,7 @@ export class SDBay {
     if (reach > 0) {
       for (const sg of this.segs) {
         if (!sg.alive) continue;
-        let bd = 1e9; for (let i = sg.i0; i <= sg.i1; i += 2) { const s = this.samples[i], d = Math.hypot(s.x - x, s.y - y, s.z - z); if (d < bd) bd = d; }
+        let bd = 1e9; const SS = sg.samples || this.samples; for (let i = sg.i0; i <= sg.i1; i += 2) { const s = SS[i], d = Math.hypot(s.x - x, s.y - y, s.z - z); if (d < bd) bd = d; }
         if (bd < reach + 1.5) this.damageSeg(sg, dmgBase * clamp(1 - bd / (reach + 2), 0.15, 1), { x, y, z });
       }
       for (const pr of this.piers) if (pr.alive && Math.hypot(pr.x - x, pr.z - z) < reach + 1 && y < pr.h + 1) { pr.hp -= dmgBase * 0.8; if (pr.hp <= 0) this.breakPier(pr); }
@@ -626,6 +858,7 @@ export class SDBay {
       for (const j of this.jets) if (j.alive && Math.hypot(j.x - x, j.z - z, (j.y || 0) - y) < reach + 1.5) { j.alive = false; j.deadT = 40; G.fx.explosion(j.x, (j.y || 0) + 0.4, j.z, 1.1, null, 'bomb'); this.drawJet(j); this.jetMesh.instanceMatrix.needsUpdate = true; }
       for (const v of this.milList) if (v.alive && Math.hypot(v.x - x, v.z - z) < reach + 1) { v.alive = false; G.fx.explosion(v.x, 0.5, v.z, 0.9, null, 'bomb'); G.fx.groundFire(v.x, 0, v.z, rand(8, 16), 0.7); _m.compose(_p.set(v.x, 0, v.z), _q.setFromAxisAngle(UP, v.rot || 0), _s.set(1, 0.7, 1)); v.im.setMatrixAt(v.i, _m); v.im.instanceMatrix.needsUpdate = true; v.im.setColorAt && null; }
       if (this.containers) { let hit = false; for (const c of this.containers.list) if (c.alive && Math.hypot(c.x - x, c.y - y, c.z - z) < reach + 1) { c.alive = false; hit = true; this.containers.im.setMatrixAt(c.i, ZERO); G.fx.dust(c.x, c.y, c.z, 0.6); } if (hit) this.containers.im.instanceMatrix.needsUpdate = true; }
+      for (const q of this.queues || []) for (const v of q.vs) if (v.alive && Math.hypot(v.x - x, v.z - z) < reach + 1) { v.alive = false; G.fx.explosion(v.x, 0.5, v.z, 0.9, null, 'bomb'); G.fx.groundFire(v.x, 0, v.z, rand(6, 12), 0.6); _m.compose(_p.set(v.x, 0, v.z), _q.identity(), _s.set(1, 0.6, 1)); v.im.setMatrixAt(0, _m); v.im.instanceMatrix.needsUpdate = true; }
       for (const d of this.drivers) if (d.alive && Math.hypot(d.x - x, d.z - z) < reach + 1) { d.alive = false; G.fx.explosion(d.x, 0.5, d.z, 0.9, null, 'bomb'); d.im.setMatrixAt(0, ZERO); d.im.instanceMatrix.needsUpdate = true; }
     }
   }
@@ -662,6 +895,8 @@ export class SDBay {
       if (j.mode === 'cycle') { this.flyJet(j, dt, bi++); this.drawJet(j); }
     }
     this.jetMesh.instanceMatrix.needsUpdate = true; this.jetBurn.instanceMatrix.needsUpdate = true;
+    this.updateJetSkis(dt);
+    this.updateBlue(dt);
     // trucks round the base
     for (const d of this.drivers) {
       if (!d.alive) continue;
@@ -669,6 +904,23 @@ export class SDBay {
       d.u += d.sp * dt / L; if (d.u >= 1) { d.u -= 1; d.seg = (d.seg + 1) % P.length; }
       d.x = a[0] + (b[0] - a[0]) * d.u; d.z = a[1] + (b[1] - a[1]) * d.u;
       _m.compose(_p.set(d.x, 0, d.z), _q.setFromAxisAngle(UP, Math.atan2(b[0] - a[0], b[1] - a[1])), _s.set(1, 1, 1)); d.im.setMatrixAt(0, _m); d.im.instanceMatrix.needsUpdate = true;
+    }
+    for (const q of this.queues || []) {
+      const live = q.vs.filter((v) => v.alive).sort((a, b) => b.s - a.s);
+      let ahead = null;
+      for (const v of live) {
+        let want = 2.6;
+        if (ahead && ahead.s < q.L) want = Math.min(want, Math.max(0, (ahead.s - v.s - 2.4) * 1.8));
+        if (!v.cleared && v.s < q.gateS) { const d = q.gateS - v.s; want = Math.min(want, Math.max(0, d * 1.4)); if (d < 0.15) { v.hold += dt; if (v.hold > 3.5) { v.cleared = true; v.hold = 0; } } }
+        v.v += clamp(want - v.v, -6 * dt, 2.5 * dt); v.s += v.v * dt;
+        if (v.s >= q.L) { const last = live[live.length - 1]; v.s = Math.min(-2, (last && last !== v ? last.s : 0) - 2.6); v.cleared = false; v.v = 0; }
+        let i = 1; while (i < q.P.length - 1 && q.cum[i] < v.s) i++;
+        const a = q.P[i - 1], b = q.P[i], u = clamp((v.s - q.cum[i - 1]) / (q.cum[i] - q.cum[i - 1] || 1), 0, 1);
+        v.x = a[0] + (b[0] - a[0]) * u; v.z = a[1] + (b[1] - a[1]) * u;
+        const sc = v.s < 0 ? 0 : 1;
+        _m.compose(_p.set(v.x, 0, v.z), _q.setFromAxisAngle(UP, Math.atan2(b[0] - a[0], b[1] - a[1])), _s.set(sc, sc, sc)); v.im.setMatrixAt(0, _m); v.im.instanceMatrix.needsUpdate = true;
+        ahead = v;
+      }
     }
     // cars that went into the bay come back later as fresh traffic out of view
     if ((this.sunkCheckT -= dt) <= 0 && G.agents) {

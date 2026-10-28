@@ -21,11 +21,13 @@ export const CORONADO = [
   [-150, -78], [-139, -46], [-136, -8], [-138, 30], [-144, 70], [-146, 98],          // North Island's bay shore (the carrier piers)
   [-142, 122], [-136, 146], [-138, 168],                                                // the village's bay front, the bridge comes down here
   [-150, 182], [-163, 190], [-164, 206], [-150, 216],                                   // Glorietta Bay
-  [-136, 234], [-118, 262], [-100, 296], [-94, 320],                                    // the Strand, bay side
-  [-112, 320], [-122, 298], [-140, 268], [-160, 252], [-186, 249], [-214, 245],       // the Strand, ocean side, to the Hotel del
+  [-136, 234], [-118, 262], [-100, 296], [-90, 330], [-78, 380], [-66, 440], [-56, 520],   // the Strand, bay side, on south into the haze
+  [-74, 520], [-84, 440], [-96, 380], [-108, 330], [-122, 298], [-140, 268], [-160, 252], [-186, 249], [-214, 245],   // its ocean side, back to the Hotel del
   [-242, 233], [-264, 212], [-280, 184], [-288, 150],                                   // Central Beach round to the north-west
   [-292, 110], [-292, 64], [-286, 18], [-274, -22], [-256, -56], [-230, -80], [-200, -94], [-172, -92],   // North Island's ocean side
 ];
+// the south end of the bay: the Strand reaches the mainland at Imperial Beach, so the bay closes off (no open end)
+export const SOUTHBAY = [[-66, 470], [-50, 520], [-36, 544], [-10, 556], [14, 552], [30, 520], [80, 500], [80, 900], [-120, 900], [-80, 560], [-74, 520], [-80, 470]];
 export function inPoly(poly, x, z) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -42,7 +44,7 @@ export const onNAS = (x, z) => z < NAS_FENCE && onCoronado(x, z);
 export const NBSD = { z0: 186, z1: 318, x1: 108 };
 export const onNBSD = (x, z) => z > NBSD.z0 && z < NBSD.z1 && x > sdShoreX(z) - 0.5 && x < NBSD.x1;
 export const onMainland = (x, z) => x > sdShoreX(z);
-export const isLand = (x, z) => onMainland(x, z) || onCoronado(x, z);
+export const isLand = (x, z) => onMainland(x, z) || onCoronado(x, z) || (z > 470 && inPoly(SOUTHBAY, x, z));
 
 // the whole San Diego world (the second ground, the water mask, the camera)
 export const WORLD = { x0: -300, x1: 110, z0: -105, z1: 305 };
@@ -53,7 +55,13 @@ export const BRIDGE = [[44, 0.25, 110], [30, 2.8, 113], [12, 6.2, 121], [-12, 10
 // the street corners it joins (Barrio Logan, Coronado)
 export const BRIDGE_ENDS = [[44, 110], [-154, 132]];
 // Chicano Park: under the bridge's Barrio Logan approach
-export const CHICANO = { x0: 0, x1: 44, z0: 108, z1: 132 };
+export const CHICANO = { x0: 0, x1: 44, z0: 88, z1: 132 };
+// the freeway ramps over the park (on- and off-ramps branching off the bridge approach), [x, deck height, z] ground end first
+export const RAMPS = [
+  [[12, 0.2, 93], [12, 1.5, 100], [10, 3.4, 108], [6, 5.4, 116], [1, 7.3, 123]],
+  [[34, 0.2, 93], [34, 1.2, 99], [31, 2.6, 106], [26, 3.9, 113], [19, 5.0, 118]],
+  [[47, 0.2, 117], [33, 2.3, 120], [17, 5.5, 127], [2, 8.4, 133], [-11, 10.4, 137]],
+];
 export const BRIDGE_W = 3.8;
 // the village, where its street grid runs (the bridge lands at its north-east corner)
 export const VILLAGE = { x0: -264, x1: -154, z0: 110, z1: 198 };

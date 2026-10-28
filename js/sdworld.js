@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { rand, pick } from './core.js';
 import { Ground } from './city.js';
 import { hsl, partition, crowdsAroundBlock, crowdsIn, weather, junk } from './maps.js';
-import { sdShoreX, CORONADO, inPoly, onCoronado, NAS_FENCE, NBSD, WORLD, BRIDGE, BRIDGE_ENDS, CHICANO, VILLAGE, HOTEL, isLand } from './sdgeo.js';
+import { sdShoreX, CORONADO, SOUTHBAY, inPoly, onCoronado, NAS_FENCE, NBSD, WORLD, BRIDGE, BRIDGE_ENDS, CHICANO, VILLAGE, HOTEL, isLand } from './sdgeo.js';
 
 const range = (a, b, s) => { const o = []; for (let v = a; v <= b + 1e-6; v += s) o.push(v); return o; };
 export const SD_XS = range(-264, 88, 22), SD_ZS = range(-66, 198, 22);
@@ -27,7 +27,7 @@ export function sdLive(x, z) {
 }
 // the old z = 110 street under the bridge ramps is gone (the ramps and the park are there)
 export function sdSkipEdge(a, b) {
-  return a.z === 110 && b.z === 110 && Math.min(a.x, b.x) >= 0 && Math.max(a.x, b.x) <= 44;
+  return (a.z === 110 && b.z === 110 && Math.min(a.x, b.x) >= 0 && Math.max(a.x, b.x) <= 44) || (a.x === 22 && b.x === 22 && Math.min(a.z, b.z) >= 88 && Math.max(a.z, b.z) <= 132);
 }
 
 // ---------- palettes ----------
@@ -54,7 +54,9 @@ export function sdExtension(ctx, extBlocks) {
   const isle = () => { X.beginPath(); CORONADO.forEach(([a, b], i) => (i ? X.lineTo(g.px(a), g.pz(b)) : X.moveTo(g.px(a), g.pz(b)))); X.closePath(); };
   // the island, its ocean beach (sand worn into the land side of the coast), then the sea put back outside it
   isle(); X.fillStyle = '#7b7f66'; X.fill();
-  const OCEAN = CORONADO.slice(CORONADO.findIndex(([a, b]) => a === -112 && b === 320), CORONADO.findIndex(([a, b]) => a === -256 && b === -56) + 1);
+  // the Strand is sand and dune scrub (it carries on past the map edge the same way, js/sdbay.js)
+  X.save(); isle(); X.clip(); g.rect(-200, 238, -60, W.z1 + 5, '#d6c69f'); for (let k = 0; k < 500; k++) g.circle(rand(-170, -90), rand(240, W.z1), rand(0.3, 1.2), k % 3 ? 'rgba(170,150,110,.2)' : 'rgba(110,130,70,.3)'); X.restore();
+  const OCEAN = CORONADO.slice(CORONADO.findIndex(([a, b]) => a === -74 && b === 520), CORONADO.findIndex(([a, b]) => a === -256 && b === -56) + 1);
   const strokeAlong = (pts, w, style) => { X.save(); X.strokeStyle = style; X.lineWidth = w * g.k; X.lineJoin = X.lineCap = 'round'; X.beginPath(); pts.forEach(([a, b], i) => (i ? X.lineTo(g.px(a), g.pz(b)) : X.moveTo(g.px(a), g.pz(b)))); X.stroke(); X.restore(); };
   strokeAlong(OCEAN, 20, '#e0cfa6');
   for (let k = 0; k < 2200; k++) { const [a, b] = pick(OCEAN); g.circle(a + rand(-12, 12), b + rand(-12, 12), rand(0.1, 0.5), `rgba(${Math.random() < 0.5 ? '255,250,235' : '160,140,100'},.14)`); }
@@ -95,7 +97,7 @@ export function sdExtension(ctx, extBlocks) {
 
   // ---------- blocks ----------
   const live = (b) => [[b.x0 - hw, b.z0 - hw], [b.x1 + hw, b.z0 - hw], [b.x0 - hw, b.z1 + hw], [b.x1 + hw, b.z1 + hw]].every(([x, z]) => sdLive(Math.round(x), Math.round(z)));
-  const chicano = { x0: CHICANO.x0 + hw, x1: CHICANO.x1 - hw, z0: CHICANO.z0 + hw - 2, z1: CHICANO.z1 - hw };
+  const chicano = { x0: CHICANO.x0 + hw, x1: CHICANO.x1 - hw, z0: CHICANO.z0 + hw, z1: CHICANO.z1 - hw };
   for (const b of extBlocks) {
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
     if (cx > CHICANO.x0 && cx < CHICANO.x1 && cz > CHICANO.z0 && cz < CHICANO.z1) { b.closed = true; continue; }      // the park, below
@@ -126,7 +128,9 @@ export function sdExtension(ctx, extBlocks) {
   city.deepWater = (x, z) => !isLand(x, z) && !(x > -74.5 && z < 70) && !sd.piers.some((p) => x > p.x0 && x < p.x1 && z > p.z0 && z < p.z1) && !(onCoronado(x + 4, z) || onCoronado(x - 4, z) || onCoronado(x, z + 4) || onCoronado(x, z - 4));
   city.isLand = isLand;
   city.inBounds = (x, z) => x > W.x0 + 2 && x < W.x1 - 2 && z > W.z0 + 2 && z < W.z1 - 2;
-  city.noBackdrop = (x, z) => x < sdShoreX(z) + 6 || (x > W.x0 - 14 && x < W.x1 + 14 && z > W.z0 - 14 && z < W.z1 + 14);
+  // the backdrop city fills everything else, right up to the Gaslamp's edge (no empty belt of bare lots)
+  const southLand = (x, z) => z > 470 && [[-8, -8], [8, -8], [-8, 8], [8, 8]].every(([a, b]) => inPoly(SOUTHBAY, x + a, z + b)) && x > -50 + (z - 520) * -0.1;   // Imperial Beach, behind its beach
+  city.noBackdrop = (x, z) => (x < sdShoreX(z) + 6 && !southLand(x, z)) || (Math.abs(x) < 70 && Math.abs(z) < 70) || (x > W.x0 - 14 && x < W.x1 + 3 && z > 62 && z < W.z1 + 3);
   g.tex.needsUpdate = true;
   return { g2: g };
 }
@@ -391,8 +395,8 @@ function coronadoBeach(ctx, g) {
   for (const t of [0.15, 0.45, 0.75]) { const [x, z] = along(t), [bx, bz] = inland(x, z, 7); sd.towers.push({ x: bx, z: bz }); }
   city.named.push({ S: 'Coronado Central Beach', o: 'Coronado Central Beach', x0: -290, x1: -160, z0: 150, z1: 252 });
   // the Coronado Shores towers along the start of the Strand
-  for (const [x, z] of [[-152, 240], [-142, 248], [-133, 257], [-146, 260]]) {
-    if (!onCoronado(x, z)) continue;
+  for (const [x, z] of [[-162, 244], [-171, 239], [-158, 250]]) {
+    if (!onIsle(x, z, 3.5)) continue;
     const t = ctx.B.add({ x, z, w: 4.6, d: 4.2, floors: 15, style: 'concrete', tint: hsl(0.1, 0.05, 0.93), cell: 1.4, gh: 1.5, fh: 1.05 });
     t.noSigns = true;
     g.rect(x - 3.5, z - 3.5, x + 3.5, z + 3.5, '#b9b2a4');
@@ -423,7 +427,6 @@ function northIsland(ctx, g) {
   // aprons and taxiways by the bay, the hangar line, the carrier piers
   g.rect(-212, 0, -150, 76, '#a9a8a2'); g.grainRect(-212, 0, -150, 76, 0.25, 40);
   for (let x = -210; x < -150; x += 6) g.line(x, 2, x, 74, 0.05, 'rgba(60,60,60,.25)');
-  g.rect(-205, -42, -165, -24, '#a9a8a2');
   X.restore();
   for (let k = 0; k < 6; k++) {
     const x = -204 + k * 9.5, z = 82;
@@ -437,7 +440,7 @@ function northIsland(ctx, g) {
   sd.tower.noSigns = true; sd.tower.landmark = true;
   // the carrier quay along the bay side: the carriers tie up end to end along it (js/sdbay.js)
   sd.piers.push({ x0: -142, x1: -131, z0: -30, z1: 96, kind: 'quay' });
-  sd.carriers = [{ x: -122, z: 14, kind: 'cvn', yaw: -Math.PI / 2, s: 1.7 }, { x: -124, z: 70, kind: 'lhd', yaw: -Math.PI / 2, s: 1.5 }];
+  sd.carriers = [];                                       // (no carrier in: the bay side stays open water)
   // sailors everywhere: the flight line, the hangars, the piers; marines at the gate; no civilians and no civilian cars
   const mil = (x, z, n, look, r = 1.2) => city.crowds.push({ x, z, r, n, look, tag: 'military' });
   for (let k = 0; k < 14; k++) mil(rand(-208, -154), rand(4, 72), Math.round(rand(2, 5)), pick(['navy', 'navy', 'flightdeck', 'flightdeck', 'khaki']), 2);
@@ -448,43 +451,75 @@ function northIsland(ctx, g) {
   sd.gates.push({ x: -220, z: NAS_FENCE, name: 'NAS North Island' });
   mil(-218, NAS_FENCE + 1.6, 3, 'marine', 0.5); mil(-222, NAS_FENCE - 2, 2, 'mp', 0.5);
   sd.fences.push({ x0: -292, x1: -140, z: NAS_FENCE, gap: [-224, -216] });
+  // the line of military vehicles waiting to get on base: a lane along the north side of the village's first street,
+  // up the stub to the gate, in past the guard
+  g.rect(-266, 103.4, -217, 106.8, '#4a4b4d'); g.rect(-223, 92, -217, 106.8, '#4a4b4d');
+  for (let x = -265; x < -219; x += 3) g.rect(x, 105.05, x + 1.6, 105.15, 'rgba(236,236,230,.75)');
+  sd.queues = sd.queues || [];
+  sd.queues.push({ path: [[-264, 105.1], [-224, 105.1], [-220, 101], [-220, NAS_FENCE + 1], [-220, 80], [-236, 70], [-250, 60]], gate: 3, n: 8 });
+  for (let k = 0; k < 22; k++) mil(rand(-270, -152), rand(-60, 88), Math.round(rand(2, 4)), pick(['navy', 'flightdeck', 'marine', 'khaki']), rand(5, 10));
+  for (const x of [-223.5, -216.5]) mil(x, NAS_FENCE - 0.8, 2, 'mp', 0.5);
   g.rect(-292, NAS_FENCE - 0.15, -140, NAS_FENCE + 0.15, '#7d7c78');
   city.named.push({ S: 'Naval Air Station North Island', o: 'Naval Air Station North Island', x0: -292, x1: -136, z0: -94, z1: NAS_FENCE });
 }
 
 // ---------- Naval Base San Diego ----------
 function navalBase(ctx, g) {
-  const { city, B } = ctx, sd = city.sd, N = NBSD;
-  const pts = [[N.x1, N.z0]]; for (let z = N.z0; z <= N.z1; z += 2) pts.push([sdShoreX(z) + 0.2, z]); pts.push([N.x1, N.z1]);
-  g.poly(pts, '#a19f99'); g.grainRect(-40, N.z0, N.x1, N.z1, 0.3, 40);
-  // Harbor Drive along the top and down the east side, Gate 7 where it enters
-  g.rect(-14, N.z0 - 2, N.x1, N.z0 + 3, '#4a4b4d'); g.rect(N.x1 - 9, N.z0, N.x1 - 4, N.z1, '#4a4b4d');
-  for (let x = -12; x < N.x1; x += 3) g.rect(x, N.z0 + 0.45, x + 1.6, N.z0 + 0.55, 'rgba(226,186,60,.85)');
-  sd.gates.push({ x: N.x1 - 6.5, z: N.z0 + 5, name: 'Gate 7', nbsd: true });
+  const { city, B } = ctx, sd = city.sd, N = NBSD, FZ = N.z0 + 6, FX = N.x1 - 10;
+  const pts = [[N.x1, N.z0 - 3]]; for (let z = N.z0 - 3; z <= N.z1; z += 2) pts.push([sdShoreX(z) + 0.2, z]); pts.push([N.x1, N.z1]);
+  g.poly(pts, '#8e8c84'); g.grainRect(-40, N.z0 - 3, N.x1, N.z1, 0.35, 40);
+  // Harbor Drive outside the fence, the entrance road down to Gate 7
+  g.rect(-14, N.z0 - 2, N.x1, N.z0 + 4, '#4a4b4d');
+  for (let x = -12; x < N.x1; x += 3) g.rect(x, N.z0 + 0.95, x + 1.6, N.z0 + 1.05, 'rgba(226,186,60,.85)');
+  g.rect(89.5, N.z0 + 4, 94.5, N.z0 + 22, '#4a4b4d'); g.rect(91.95, N.z0 + 8, 92.05, N.z0 + 20, 'rgba(226,186,60,.85)');
+  for (let x = 90; x < 94.5; x += 0.55) g.rect(x, N.z0 + 4.3, x + 0.3, N.z0 + 5.5, 'rgba(236,236,230,.8)');
+  sd.gates.push({ x: 92, z: FZ, name: 'Gate 7', nbsd: true });
+  // inside: a grid of base streets, lots with grass verges and concrete pads, trees along the streets, the waterfront road
+  const cols = [], rows = [];
+  for (let z = N.z0 + 10; z < N.z1 - 10; z += 16) rows.push(z);
+  for (let x = -6; x < FX - 12; x += 14) cols.push(x);
+  for (const z of rows) for (const x of cols) {
+    if (x < sdShoreX(z + 8) + 6) continue;
+    g.rect(x, z, x + 12, z + 13.5, '#6f8a4a'); g.grainRect(x, z, x + 12, z + 13.5, 0.3, 40);
+    g.rect(x + 0.8, z + 0.8, x + 11.2, z + 12.7, '#a8a49a');
+    for (const [tx, tz] of [[x + 0.4, z + 0.4], [x + 11.6, z + 0.4], [x + 0.4, z + 13.1], [x + 11.6, z + 13.1]]) city.addTree(tx, tz, 0.9);
+    const r = Math.random();
+    if (r < 0.22) { const sp = city.paintParking(g, x + 1, z + 1, x + 11, z + 12.5); for (const q of sp) if (Math.random() < 0.55) sd.vehicles.push({ ...q, kind: pick(['humvee', 'truck', 'pickup']) }); continue; }
+    if (r < 0.3) { city.paintGrass(g, x + 1, z + 1, x + 11, z + 12.5, '#6a8a46'); for (let k = 0; k < 4; k++) city.addTree(rand(x + 2, x + 10), rand(z + 2, z + 11), rand(1, 1.4)); city.crowds.push({ x: x + 6, z: z + 6.5, r: 4, n: Math.round(rand(4, 8)), look: pick(['navy', 'marine']), tag: 'military' }); continue; }
+    const b = B.add({ x: x + 6, z: z + 6.6, w: rand(8, 10.5), d: rand(7, 10), floors: Math.random() < 0.5 ? 2 : 3, style: Math.random() < 0.6 ? 'concrete' : 'garage', tint: NAVYGREY(), cell: 2.2, gh: 1.8, fh: 1.3 });
+    b.noSigns = true;
+  }
+  for (const z of [...rows, rows[rows.length - 1] + 16]) { const a = sdShoreX(z) + 2; g.rect(a, z - 2.4, FX, z - 0.2, '#4a4b4d'); for (let x = a + 1; x < FX - 1; x += 3) g.rect(x, z - 1.35, x + 1.6, z - 1.25, 'rgba(236,236,230,.7)'); }
+  for (const x of [...cols, cols[cols.length - 1] + 14]) g.rect(x - 2.2, FZ + 1, x - 0.2, N.z1 - 2, '#4a4b4d');
+  // the fence: along the inside of Harbor Drive (the gate's gap), down the east side and along the south end
+  sd.fenceLines = sd.fenceLines || [];
+  sd.fenceLines.push({ pts: [[sdShoreX(FZ) + 0.5, FZ], [89, FZ]] }, { pts: [[95, FZ], [FX, FZ], [FX, N.z1], [sdShoreX(N.z1) + 0.5, N.z1]] });
+  // the line of military vehicles waiting at Gate 7 (east along Harbor Drive, in at the gate, off into the base)
+  sd.queues = sd.queues || [];
+  sd.queues.push({ path: [[30, N.z0 + 2.4], [86, N.z0 + 2.4], [91, N.z0 + 4.5], [92, FZ - 1], [92, FZ + 14], [80, FZ + 16], [40, FZ + 16]], gate: 3, n: 9 });
   // piers out into the bay, each with ships tied up on both sides
   for (let k = 0; k < 5; k++) {
     const z = N.z0 + 18 + k * 24, sx = sdShoreX(z);
     const p = { x0: sx - 50, x1: sx + 1, z0: z - 2.4, z1: z + 2.4, kind: 'pier' };
     sd.piers.push(p);
-    for (const s of [-1, 1]) { const kind = pick(k % 2 ? ['ddg', 'ddg', 'lpd', 'cg'] : ['lhd', 'ddg', 'zumwalt', 'lcs']); sd.ships.push({ x: sx - 27, z: z + s * (kind === 'lhd' || kind === 'lpd' ? 8.6 : 7.2), kind, yaw: Math.PI, s: kind === 'lhd' ? 1.35 : 1.5 }); }
+    for (const sgn of [-1, 1]) { const kind = pick(k % 2 ? ['ddg', 'ddg', 'lpd', 'cg'] : ['lhd', 'ddg', 'zumwalt', 'lcs']); sd.ships.push({ x: sx - 27, z: z + sgn * (kind === 'lhd' || kind === 'lpd' ? 8.6 : 7.2), kind, yaw: Math.PI, s: kind === 'lhd' ? 1.35 : 1.5 }); }
   }
-  // warehouses, barracks, the waterfront sheds, parking full of grey trucks
-  for (let z = N.z0 + 10; z < N.z1 - 8; z += 16) for (let x = sdShoreX(z) + 8; x < N.x1 - 14; x += 14) {
-    if (Math.random() < 0.25) { const sp = city.paintParking(g, x, z, x + 10, z + 8); for (const s of sp) if (Math.random() < 0.5) sd.vehicles.push({ ...s, kind: pick(['humvee', 'truck', 'pickup']) }); continue; }
-    const b = B.add({ x: x + 5, z: z + 4, w: rand(8, 11), d: rand(6, 8), floors: Math.random() < 0.5 ? 2 : 3, style: Math.random() < 0.6 ? 'concrete' : 'garage', tint: NAVYGREY(), cell: 2.2, gh: 1.8, fh: 1.3 });
-    b.noSigns = true;
-  }
+  // sailors and Marines everywhere, walking the streets and the piers (the bigger the circle, the more they roam)
   const mil = (x, z, n, look, r = 1.2) => city.crowds.push({ x, z, r, n, look, tag: 'military' });
-  for (const p of sd.piers.filter((q) => q.kind === 'pier')) for (let k = 0; k < 4; k++) mil(rand(p.x0 + 2, p.x1 - 2), (p.z0 + p.z1) / 2, Math.round(rand(2, 4)), pick(['navy', 'navy', 'navywhite', 'khaki']), 1.2);
-  for (let k = 0; k < 16; k++) { const z = rand(N.z0 + 8, N.z1 - 8); mil(rand(sdShoreX(z) + 4, N.x1 - 12), z, Math.round(rand(2, 5)), pick(['navy', 'navy', 'marine', 'khaki']), 2); }
-  mil(N.x1 - 6.5, N.z0 + 4, 3, 'mp', 0.6);
+  for (const p of sd.piers.filter((q) => q.kind === 'pier')) { for (let k = 0; k < 4; k++) mil(rand(p.x0 + 2, p.x1 - 2), (p.z0 + p.z1) / 2, Math.round(rand(2, 4)), pick(['navy', 'navy', 'navywhite', 'khaki']), 1.2); mil((p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2, 4, 'navy', 10); }
+  for (let k = 0; k < 26; k++) { const z = pick(rows) - 1.3, a = sdShoreX(z) + 4; mil(rand(a, FX - 4), z, Math.round(rand(2, 4)), pick(['navy', 'navy', 'marine', 'khaki', 'navywhite']), rand(5, 9)); }
+  for (const x of [89.5, 94.5]) mil(x, FZ + 0.8, 2, 'mp', 0.5);
+  mil(92, FZ - 3, 2, 'mp', 0.6);
+  sd.baseLoops = sd.baseLoops || [];
+  sd.baseLoops.push([[cols[0] - 1.2, rows[0] - 1.3], [FX - 2, rows[0] - 1.3], [FX - 2, rows[2] - 1.3], [cols[0] - 1.2, rows[2] - 1.3]], [[cols[1] - 1.2, rows[1] - 1.3], [cols[4] - 1.2, rows[1] - 1.3], [cols[4] - 1.2, rows[4] - 1.3], [cols[1] - 1.2, rows[4] - 1.3]]);
   city.named.push({ S: 'Naval Base San Diego', o: 'Naval Base San Diego', x0: -40, x1: N.x1, z0: N.z0, z1: N.z1 });
 }
 
 // ---------- the Silver Strand (Highway 75), until the map ends ----------
 function silverStrand(ctx, g) {
   const { city } = ctx;
-  const road = [[-176, 199], [-160, 206], [-148, 218], [-132, 242], [-118, 266], [-106, 292], [-100, 316]];
+  // down the middle of the Strand (west of Glorietta Bay), on past the edge of the map (js/sdbay.js carries it on into the haze)
+  const road = [[-176, 199], [-174, 212], [-164, 226], [-150, 236], [-138, 248], [-126, 268], [-111, 296], [-104, 312]];
   const X = g.x;
   X.save(); X.strokeStyle = '#4a4b4d'; X.lineWidth = 5.4 * g.k; X.lineJoin = 'round'; X.beginPath(); road.forEach(([a, b], i) => (i ? X.lineTo(g.px(a), g.pz(b)) : X.moveTo(g.px(a), g.pz(b)))); X.stroke();
   X.strokeStyle = 'rgba(226,186,60,.9)'; X.lineWidth = 0.08 * g.k; X.stroke();

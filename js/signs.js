@@ -288,7 +288,9 @@ export class Signs {
 
     // overhead directional sign on an entry road
     {
-      const x = city.xs[Math.floor(city.xs.length / 2)], z = city.zs[city.zs.length - 1] - city.roadW / 2 - 4;
+      // (San Diego's grid now spans the bay: the sign stays on the Gaslamp's own grid)
+      const XS = city.coreXs || city.xs, ZS = city.coreXs || city.zs;
+      const x = XS[Math.floor(XS.length / 2)], z = ZS[ZS.length - 1] - city.roadW / 2 - 4;
       const w = city.roadW + 1.6;
       box(x - w / 2, 1.9, z, 0.12, 3.8, 0.12); box(x + w / 2, 1.9, z, 0.12, 3.8, 0.12); box(x, 3.7, z, w, 0.1, 0.1);
       add(shop, x, 3.2, z + 0.06, 0, w * 0.95, 0.8, stripUV(3));

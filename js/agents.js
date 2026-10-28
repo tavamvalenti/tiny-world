@@ -386,7 +386,8 @@ export class Agents {
     const want = Math.atan2(dx, dz);
     let diff = want - c.heading;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-    c.heading += clamp(diff, -3 * dt, 3 * dt) * Math.min(1, c.speed / 1.2 + 0.4);
+    // (no steering on the spot: sitting right on a waypoint its direction is noise, and the car would spin in place)
+    if (dist > 0.35 && (c.speed > 0.05 || Math.abs(diff) < 2.5)) c.heading += clamp(diff, -3 * dt, 3 * dt) * Math.min(1, c.speed / 1.2 + 0.4);
     target *= Math.abs(diff) > 0.5 ? 0.5 : 1;
     // car following / pedestrian braking / obstacle avoidance
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
@@ -419,6 +420,7 @@ export class Agents {
     if (cell) for (const p of cell) if (p.state !== 'air' && Math.abs(p.pos.y - c.pos.y) < 1.5 && Math.hypot(p.pos.x - hx, p.pos.z - hz) < 0.8) target = Math.min(target, 0);
     // yield to trolleys at the transit-mall crossings
     if (G.trains && (G.trains.blocks(c.pos.x + fx * 1.8, c.pos.z + fz * 1.8) || G.trains.blocks(c.pos.x + fx * 3.6, c.pos.z + fz * 3.6))) target = 0;
+    if (G.sdbay && G.sdbay.railBlocks(c.pos.x + fx * 1.8, c.pos.z + fz * 1.8, c.pos.x + fx * 3.6, c.pos.z + fz * 3.6)) target = 0;     // San Diego's Blue Line
     const obs = C.obstacleNear(c.pos.x + fx * 2, c.pos.z + fz * 2, 0.7) && (!c.deck || C.obstacles.some((o) => o.kind === 'gap' && Math.hypot(o.x - c.pos.x - fx * 2, o.z - c.pos.z - fz * 2) < o.r + 0.7));
     if (obs) target = 0;
     if (target < 0.1 && (obs || c.speed < 0.1)) {

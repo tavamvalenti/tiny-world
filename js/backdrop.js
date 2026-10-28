@@ -7,7 +7,7 @@ import { G, rand, pick, seeded } from './core.js';
 function tileTexture(map, pitch, roadW) {
   const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
   const x = c.getContext('2d'), k = S / pitch, r = roadW * k;
-  const lot = map === 'suburbs' ? '#5d6442' : map === 'tropical' ? '#8f8a6c' : '#5f5c57';
+  const lot = map === 'suburbs' ? '#5d6442' : map === 'tropical' ? '#8f8a6c' : map === 'sd' ? '#7d7a5a' : '#5f5c57';
   x.fillStyle = lot; x.fillRect(0, 0, S, S);
   // sidewalks
   x.fillStyle = '#a19c92';
@@ -19,7 +19,7 @@ function tileTexture(map, pitch, roadW) {
   // hints of roofs and yards inside each lot
   for (let i = 0; i < 26; i++) {
     const w = rand(20, 90), h = rand(20, 90), px = rand(r, S - r - w), py = rand(r, S - r - h);
-    const v = map === 'suburbs' ? pick(['#4f5a36', '#7a6e62', '#6d4f45', '#58503f']) : map === 'tropical' ? pick(['#d9cdb8', '#c98e6a', '#e8e0cf', '#b9a58c']) : pick(['#6c6a66', '#7c7874', '#565450', '#8a857d']);
+    const v = map === 'sd' ? pick(['#6f7a4a', '#8a8462', '#a39a80', '#5e6b40']) : map === 'suburbs' ? pick(['#4f5a36', '#7a6e62', '#6d4f45', '#58503f']) : map === 'tropical' ? pick(['#d9cdb8', '#c98e6a', '#e8e0cf', '#b9a58c']) : pick(['#6c6a66', '#7c7874', '#565450', '#8a857d']);
     x.fillStyle = v; x.globalAlpha = 0.8; x.fillRect(px, py, w, h); x.globalAlpha = 1;
   }
   if (map === 'suburbs') { x.fillStyle = '#58575a'; x.fillRect(r, S / 2 - 0.9 * k, S - 2 * r, 1.8 * k); } // alleys
@@ -66,7 +66,7 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
   const pitch = city.xs[1] - city.xs[0], pitchZ = city.zs[1] - city.zs[0];
   // ground: a tiled street grid lined up with the playable grid
   // La Playa sits in open country: no street grid out there, just scrub and trees
-  const tex = mapName === 'tropical' ? natureTexture() : tileTexture(mapName, pitch, city.roadW);
+  const tex = mapName === 'tropical' ? natureTexture() : tileTexture(city.noBackdrop ? 'sd' : mapName, pitch, city.roadW);
   const SIZE = 3000;
   tex.repeat.set(SIZE / pitch, SIZE / pitchZ);
   const ox = (((city.xs[0] + SIZE / 2) / pitch) % 1 + 1) % 1, oz = (((SIZE / 2 - city.zs[0]) / pitchZ) % 1 + 1) % 1;
@@ -79,9 +79,21 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
       .replace('#include <map_fragment>', `#include <map_fragment>
         float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.9, 0.94), uSnow * (lum < 0.1 ? 0.55 : 0.9));`);
+    // San Diego: under the bay and the Pacific the backdrop is seabed, never streets showing through the shallows
+    if (city.noBackdrop && G.bayMask) {
+      sh.uniforms.uMask = { value: G.bayMask.tex }; sh.uniforms.uBox = { value: G.bayMask.box };
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWB;')
+        .replace('#include <fog_vertex>', '#include <fog_vertex>\nvWB = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vWB; uniform sampler2D uMask; uniform vec4 uBox;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+          vec2 muv = vec2((vWB.x - uBox.x) / uBox.z, 1.0 - (vWB.y - uBox.y) / uBox.w);
+          float lnd = texture2D(uMask, muv).r;
+          diffuseColor.rgb = mix(vec3(0.55, 0.5, 0.38), diffuseColor.rgb, smoothstep(0.3, 0.7, lnd));`);
+    }
   };
+  if (city.noBackdrop) groundMat.customProgramCacheKey = () => 'sd-backdrop';
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE).rotateX(-Math.PI / 2), groundMat);
-  ground.position.y = -0.04;
+  ground.position.y = city.noBackdrop ? -0.4 : -0.04;          // San Diego: well under the map's own ground and the bay
   ground.receiveShadow = true;
   scene.add(ground);
 
@@ -91,18 +103,44 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
   const mat = backdropMaterial(facades[style]);
   const boxes = [];
   const trees = [];
-  const MAXR = 290;
-  for (let ix = -20; ix <= 20; ix++) for (let iz = -20; iz <= 20; iz++) {
+  const sd = !!city.noBackdrop;
+  const MAXR = sd ? 980 : 290, NI = sd ? 46 : 20;
+  const mounds = [], pads = [];
+  // San Diego's hills: smooth bands of chaparral and canyon parks between the neighbourhoods
+  const hilly = (x, z) => Math.sin(x * 0.0061 + 1.3) * Math.sin(z * 0.0047 - 0.4) + 0.55 * Math.sin(x * 0.013 + z * 0.009 + 2.1) + 0.3 * Math.sin(x * 0.031 - z * 0.027);
+  for (let ix = -NI; ix <= NI; ix++) for (let iz = -NI; iz <= NI; iz++) {
     const cx = city.xs[0] + (ix + 0.5) * pitch, cz = city.zs[0] + (iz + 0.5) * pitchZ;
     const far = Math.max(Math.abs(cx), Math.abs(cz));
     // Chicago: the walk-ups carry on north all the way to the downtown skyline (js/skyline.js starts ~470 out)
     const northFill = mapName === 'suburbs' && cz < 0 && cz > -485 && Math.abs(cx + 100) < 620;
-    if (far < E + 2 || (far > MAXR && !northFill)) continue;
+    if ((!sd && far < E + 2) || (far > MAXR && !northFill)) continue;   // San Diego says itself where the map ends (city.noBackdrop)
     if (water && (water.axis === 'x' ? cx < water.shore + 6 : cz < water.shore + 6)) continue;
     if (city.bridgeClear && city.bridgeClear.some((c) => Math.hypot(cx - c.x, cz - c.z) < c.r + 8)) continue;
     if (city.noBackdrop && city.noBackdrop(cx, cz)) continue;                     // San Diego's bay and Coronado are the map itself
     const lot = pitch - city.roadW - 3.4, lotZ = pitchZ - city.roadW - 3.4;
-    if (mapName === 'suburbs') {
+    if (sd) {
+      // San Diego past the map: stucco neighbourhoods, a denser uptown north of the Gaslamp, hills and canyon parks
+      const balboa = Math.hypot(cx - 190, cz + 190) < 110;               // Balboa Park, north-east of downtown
+      const hv = hilly(cx, cz);
+      if (balboa || hv > 0.75) {
+        const r0 = 24, dry = !balboa && [[r0, 0], [-r0, 0], [0, r0], [0, -r0]].some(([a, b]) => city.noBackdrop(cx + a, cz + b));   // no hills spilling into the bay
+        if (!dry && rnd() < (balboa ? 0.35 : 0.6)) mounds.push([cx + R(-6, 6), cz + R(-6, 6), R(14, 24), R(2.5, 7) + (hv - 0.75) * 9, balboa ? 0 : 1]);
+        pads.push([cx, cz, balboa]);                                       // grass and scrub over the street grid
+        const nt = balboa ? 10 : 3 + Math.floor(rnd() * 4);
+        for (let k = 0; k < nt; k++) trees.push([cx + R(-pitch / 2, pitch / 2), cz + R(-pitchZ / 2, pitchZ / 2), R(0.9, balboa ? 2 : 1.4)]);
+        continue;
+      }
+      const uptown = Math.exp(-(((cx - 20) ** 2) / (150 ** 2) + ((cz + 190) ** 2) / (110 ** 2)));
+      const n = 2 + Math.floor(R(0, 3));
+      if (rnd() < 0.08 + uptown * 0.4) {
+        // one big block: apartments, offices, a tower uptown
+        boxes.push([cx + R(-1, 1), cz + R(-1, 1), lot - R(0, 3), lotZ - R(0, 3), R(5, 12) + uptown * R(12, 46)]);
+      } else for (const row of [-1, 1]) for (let k = 0; k < n; k++) {
+        if (rnd() < 0.07) continue;
+        boxes.push([cx - lot / 2 + (k + 0.5) * lot / n + R(-0.4, 0.4), cz + row * lotZ / 4, lot / n - R(0.6, 1.4), lotZ / 2 - R(0.8, 2), R(1.5, 3.6) + uptown * R(0, 10)]);
+      }
+      if (hv > 0.45 || rnd() < 0.5) for (let k = 0; k < 4; k++) trees.push([cx + R(-lot / 2, lot / 2), cz + (k % 2 ? 1 : -1) * (lotZ / 2 + 0.6), R(0.8, 1.3)]);
+    } else if (mapName === 'suburbs') {
       // rows of narrow flat-roofed walk-ups on both street fronts, garages on the alley
       for (const sd of [-1, 1]) for (let x = cx - lot / 2 + 1.8; x < cx + lot / 2 - 1.5; x += R(3.2, 3.9)) {
         if (rnd() < 0.1) continue; // vacant lot
@@ -150,5 +188,23 @@ export function buildBackdrop(scene, mapName, city, facades, E, water) {
     tmesh.setColorAt(i, col.setHSL(R(0.2, 0.3), 0.4, R(0.18, 0.28), THREE.SRGBColorSpace));
   });
   tmesh.castShadow = true; scene.add(tmesh);
+  if (pads.length) {
+    const pm = new THREE.InstancedMesh(new THREE.PlaneGeometry(pitch + 0.2, pitchZ + 0.2).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ roughness: 1 }), pads.length);
+    pads.forEach(([x, z, park], i) => {
+      m.makeTranslation(x, -0.3, z); pm.setMatrixAt(i, m);
+      pm.setColorAt(i, park ? col.setHSL(R(0.25, 0.28), 0.35, R(0.3, 0.34), THREE.SRGBColorSpace) : col.setHSL(R(0.13, 0.18), R(0.25, 0.32), R(0.36, 0.42), THREE.SRGBColorSpace));
+    });
+    pm.receiveShadow = true; scene.add(pm);
+  }
+  if (mounds.length) {
+    // the hills: low domes of dry chaparral (golden-green) and park lawn
+    const mgeo = new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const mmesh = new THREE.InstancedMesh(mgeo, new THREE.MeshStandardMaterial({ roughness: 1 }), mounds.length);
+    mounds.forEach(([x, z, r, h, dry], i) => {
+      m.makeScale(r, h, r * R(0.8, 1.2)).setPosition(x, -0.6, z); mmesh.setMatrixAt(i, m);
+      mmesh.setColorAt(i, dry ? col.setHSL(R(0.12, 0.2), R(0.25, 0.4), R(0.3, 0.42), THREE.SRGBColorSpace) : col.setHSL(R(0.24, 0.3), 0.4, R(0.28, 0.36), THREE.SRGBColorSpace));
+    });
+    mmesh.receiveShadow = true; scene.add(mmesh);
+  }
   if (mapName === 'suburbs') chicagoSkyline(scene);   // downtown Chicago on the northern horizon (js/skyline.js)
 }
