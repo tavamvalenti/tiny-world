@@ -130,7 +130,23 @@ export const ROADS = (() => {
   const UNDER = 7.5, longUnder = (S) => { let run = 0; for (const s of S) { run = i5Dist(s[0], s[1]) < UNDER ? run + 1 : 0; if (run > 18) return true; } return false; };
   // the streets off the grid: the through streets, and the side streets in the core places; cut where they leave the land
   // (Coast Highway's bridge over Buena Vista Lagoon isn't in the extract: it joins Carlsbad Blvd to South Coast Highway)
-  const src = [...D.paint, { h: 'primary', w: 5, n: 'Coast Highway', p: [[39.19, -236], [39.19, -173]] }];
+  // the extract hands each street over in many short pieces: join each named street's pieces into whole lines first
+  const byName = new Map(), whole = [];
+  for (const p of D.paint) { if (!p.n || p.h === 'pedestrian') { whole.push(p); continue; } const k = `${p.n}|${p.h}`; (byName.get(k) || byName.set(k, []).get(k)).push(p); }
+  for (const list of byName.values()) {
+    // a divided road is two one-way strips a few units apart: keep one (the pieces that mostly run beside one kept
+    // already go), then join what's left end to end
+    const keep = [], H2 = new Set(), hk2 = (x, z) => `${Math.round(x / 2)},${Math.round(z / 2)}`;
+    const beside = (x, z) => { for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if (H2.has(`${Math.round(x / 2) + a},${Math.round(z / 2) + b}`)) return true; return false; };
+    for (const p of list.slice().sort((a, b) => lineLen(b.p) - lineLen(a.p))) {
+      const S = samples(p.p, 1), mid = S.slice(5, -5), n = mid.filter(([x, z]) => beside(x, z)).length;   // (its ends may touch the next piece)
+      if (mid.length > 2 && n > 0.7 * mid.length) continue;
+      keep.push(p); for (const [x, z] of S) H2.add(hk2(x, z));
+    }
+    for (const pts of joinLines(keep.map((p) => p.p), 4.5, true)) whole.push({ ...list[0], p: pts });
+  }
+  const src = [...whole, { h: 'primary', w: 5, n: 'Coast Highway', p: [[39.19, -236], [39.19, -173]] },
+    { h: 'secondary', w: 4.6, n: 'Harbor Drive', p: [[-17, -755], [-10, -766], [18, -766], [25, -780], [23, -800]] }];   // and Pacific St's bridge round the basin to Harbor Dr
   const paint = [];
   for (const p of src) {
     if (p.p.length < 2) continue;
@@ -203,6 +219,78 @@ export const ROADS = (() => {
     }
     edges = edges.filter((e) => { const c = comp.get(nodeKey(geo(e)[0])); return size[c] >= 8 || tied[c]; });
   }
+  // no road on top of another: OSM draws a divided road as two one-way ways, and many streets come in pieces that
+  // overlap the grid's own; longest first, a street keeps only the stretches that don't run along one already kept
+  // (crossing one is fine)
+  { const OK = new Set(), ok = (x, z) => `${Math.round(x)},${Math.round(z)}`;
+    const near = (x, z) => { for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) if (a * a + b * b <= 10 && OK.has(ok(x + a, z + b))) return true; return false; };
+    const put = (pts) => { for (const [x, z] of samples(pts, 1)) OK.add(ok(x, z)); };
+    for (const e of edges) put(geo(e));
+    const kept = [];
+    for (const p of paint.filter((q) => q.h !== 'pedestrian').sort((a, b) => lineLen(b.p) - lineLen(a.p))) {
+      const S = samples(p.p, 1), nr = S.map(([x, z]) => near(x, z)), k0 = kept.length;
+      let cur = [];
+      const flush = () => { if (cur.length > 6) { const q = { ...p, p: cur }; kept.push(q); } cur = []; };
+      for (let k = 0; k < S.length;) {
+        if (!nr[k]) { cur.push([S[k][0], S[k][1]]); k++; continue; }
+        let e = k; while (e < S.length && nr[e]) e++;
+        if (e - k > 8) flush(); else for (let j = k; j < e; j++) cur.push([S[j][0], S[j][1]]);   // a crossing: run on through
+        k = e;
+      }
+      flush();
+      for (const q of kept.slice(k0)) put(q.p);
+    }
+    paint.splice(0, paint.length, ...kept, ...paint.filter((q) => q.h === 'pedestrian'));
+  }
+  // stubs and islands among the streets off the grid: a piece with a loose end that's short goes (round after round),
+  // and so does any knot of streets, grid and off-grid together, that doesn't add up to a real stretch of road
+  { const G2 = new Map(), gk = (x, z) => `${Math.round(x / 2)},${Math.round(z / 2)}`;
+    const items = [...edges.map((e) => ({ grid: e, p: geo(e) })), ...paint.filter((p) => p.h !== 'pedestrian').map((p) => ({ paint: p, p: p.p }))];
+    const index = () => { G2.clear(); items.forEach((it, i) => { if (it.dead) return; for (const [x, z] of samples(it.p, 1)) { const k = gk(x, z); (G2.get(k) || G2.set(k, new Set()).get(k)).add(i); } }); };
+    const others = (i, x, z, r = 1) => { const s = new Set(); for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) for (const j of G2.get(`${Math.round(x / 2) + a},${Math.round(z / 2) + b}`) || []) if (j !== i && !items[j].dead) s.add(j); return s; };
+    const atEdge = ([x, z]) => x > eastEdge(z) - 6 || z < BOUNDS.z0 + 6 || z > BOUNDS.z1 - 6 || seaDist(x, z) < 12;   // the map's edge, or the beach
+    // a through street that stops just short of the road it's heading for (the extract breaks them where a bit went
+    // onto the grid): carry it on to that road
+    index();
+    for (const [i, it] of items.entries()) {
+      if (it.grid || !MAJOR_H.includes(it.paint.h)) continue;
+      for (const end of [0, 1]) {
+        const P = it.p, e = end ? P[P.length - 1] : P[0], f = end ? P[Math.max(0, P.length - 4)] : P[Math.min(P.length - 1, 3)];
+        if (atEdge(e) || others(i, e[0], e[1], 2).size) continue;
+        const L = Math.hypot(e[0] - f[0], e[1] - f[1]) || 1, dx = (e[0] - f[0]) / L, dz = (e[1] - f[1]) / L;
+        let best = null, bd = 24;
+        for (let t = 3; t < 24; t += 1) for (const s of [0, -0.25, 0.25, -0.5, 0.5]) {
+          const x = e[0] + (dx - dz * s) * t, z = e[1] + (dz + dx * s) * t;
+          if (others(i, x, z, 0).size && t < bd) { bd = t; best = [x, z]; }
+        }
+        if (!best || !samples([e, best], 1).every((q) => q[2])) continue;
+        if (end) P.push(best); else P.unshift(best);
+      }
+    }
+    for (let round = 0; round < 4; round++) {
+      index();
+      for (const [i, it] of items.entries()) {
+        if (it.dead || it.grid) continue;
+        const P = it.p, L = lineLen(P), major = MAJOR_H.includes(it.paint.h);
+        const loose = [P[0], P[P.length - 1]].filter((q) => !atEdge(q) && !others(i, q[0], q[1], 2).size).length;
+        if (major ? loose && L < 70 || loose === 2 && L < 90 : loose && L < 30 || loose === 2 && L < 80) it.dead = true;
+        // a little side street that curls round on itself (a cul-de-sac loop, a parking aisle)
+        const span = Math.hypot(P[0][0] - P[P.length - 1][0], P[0][1] - P[P.length - 1][1]);
+        if (!major && L < 70 && L > 2.5 * (span + 1)) it.dead = true;
+      }
+    }
+    index();
+    const comp = new Array(items.length).fill(-1); let id = 0; const len = [];
+    items.forEach((it, i) => {
+      if (it.dead || comp[i] >= 0) return; const st = [i]; comp[i] = id; let L = 0;
+      while (st.length) { const u = st.pop(); L += lineLen(items[u].p); for (const [x, z] of samples(items[u].p, 1)) for (const v of others(u, x, z)) if (comp[v] < 0) { comp[v] = id; st.push(v); } }
+      len.push(L); id++;
+    });
+    const keep = (i) => !items[i].dead && len[comp[i]] >= 250;
+    edges = edges.filter((e, i) => keep(i));
+    const live = new Set(items.filter((it, i) => it.paint && keep(i)).map((it) => it.paint));
+    paint.splice(0, paint.length, ...paint.filter((p) => p.h === 'pedestrian' || live.has(p)));
+  }
   // bridges: where a kept big street crosses water
   const bridges = [];
   for (const e of edges) if (e[3] >= MAJOR_W) for (const r of wetRuns(geo(e))) bridges.push({ p: [r[0], r[r.length - 1]], w: Math.max(3.6, Math.min(5, e[3])) });
@@ -229,8 +317,19 @@ export const ROADS = (() => {
   for (const name of EXITS) {
     // where that street passes under I-5
     let best = null;
-    for (const l of lines) if (l.n === name) { const S = samples(l.p, 0.5); for (let k = 0; k + 1 < S.length; k++) { const d = i5Dist(S[k][0], S[k][1]); if (!best || d < best.d) { const L = Math.hypot(S[k + 1][0] - S[k][0], S[k + 1][1] - S[k][1]) || 1; best = { d, x: S[k][0], z: S[k][1], ux: (S[k + 1][0] - S[k][0]) / L, uz: (S[k + 1][1] - S[k][1]) / L }; } } }
-    if (!best || best.d > 2) continue;
+    const cross = (list) => { let b = null; for (const l of list) if (l.n === name) { const S = samples(l.p, 0.5); for (let k = 0; k + 1 < S.length; k++) { const d = i5Dist(S[k][0], S[k][1]); if (!b || d < b.d) { const L = Math.hypot(S[k + 1][0] - S[k][0], S[k + 1][1] - S[k][1]) || 1; b = { d, x: S[k][0], z: S[k][1], ux: (S[k + 1][0] - S[k][0]) / L, uz: (S[k + 1][1] - S[k][1]) / L, l }; } } } return b; };
+    best = cross(lines);
+    // the street was trimmed where it meets I-5 (its stretch either side ran too close to the freeway, or broke up):
+    // put that stretch of it back from the extract, out to where the ramps meet it
+    if (!best || best.d > 2) {
+      const raw = cross(whole.map((p) => ({ n: p.n, p: p.p, h: p.h, w: p.w })));
+      if (!raw || raw.d > 2) continue;
+      const S = samples(raw.l.p, 1).filter(([x, z]) => Math.hypot(x - raw.x, z - raw.z) < 16 && !east(x, z)).map((s) => [s[0], s[1]]);
+      if (S.length < 4) continue;
+      const piece = { n: name, h: raw.l.h, w: raw.l.w, p: S }; paint.push(piece); lines.push({ n: name, p: S });
+      for (const [x, z] of S) SH.set(sk(x, z), name);
+      best = cross([{ n: name, p: S }]);
+    }
     let ki = 0, bd = 1e9; i5.forEach((p, k) => { const d = (p[0] - best.x) ** 2 + (p[1] - best.z) ** 2; if (d < bd) { bd = d; ki = k; } });
     if (ki < 25 || ki > i5.length - 25) continue;                            // too near the map's end, where I-5 comes down
     const { tx, tz } = I5F[ki], nx = tz, nz = -tx, [cx, cz] = i5[ki];
@@ -262,7 +361,7 @@ export const ROADS = (() => {
   return { edges, paint, bridges, freeway, i5, i5Dist, ramps, spurs, streetAt };
 })();
 // join line pieces that meet end to end, and a polyline's length
-export function joinLines(lines, tol) {
+export function joinLines(lines, tol, either = false) {           // either: a piece may join the wrong way round (a street, not a one-way carriageway)
   const rest = lines.map((l) => l.slice()), out = [], same = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < tol;
   while (rest.length) {
     let c = rest.shift(), grown = true;
@@ -272,6 +371,8 @@ export function joinLines(lines, tol) {
         const w = rest[k];
         if (same(w[0], c[c.length - 1])) { c = c.concat(w.slice(1)); rest.splice(k, 1); grown = true; break; }
         if (same(w[w.length - 1], c[0])) { c = w.slice(0, -1).concat(c); rest.splice(k, 1); grown = true; break; }
+        if (either && same(w[0], c[0])) { c = w.slice(1).reverse().concat(c); rest.splice(k, 1); grown = true; break; }
+        if (either && same(w[w.length - 1], c[c.length - 1])) { c = c.concat(w.slice(0, -1).reverse()); rest.splice(k, 1); grown = true; break; }
       }
     }
     out.push(c);
@@ -378,15 +479,19 @@ export function northcounty(B) {
   const SW = city.sw, conc = '#b9b3a6', asphalt = '#4a4b4d';
   const edges = D.edges.map(([ax, i, j, w]) => { const a = { x: XS[i], z: ZS[j] }, b = ax ? { x: XS[i + 1], z: ZS[j] } : { x: XS[i], z: ZS[j + 1] }; return { ax, i, j, w: Math.max(3.6, Math.min(5, w)), a, b }; });
   const RES = ['residential', 'unclassified', 'living_street'];
-  const lanes = D.paint.filter((p) => p.h !== 'pedestrian' && p.p.length > 1);
+  // the streets off the grid: no wider than the grid's own, sidewalks where the town is built up, a narrow verge outside
+  const lanes = D.paint.filter((p) => p.h !== 'pedestrian' && p.p.length > 1).map((p) => {
+    const S = samples(p.p, 4), town = S.filter(([x, z]) => inCore(x, z)).length > S.length / 2;
+    return { ...p, w: Math.min(p.w, 4.6), sw: town ? SW : 0.55, verge: town ? conc : '#a39d8c' };
+  });
   // sidewalks first, asphalt over them, then the markings
   for (const e of edges) { const h = e.w / 2 + SW; e.ax ? g.rect(e.a.x - 0.2, e.a.z - h, e.b.x + 0.2, e.a.z + h, conc) : g.rect(e.a.x - h, e.a.z - 0.2, e.a.x + h, e.b.z + 0.2, conc); }
-  for (const p of lanes) g.stroke(p.p, p.w + SW * 2, conc);
+  for (const p of lanes) g.stroke(p.p, p.w + p.sw * 2, p.verge);
   for (const e of edges) { const h = e.w / 2; e.ax ? g.rect(e.a.x - h, e.a.z - h, e.b.x + h, e.a.z + h, asphalt) : g.rect(e.a.x - h, e.a.z - h, e.a.x + h, e.b.z + h, asphalt); }
   for (const p of lanes) g.stroke(p.p, p.w, RES.includes(p.h) ? '#505052' : asphalt);
   for (const p of D.paint.filter((q) => q.h === 'pedestrian')) g.stroke(p.p, p.w, '#cfc6b2');
   for (const e of edges) { const pts = [[e.a.x, e.a.z], [e.b.x, e.b.z]]; markLine(pts, e.w / 2 + SW); nearMark(pts, e.w / 2 + 10); }
-  for (const p of lanes) { markLine(p.p, p.w / 2 + SW); if (RES.includes(p.h) || p.w >= 4) nearMark(p.p, p.w / 2 + 10); }
+  for (const p of lanes) { markLine(p.p, p.w / 2 + p.sw); if (RES.includes(p.h) || p.w >= 4) nearMark(p.p, p.w / 2 + 10); }
   // markings: a double yellow down the bigger streets, crossings at the signals
   const yel = 'rgba(226,186,60,.9)', white = 'rgba(238,238,232,.85)';
   for (const e of edges) {
