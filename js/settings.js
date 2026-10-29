@@ -19,6 +19,7 @@ export const SCHEMA = [
   { id: 'shake', label: 'Camera shake', type: 'range', min: 0, max: 200, def: 100, unit: '%' },
   { section: 'Graphics' },
   { id: 'quality', label: 'Quality', type: 'select', def: 'high', options: [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], hint: 'Resolution and shadow detail' },
+  { id: 'autoRes', label: 'Hold 60 FPS', type: 'toggle', def: true, hint: 'Lowers the resolution a little while the game is falling behind (big explosions, heavy smoke)' },
   { id: 'tiltShift', label: 'Tilt-shift blur', type: 'range', min: 0, max: 200, def: 100, unit: '%' },
   { id: 'grain', label: 'Film grain', type: 'range', min: 0, max: 200, def: 100, unit: '%' },
   { section: 'World' },

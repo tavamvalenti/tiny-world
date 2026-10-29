@@ -89,7 +89,10 @@ class Particles {
       i++;
     }
     this.geo.setDrawRange(0, this.n);
-    for (const k of ['position', 'aColor', 'aSize']) this.geo.attributes[k].needsUpdate = true;
+    // upload only the live particles (nothing at all once the last one has gone)
+    if (!this.n && !this.wasN) return;
+    this.wasN = this.n;
+    for (const k of ['position', 'aColor', 'aSize']) { const a = this.geo.attributes[k]; a.clearUpdateRanges(); a.addUpdateRange(0, Math.max(1, this.n) * a.itemSize); a.needsUpdate = true; }
   }
   kill(i) {
     const j = --this.n;
@@ -205,7 +208,7 @@ export class FX {
   constructor(scene) {
     this.scene = scene;
     const soft = makeSoftSprite(), smoke = makeSmokeSprite();
-    this.smoke = new Particles(5000, 'smoke', smoke, THREE.NormalBlending);
+    this.smoke = new Particles(3500, 'smoke', smoke, THREE.NormalBlending);
     this.fire = new Particles(3500, 'fire', soft, THREE.AdditiveBlending);
     this.spark = new Particles(2500, 'spark', soft, THREE.AdditiveBlending);
     this.bits = new Particles(2500, 'bits', soft, THREE.NormalBlending);

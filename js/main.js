@@ -88,11 +88,48 @@ const keys = {};
 const input = { down: false, pressed: false, mx: 0, my: 0 };
 G.input = input; G.cam = cam;
 
+// ---------- dynamic resolution: when the GPU falls behind (smoke and fire after a big explosion, a wide view), the
+// scene renders at a slightly lower resolution until it catches up (the tilt-shift hides it). The GPU's own timer
+// says how long each frame took it where the browser has one; elsewhere the frame time stands in for it, counted
+// only while the CPU side is clearly not the one holding things up.
+const dyn = { k: 1, gpu: 0, iv: 16.7, over: 0, under: 0, hold: 0 };
+const gl = renderer.getContext(), timerExt = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+const gpuQ = [];                                  // queries in flight, oldest first
+let gpuCur = null;
+function gpuBegin() {
+  if (!timerExt || gpuCur || gpuQ.length > 4) return;
+  gpuCur = gl.createQuery(); gl.beginQuery(timerExt.TIME_ELAPSED_EXT, gpuCur);
+}
+function gpuEnd() {
+  if (!gpuCur) return;
+  gl.endQuery(timerExt.TIME_ELAPSED_EXT); gpuQ.push(gpuCur); gpuCur = null;
+}
+function gpuPoll() {
+  while (gpuQ.length && gl.getQueryParameter(gpuQ[0], gl.QUERY_RESULT_AVAILABLE)) {
+    const q = gpuQ.shift();
+    if (!gl.getParameter(timerExt.GPU_DISJOINT_EXT)) { const v = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6; dyn.gpu += (v - dyn.gpu) * 0.15; dyn.timed = true; }
+    gl.deleteQuery(q);
+  }
+}
+function dynRes(ms, cpu) {
+  if (ms > 200) return;                                                      // a tab switch or a stall, not a trend
+  if (!settings.autoRes) { if (dyn.k !== 1) { dyn.k = 1; resize(); } return; }
+  if (timerExt) gpuPoll();
+  dyn.iv += (ms - dyn.iv) * 0.1;
+  const slow = dyn.timed ? dyn.gpu > 15 : dyn.iv > 19 && cpu < ms * 0.7;
+  const fast = dyn.timed ? dyn.gpu < 9.5 : dyn.iv < 17.6;
+  dyn.over = slow ? dyn.over + ms : 0; dyn.under = fast ? dyn.under + ms : 0; dyn.hold = Math.max(0, dyn.hold - ms);
+  const floor = Math.max(0.7, 0.75 / PR);                                     // never below 0.75 pixels per CSS pixel
+  if (dyn.over > 600 && dyn.k > floor) { dyn.k = Math.max(floor, dyn.k - 0.1); dyn.over = 0; dyn.hold = 4000; resize(); }
+  else if (dyn.under > 2000 && dyn.hold <= 0 && dyn.k < 1) { dyn.k = Math.min(1, dyn.k + 0.05); dyn.under = 0; resize(); }
+}
+G.dyn = dyn;
+
 function resize() {
-  const w = window.innerWidth, h = viewH();
+  const w = window.innerWidth, h = viewH(), pr = PR * dyn.k;
   renderer.setSize(w, h, false);
-  renderer.setPixelRatio(PR);
-  post.setSize(Math.floor(w * PR), Math.floor(h * PR));
+  renderer.setPixelRatio(pr);
+  post.setSize(Math.floor(w * pr), Math.floor(h * pr));
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
@@ -263,8 +300,19 @@ function load(name) {
   setTodButtons();
   selectWeapon(0);
   updateCamera(0);
-  renderer.compile(scene, camera);
+  warmShaders();
 }
+// compile every material up front, as it will be drawn: into the post chain's HDR target (a different shader variant
+// from drawing straight to the screen), hidden things included, so nothing compiles mid-game when it first shows up
+function warmShaders() {
+  const hidden = [];
+  scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+  renderer.setRenderTarget(post.rtScene);
+  renderer.compile(scene, camera);
+  renderer.setRenderTarget(null);
+  for (const o of hidden) o.visible = false;
+}
+G.warmShaders = warmShaders;
 
 function selectWeapon(i) {
   if (G.world && G.world.armed) disarm();          // back to weapons
@@ -388,9 +436,11 @@ let last = performance.now(), fpsT = 0, frames = 0, fps = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   if (!running || settingsOpen) { last = now; return; }
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const ms = now - last, dt = Math.min(0.05, ms / 1000);
   last = now;
+  const t0 = performance.now();
   step(dt * slowmoAt(now));
+  dynRes(ms, performance.now() - t0);
 }
 // cinematic slow motion (a crash in a mini-game): time runs at `scale` for most of `dur` real seconds, then eases back
 let slowmo = null;
@@ -461,7 +511,7 @@ function step(dt) {
   G.ground.update(dt);
   if (water) water.timeU.value = G.time;
   gatherWakes();
-  post.render(scene, camera, G.time);
+  gpuBegin(); post.render(scene, camera, G.time); gpuEnd();
   frames++; fpsT += dt;
   if (fpsT > 0.5) {
     fps = Math.round(frames / fpsT); frames = 0; fpsT = 0;
