@@ -15,7 +15,8 @@ import { tint, box, cyl, cone, canvasTex, cutoutOn, hipRoof } from './mapkit.js'
 import { NC, BOUNDS, MASK, maskData, PIER, isLand, SEA, hillEdge } from './ncgeo.js';
 import { railX, ZONES, ROADS } from './northcounty.js';
 import { carGeos } from './agents.js';
-import { truckGeos, busGeos } from './harbor.js';
+import { busGeos } from './harbor.js';
+import { Freeway } from './ncfreeway.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -137,7 +138,7 @@ export class NorthCounty {
     this.bridges(scene);
     this.beachKit(scene);
     this.trains(scene);
-    this.freeway(scene);
+    this.fw = new Freeway(scene); this.lit.push(...this.fw.lit);       // I-5, its ramps and its traffic (js/ncfreeway.js)
     this.title = '';
   }
 
@@ -424,7 +425,6 @@ export class NorthCounty {
     }
     if (geos.length) mergeTo(scene, geos, vc({ roughness: 0.85 }));
   }
-  deckY(x, z) { return this.DECK && this.DECK.has(`${Math.round(x)},${Math.round(z)}`) ? 0.08 : 0; }
 
   // ---------- lifeguard towers along the sand ----------
   beachKit(scene) {
@@ -476,46 +476,11 @@ export class NorthCounty {
     }
   }
 
-  // ---------- I-5: cars streaming both ways (scenery traffic, they blow up) ----------
-  freeway(scene) {
-    const fw = ROADS.freeway.filter((f) => f.h === 'motorway' && /San Diego Freeway|I 5/.test(f.n));
-    const lines = chains(fw.map((f) => f.p), 1).filter((c) => track(c).L > 300).slice(0, 2);
-    this.fw = lines.map((c) => track(c));
-    if (!this.fw.length) return;
-    // the same cars, pickups and box trucks as the city's traffic (body in its paint, the dark parts: glass, tyres)
-    const car = carGeos(), truck = truckGeos();
-    const bodyMat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.4 }), darkMat = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.15, metalness: 0.7 });
-    const kinds = [{ g: car, n: 60 * this.fw.length, colors: [0xf2f2f0, 0x1c1d20, 0x8a9096, 0xb4bac0, 0x9e1b1b, 0x1e3f73, 0x2f5d3a, 0xd9c7a0, 0x3a3f46, 0xcfd6dc] }, { g: truck, n: 10 * this.fw.length, colors: [0xf2f2f0, 0xc8352b, 0x1e3f73, 0xe6b422, 0x2f5d3a] }];
-    this.fwCars = [];
-    const cl = new THREE.Color();
-    for (const k of kinds) {
-      k.body = new THREE.InstancedMesh(k.g.body, bodyMat, k.n); k.dark = new THREE.InstancedMesh(k.g.dark, darkMat, k.n);
-      for (const m of [k.body, k.dark]) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
-      for (let i = 0; i < k.n; i++) {
-        const li = i % this.fw.length, T = this.fw[li], heavy = k.g === truck;
-        this.fwCars.push({ k, i, li, s: rand(0, T.L), v: heavy ? rand(7, 9) : rand(9, 12.5), lane: heavy ? pick([-1.1, 1.1]) : pick([-1.1, 0, 1.1]), alive: true, deadT: 0 });
-        k.body.setColorAt(i, cl.set(pick(k.colors)));
-      }
-    }
-    this.fwKinds = kinds; this.fwIM = true;
-  }
-  updateFreeway(dt) {
-    if (!this.fwIM) return;
-    for (const c of this.fwCars) {
-      const T = this.fw[c.li];
-      if (!c.alive) { c.deadT -= dt; if (c.deadT > 0) { c.k.body.setMatrixAt(c.i, ZERO); c.k.dark.setMatrixAt(c.i, ZERO); continue; } c.alive = true; c.s = 0; }
-      c.s += c.v * dt; if (c.s > T.L) c.s -= T.L;
-      const p = T.at(c.s), ox = Math.cos(p.yaw) * c.lane, oz = -Math.sin(p.yaw) * c.lane;
-      _m.compose(_p.set(p.x + ox, this.deckY(p.x + ox, p.z + oz), p.z + oz), _q.setFromAxisAngle(UP, p.yaw), _s.set(1, 1, 1)); c.k.body.setMatrixAt(c.i, _m); c.k.dark.setMatrixAt(c.i, _m);
-    }
-    for (const k of this.fwKinds) { k.body.instanceMatrix.needsUpdate = true; k.dark.instanceMatrix.needsUpdate = true; }
-  }
-
   // ---------- each frame ----------
   update(dt) {
     this.water.timeU.value = G.time;
     this.updateTrains(dt);
-    this.updateFreeway(dt);
+    if (this.fw) this.fw.update(dt);
     const n = G.night || 0;
     for (const l of this.lit) l.mat.emissiveIntensity = n * l.k;
     if (this.flag) this.flag.rotation.y = Math.sin(G.time * 2.2) * 0.25;
@@ -541,7 +506,7 @@ export class NorthCounty {
     }
     const A = this.N.arch; if (A && this.archState.alive && Math.hypot(x - A.x, z - A.z) < reach + A.span / 2 && dmg > 100) this.breakArch();
     for (const t of this.coaster || []) if (t.alive && t.secs.some((m) => Math.hypot(m.position.x - x, m.position.z - z) < reach + 1.5)) { t.alive = false; t.deadT = 40; for (const m of t.secs) { m.visible = false; } G.fx.explosion(t.secs[0].position.x, 1, t.secs[0].position.z, 1.4, null, 'bomb'); }
-    if (this.fwIM) for (const c of this.fwCars) if (c.alive) { const T = this.fw[c.li], p = T.at(c.s); if (Math.hypot(p.x - x, p.z - z) < reach + 1) { c.alive = false; c.deadT = rand(20, 40); G.fx.explosion(p.x, 0.5, p.z, 0.8, null, 'bomb'); } }
+    if (this.fw) this.fw.onBlast(x, y, z, reach, dmg);
     for (const b of this.buses || []) if (b.alive && Math.hypot(b.m.position.x - x, b.m.position.z - z) < reach + 2) {
       b.alive = false; b.m.scale.y *= 0.6; const burnt = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 }); b.m.traverse((o) => { if (o.isMesh) o.material = burnt; });
       G.fx.explosion(b.m.position.x, 0.6, b.m.position.z, 1, null, 'bomb');

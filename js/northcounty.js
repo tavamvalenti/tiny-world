@@ -89,6 +89,7 @@ const CORES = [
 ];
 const inCore = (x, z, grid = true) => CORES.some((C) => (grid || !C.grid) && x > C.x0 && x < C.x1 && z > C.z0 && z < C.z1);
 const MAJOR_W = 4.2, MAJOR_H = ['primary', 'secondary', 'tertiary'];
+const HALF5 = 4.5;                                   // half of I-5's width (js/ncfreeway.js builds it)
 // samples along a polyline: [x, z, land?]
 function samples(pts, step = 1) {
   const out = [];
@@ -106,6 +107,27 @@ export const ROADS = (() => {
   const D = NC, XS = D.xs, ZS = D.zs;
   const east = (x, z) => x > eastEdge(z) - 2 || z < BOUNDS.z0 + 1 || z > BOUNDS.z1 - 1;          // past the playable land
   const geo = (e) => { const [ax, i, j] = e; return ax ? [[XS[i], ZS[j]], [XS[i + 1], ZS[j]]] : [[XS[i], ZS[j]], [XS[i], ZS[j + 1]]]; };
+  // the freeways up to where the hills take over (js/ncworld.js paints them on into the distance)
+  const freeway = [];
+  for (const f of D.freeway) {
+    let cur = [];
+    for (const [x, z] of samples(f.p, 2)) { if (x < hillEdge(z) + 1 && z > BOUNDS.z0 && z < BOUNDS.z1) cur.push([x, z]); else { if (cur.length > 1) freeway.push({ ...f, p: cur }); cur = []; } }
+    if (cur.length > 1) freeway.push({ ...f, p: cur });
+  }
+  // I-5 as one road: OSM has its two carriageways, but squeezed inland they run 1.5 to 6 units apart, so the map
+  // builds a single divided freeway on the line between them (js/ncfreeway.js)
+  const i5 = (() => {
+    const ch = joinLines(freeway.filter((f) => f.h === 'motorway' && /San Diego Freeway|I 5/.test(f.n)).map((f) => f.p), 1).sort((a, b) => lineLen(b) - lineLen(a));
+    if (ch.length < 2) return ch[0] || [];
+    const [A, Bq] = ch, SB = samples(Bq, 1), mid = [];
+    for (const [x, z] of samples(A, 2)) { let best = null, bd = 1e9; for (const q of SB) { const d = (q[0] - x) ** 2 + (q[1] - z) ** 2; if (d < bd) { bd = d; best = q; } } mid.push(bd < 100 ? [(x + best[0]) / 2, (z + best[1]) / 2] : [x, z]); }
+    return mid.map((p, k) => { let sx = 0, sz = 0, n = 0; for (let j = Math.max(0, k - 4); j <= Math.min(mid.length - 1, k + 4); j++) { sx += mid[j][0]; sz += mid[j][1]; n++; } return [sx / n, sz / n]; });
+  })();
+  const IH = new Map(), ik = (x, z) => `${Math.floor(x / 4)},${Math.floor(z / 4)}`;
+  i5.forEach((p, k) => { const key = ik(p[0], p[1]); (IH.get(key) || IH.set(key, []).get(key)).push(p); });
+  const i5Dist = (x, z) => { let m = 1e9; const cx = Math.floor(x / 4), cz = Math.floor(z / 4); for (let a = cx - 2; a <= cx + 2; a++) for (let b = cz - 2; b <= cz + 2; b++) for (const p of IH.get(`${a},${b}`) || []) m = Math.min(m, Math.hypot(p[0] - x, p[1] - z)); return m; };
+  // a street that runs along under the freeway (rather than crossing it) is in the way of its embankment
+  const UNDER = 7.5, longUnder = (S) => { let run = 0; for (const s of S) { run = i5Dist(s[0], s[1]) < UNDER ? run + 1 : 0; if (run > 18) return true; } return false; };
   // the streets off the grid: the through streets, and the side streets in the core places; cut where they leave the land
   // (Coast Highway's bridge over Buena Vista Lagoon isn't in the extract: it joins Carlsbad Blvd to South Coast Highway)
   const src = [...D.paint, { h: 'primary', w: 5, n: 'Coast Highway', p: [[39.19, -236], [39.19, -173]] }];
@@ -113,12 +135,13 @@ export const ROADS = (() => {
   for (const p of src) {
     if (p.p.length < 2) continue;
     const major = MAJOR_H.includes(p.h);
-    const S = samples(p.p, 1); let cur = [];
+    const S = samples(p.p, 1);
+    const ok = S.map(([x, z, land]) => !east(x, z) && (major || inCore(x, z, x < 40)) && (land || major));
+    // and not where it runs along under I-5 (crossing under it is fine)
+    for (let k = 0; k < S.length;) { if (i5Dist(S[k][0], S[k][1]) >= UNDER) { k++; continue; } let e = k; while (e < S.length && i5Dist(S[e][0], S[e][1]) < UNDER) e++; if (e - k > 18) for (let j = k; j < e; j++) ok[j] = false; k = e; }
+    let cur = [];
     const flush = () => { if (cur.length > (major ? 1 : 16)) paint.push({ ...p, p: cur }); cur = []; };
-    for (const [x, z, land] of S) {
-      const ok = !east(x, z) && (major || inCore(x, z, x < 40)) && (land || major);
-      if (ok) cur.push([+x.toFixed(2), +z.toFixed(2)]); else flush();
-    }
+    S.forEach(([x, z], k) => { if (ok[k]) cur.push([+x.toFixed(2), +z.toFixed(2)]); else flush(); });
     flush();
   }
   // close the little gaps in a through street (the extract breaks them where a bit ran on the grid or off the map)
@@ -145,6 +168,7 @@ export const ROADS = (() => {
     const P = geo(e), major = e[3] >= MAJOR_W, mx = (P[0][0] + P[1][0]) / 2, mz = (P[0][1] + P[1][1]) / 2;
     if (east(mx, mz)) return false;
     if (!major && !inCore(mx, mz)) return false;
+    if (longUnder(samples(P, 1))) return false;
     return wetOK(P, major);
   });
   // where the coast is squeezed the side streets crowd together: of two side streets side by side closer than a
@@ -183,16 +207,78 @@ export const ROADS = (() => {
   const bridges = [];
   for (const e of edges) if (e[3] >= MAJOR_W) for (const r of wetRuns(geo(e))) bridges.push({ p: [r[0], r[r.length - 1]], w: Math.max(3.6, Math.min(5, e[3])) });
   for (const p of paint) if (MAJOR_H.includes(p.h)) for (const r of wetRuns(p.p)) if (r.length > 2) bridges.push({ p: r, w: p.w });
-  // the freeways up to where the hills take over (js/ncworld.js paints them on into the distance)
-  const freeway = [];
-  for (const f of D.freeway) {
-    let cur = [];
-    for (const [x, z] of samples(f.p, 2)) { if (x < hillEdge(z) + 1 && z > BOUNDS.z0 && z < BOUNDS.z1) cur.push([x, z]); else { if (cur.length > 1) freeway.push({ ...f, p: cur }); cur = []; } }
-    if (cur.length > 1) freeway.push({ ...f, p: cur });
+  // CA-76 runs at grade (an expressway): its crossings of the river get road bridges (I-5 and its ramps build their own)
+  for (const f of freeway) if (f.h === 'trunk') for (const r of wetRuns(f.p)) if (r.length > 2) bridges.push({ p: r, w: 5.2 });
+  // ---------- the ramps: only the ones that join I-5 to a street the map keeps ----------
+  // the streets (and CA-76) by where they run, with their names (for the exit signs)
+  const SH = new Map(), sk = (x, z) => `${Math.round(x / 2)},${Math.round(z / 2)}`;
+  const lineName = (ax, i, at) => { const runs = (ax ? D.zn : D.xn)[i] || []; const r = runs.find((q) => at >= q[1] - 2 && at <= q[2] + 2) || runs[0]; return r ? r[0] : ''; };
+  for (const e of edges) { const P = geo(e), n = lineName(e[0], e[0] ? e[2] : e[1], e[0] ? (P[0][0] + P[1][0]) / 2 : (P[0][1] + P[1][1]) / 2); for (const [x, z] of samples(P, 1)) SH.set(sk(x, z), n); }
+  for (const p of paint) if (p.h !== 'pedestrian') for (const [x, z] of samples(p.p, 1)) SH.set(sk(x, z), p.n || '');
+  for (const f of freeway) if (f.h === 'trunk') for (const [x, z] of samples(f.p, 1)) SH.set(sk(x, z), 'CA-76');
+  const streetAt = (x, z, r = 2) => { for (let dx = -r; dx <= r; dx += 2) for (let dz = -r; dz <= r; dz += 2) { const n = SH.get(sk(x + dx, z + dz)); if (n !== undefined) return { n }; } return null; };
+  // The real ramps are squeezed into I-5's own width inland, so each real interchange is drawn as a diamond: at
+  // the street the exit is for, an off-ramp and an on-ramp either side, each curving down from the deck's edge to
+  // the street (one side only where the map's edge is right behind the freeway). The exits on this stretch:
+  const EXITS = ['Tamarack Avenue', 'Carlsbad Village Drive', 'Las Flores Drive', 'Cassidy Street', 'Oceanside Boulevard', 'Mission Avenue', 'CA-76', 'Harbor Drive'];
+  const lines = [
+    ...edges.map((e) => { const P = geo(e); return { n: lineName(e[0], e[0] ? e[2] : e[1], e[0] ? (P[0][0] + P[1][0]) / 2 : (P[0][1] + P[1][1]) / 2), p: P }; }),
+    ...paint.map((p) => ({ n: p.n, p: p.p })), ...freeway.filter((f) => f.h === 'trunk').map((f) => ({ n: 'CA-76', p: f.p })),
+  ].filter((l) => EXITS.includes(l.n));
+  const ramps = [], I5F = i5.map((p, k) => { const a = i5[Math.max(0, k - 2)], b = i5[Math.min(i5.length - 1, k + 2)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return { tx: (b[0] - a[0]) / L, tz: (b[1] - a[1]) / L }; });
+  for (const name of EXITS) {
+    // where that street passes under I-5
+    let best = null;
+    for (const l of lines) if (l.n === name) { const S = samples(l.p, 0.5); for (let k = 0; k + 1 < S.length; k++) { const d = i5Dist(S[k][0], S[k][1]); if (!best || d < best.d) { const L = Math.hypot(S[k + 1][0] - S[k][0], S[k + 1][1] - S[k][1]) || 1; best = { d, x: S[k][0], z: S[k][1], ux: (S[k + 1][0] - S[k][0]) / L, uz: (S[k + 1][1] - S[k][1]) / L }; } } }
+    if (!best || best.d > 2) continue;
+    let ki = 0, bd = 1e9; i5.forEach((p, k) => { const d = (p[0] - best.x) ** 2 + (p[1] - best.z) ** 2; if (d < bd) { bd = d; ki = k; } });
+    if (ki < 25 || ki > i5.length - 25) continue;                            // too near the map's end, where I-5 comes down
+    const { tx, tz } = I5F[ki], nx = tz, nz = -tx, [cx, cz] = i5[ki];
+    for (const s of [-1, 1]) {
+      // the street's point at the ramps' distance out, either side of it along the freeway
+      const un = best.ux * nx + best.uz * nz; if (Math.abs(un) < 0.3) continue;
+      const lam = s * 9.5 / un, qx = best.x + best.ux * lam, qz = best.z + best.uz * lam;
+      if (qx > eastEdge(qz) - 2 || !isLand(qx, qz)) continue;
+      const dirF = s < 0 ? 1 : -1;                                            // traffic on this side runs along +t (right-hand side) or -t
+      for (const exit of [true, false]) {
+        const a = exit ? -dirF : dirF;                                        // an exit leaves upstream of the street, an on-ramp joins downstream
+        const P = [];
+        for (let k = 0; k <= 16; k++) {
+          const u = k / 16, e = u * u * (3 - 2 * u);                          // eased out from the deck to the street
+          const along = a * (30 - 26 * u), lat = s * (HALF5 + 1.1 + (9.5 - HALF5 - 1.1) * e);
+          const ex = cx + tx * along + nx * lat, ez = cz + tz * along + nz * lat;
+          // the last stretch bends onto the street itself
+          const w = Math.max(0, (u - 0.75) / 0.25), sx = qx + tx * a * 3.2, sz = qz + tz * a * 3.2;
+          P.push([ex + (sx - ex) * w * w, ez + (sz - ez) * w * w]);
+        }
+        ramps.push({ p: P, exit, name });
+      }
+    }
   }
-  for (const f of freeway) for (const r of wetRuns(f.p)) if (r.length > 2) bridges.push({ p: r, w: (f.h === 'motorway' ? 4.6 : f.h === 'trunk' ? 4.2 : 2.4) + 1 });
-  return { edges, paint, bridges, freeway };
+  // CA-78 (and any other freeway) leaving I-5: raised like I-5, coming down to the ground where the hills begin
+  const spurs = joinLines(freeway.filter((f) => f.h === 'motorway' && !/San Diego Freeway|I 5/.test(f.n)).map((f) => f.p), 1).filter((c) => lineLen(c) > 10)
+    .map((c) => { const P = samples(c, 1).map((s) => [s[0], s[1]]); if (i5Dist(...P[0]) > i5Dist(...P[P.length - 1])) P.reverse(); let k = 0; while (k < P.length - 4 && i5Dist(...P[k]) < 4.8) k++; return { p: P.slice(k), spur: true }; })
+    .filter((s) => lineLen(s.p) > 6);
+  return { edges, paint, bridges, freeway, i5, i5Dist, ramps, spurs, streetAt };
 })();
+// join line pieces that meet end to end, and a polyline's length
+export function joinLines(lines, tol) {
+  const rest = lines.map((l) => l.slice()), out = [], same = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < tol;
+  while (rest.length) {
+    let c = rest.shift(), grown = true;
+    while (grown) {
+      grown = false;
+      for (let k = 0; k < rest.length; k++) {
+        const w = rest[k];
+        if (same(w[0], c[c.length - 1])) { c = c.concat(w.slice(1)); rest.splice(k, 1); grown = true; break; }
+        if (same(w[w.length - 1], c[0])) { c = w.slice(0, -1).concat(c); rest.splice(k, 1); grown = true; break; }
+      }
+    }
+    out.push(c);
+  }
+  return out;
+}
+export function lineLen(p) { let L = 0; for (let k = 1; k < p.length; k++) L += Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]); return L; }
 
 // ================= THE MAP =================
 export function northcounty(B) {
@@ -275,9 +361,14 @@ export function northcounty(B) {
   for (const w of WATERS) markLine([...w.p, w.p[0]], 2.5);
 
   // ---------- the freeway (I-5, CA-76) and its ramps ----------
-  for (const f of D.freeway) { const w = f.h === 'motorway' ? 4.6 : f.h === 'trunk' ? 4.2 : 2.4; f.W = w; g.stroke(f.p, w + 2.2, '#8a8572'); markLine(f.p, w / 2 + 1.8); }
-  for (const f of D.freeway) g.stroke(f.p, f.W, '#4d4e50');
-  for (const f of D.freeway) if (f.h === 'motorway') { g.stroke(f.p, 0.08, 'rgba(238,238,232,.7)', [1, 1.6]); for (const o of [-1, 1]) g.stroke(offset(f.p, o * (f.W / 2 - 0.25)), 0.08, o < 0 ? 'rgba(226,186,60,.8)' : 'rgba(238,238,232,.75)'); }
+  // I-5 and its ramps stand on embankments and bridges (js/ncfreeway.js): the ground under them is their footprint
+  const raised = [{ p: ROADS.i5, w: 2 * 6.8 }, ...ROADS.ramps.map((r) => ({ p: r.p, w: 6 })), ...ROADS.spurs.map((r) => ({ p: r.p, w: 9 }))];
+  for (const r of raised) if (r.p.length > 1) { g.stroke(r.p, r.w, '#80785a'); g.stroke(r.p, r.w * 0.6, '#6f6a55'); markLine(r.p, r.w / 2 + 0.6); }
+  // CA-76 runs at grade: an expressway like a big street
+  const grade = D.freeway.filter((f) => f.h === 'trunk' || f.h === 'trunk_link');
+  for (const f of grade) { f.W = f.h === 'trunk' ? 4.2 : 2.4; g.stroke(f.p, f.W + 2.2, '#8a8572'); markLine(f.p, f.W / 2 + 1.8); }
+  for (const f of grade) g.stroke(f.p, f.W, '#4d4e50');
+  for (const f of grade) if (f.h === 'trunk') { g.stroke(f.p, 0.08, 'rgba(238,238,232,.7)', [1, 1.6]); for (const o of [-1, 1]) g.stroke(offset(f.p, o * (f.W / 2 - 0.25)), 0.08, 'rgba(238,238,232,.75)'); }
 
   // ---------- the rail: the coast line (Coaster, Surfliner) and its sidings ----------
   for (const r of D.rail) { g.stroke(r.p, r.s ? 1.5 : 2.2, '#7a7064'); markLine(r.p, r.s ? 1.4 : 2.4); }
