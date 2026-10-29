@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { G, rand, clamp, blast } from './core.js';
+import { G, rand, clamp, blast, touchInstance } from './core.js';
 import { makeShingles } from './textures.js';
 import { sfx } from './audio.js';
 
@@ -270,7 +270,7 @@ export class Buildings {
     const S = this.byStyle[c.style];
     _m.makeScale(c.hx * 2, c.hy * 2, c.hz * 2).setPosition(c.x, c.y, c.z);
     S.mesh.setMatrixAt(c.idx, _m);
-    S.mesh.instanceMatrix.needsUpdate = true;
+    touchInstance(S.mesh.instanceMatrix, c.idx);
   }
 
   writeState(c) {
@@ -404,7 +404,7 @@ export class Buildings {
     G.progress && G.progress.cell(c);                      // the player's lifetime stats (js/progress/)
     const S = this.byStyle[c.style];
     S.mesh.setMatrixAt(c.idx, ZERO);
-    S.mesh.instanceMatrix.needsUpdate = true;
+    touchInstance(S.mesh.instanceMatrix, c.idx);
     this.burning.delete(c);
     this.dirty.add(c.b);
     const fx = G.fx;
@@ -545,7 +545,7 @@ export class Buildings {
         c.px = _p.x; c.py = _p.y; c.pz = _p.z;
         _m.compose(_p, _q, _s.set(c.hx * 2, c.hy * 2, c.hz * 2));
         S.mesh.setMatrixAt(c.idx, _m);
-        S.mesh.instanceMatrix.needsUpdate = true;
+        touchInstance(S.mesh.instanceMatrix, c.idx);
         if (!landed) {
           const sup = this.surfaceAt(_p.x, _p.z, _p.y - c.hy).y;
           if (_p.y - c.hy <= sup + 0.05) landed = true;

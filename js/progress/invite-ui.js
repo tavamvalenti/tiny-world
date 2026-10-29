@@ -13,6 +13,7 @@ export const CSS = `
 @keyframes ivIn{from{opacity:0;transform:scale(.92) translateY(14px)}to{opacity:1;transform:none}}
 #invitePanel .x{position:absolute;right:16px;top:16px;width:32px;height:32px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:17px;cursor:pointer}
 #invitePanel .x:hover{background:rgba(255,255,255,.22)}
+#invitePanel button.x{display:grid;place-items:center;padding:0;font-size:0;box-shadow:none;transform:none;filter:none} #invitePanel button.x::before{content:'';width:12px;height:12px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M5 5l14 14M19 5L5 19'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M5 5l14 14M19 5L5 19'/%3E%3C/svg%3E") center/contain no-repeat}
 #invitePanel h2{margin:0;font:700 26px ${SF};letter-spacing:-.01em}
 #invitePanel .lede{margin:6px 0 16px;font:500 13.5px ${SF};color:rgba(235,235,245,.7)}
 #invitePanel .lede b{color:#30d158}

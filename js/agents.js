@@ -6,8 +6,10 @@ import { sfx } from './audio.js';
 const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _m3 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), _e = new THREE.Euler();
 const UP = new THREE.Vector3(0, 1, 0), XAX = new THREE.Vector3(1, 0, 0), ZAX = new THREE.Vector3(0, 0, 1);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const _fr = new THREE.Frustum(), _sph = new THREE.Sphere(), NONE = [];
 const POSE = { aL: 0, aR: 0, oL: 0, oR: 0, lL: 0, lR: 0, dy: 0 };
 const LOD_STATES = new Set(['walk', 'wander', 'idle', 'wait', 'job', 'return']);
+const OFF_LOD = new Set([...LOD_STATES, 'alert', 'flee', 'toCar']);   // on foot and out of view: fine at a third of the rate
 const KEEP_OUT = new Set(['walk', 'wander', 'idle', 'wait', 'return', 'alert', 'flee', 'riot', 'toCar']);   // states where people move on foot
 const CAR_COLORS = [0xf2f2f0, 0x1c1d20, 0x8a9096, 0xb4bac0, 0x9e1b1b, 0x1e3f73, 0x2f5d3a, 0xd9c7a0, 0x5a1f2b, 0x3a3f46, 0xcfd6dc, 0x7a5230];
 const SHIRTS = [0xe8e4dc, 0x2b2d33, 0xb33a3a, 0x3565a8, 0xe0b640, 0x4f7f4a, 0xd87a3a, 0x9a5fb0, 0xf0f0f0, 0x6fb3c9, 0xc94f7c, 0x1f2a44, 0x8a8f96];
@@ -133,8 +135,8 @@ export class Agents {
       new THREE.CylinderGeometry(0.066, 0.056, 0.24, 8).scale(1, 1, 0.62).translate(0, 0.43, 0),
       new THREE.CylinderGeometry(0.02, 0.024, 0.05, 5).translate(0, 0.57, 0),
     ]);
-    const head = new THREE.SphereGeometry(0.048, 10, 8).scale(0.92, 1.08, 0.98).translate(0, 0.625, 0);
-    const hair = new THREE.SphereGeometry(0.052, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.52).translate(0, 0.632, -0.005);
+    const head = new THREE.SphereGeometry(0.048, 8, 6).scale(0.92, 1.08, 0.98).translate(0, 0.625, 0);
+    const hair = new THREE.SphereGeometry(0.052, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.52).translate(0, 0.632, -0.005);
     const leg = new THREE.CylinderGeometry(0.027, 0.02, 0.31, 6).translate(0, -0.155, 0);
     const arm = new THREE.CylinderGeometry(0.018, 0.014, 0.24, 5).translate(0, -0.12, 0);
     this.crowdSpots = city.crowds || [];
@@ -172,7 +174,7 @@ export class Agents {
     for (; pi < opts.peds; pi++) this.spawnPed(pi, opts.wanderFrac || 0);
     for (const spot of this.crowdSpots) for (let k = 0; k < spot.n; k++) this.spawnCrowdPed(pi++, spot, k);
     this.carBody.instanceColor.needsUpdate = true;
-    this.grid = new Map();
+    this.grid = new Map(); this.cgrid = new Map();
     this.sirenT = 0; this.fireCheckT = 5;
     G.emergency = this;
   }
@@ -402,7 +404,9 @@ export class Agents {
         else if (along > 0 && along < 12 && lat < 9 && Math.hypot(ox, oz) < 12) o.yieldT = Math.max(o.yieldT || 0, 1.6);   // waiting at the junction ahead
       }
     }
-    for (const o of this.cars) {
+    // only the cars in the cells around the stretch just ahead can be in the way (this.cgrid, filled once a frame)
+    const gx = Math.floor((c.pos.x + fx * 2) / 4), gz = Math.floor((c.pos.z + fz * 2) / 4);
+    for (let ix = gx - 1; ix <= gx + 1; ix++) for (let iz = gz - 1; iz <= gz + 1; iz++) for (const o of this.cgrid.get(ix * 1000 + iz) || NONE) {
       if (o === c || o.state === 'hidden' || Math.abs(o.pos.y - c.pos.y) > 1.5) continue;     // (the bridge deck is over the streets)
       const ox = o.pos.x - c.pos.x, oz = o.pos.z - c.pos.z;
       const along = ox * fx + oz * fz;
@@ -805,6 +809,7 @@ export class Agents {
   // beach are fine). A step that would break it is undone and they turn round
   keepOut(p) {
     const B = G.buildings, C = this.city, TH = G.terrainH, x = p.pos.x, z = p.pos.z;
+    if (p.okPos && p.okPos.x === x && p.okPos.z === z && p.okPos.y === p.pos.y) return;      // hasn't moved since it was last fine
     const bad = (C.deepWater && C.deepWater(x, z)) || !!B.inside(_p.set(x, p.pos.y + (TH ? TH(x, z) : 0) + 0.4, z));
     if (!bad) { (p.okPos ||= new THREE.Vector3()).copy(p.pos); return; }
     if (p.okPos) {
@@ -1052,11 +1057,21 @@ export class Agents {
     mesh.setMatrixAt(i, _m3);
   }
 
+  // is a sphere at (x, y, z) inside the view? (the frustum is taken once per frame in update)
+  seen(x, y, z, r) { _sph.center.set(x, y, z); _sph.radius = r; return _fr.intersectsSphere(_sph); }
   update(dt) {
+    // only what the camera can see gets its pose and matrices rebuilt; anything that leaves the view is hidden once
+    G.camera.updateMatrixWorld(); _fr.setFromProjectionMatrix(_m.multiplyMatrices(G.camera.projectionMatrix, G.camera.matrixWorldInverse));
     this.grid.clear();
     for (const p of this.peds) {
       const k = this.gk(p.pos.x, p.pos.z);
       let a = this.grid.get(k); if (!a) this.grid.set(k, (a = [])); a.push(p);
+    }
+    this.cgrid.clear();
+    for (const c of this.cars) {
+      if (c.state === 'hidden') continue;
+      const k = this.gk(c.pos.x, c.pos.z);
+      let a = this.cgrid.get(k); if (!a) this.cgrid.set(k, (a = [])); a.push(c);
     }
     for (const c of this.cars) this.updateCar(c, dt);
     this.updateEmergency(dt);
@@ -1074,8 +1089,18 @@ export class Agents {
     const lightCands = [];
     for (const c of this.cars) {
       const hidden = c.state === 'hidden';
-      if (hidden) { for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); if (c.motoShown) this.drawMoto({ ...c, moto: false }, dt), (c.motoShown = false); this.doors.setMatrixAt(c.i * 2, ZERO); this.doors.setMatrixAt(c.i * 2 + 1, ZERO); }
-      else {
+      const vis = !hidden && this.seen(c.pos.x, c.pos.y, c.pos.z, 7);
+      if (!vis) {
+        if (hidden || c.drawn !== false) {
+          for (const m of [this.carBody, this.carDark, this.headL, this.tailL, this.headPool]) m.setMatrixAt(c.i, ZERO); if (c.motoShown) this.drawMoto({ ...c, moto: false }, dt), (c.motoShown = false); this.doors.setMatrixAt(c.i * 2, ZERO); this.doors.setMatrixAt(c.i * 2 + 1, ZERO);
+          if (c.emerg) { this.beacons.setMatrixAt(c.ei * 2, ZERO); this.beacons.setMatrixAt(c.ei * 2 + 1, ZERO); }
+          c.drawn = false;
+        }
+        if (!hidden && c.emerg && (c.state === 'drive' || c.state === 'onscene') && !c.quiet) lightCands.push(c);   // still lights the facades just off screen
+        continue;
+      }
+      c.drawn = true;
+      {
         if (c.state === 'air' || c.state === 'held' || c.state === 'wreck' && c.airborneBefore) {
           if (c.state === 'wreck') {
             _q.setFromAxisAngle(UP, c.heading);
@@ -1139,14 +1164,34 @@ export class Agents {
     const W = G.world, rain = W ? W.rain : 0, snow = W ? W.snow || 0 : 0;
     this.pace = 1 + rain * 0.3 - snow * 0.15;
     const umbOn = rain > 0.25;
+    this.umb.visible = umbOn;                                   // no rain, no umbrellas to draw at all
+    // zoomed far out, people are a few pixels tall: their shadows aren't worth a pass over thousands of them
+    const pShadow = !(G.cam && G.cam.dist > 170);
+    if (this.pTorso.castShadow !== pShadow) for (const m of this.pMeshes) m.castShadow = pShadow;
     this.frame++;
-    const TH = G.terrainH;
+    const TH = G.terrainH, camP = G.camera.position;
     for (const p of this.peds) {
       // distance LOD: people far from the view in routine states update every third frame (and keep their last pose)
-      const far = Math.abs(p.pos.x - T.x) + Math.abs(p.pos.z - T.z) > 150 && LOD_STATES.has(p.state);
+      // ... and so do people out of view (they aren't drawn at all until they come back into it)
+      const vis = this.seen(p.pos.x, p.pos.y + (TH && p.state !== 'air' && p.state !== 'held' ? TH(p.pos.x, p.pos.z) : 0), p.pos.z, 4);
+      const far = vis ? Math.abs(p.pos.x - T.x) + Math.abs(p.pos.z - T.z) > 150 && LOD_STATES.has(p.state) : OFF_LOD.has(p.state);
       if (far) { p.lodDt = (p.lodDt || 0) + dt; if ((this.frame + p.i) % 3) continue; this.updatePed(p, p.lodDt); p.lodDt = 0; }
       else this.updatePed(p, dt);
       if (KEEP_OUT.has(p.state) && !p.hidden) this.keepOut(p);
+      if (!vis) {
+        if (p.drawn !== false) {
+          for (const m of this.pMeshes) m.setMatrixAt(p.i, ZERO);
+          if (p.umbShown) { this.umb.setMatrixAt(p.i, ZERO); p.umbShown = false; }
+          if (p.slot != null) G.roles.draw(p, null, null);
+          p.drawn = false;
+        }
+        continue;
+      }
+      // people only a few pixels tall (far from the camera) are re-posed every second or third frame
+      const cx = p.pos.x - camP.x, cz = p.pos.z - camP.z, cd = cx * cx + cz * cz + camP.y * camP.y;
+      const every = cd > 48400 ? 3 : cd > 16900 ? 2 : 1;
+      if (every > 1 && p.drawn === true && p.drawnState === p.state && LOD_STATES.has(p.state) && (this.frame + p.i) % every) continue;
+      p.drawn = true; p.drawnState = p.state;
       const umbrella = umbOn && p.i % 3 === 0 && !p.officer && (p.state === 'walk' || p.state === 'wait' || p.state === 'wander' || p.state === 'idle' || p.state === 'return' || (p.state === 'job' && !p.hidden && !p.carry));
       if (!umbrella && p.umbShown) { this.umb.setMatrixAt(p.i, ZERO); p.umbShown = false; }
       if (p.state === 'gone' || p.state === 'incar' || (p.hidden && p.state === 'job')) { for (const m of this.pMeshes) m.setMatrixAt(p.i, ZERO); if (p.slot != null) G.roles.draw(p, null, null); continue; }
@@ -1196,7 +1241,7 @@ export class Agents {
       }
     }
     for (const m of this.pMeshes) m.instanceMatrix.needsUpdate = true;
-    this.umb.instanceMatrix.needsUpdate = true;
+    if (umbOn) this.umb.instanceMatrix.needsUpdate = true;
     G.roles && G.roles.flush();
   }
 }
