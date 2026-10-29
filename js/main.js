@@ -53,6 +53,9 @@ import { vegas, Vegas } from './vegas.js';
 import { london, London } from './london.js';
 import { greenland, Greenland, terrainH as glTerrainH } from './greenland.js';
 import { cairo, Cairo, terrainH as caTerrainH } from './cairo.js';
+import { northcounty } from './northcounty.js';
+import { NorthCounty } from './ncworld.js';
+import { Travel, pending as travelPending } from './travel.js';
 import { avatarHtml } from './progress/avatar.js';
 import { startGlobe } from './hall-globe.js';
 import { openInvite } from './progress/invite-ui.js';
@@ -61,9 +64,10 @@ import { setupFriendsBubble, openFriends } from './progress/friends-ui.js';
 import { setupMenuCarousel } from './menu-carousel.js';
 if (document.fonts && document.fonts.load) for (const f of ['700 40px Cairo', '900 40px Cairo', '700 40px "Reem Kufi"']) document.fonts.load(f, 'القاهرة').catch(() => {});
 MAPS.vegas = vegas; MAPS.london = london; MAPS.greenland = greenland; MAPS.cairo = cairo;
+MAPS.northcounty = northcounty;                // Carlsbad & Oceanside: not on the menu, reached from San Diego (js/travel.js)
 
 const TOUCH = document.documentElement.classList.contains('touch');   // phones and tablets (set in index.html)
-export const MAP_NAMES = { downtown: 'SAN DIEGO, CA', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON', greenland: 'SISIMIUT', cairo: 'CAIRO' };
+export const MAP_NAMES = { downtown: 'SAN DIEGO, CA', tropical: 'LA PLAYA', suburbs: 'CHICAGO', vegas: 'LAS VEGAS', london: 'LONDON', greenland: 'SISIMIUT', cairo: 'CAIRO', northcounty: 'CARLSBAD, CA' };
 
 const $ = (s) => document.querySelector(s);
 const canvasEl = $('#game');
@@ -205,6 +209,14 @@ function load(name) {
     D.scorch = (x, z, r, a) => { if (z < cut && x > -E) sc(x, z, r, a); else g2.scorch(x, z, r, a); };
     D.update = (dt) => { up(dt); g2.update(dt); };
     D.second = g2;
+  } else if (map.grounds) {
+    // North County: a row of ground patches up the coast (map.g draws on all of them, js/northcounty.js Patches)
+    G.groundMats = map.grounds.map((g) => {
+      const m = g === map.grounds[0] ? gmat : new THREE.MeshStandardMaterial({ map: g.tex, roughness: 0.93, metalness: 0 });
+      if (m === gmat) gmat.map = g.tex;
+      scene.add(groundPiece(g, g.cx - g.E, g.cx + g.E, g.cz - g.E, g.cz + g.E, m));
+      return m;
+    });
   } else {
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(map.g.E * 2, map.g.E * 2).rotateX(-Math.PI / 2), gmat);
     ground.receiveShadow = true;
@@ -224,7 +236,8 @@ function load(name) {
   G.vegas = map.city.vegas ? new Vegas(scene, map.city) : null;              // the Strip's landmarks, fountains, Sphere, mountains
   G.london = map.city.london ? new London(scene, map.city) : null;           // the Thames, the landmarks, the city around them
   G.greenland = map.city.gl ? new Greenland(scene, map.city) : null;
-  G.cairo = map.city.cai ? new Cairo(scene, map.city) : null;             // Cairo: the Nile, the pyramids, the bazaar, mosques, feluccas        // Sisimiut: the rock, the sea and its ice, the boats, the pitch
+  G.northcounty = map.city.nc ? new NorthCounty(scene, map.city) : null;     // Carlsbad & Oceanside: the pier, the sign, the trains, the sea
+  G.cairo = map.city.cai ? new Cairo(scene, map.city) : null;            // Cairo: the Nile, the pyramids, the bazaar, mosques, feluccas        // Sisimiut: the rock, the sea and its ice, the boats, the pitch
   if (!map.ownBackdrop) buildBackdrop(scene, name, map.city, facades, map.g.E, map.water);
   signs = new Signs(scene, name, B, map.city);
   G.trains = map.city.rail ? new Trolley(scene, map.city, map.g) : null;
@@ -256,7 +269,7 @@ function load(name) {
   if (camera.fov !== 24) { camera.fov = 24; camera.updateProjectionMatrix(); }
   $('#mapTitle').textContent = MAP_NAMES[name];
   // reuse the region label (flag/logo + place) from the menu button
-  $('#mapRegion').innerHTML = document.querySelector(`#menu button[data-map="${name}"] .region`).innerHTML;
+  $('#mapRegion').innerHTML = document.querySelector(`#menu button[data-map="${name === 'northcounty' ? 'downtown' : name}"] .region`).innerHTML;   // North County: California too
   tod = new TimeOfDay({ scene, sun, hemi, post, renderer, fogDay: map.fog });
   G.tod = tod; G.makeEnv = makeEnv;
   ambience = new Ambience(name); G.ambience = ambience;
@@ -417,7 +430,8 @@ function step(dt) {
   if (flying || driving) minimap.update(dt);                    // the minimap while flying anything
   if (input.down && !flying && !driving && !(G.world && G.world.armed) && G.weapons) progress.toolUse(['hand', 'laser', 'bomb', 'wind', 'meteor'][G.weapons.cur] || 'hand');
   updateCamera(dt);
-  if (flying) rick.applyCamera(dt);                             // ... and the chase camera replaces the overhead one
+  G.travel && G.travel.update(dt);                              // flying off into the clouds to the next region, or in out of them
+  if (flying) rick.applyCamera(dt);                            // ... and the chase camera replaces the overhead one
   if (veh && veh.active) veh.applyCamera(dt);
   if (hub && hub.active) hub.applyCamera(dt);
   aim();
@@ -447,6 +461,7 @@ function step(dt) {
   G.london && G.london.update(dt);
   G.greenland && G.greenland.update(dt);
   G.cairo && G.cairo.update(dt);
+  G.northcounty && G.northcounty.update(dt);
   G.construction && G.construction.update(dt);
   G.world.update(dt);
   G.director && G.director.update(dt);
@@ -599,13 +614,14 @@ $('#todCycle').addEventListener('click', () => { const T = ['day', 'sunset', 'ni
 function backToMenu() { const q = new URLSearchParams(location.search); q.delete('map'); location.replace(location.pathname + (q.toString() ? '?' + q : '')); }
 $('#backBtn').addEventListener('click', backToMenu);
 
-document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEventListener('click', () => {
+document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEventListener('click', () => startMap(btn.dataset.map)));
+function startMap(mapId) {
   sfx.unlock();
   $('#menu').style.display = 'none';
   $('#loading').style.display = 'flex';
   setTimeout(() => {
     try {
-      load(btn.dataset.map);
+      load(mapId);
     } catch (err) {
       console.error(err);
       $('#loading').textContent = 'FAILED TO BUILD MAP — ' + err.message;
@@ -619,11 +635,14 @@ document.querySelectorAll('#menu button[data-map]').forEach((btn) => btn.addEven
     if (TOUCH) touchPlay = new TouchPlay({ rick, veh, hub });             // phones and tablets: RIDE / PLAY and the on-screen controls
     last = performance.now();
     running = true;
-    progress.mapLoaded(btn.dataset.map, G.city);
+    progress.mapLoaded(mapId, G.city);
     if (window.__twDive) { cam.dist = Math.min(cam.maxD * 1.25, cam.distT * 2.4); cam.intro = 2.2; }   // the descent from the globe carries on
+    // San Diego <-> North County: the chip under the title, and the glide in out of the clouds after a trip
+    const tr = new Travel({ cam, scene, tod, makeEnv, setTodButtons, selectWeapon, mapName: mapId }), trip = travelPending();
+    if (trip && trip.to === mapId) tr.arrive(trip);
     document.dispatchEvent(new Event('tw:start'));
   }, 60);
-}));
+}
 
 initMenu();                                                    // the title screen: the interactive Earth
 // Full screen: asked of the outer page (index.html holds the game in a frame), so it survives the game reloading
@@ -843,7 +862,7 @@ initMenu();                                                    // the title scre
 
 // allow ?map=downtown for quick testing
 const qp = new URLSearchParams(location.search).get('map');
-if (qp && MAPS[qp]) document.querySelector(`#menu button[data-map="${qp}"]`).click();
+if (qp && MAPS[qp]) { const b = document.querySelector(`#menu button[data-map="${qp}"]`); if (b) b.click(); else startMap(qp); }   // North County has no menu button
 
 // ---------- settings ----------
 let settingsOpen = false;

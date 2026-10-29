@@ -12,7 +12,7 @@ export const RANKS = [
   { name: 'City Legend', xp: 20000 },
 ];
 
-export const MAP_LABELS = { downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London', greenland: 'Sisimiut', cairo: 'Cairo' };
+export const MAP_LABELS = { northcounty: 'North County', downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London', greenland: 'Sisimiut', cairo: 'Cairo' };
 export const ALL_MAPS = Object.keys(MAP_LABELS);
 export const TOOLS = ['hand', 'laser', 'bomb', 'wind', 'meteor'];
 export const VEHICLES = ['rick', 'drone', 'chair', 'jetpack'];

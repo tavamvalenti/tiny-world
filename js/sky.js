@@ -18,6 +18,7 @@ const MAP = {
   cairo: { plane: 55, heli: 160, flock: 40, birdCol: [0x6a6056, 0xc8beae], spots: () => [{ x: rand(-30, 140), z: rand(-140, 140) }, { x: rand(-180, -100), z: rand(-140, 140) }] },
   greenland: { plane: 140, heli: 120, flock: 30, birdCol: [0xffffff, 0xdfe4e8], spots: () => [{ x: rand(-90, -45), z: rand(-30, 30) }, { x: rand(-120, -60), z: rand(-60, 60) }] },
   london: { plane: 45, heli: 140, flock: 35, birdCol: [0x7a7f86, 0xe8e8e4], spots: (C) => [{ x: rand(-60, 60), z: rand(-20, 10) }, { x: rand(-60, 60), z: rand(-60, 60) }] },
+  northcounty: { plane: 80, heli: 160, flock: 30, birdCol: [0xffffff, 0xe9e4da], spots: (C) => [{ x: C.nc.shoreX(-600) + 3, z: rand(-640, -580) }, { x: C.nc.shoreX(0) + 3, z: rand(-40, 40) }] },
   tropical: { plane: 90, heli: 220, flock: 28, birdCol: [0xffffff, 0xfff6ea], spots: (C) => [{ x: rand(-50, 50), z: rand(-34, -20) }, { x: rand(-50, 50), z: rand(-45, -30) }] },
 };
 

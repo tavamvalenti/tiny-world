@@ -14,6 +14,38 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#07080a">
 <script>
+  // travelling between San Diego and North County (js/travel.js): the clouds are up from the very first paint
+  (function () {
+    try {
+      var t = JSON.parse(sessionStorage.getItem('tw-travel') || 'null');
+      if (t && Date.now() - t.t < 60000 && new RegExp('[?&]map=' + t.to + '(&|$)').test(location.search)) document.documentElement.classList.add('traveling');
+    } catch (e) { /* private mode */ }
+  })();
+</script>
+<style>
+  html.traveling, html.traveling body { background:#cfd7db !important; }
+  html.traveling #menu, html.traveling #loading { visibility:hidden !important; }
+  #travelFog { position:fixed; inset:0; z-index:2147483000; display:none; pointer-events:none; overflow:hidden;
+    background:radial-gradient(120% 90% at 50% 60%, #eef2f3 0%, #d5dde0 55%, #b9c4c9 100%); }
+  html.traveling #travelFog { display:block; }
+  #travelFog i { position:absolute; left:-50%; width:200%; height:60%; border-radius:50%; filter:blur(28px); opacity:.85; will-change:transform;
+    background:radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,0)); animation:cloudRush 2.6s linear infinite; }
+  #travelFog i:nth-child(1) { top:-10%; animation-duration:2.2s; }
+  #travelFog i:nth-child(2) { top:25%; animation-duration:3.1s; animation-delay:-1.2s; opacity:.7; }
+  #travelFog i:nth-child(3) { top:55%; animation-duration:2.5s; animation-delay:-.6s; }
+  #travelFog i:nth-child(4) { top:5%; height:90%; animation-duration:4.2s; animation-delay:-2s; opacity:.55; }
+  #travelFog b { position:absolute; left:50%; bottom:calc(4.2vh + 40px); transform:translateX(-50%); font:600 11px Inter, sans-serif; letter-spacing:.42em; color:rgba(70,86,96,.75); white-space:nowrap; }
+  @keyframes cloudRush { from { transform:translate3d(-12%, 0, 0) scale(1); } to { transform:translate3d(12%, 0, 0) scale(1.35); } }
+  #travelChip { position:absolute; left:16px; top:calc(4.2vh + 158px); display:flex; align-items:center; gap:8px; padding:6px 13px 6px 8px; border-radius:999px; pointer-events:auto; cursor:pointer;
+    border:1px solid rgba(255,255,255,.18); background:rgba(18,22,28,.5); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:#f4efe6; font:600 10px Inter, sans-serif; letter-spacing:.16em; transition:background .2s, transform .2s; }
+  #travelChip:hover { background:rgba(40,60,78,.62); transform:translateY(-1px); }
+  #travelChip:disabled { opacity:.5; cursor:default; }
+  #travelChip .ar { display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:linear-gradient(135deg,#9fd6e8,#4f8fb3); color:#0d1a24; font-size:12px; letter-spacing:0; }
+  #travelChip i { font-style:normal; font-weight:400; letter-spacing:.06em; color:rgba(244,239,230,.6); text-transform:none; }
+  html.touch #travelChip { left:12px; top:calc(var(--st,0px) + 136px); transform:scale(.9); transform-origin:left top; z-index:7; }
+  html.touch body.veh-on #travelChip, html.touch body.act-on #travelChip, html.touch body.rick-on #travelChip { display:none; }
+</style>
+<script>
   // touch devices (phones, tablets) get their own layout and lighter graphics; desktop is untouched. ?touch=1 forces it.
   (function () {
     var q = location.search, t = /[?&]touch=1/.test(q) || (!/[?&]touch=0/.test(q) && matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0);
@@ -373,6 +405,7 @@
 </script>
 </head>
 <body>
+<div id="travelFog"><i></i><i></i><i></i><i></i><b>NORTH COUNTY · SAN DIEGO</b></div>
 <canvas id="game"></canvas>
 <div class="bar top"></div><div class="bar bot"></div>
 

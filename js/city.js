@@ -121,6 +121,7 @@ export class City {
     }
     for (const n of this.nodes) n.lit = this.lights && n.edges.length >= 3;
     for (let i = 0; i + 1 < xs.length; i++) for (let j = 0; j + 1 < zs.length; j++) {
+      if (this.skipBlock && this.skipBlock(i, j)) continue;          // no block here (sea, lagoon, open ground)
       const b = { i, j, x0: xs[i] + roadW / 2, x1: xs[i + 1] - roadW / 2, z0: zs[j] + roadW / 2, z1: zs[j + 1] - roadW / 2 };
       b.lx0 = b.x0 + this.sw; b.lx1 = b.x1 - this.sw; b.lz0 = b.z0 + this.sw; b.lz1 = b.z1 - this.sw;
       this.blocks.push(b);

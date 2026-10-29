@@ -40,6 +40,12 @@ const NAMES = {
     ['SPORT & OUTDOOR', '#2a6a3a', '#ffffff'], ['PHARMACY', '#ffffff', '#1e8a3a'], ['HARDWARE', '#3a3f46', '#f2c230'], ['PIZZA', '#b3120f', '#ffe08a'],
     ['BANK', '#0e2b4a', '#ffffff'], ['BOOKS', '#20304a', '#f1ede4'], ['KAYAK CLUB', '#e86a1a', '#ffffff'], ['GALLERY', '#f2f2ee', '#c8102e'],
   ],
+  northcounty: [
+    ['VILLAGE SURF CO.', '#0e5a7a', '#fff6e0'], ['TACOS LA PLAYITA', '#e8b320', '#7a1e10'], ['COASTAL COFFEE', '#2b1a12', '#f2d8a8'], ['PIER BAIT & TACKLE', '#1b2a3a', '#f5c400'],
+    ['SEASIDE MARKET', '#1f6b3a', '#ffffff'], ['BOARDWALK BURGERS', '#b3120f', '#fff1c1'], ['TIDEPOOL BOOKS', '#f1ede4', '#20304a'], ['MERCADO BARRIO', '#c8102e', '#ffe08a'],
+    ['SANDBAR GRILL', '#0e3d6b', '#ffd98a'], ['KELP & CO.', '#123a2a', '#bfe8c8'], ['LAGOON YOGA', '#f7efe6', '#3a7a6a'], ['CARNITAS EL REY', '#6b1a10', '#ffcf6a'],
+    ['HARBOR FISH MARKET', '#0b4a6f', '#e8f4ff'], ['SUNSET SWIM SHOP', '#f07a3a', '#ffffff'], ['NORTH COAST BANK', '#10243f', '#9fd0ff'], ['PANADERIA', '#f2c230', '#5a2a10'],
+  ],
   suburbs: [
     ['SOUTH SIDE SAVINGS', '#12324f', '#e9dcb8'], ['QUIKMART', '#c8102e', '#ffffff'], ['FUELCO', '#f5c400', '#b3120f'], ['MAPLE DENTAL', '#ffffff', '#2c6b4f'],
     ['PIZZA PALACE', '#b3120f', '#fff1c1'], ['HAIR BY ANNA', '#f7e6ee', '#8a2455'], ['PRESTO CLEANERS', '#1d4e89', '#ffffff'], ['PET WORLD', '#f28c28', '#ffffff'],
@@ -49,6 +55,8 @@ const NAMES = {
 };
 // rooftop and bus-shelter ads: the shared set, and each city's own
 const ADS_BY_MAP = {
+  northcounty: [['SURF SCHOOL', 'Lessons at the Pier daily', '#0e6b8a', '#ffffff'], ['COASTLINER', 'Oceanside to downtown SD', '#1f4f8f', '#ffffff'], ['FLOWER FIELDS', 'In bloom this spring', '#f7d9e3', '#b2366a'], ['FISH TACOS', '$2 Tuesdays', '#e8b320', '#5a1e10'],
+    ['HARBOR CRUISES', 'Sunset sails from the Harbor', '#0b2d4a', '#ffd98a'], ['STRAWBERRY FIELDS', 'Pick your own off I-5', '#c8102e', '#ffffff'], ['NORTH COAST CREDIT UNION', 'Bank local', '#123a6a', '#ffffff'], ['SURF MUSEUM', 'Ride the history', '#f2efe6', '#0e5a7a']],
   cairo: [['شاي النيل', 'طعم الأصالة', '#1f6b3a', '#f5e7b8'], ['اتصالات بلا حدود', 'باقات جديدة كل يوم', '#0e2b4a', '#5ce1e6'], ['سمن البلد', 'من خير مصر', '#e8b020', '#3a1a0a'], ['أفلام العيد', 'في جميع السينمات', '#1a0a2a', '#ffd34a'],
     ['بنك المستقبل', 'معاك في كل خطوة', '#123a6a', '#ffffff'], ['مياه الواحة', 'نقية ومنعشة', '#2a8ad8', '#ffffff'], ['حلاوة المولد', 'أحلى أيام', '#c8361f', '#fff4d6'], ['شقق للبيع', 'أقساط حتى ١٠ سنوات', '#f2f2ee', '#c8361f']],
   greenland: [['ARCTIC AIR', 'Fly to Nuuk daily', '#c8102e', '#ffffff'], ['HALIBUT CO.', 'Fresh from the bay', '#0e3d6b', '#ffffff'], ['POLAR FM', 'Radio for the north', '#111111', '#7cf0ff'], ['SNOWMOBILE HIRE', 'By the hour', '#f2c230', '#1a1a1a'],
@@ -133,7 +141,7 @@ export class Signs {
     this.city = city;
     const list = NAMES[mapName];
     ADS = ADS_BY_MAP[mapName] || ADS_DEFAULT;
-    STRIP3 = { cairo: '←  الجيزة        وسط البلد  ↑        الأزهر  →', greenland: '←  HARBOUR        TOWN CENTRE  ↑        AIRPORT  →', vegas: '←  FLAMINGO RD        THE STRIP  ↑        I-15  →', london: '←  WESTMINSTER        THE CITY  ↑        A4  →' }[mapName] || STRIP3_DEFAULT;
+    STRIP3 = { cairo: '←  الجيزة        وسط البلد  ↑        الأزهر  →', greenland: '←  HARBOUR        TOWN CENTRE  ↑        AIRPORT  →', vegas: '←  FLAMINGO RD        THE STRIP  ↑        I-15  →', london: '←  WESTMINSTER        THE CITY  ↑        A4  →', northcounty: '←  BEACH        VILLAGE  ↑        I-5  →' }[mapName] || STRIP3_DEFAULT;
     const tex = signAtlas(list);
     const shop = atlasMesh(tex, 700), post = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.6, metalness: 0.5 }), 900);
     post.count = 0; post.castShadow = true;

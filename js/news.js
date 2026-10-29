@@ -4,6 +4,7 @@
 // La Playa's channel is in Spanish (only the banner: menus and settings stay English).
 import { G, pick } from './core.js';
 import { settings } from './settings.js';
+import { NC } from './ncgeo.js';
 
 const SHOW = 6;                                     // seconds a headline stays up
 const GAP = { 2: 2.5, 1: 18 };                      // minimum quiet before a breaking / an everyday item
@@ -14,7 +15,7 @@ const TAGS = {
   LOCAL: ['#f4c20d', '#10183a'], FESTIVAL: ['#8a2be2', '#fff'], SPORTS: ['#1f9d55', '#fff'], URGENT: ['#c3001a', '#fff'],
 };
 const ES_TAG = { BREAKING: 'ÚLTIMA HORA', 'TRAFFIC ALERT': 'ALERTA VIAL', WEATHER: 'CLIMA', UPDATE: 'ACTUALIZACIÓN', LOCAL: 'LOCAL', FESTIVAL: 'FESTIVAL', SPORTS: 'DEPORTES', URGENT: 'URGENTE' };
-const CHANNEL = { cairo: ['CAIRO', 'LIVE', 'NILE NEWS'], greenland: ['SISIMIUT', 'LIVE', 'KNR NEWS'], vegas: ['LAS VEGAS', 'LIVE', 'CHANNEL 8 NEWS'], london: ['LONDON', 'LIVE', 'LONDON NEWS 24'], downtown: ['SAN DIEGO', 'LIVE', 'CHANNEL 7 NEWS'], suburbs: ['CHICAGO', 'LIVE', 'CHANNEL 7 NEWS'], tropical: ['LA PLAYA', 'EN VIVO', 'NOTICIAS 7'] };
+const CHANNEL = { northcounty: ['NORTH COUNTY', 'LIVE', 'COAST NEWS 6'], cairo: ['CAIRO', 'LIVE', 'NILE NEWS'], greenland: ['SISIMIUT', 'LIVE', 'KNR NEWS'], vegas: ['LAS VEGAS', 'LIVE', 'CHANNEL 8 NEWS'], london: ['LONDON', 'LIVE', 'LONDON NEWS 24'], downtown: ['SAN DIEGO', 'LIVE', 'CHANNEL 7 NEWS'], suburbs: ['CHICAGO', 'LIVE', 'CHANNEL 7 NEWS'], tropical: ['LA PLAYA', 'EN VIVO', 'NOTICIAS 7'] };
 
 // headline templates, English and Spanish ({w} = where)
 const T_EN = {
@@ -75,7 +76,7 @@ const R_ES = {
 };
 const W_EN = { rain: 'Rain moving into {c}', storm: 'Storm approaching {c}; lightning possible', snow: 'Snow falling across {c}; roads slick', clear: 'Skies clearing over {c}' };
 const W_ES = { rain: 'Lluvias llegan a La Playa', storm: 'Tormenta se acerca a La Playa; posibles rayos', clear: 'Cielos despejados en La Playa' };
-const CITY = { cairo: 'Cairo', greenland: 'Sisimiut', downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London' };
+const CITY = { northcounty: 'North County', cairo: 'Cairo', greenland: 'Sisimiut', downtown: 'San Diego', suburbs: 'Chicago', tropical: 'La Playa', vegas: 'Las Vegas', london: 'London' };
 
 // ---------- casualties: reported as they happen, in an urgent tone that grows with the toll ----------
 // {n} dead, {i} injured, {w} where, {N} the city's running toll
@@ -132,6 +133,15 @@ const STREETS = {
   downtown: { x: [null, null, null, null, null, null, null, null, null, 'Kettner Boulevard', 'India Street', 'Columbia Street', 'Union Street', 'Front Street', 'Fourth Avenue', 'Fifth Avenue', 'Sampson Street'],
     z: ['Ash Street', 'A Street', 'B Street', 'C Street', 'Broadway', 'Market Street', 'Harbor Drive', 'Imperial Avenue', 'National Avenue', 'Logan Avenue', 'Newton Avenue', 'Main Street', 'Harbor Drive'],
     alt: { test: (x, z) => x < -140, x: ['Ocean Boulevard', 'Alameda Boulevard', 'F Avenue', 'Orange Avenue', 'C Avenue', 'Glorietta Boulevard'], x0: -264, z: { 110: 'First Street', 132: 'Third Street', 154: 'Fifth Street', 176: 'Seventh Street', 198: 'Ninth Street' } } },
+  // North County's grid lines carry different streets in Carlsbad and Oceanside: the real name for each stretch (js/ncdata.js)
+  northcounty: { fn: (x, z) => {
+    const D = NC, run = (names, v) => { const r = names.find(([, a, b]) => v > a - 4 && v < b + 4); return r ? r[0] : null; };
+    const near = (arr, v) => arr.reduce((b, a, k) => (Math.abs(v - a) < b.d ? { k, d: Math.abs(v - a) } : b), { k: 0, d: 1e9 });
+    const nx = near(D.xs, x), nz = near(D.zs, z), X = nx.d < 8 ? run(D.xn[nx.k], z) : null, Z = nz.d < 8 ? run(D.zn[nz.k], x) : null;
+    if (X && Z && nx.d < 6 && nz.d < 6) return { at: [Z, X] };
+    if (!X && !Z) return null;
+    return { on: X && (!Z || nx.d < nz.d) ? X : Z };
+  } },
   suburbs: { x: ['Wentworth Avenue', 'State Street', 'Michigan Avenue', 'King Drive', 'Cottage Grove Avenue'], z: ['Pershing Road', '43rd Street', '47th Street', '51st Street', 'Garfield Boulevard'] },
   vegas: { x: ['Frank Sinatra Drive', 'Las Vegas Boulevard', 'Koval Lane', 'Paradise Road'], z: ['Desert Inn Road', 'Sands Avenue', 'Flamingo Road', 'Harmon Avenue', 'Tropicana Avenue', 'Mandalay Bay Road', 'Russell Road'] },
   cairo: { x: ['Faisal Street', 'Pyramids Road', 'Murad Street', 'the Giza Corniche', 'Corniche el-Nil', 'Talaat Harb', 'Mohamed Farid', 'Port Said Street', 'Al-Muizz Street', 'Salah Salem', 'Al-Azhar Street', 'Mohammed Ali Street'], z: ['Ramses Street', '26th of July', 'Al-Galaa', 'Abdel Khalek Tharwat', 'Qasr al-Nil', 'Tahrir Street', 'Al-Azhar Street', 'Sheikh Rihan', 'Qasr al-Aini', 'Al-Saliba', 'Sayeda Zeinab', 'Magra al-Oyoun'] },
@@ -260,6 +270,7 @@ export class News {
   street(x, z) {
     const S = STREETS[this.map], C = this.city;
     if (!S || !C.xs || !C.zs) return null;
+    if (S.fn) return S.fn(x, z);
     if (S.alt && S.alt.test(x, z)) {
       // Coronado's own streets
       const A = S.alt, i = Math.round((x - A.x0) / 22), X = A.x[Math.max(0, Math.min(A.x.length - 1, i))], zk = Math.round((z + 66) / 22) * 22 - 66, Z = A.z[zk];
@@ -315,8 +326,13 @@ export class News {
       if (z < -14) return this.es ? pick(['en la playa', 'en el malecón']) : pick(['on the beach', 'on the malecón']);
     }
     if (this.map === 'downtown' && C.shoreX != null && x < C.shoreX + 10) return 'on the Embarcadero';
+    if (this.map === 'northcounty') {
+      const P = C.nc && C.nc.pier;
+      if (P && x < P.x1 + 4 && Math.abs(z - P.z) < 3) return 'on the Oceanside Pier';
+      if (C.nc && C.nc.shoreX) { const sx = C.nc.shoreX(z); if (sx != null && x < sx + 8) return z < -205 ? 'on the beach in Oceanside' : 'on the beach in Carlsbad'; }
+    }
     if (G.gangs && G.gangs.zones) { const Z = G.gangs.zones; if (near(Z.blue, 4)) return 'in Blue Line'; if (near(Z.red, 4)) return 'in Red Row'; }
-    return this.streetPhrase(x, z) || (this.es ? 'en La Playa' : 'in ' + CITY[this.map]);
+    return this.streetPhrase(x, z) || (this.es ? 'en La Playa' : 'in ' + (this.map === 'northcounty' ? (z < -205 ? 'Oceanside' : 'Carlsbad') : CITY[this.map]));
   }
   // a headline about a named landmark: {S} subject, {o} object, {es} Spanish; chain stores get their street
   fillL(t, L, x, z) {

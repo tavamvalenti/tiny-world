@@ -8,8 +8,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, pick, clamp, blast } from './core.js';
 import { sfx } from './audio.js';
 
-const LIMIT = { downtown: 6, suburbs: 4, tropical: 2, greenland: 0, cairo: 3 };
-const CRANES = { downtown: 2, suburbs: 2, tropical: 1 };
+const LIMIT = { northcounty: 3, downtown: 6, suburbs: 4, tropical: 2, greenland: 0, cairo: 3 };
+const CRANES = { northcounty: 1, downtown: 2, suburbs: 2, tropical: 1 };
 
 function tint(geo, c) {
   const n = geo.index ? geo.toNonIndexed() : geo;
