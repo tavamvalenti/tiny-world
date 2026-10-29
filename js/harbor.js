@@ -115,14 +115,14 @@ function shipParts() {
 }
 
 // ---- road vehicles for the bridge (car shape shared with the city traffic) ----
-function truckGeos() {
+export function truckGeos() {
   const wheel = new THREE.CylinderGeometry(0.13, 0.13, 0.09, 10).rotateZ(Math.PI / 2);
   const body = mergeGeometries([new THREE.BoxGeometry(0.7, 0.5, 0.62).translate(0, 0.42, 1.0), new THREE.BoxGeometry(0.74, 0.8, 2.0).translate(0, 0.58, -0.36)]);
   const dark = mergeGeometries([new THREE.BoxGeometry(0.66, 0.2, 0.05).translate(0, 0.55, 1.31), new THREE.BoxGeometry(0.6, 0.1, 2.5).translate(0, 0.14, 0),
     ...[1.0, -0.6, -1.0].flatMap((z) => [wheel.clone().translate(0.33, 0.13, z), wheel.clone().translate(-0.33, 0.13, z)])]);
   return { body, dark, half: 1.33 };
 }
-function busGeos() {
+export function busGeos() {
   const wheel = new THREE.CylinderGeometry(0.13, 0.13, 0.09, 10).rotateZ(Math.PI / 2);
   const body = new THREE.BoxGeometry(0.74, 0.72, 2.9).translate(0, 0.5, 0);
   const dark = mergeGeometries([new THREE.BoxGeometry(0.76, 0.22, 2.7).translate(0, 0.62, -0.04), new THREE.BoxGeometry(0.66, 0.3, 0.03).translate(0, 0.6, 1.45),

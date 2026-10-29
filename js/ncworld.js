@@ -12,8 +12,10 @@ import { G, rand, pick, clamp } from './core.js';
 import { addRipples } from './water.js';
 import { solids } from './solids.js';
 import { tint, box, cyl, cone, canvasTex, cutoutOn, hipRoof } from './mapkit.js';
-import { NC, BOUNDS, MASK, maskData, PIER, isLand, SEA } from './ncgeo.js';
-import { railX, ZONES } from './northcounty.js';
+import { NC, BOUNDS, MASK, maskData, PIER, isLand, SEA, hillEdge } from './ncgeo.js';
+import { railX, ZONES, ROADS } from './northcounty.js';
+import { carGeos } from './agents.js';
+import { truckGeos, busGeos } from './harbor.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -89,7 +91,7 @@ function makeWater() {
         float edge = near + 0.07 * sin(vW.z * 0.21 + uTime * 0.9);
         float foam = smoothstep(0.12, 0.0, abs(edge - 0.32 - 0.1 * fract(uTime * 0.12 + vW.z * 0.002))) * (0.55 + 0.45 * sin(vW.z * 1.3 + vW.x * 0.7 + uTime * 2.6));
         foam += smoothstep(0.1, 0.0, abs(edge - 0.14 - 0.05 * sin(uTime * 0.8 + vW.z * 0.2))) * 0.5;
-        foam *= mix(0.15, 1.0, ocean) * smoothstep(0.02, 0.1, near);
+        foam *= smoothstep(0.35, 0.85, ocean) * smoothstep(0.02, 0.1, near);   // the lagoons and the harbor are flat calm
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.96), clamp(foam, 0., 1.) * 0.85);
         diffuseColor.a = max(diffuseColor.a, clamp(foam, 0., 1.) * 0.9);
         diffuseColor.a *= 1.0 - smoothstep(0.45, 0.6, land);`)
@@ -132,60 +134,94 @@ export class NorthCounty {
     this.stations(scene);
     this.resorts(scene);
     this.harbor(scene);
+    this.bridges(scene);
     this.beachKit(scene);
     this.trains(scene);
     this.freeway(scene);
     this.title = '';
   }
 
-  // ---------- the sea floor, the land past the edges, the hills and the inland towns ----------
+  // ---------- the sea floor and the land past the map's edges ----------
+  // One terrain mesh all round the map: flat at the playable edge, then rising inland into the coastal hills (the
+  // mesas east of I-5, the ridges past them), north into Camp Pendleton and south past Agua Hedionda, fading into
+  // the haze. Its texture carries the towns inland as flat roofs and streets seen from far off (no geometry), and the
+  // freeways running on out of the map.
   backdrop(scene) {
-    const B = BOUNDS, C = NC.coast[0], first = C[0], last = C[C.length - 1];
-    // the coast carries on past both ends of the map: north-west toward Camp Pendleton, south toward Encinitas
-    const coastX = (z) => (z < first[1] ? first[0] + (z - first[1]) * 0.15 : z > last[1] ? last[0] + (z - last[1]) * 0.05 : null);
-    const S = 1024, X0 = -1600, X1 = 2600, Z0 = B.z0 - 2000, Z1 = B.z1 + 2000;
-    const tex = canvasTex(S, S, (x, w, h) => {
-      const px = (v) => (v - X0) / (X1 - X0) * w, pz = (v) => (v - Z0) / (Z1 - Z0) * h;
-      x.fillStyle = '#7d7a62'; x.fillRect(0, 0, w, h);
-      for (let k = 0; k < 2600; k++) { x.fillStyle = pick(['rgba(92,104,60,.35)', 'rgba(140,126,96,.3)', 'rgba(70,84,50,.35)', 'rgba(170,160,140,.25)']); x.beginPath(); x.arc(Math.random() * w, Math.random() * h, rand(2, 9), 0, 6.283); x.fill(); }
-      x.fillStyle = 'rgba(0,0,0,0)'; x.globalCompositeOperation = 'destination-out'; x.beginPath();
-      const pts = []; for (let z = Z0; z <= Z1; z += 20) { const cx = coastX(z); if (cx != null) pts.push([cx, z]); else if (!pts.length || pts[pts.length - 1][1] < first[1]) for (const p of C) pts.push(p); }
-      x.moveTo(0, 0); pts.forEach(([a, b]) => x.lineTo(px(a), pz(b))); x.lineTo(0, h); x.closePath(); x.fillStyle = '#000'; x.fill();
-      x.globalCompositeOperation = 'source-over';
-    });
-    // the land outside the patches: east of them, and north and south of the map (cut out where it's sea)
-    const gm = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, alphaTest: 0.5, transparent: false });
-    const strip = (x0, x1, z0, z1, y) => {
-      const geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, y, (z0 + z1) / 2);
-      const pos = geo.attributes.position, uv = geo.attributes.uv;
-      for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) - X0) / (X1 - X0), 1 - (pos.getZ(i) - Z0) / (Z1 - Z0));
-      const m = new THREE.Mesh(geo, gm); m.receiveShadow = true; scene.add(m);
+    const B = BOUNDS, X0 = -700, X1 = 2600, Z0 = B.z0 - 1600, Z1 = B.z1 + 1600;
+    // the coast past both ends of the map carries straight on (as the water's mask does)
+    const shore = (z) => { for (let x = -140; x < 120; x += 1) if (isLand(x, z)) return x; return 0; };
+    const sN = shore(B.z0 - 30), sS = shore(B.z1 + 30);
+    const coastX = (z) => (z < B.z0 ? sN : sS);
+    const out = (x, z) => Math.max(x - hillEdge(z), B.z0 - z, z - B.z1);       // how far past the playable land
+    const noise = (x, z) => 0.5 + 0.25 * Math.sin(x * 0.011 + Math.sin(z * 0.007) * 2) * Math.cos(z * 0.009 - x * 0.004) + 0.25 * Math.sin(x * 0.031 - z * 0.023 + 1.7) * Math.sin(z * 0.027 + 0.4);
+    const height = (x, z) => {
+      const d = out(x, z); if (d < 0) return -1;
+      if ((z < B.z0 || z > B.z1) && x < coastX(z) + 2) return -2;               // the sea off the ends of the map
+      const cliff = z < B.z0 || z > B.z1 ? clamp((x - coastX(z)) / 40, 0, 1) : 1;  // low near the sand, bluffs behind
+      const far = clamp((d - 120) / 700, 0, 1), north = clamp((B.z0 - z) / 500, 0, 1);
+      return -0.05 + cliff * ((1 - Math.exp(-d / 70)) * (6 + 16 * noise(x, z)) + far * 55 * noise(x * 0.6 + 300, z * 0.6) + north * 70 * noise(x * 0.5, z * 0.5 - 900));
     };
-    const gx0 = G.ground.list[0].b.x0, gx1 = G.ground.list[0].b.x1, gz0 = G.ground.list[0].b.z0, gz1 = G.ground.list[G.ground.list.length - 1].b.z1;
-    strip(gx1, X1, Z0, Z1, -0.02); strip(X0, gx1, Z0, gz0, -0.02); strip(X0, gx1, gz1, Z1, -0.02);
+    // the texture: chaparral, dry grass and sage on the hills, the towns on the mesas inland
+    const S = 2048, U = (x) => (x - X0) / (X1 - X0), V = (z) => (z - Z0) / (Z1 - Z0);
+    const towns = [
+      { x0: 300, x1: 1300, z0: B.z0 + 120, z1: -60 },                   // Oceanside east of I-5, toward Vista
+      { x0: 330, x1: 1100, z0: -60, z1: B.z1 + 700 },                   // Carlsbad east of I-5, south past the lagoon
+      { x0: 120, x1: 600, z0: B.z1 + 60, z1: B.z1 + 900 },              // Carlsbad's south shore
+    ];
+    const tex = canvasTex(S, S, (c, w, h) => {
+      const px = (x) => U(x) * w, pz = (z) => V(z) * h;
+      c.fillStyle = '#86805c'; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 9000; k++) { c.fillStyle = pick(['rgba(92,108,62,.45)', 'rgba(150,136,96,.35)', 'rgba(70,88,52,.45)', 'rgba(176,160,118,.3)', 'rgba(110,120,74,.4)']); c.beginPath(); c.arc(Math.random() * w, Math.random() * h, rand(1.5, 7), 0, 6.283); c.fill(); }
+      // the towns: blocks of streets, roofs, yards and trees
+      for (const T of towns) for (let z = T.z0; z < T.z1; z += rand(9, 13)) for (let x = T.x0; x < T.x1; x += rand(9, 13)) {
+        const edge = Math.min(x - T.x0, T.x1 - x, z - T.z0, T.z1 - z); if (edge < 60 && Math.random() > edge / 60) continue;
+        if (out(x, z) < 20 || Math.sin(x * 0.013) * Math.cos(z * 0.017) > 0.55) continue;   // canyons stay wild
+        c.fillStyle = 'rgba(120,120,112,.55)'; c.fillRect(px(x) - 0.5, pz(z) - 0.5, px(x + 11) - px(x) + 1, 1.2); c.fillRect(px(x) - 0.5, pz(z), 1.2, pz(z + 11) - pz(z));
+        for (let k = 0; k < 4; k++) { c.fillStyle = pick(['#c46b4a', '#d9d2c2', '#b8b2a6', '#cf7f5c', '#8f8b84', '#e6e0d2']); c.fillRect(px(x + rand(2, 8)), pz(z + rand(2, 8)), 1.6, 1.6); }
+        if (Math.random() < 0.6) { c.fillStyle = 'rgba(64,86,48,.8)'; c.beginPath(); c.arc(px(x + rand(1, 10)), pz(z + rand(1, 10)), 1.3, 0, 6.283); c.fill(); }
+      }
+      // the freeways run on: I-5 up the coast and down it, CA-78 and CA-76 inland
+      const ends = this.freewayEnds();
+      c.lineCap = 'round';
+      for (const [w, col] of [[9, '#8f8a78'], [6, '#4d4e50']]) for (const e of ends) { c.strokeStyle = col; c.lineWidth = w / ((X1 - X0) / S); c.beginPath(); c.moveTo(px(e.x), pz(e.z)); c.lineTo(px(e.x + e.dx * 2000), pz(e.z + e.dz * 2000)); c.stroke(); }
+      // the sand where the coast runs on
+      c.fillStyle = '#d8c79c'; for (const [z0, z1, sx] of [[Z0, B.z0, sN], [B.z1, Z1, sS]]) c.fillRect(px(sx - 2), pz(z0), px(sx + 9) - px(sx - 2), pz(z1) - pz(z0));
+    });
+    // the mesh: 12-unit squares, only where there's land to show
+    const STEP = 12, nx = Math.ceil((X1 - X0) / STEP) + 1, nz = Math.ceil((Z1 - Z0) / STEP) + 1;
+    const pos = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), col = new Float32Array(nx * nz * 3), H = new Float32Array(nx * nz);
+    const cl = new THREE.Color();
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const k = j * nx + i, x = X0 + i * STEP, z = Z0 + j * STEP, y = height(x, z); H[k] = y;
+      pos.set([x, y, z], k * 3); uv.set([U(x), 1 - V(z)], k * 2);
+      cl.setHSL(0.11 + 0.05 * noise(x * 2, z * 2), 0.12, clamp(0.9 + y * 0.003, 0.85, 1), THREE.SRGBColorSpace); col.set([cl.r, cl.g, cl.b], k * 3);
+    }
+    const idx = [];
+    for (let j = 0; j + 1 < nz; j++) for (let i = 0; i + 1 < nx; i++) {
+      const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
+      if (Math.max(H[a], H[b], H[c], H[d]) <= -0.99) continue;                    // under the map, or out at sea
+      idx.push(a, c, b, b, c, d);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    const land = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, vertexColors: true, roughness: 0.95 }));
+    land.receiveShadow = true; scene.add(land);
     // the seabed under all of it
     const sb = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x2a5560, roughness: 1 }));
     sb.position.set(-600, -0.7, (B.z0 + B.z1) / 2); scene.add(sb);
-    // Camp Pendleton's hills on the northern horizon and the ridges inland: chaparral, dry gold and sage
-    const hills = [], col = (h) => new THREE.Color().setHSL(rand(0.1, 0.2), rand(0.18, 0.3), clamp(0.36 + h * 0.004, 0.32, 0.5), THREE.SRGBColorSpace);
-    const ridge = (cx, cz, rx, rz, h, rot) => {
-      const g = new THREE.SphereGeometry(1, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2); const p = g.attributes.position;
-      for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setY(i, y * (1 + 0.25 * Math.sin(p.getX(i) * 7 + cx) * Math.cos(p.getZ(i) * 5 + cz))); }
-      g.scale(rx, h, rz).rotateY(rot).translate(cx, -0.5, cz); g.computeVertexNormals(); hills.push(tint(g, col(h)));
-    };
-    for (let k = 0; k < 16; k++) ridge(rand(-300, 900), B.z0 - rand(260, 900), rand(160, 380), rand(90, 200), rand(40, 120), rand(-0.6, 0.6));     // Camp Pendleton
-    for (let k = 0; k < 14; k++) ridge(rand(700, 1700), rand(B.z0 - 200, B.z1 + 300), rand(140, 300), rand(160, 320), rand(25, 70), rand(-0.5, 0.5));   // the ridges inland
-    for (let k = 0; k < 6; k++) ridge(rand(200, 900), B.z1 + rand(500, 900), rand(160, 320), rand(100, 200), rand(20, 50), rand(-0.5, 0.5));       // south, past Agua Hedionda
-    mergeTo(scene, hills, vc({ roughness: 1 }), false);
-    // the towns inland: roofs on the low ground east of the map (one draw call, not part of the game)
-    const n = 1400, im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ roughness: 0.85 }), n);
-    let c = 0; const cl = new THREE.Color();
-    while (c < n) {
-      const x = rand(gx1 + 6, gx1 + 520), z = rand(B.z0 - 60, B.z1 + 200);
-      _m.compose(_p.set(x, 0, z), _q.setFromAxisAngle(UP, rand(-0.2, 0.2)), _s.set(rand(2.4, 4), rand(1.2, 2.6), rand(2.4, 4)));
-      im.setMatrixAt(c, _m); im.setColorAt(c, cl.setHSL(pick([0.08, 0.1, 0.12, 0.02, 0.55]), rand(0.1, 0.35), rand(0.72, 0.9), THREE.SRGBColorSpace)); c++;
+  }
+  // where I-5 and the highways inland leave the map: a point and the way they're heading
+  freewayEnds() {
+    const B = BOUNDS, out = [];
+    for (const c of chains(ROADS.freeway.filter((f) => f.h === 'motorway' || f.h === 'trunk').map((f) => f.p), 1)) {
+      if (track(c).L < 60) continue;
+      for (const [p, q] of [[c[0], c[Math.min(3, c.length - 1)]], [c[c.length - 1], c[Math.max(0, c.length - 4)]]]) {
+        const near = p[0] > hillEdge(p[1]) - 40 || p[1] < B.z0 + 30 || p[1] > B.z1 - 30; if (!near) continue;
+        const L = Math.hypot(p[0] - q[0], p[1] - q[1]) || 1; out.push({ x: p[0], z: p[1], dx: (p[0] - q[0]) / L, dz: (p[1] - q[1]) / L });
+      }
     }
-    im.receiveShadow = true; scene.add(im);
+    return out;
   }
 
   // ---------- Oceanside Pier ----------
@@ -295,9 +331,22 @@ export class NorthCounty {
       const T = this.N.transit;
       // bus shelters and buses in the bays
       for (let z = T.z - 9; z < T.z + 5; z += 3.4) P.push(box(1.6, 0.06, 0.9, T.x + 7.2, 1.25, z + 1.7, 0x2f6a7a), box(0.06, 1.2, 0.06, T.x + 6.6, 0.6, z + 1.7, 0x2a2d31));
-      const bus = new THREE.MeshStandardMaterial({ map: label('COAST BREEZE', '#e8eef0', '#1f6a8a', 512, 96), roughness: 0.5 });
+      // the buses in the bays: white, the blue and green band, their name down the side (the city buses' shape, bigger)
+      const bg = busGeos(), white = new THREE.MeshStandardMaterial({ color: 0xf2f3f0, roughness: 0.45, metalness: 0.2 }), glass = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.15, metalness: 0.6 });
+      const band = new THREE.MeshStandardMaterial({ color: 0x1f6fa0, roughness: 0.5 }), green = new THREE.MeshStandardMaterial({ color: 0x5fb04a, roughness: 0.5 });
+      const name = new THREE.MeshStandardMaterial({ map: label('COAST BREEZE', '#f2f3f0', '#1f5f8a', 512, 64, '800 40px Inter, Arial'), roughness: 0.5 });
       this.buses = [];
-      for (let k = 0; k < 4; k++) { const m = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.15, 1.0).translate(0, 0.7, 0), bus); m.position.set(T.x + 12, 0, T.z - 8 + k * 3.4); m.castShadow = true; scene.add(m); this.buses.push({ m, alive: true }); }
+      for (let k = 0; k < 4; k++) {
+        const m = new THREE.Group();
+        m.add(new THREE.Mesh(bg.body, white), new THREE.Mesh(bg.dark, glass));
+        for (const s of [-1, 1]) {
+          const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.07, 2.7), band); b1.position.set(s * 0.375, 0.32, 0); m.add(b1);
+          const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 2.7), green); b2.position.set(s * 0.375, 0.27, 0); m.add(b2);
+          const t = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.16), name); t.position.set(s * 0.376, 0.44, -0.4); t.rotation.y = s * Math.PI / 2; m.add(t);
+        }
+        m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+        m.scale.setScalar(1.35); m.rotation.y = Math.PI / 2; m.position.set(T.x + 12, 0, T.z - 8 + k * 3.4); scene.add(m); this.buses.push({ m, alive: true });
+      }
     }
     mergeTo(scene, P, vc({ roughness: 0.6 }));
   }
@@ -357,6 +406,26 @@ export class NorthCounty {
     this.sailIdx = []; boats.forEach((b, i) => { if (b.sail) this.sailIdx[i] = this.sailIdx.length; });
   }
 
+  // ---------- bridges: where a street or the freeway crosses a lagoon or the river ----------
+  // a concrete deck just over the water, parapets, piers into the water; DECK remembers where they are so the
+  // freeway's traffic rides on them
+  bridges(scene) {
+    const geos = [], conc = 0xbdb7aa, road = 0x4d4e50;
+    this.DECK = new Set();
+    for (const b of ROADS.bridges) {
+      const P = b.p, a = P[0], c = P[P.length - 1], L0 = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L0 < 0.5) continue;
+      const dx = (c[0] - a[0]) / L0, dz = (c[1] - a[1]) / L0, x0 = a[0] - dx * 1.5, z0 = a[1] - dz * 1.5, L = L0 + 3, yaw = Math.atan2(dx, dz), mx = x0 + dx * L / 2, mz = z0 + dz * L / 2, W = b.w + 0.6;
+      const put = (g, ox, y, oz = 0) => geos.push(g.rotateY(yaw).translate(mx + Math.cos(yaw) * ox + Math.sin(yaw) * oz, y, mz - Math.sin(yaw) * ox + Math.cos(yaw) * oz));
+      put(tint(new THREE.BoxGeometry(W, 0.4, L), conc), 0, -0.14);
+      put(tint(new THREE.BoxGeometry(b.w, 0.02, L), road), 0, 0.07);
+      for (const s of [-1, 1]) put(tint(new THREE.BoxGeometry(0.22, 0.3, L), 0xd8d2c4), s * (W / 2 - 0.11), 0.2);
+      for (let t = 2; t < L - 1; t += 6) put(tint(new THREE.BoxGeometry(W * 0.7, 1.2, 0.6), 0x9a958a), 0, -0.9, t - L / 2);
+      for (let t = 0; t <= L; t += 0.5) { const x = x0 + dx * t, z = z0 + dz * t; for (let o = -W / 2; o <= W / 2; o += 0.5) this.DECK.add(`${Math.round(x - dz * o)},${Math.round(z + dx * o)}`); }
+    }
+    if (geos.length) mergeTo(scene, geos, vc({ roughness: 0.85 }));
+  }
+  deckY(x, z) { return this.DECK && this.DECK.has(`${Math.round(x)},${Math.round(z)}`) ? 0.08 : 0; }
+
   // ---------- lifeguard towers along the sand ----------
   beachKit(scene) {
     const geos = [];
@@ -409,26 +478,37 @@ export class NorthCounty {
 
   // ---------- I-5: cars streaming both ways (scenery traffic, they blow up) ----------
   freeway(scene) {
-    const fw = NC.freeway.filter((f) => f.h === 'motorway' && /San Diego Freeway|I 5/.test(f.n));
-    const lines = chains(fw.map((f) => f.p), 1.5).filter((c) => track(c).L > 300).slice(0, 2);
+    const fw = ROADS.freeway.filter((f) => f.h === 'motorway' && /San Diego Freeway|I 5/.test(f.n));
+    const lines = chains(fw.map((f) => f.p), 1).filter((c) => track(c).L > 300).slice(0, 2);
     this.fw = lines.map((c) => track(c));
-    const n = 70, geo = new THREE.BoxGeometry(0.9, 0.55, 1.9).translate(0, 0.36, 0);
-    this.fwIM = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.2 }), n * this.fw.length);
+    if (!this.fw.length) return;
+    // the same cars, pickups and box trucks as the city's traffic (body in its paint, the dark parts: glass, tyres)
+    const car = carGeos(), truck = truckGeos();
+    const bodyMat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.4 }), darkMat = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.15, metalness: 0.7 });
+    const kinds = [{ g: car, n: 60 * this.fw.length, colors: [0xf2f2f0, 0x1c1d20, 0x8a9096, 0xb4bac0, 0x9e1b1b, 0x1e3f73, 0x2f5d3a, 0xd9c7a0, 0x3a3f46, 0xcfd6dc] }, { g: truck, n: 10 * this.fw.length, colors: [0xf2f2f0, 0xc8352b, 0x1e3f73, 0xe6b422, 0x2f5d3a] }];
     this.fwCars = [];
     const cl = new THREE.Color();
-    this.fw.forEach((T, li) => { for (let k = 0; k < n; k++) { const c = { li, s: rand(0, T.L), v: rand(8, 12), lane: pick([-1.1, 0, 1.1]), alive: true, deadT: 0, i: this.fwCars.length }; this.fwCars.push(c); this.fwIM.setColorAt(c.i, cl.setHSL(Math.random(), rand(0, 0.5), rand(0.25, 0.8), THREE.SRGBColorSpace)); } });
-    this.fwIM.castShadow = true; this.fwIM.frustumCulled = false; scene.add(this.fwIM);
+    for (const k of kinds) {
+      k.body = new THREE.InstancedMesh(k.g.body, bodyMat, k.n); k.dark = new THREE.InstancedMesh(k.g.dark, darkMat, k.n);
+      for (const m of [k.body, k.dark]) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
+      for (let i = 0; i < k.n; i++) {
+        const li = i % this.fw.length, T = this.fw[li], heavy = k.g === truck;
+        this.fwCars.push({ k, i, li, s: rand(0, T.L), v: heavy ? rand(7, 9) : rand(9, 12.5), lane: heavy ? pick([-1.1, 1.1]) : pick([-1.1, 0, 1.1]), alive: true, deadT: 0 });
+        k.body.setColorAt(i, cl.set(pick(k.colors)));
+      }
+    }
+    this.fwKinds = kinds; this.fwIM = true;
   }
   updateFreeway(dt) {
     if (!this.fwIM) return;
     for (const c of this.fwCars) {
       const T = this.fw[c.li];
-      if (!c.alive) { c.deadT -= dt; if (c.deadT > 0) { this.fwIM.setMatrixAt(c.i, ZERO); continue; } c.alive = true; c.s = 0; }
+      if (!c.alive) { c.deadT -= dt; if (c.deadT > 0) { c.k.body.setMatrixAt(c.i, ZERO); c.k.dark.setMatrixAt(c.i, ZERO); continue; } c.alive = true; c.s = 0; }
       c.s += c.v * dt; if (c.s > T.L) c.s -= T.L;
       const p = T.at(c.s), ox = Math.cos(p.yaw) * c.lane, oz = -Math.sin(p.yaw) * c.lane;
-      _m.compose(_p.set(p.x + ox, 0, p.z + oz), _q.setFromAxisAngle(UP, p.yaw), _s.set(1, 1, 1)); this.fwIM.setMatrixAt(c.i, _m);
+      _m.compose(_p.set(p.x + ox, this.deckY(p.x + ox, p.z + oz), p.z + oz), _q.setFromAxisAngle(UP, p.yaw), _s.set(1, 1, 1)); c.k.body.setMatrixAt(c.i, _m); c.k.dark.setMatrixAt(c.i, _m);
     }
-    this.fwIM.instanceMatrix.needsUpdate = true;
+    for (const k of this.fwKinds) { k.body.instanceMatrix.needsUpdate = true; k.dark.instanceMatrix.needsUpdate = true; }
   }
 
   // ---------- each frame ----------
@@ -462,7 +542,10 @@ export class NorthCounty {
     const A = this.N.arch; if (A && this.archState.alive && Math.hypot(x - A.x, z - A.z) < reach + A.span / 2 && dmg > 100) this.breakArch();
     for (const t of this.coaster || []) if (t.alive && t.secs.some((m) => Math.hypot(m.position.x - x, m.position.z - z) < reach + 1.5)) { t.alive = false; t.deadT = 40; for (const m of t.secs) { m.visible = false; } G.fx.explosion(t.secs[0].position.x, 1, t.secs[0].position.z, 1.4, null, 'bomb'); }
     if (this.fwIM) for (const c of this.fwCars) if (c.alive) { const T = this.fw[c.li], p = T.at(c.s); if (Math.hypot(p.x - x, p.z - z) < reach + 1) { c.alive = false; c.deadT = rand(20, 40); G.fx.explosion(p.x, 0.5, p.z, 0.8, null, 'bomb'); } }
-    for (const b of this.buses || []) if (b.alive && Math.hypot(b.m.position.x - x, b.m.position.z - z) < reach + 2) { b.alive = false; b.m.scale.set(1, 0.6, 1); b.m.material = new THREE.MeshStandardMaterial({ color: 0x222222 }); G.fx.explosion(b.m.position.x, 0.6, b.m.position.z, 1, null, 'bomb'); }
+    for (const b of this.buses || []) if (b.alive && Math.hypot(b.m.position.x - x, b.m.position.z - z) < reach + 2) {
+      b.alive = false; b.m.scale.y *= 0.6; const burnt = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 }); b.m.traverse((o) => { if (o.isMesh) o.material = burnt; });
+      G.fx.explosion(b.m.position.x, 0.6, b.m.position.z, 1, null, 'bomb');
+    }
     if (this.boatList) {
       let hit = false;
       this.boatList.forEach((b, i) => { if (b.alive && Math.hypot(b.x - x, b.z - z) < reach + 1) { b.alive = false; hit = true; for (const im of this.boatIM.slice(0, 2)) im.setMatrixAt(i, ZERO); if (b.sail) this.boatIM[2].setMatrixAt(this.sailIdx[i], ZERO); G.progress && G.progress.boatSunk && G.progress.boatSunk(); } });

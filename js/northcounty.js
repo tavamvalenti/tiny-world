@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { G, rand, pick } from './core.js';
 import { City, Ground } from './city.js';
 import { hsl, partition } from './maps.js';
-import { NC, BOUNDS, PATCHES, SEA, WATERS, PLACES, PIER, isLand, landAt, seaDist, eastEdge, MASK, maskData, BEACH_W, inPoly } from './ncgeo.js';
+import { NC, BOUNDS, PATCHES, SEA, WATERS, PLACES, PIER, isLand, landAt, seaDist, eastEdge, hillEdge, MASK, maskData, BEACH_W, inPoly } from './ncgeo.js';
 
 // ---------- the ground: several patches up the coast, drawn on as if they were one ----------
 export class Patches {
@@ -74,9 +74,129 @@ function zoneAt(x, z) {
   return 'res';
 }
 
+// ---------- which streets make the map: fewer, real ones ----------
+// OSM has every cul-de-sac and alley; the map keeps the through streets (tertiary and up) everywhere, the full street
+// grid only in the places people know by their streets (the Village, the Barrio, downtown, the beach blocks, the
+// harbor), and drops whatever runs into the water, past the east edge, ends in a stub or floats unconnected.
+// Where a kept street crosses a lagoon or the river it gets a bridge (ROADS.bridges, built in js/ncworld.js).
+const CORES = [
+  { x0: -10, x1: 95, z0: -80, z1: 34 },            // Carlsbad Village
+  { x0: 40, x1: 150, z0: 30, z1: 240 },            // the Barrio
+  { x0: -45, x1: 36, z0: -140, z1: 300 },          // the beach blocks west of the tracks, Carlsbad
+  { x0: -45, x1: 125, z0: -660, z1: -520 },        // downtown Oceanside
+  { x0: -45, x1: 165, z0: -520, z1: -282, grid: true },   // South Oceanside's grid, the beach to I-5 (its side streets off the grid stay out)
+  { x0: -90, x1: 25, z0: -950, z1: -705 },         // the harbor
+];
+const inCore = (x, z, grid = true) => CORES.some((C) => (grid || !C.grid) && x > C.x0 && x < C.x1 && z > C.z0 && z < C.z1);
+const MAJOR_W = 4.2, MAJOR_H = ['primary', 'secondary', 'tertiary'];
+// samples along a polyline: [x, z, land?]
+function samples(pts, step = 1) {
+  const out = [];
+  for (let k = 0; k + 1 < pts.length; k++) { const [a, b] = pts[k], [c, d] = pts[k + 1], n = Math.max(1, Math.ceil(Math.hypot(c - a, d - b) / step)); for (let t = k ? 1 : 0; t <= n; t++) { const x = a + (c - a) * t / n, z = b + (d - b) * t / n; out.push([x, z, isLand(x, z) || isLand(x + 0.8, z) && isLand(x - 0.8, z) && isLand(x, z + 0.8) && isLand(x, z - 0.8)]); } }
+  return out;
+}
+// the stretches of a polyline that are over water: [[x, z]...] runs (a bridge each)
+function wetRuns(pts) {
+  const S = samples(pts, 0.5), runs = []; let cur = null;
+  for (const s of S) { if (!s[2]) (cur ||= []).push([s[0], s[1]]); else if (cur) { runs.push(cur); cur = null; } }
+  if (cur) runs.push(cur);
+  return runs;
+}
+export const ROADS = (() => {
+  const D = NC, XS = D.xs, ZS = D.zs;
+  const east = (x, z) => x > eastEdge(z) - 2 || z < BOUNDS.z0 + 1 || z > BOUNDS.z1 - 1;          // past the playable land
+  const geo = (e) => { const [ax, i, j] = e; return ax ? [[XS[i], ZS[j]], [XS[i + 1], ZS[j]]] : [[XS[i], ZS[j]], [XS[i], ZS[j + 1]]]; };
+  // the streets off the grid: the through streets, and the side streets in the core places; cut where they leave the land
+  // (Coast Highway's bridge over Buena Vista Lagoon isn't in the extract: it joins Carlsbad Blvd to South Coast Highway)
+  const src = [...D.paint, { h: 'primary', w: 5, n: 'Coast Highway', p: [[39.19, -236], [39.19, -173]] }];
+  const paint = [];
+  for (const p of src) {
+    if (p.p.length < 2) continue;
+    const major = MAJOR_H.includes(p.h);
+    const S = samples(p.p, 1); let cur = [];
+    const flush = () => { if (cur.length > (major ? 1 : 16)) paint.push({ ...p, p: cur }); cur = []; };
+    for (const [x, z, land] of S) {
+      const ok = !east(x, z) && (major || inCore(x, z, x < 40)) && (land || major);
+      if (ok) cur.push([+x.toFixed(2), +z.toFixed(2)]); else flush();
+    }
+    flush();
+  }
+  // close the little gaps in a through street (the extract breaks them where a bit ran on the grid or off the map)
+  const ends = paint.filter((p) => MAJOR_H.includes(p.h));
+  // (only loose ends: an end that already meets another piece is joined)
+  const tips = ends.flatMap((p) => [p.p[0], p.p[p.p.length - 1]].map((q) => ({ p, q })));
+  const loose = tips.filter((t) => !tips.some((u) => u.p !== t.p && Math.hypot(u.q[0] - t.q[0], u.q[1] - t.q[1]) < 0.6));
+  const done = new Set();
+  for (const t of loose) {
+    if (done.has(t) || !t.p.n) continue;
+    let best = null, bd = 9;
+    for (const u of loose) { if (u.p === t.p || done.has(u) || u.p.n !== t.p.n) continue; const d = Math.hypot(u.q[0] - t.q[0], u.q[1] - t.q[1]); if (d < bd) { bd = d; best = u; } }
+    if (best) { done.add(t); done.add(best); paint.push({ ...t.p, p: [t.q, best.q] }); }
+  }
+  // thin the sampled polylines back down (straight stretches need two points)
+  for (const p of paint) { const q = [p.p[0]]; for (let k = 1; k < p.p.length - 1; k++) { const [a, b] = q[q.length - 1], [c, d] = p.p[k], [e, f] = p.p[k + 1]; if (Math.abs((c - a) * (f - b) - (d - b) * (e - a)) > 0.05 * Math.hypot(e - a, f - b)) q.push(p.p[k]); } q.push(p.p[p.p.length - 1]); p.p = q; }
+  // where those streets run: a grid corner on one of them isn't a dead end
+  const HP = new Set(), hk = (x, z) => `${Math.round(x / 2)},${Math.round(z / 2)}`;
+  for (const p of paint) if (p.h !== 'pedestrian') for (const [x, z] of samples(p.p, 1)) HP.add(hk(x, z));
+  const onPaint = ([x, z]) => { for (const dx of [-2, 0, 2]) for (const dz of [-2, 0, 2]) if (HP.has(hk(x + dx, z + dz))) return true; return false; };
+  // a street that crosses water for more than a bridge's length, or a minor one that touches it at all, goes
+  const wetOK = (pts, major) => { const r = wetRuns(pts); return !r.length || major && r.every((q) => q.length * 0.5 < 60) && samples(pts, 2).filter((s) => s[2]).length > 2; };
+  let edges = D.edges.filter((e) => {
+    const P = geo(e), major = e[3] >= MAJOR_W, mx = (P[0][0] + P[1][0]) / 2, mz = (P[0][1] + P[1][1]) / 2;
+    if (east(mx, mz)) return false;
+    if (!major && !inCore(mx, mz)) return false;
+    return wetOK(P, major);
+  });
+  // where the coast is squeezed the side streets crowd together: of two side streets side by side closer than a
+  // block, keep one (a through street always wins)
+  { const has = new Map(edges.map((e) => [`${e[0]},${e[1]},${e[2]}`, e]));
+    const LN = (ax) => (ax ? ZS : XS);
+    edges = edges.filter((e) => {
+      if (e[3] >= MAJOR_W) return true;
+      const [ax, i, j] = e, k = ax ? j : i, A = LN(ax);
+      for (const d of [-1, 1]) {
+        const n = has.get(ax ? `${ax},${i},${j + d}` : `${ax},${i + d},${j}`); if (!n || Math.abs(A[k + d] - A[k]) > 9) continue;
+        if (n[3] >= MAJOR_W || d < 0 && (k % 2)) return false;
+      }
+      return true;
+    });
+  }
+  // stubs: a short street whose end touches nothing else (the long ones that end at the tracks or the beach are real)
+  const nodeKey = (p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`;
+  for (let round = 0; round < 2; round++) {
+    const deg = new Map();
+    for (const e of edges) for (const p of geo(e)) deg.set(nodeKey(p), (deg.get(nodeKey(p)) || 0) + 1);
+    edges = edges.filter((e) => { const P = geo(e), L = Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]); return L > 14 || P.every((p) => deg.get(nodeKey(p)) > 1 || onPaint(p)); });
+  }
+  // islands: little knots of street that join neither the rest of the grid nor a street off it
+  { const adj = new Map(), add = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); };
+    for (const e of edges) { const [p, q] = geo(e).map(nodeKey); add(p, q); add(q, p); }
+    const comp = new Map(), size = [], tied = []; let id = 0;
+    for (const s of adj.keys()) {
+      if (comp.has(s)) continue; const st = [s]; comp.set(s, id); let n = 0, t = false;
+      while (st.length) { const u = st.pop(); n++; if (!t) t = onPaint(u.split(',').map(Number)); for (const v of adj.get(u)) if (!comp.has(v)) { comp.set(v, id); st.push(v); } }
+      size.push(n); tied.push(t); id++;
+    }
+    edges = edges.filter((e) => { const c = comp.get(nodeKey(geo(e)[0])); return size[c] >= 8 || tied[c]; });
+  }
+  // bridges: where a kept big street crosses water
+  const bridges = [];
+  for (const e of edges) if (e[3] >= MAJOR_W) for (const r of wetRuns(geo(e))) bridges.push({ p: [r[0], r[r.length - 1]], w: Math.max(3.6, Math.min(5, e[3])) });
+  for (const p of paint) if (MAJOR_H.includes(p.h)) for (const r of wetRuns(p.p)) if (r.length > 2) bridges.push({ p: r, w: p.w });
+  // the freeways up to where the hills take over (js/ncworld.js paints them on into the distance)
+  const freeway = [];
+  for (const f of D.freeway) {
+    let cur = [];
+    for (const [x, z] of samples(f.p, 2)) { if (x < hillEdge(z) + 1 && z > BOUNDS.z0 && z < BOUNDS.z1) cur.push([x, z]); else { if (cur.length > 1) freeway.push({ ...f, p: cur }); cur = []; } }
+    if (cur.length > 1) freeway.push({ ...f, p: cur });
+  }
+  for (const f of freeway) for (const r of wetRuns(f.p)) if (r.length > 2) bridges.push({ p: r, w: (f.h === 'motorway' ? 4.6 : f.h === 'trunk' ? 4.2 : 2.4) + 1 });
+  return { edges, paint, bridges, freeway };
+})();
+
 // ================= THE MAP =================
 export function northcounty(B) {
-  const D = NC, XS = D.xs, ZS = D.zs;
+  const D = { ...NC, edges: ROADS.edges, paint: ROADS.paint, freeway: ROADS.freeway }, XS = D.xs, ZS = D.zs;
   const EK = new Map();                                       // the grid's streets: "i,j,v|h" -> width
   for (const [ax, i, j, w] of D.edges) EK.set(`${i},${j},${ax ? 'h' : 'v'}`, w);
   const used = new Set();
@@ -124,6 +244,9 @@ export function northcounty(B) {
   g.rect(W.x0 - 50, W.z0 - 50, W.x1 + 50, W.z1 + 50, land);
   g.grainRect(W.x0 - 50, W.z0 - 50, W.x1 + 50, W.z1 + 50, 0.32, 50);
   for (let k = 0; k < 9000; k++) g.circle(rand(W.x0, W.x1), rand(W.z0, W.z1), rand(0.3, 1.6), pick(['rgba(96,110,62,.22)', 'rgba(150,140,110,.18)', 'rgba(70,86,48,.2)']));   // dry lawns and scrub
+  // past the east edge the ground turns to the chaparral of the hills (js/ncworld.js raises them)
+  for (let z = W.z0 - 50; z < W.z1 + 50; z += 2) { const x = eastEdge(z) - 1; g.rect(x, z, W.x1 + 60, z + 2, 'rgba(127,117,82,.9)'); g.rect(x - 4, z, x, z + 2, 'rgba(127,117,82,.45)'); }
+  for (let k = 0; k < 2500; k++) { const z = rand(W.z0, W.z1), x = rand(eastEdge(z), W.x1 + 10); g.circle(x, z, rand(0.6, 2.2), pick(['rgba(92,108,62,.45)', 'rgba(150,136,96,.35)', 'rgba(70,88,52,.45)'])); }
   // the beach: a band of sand inside the coast all the way up (the harbor's jetties too), then the sea
   // which stretches of the coastline face the open Pacific (the beach) and which are inside the harbor and the
   // river mouth (rip-rap and seawall): the open coast is the westmost shore for its stretch of coast
@@ -231,10 +354,22 @@ export function northcounty(B) {
         const off = w / 2 + SW + Math.max(0.3, o.set) + (along ? bd : bw) / 2;
         const cx = x + nx * s * off + dx * o.w / 2, cz = z + nz * s * off + dz * o.w / 2;
         if (cx > eastEdge(cz) - 3) { t += o.w + o.gap; continue; }
+        if (!inCore(cx, cz) && Math.random() < 0.45) { t += o.w + o.gap * 2; continue; }   // past the core places the houses spread out (yards, lots, the odd gap)
         if (free(cx - bw / 2 - 0.05, cz - bd / 2 - 0.05, cx + bw / 2 + 0.05, cz + bd / 2 + 0.05)) {
           const b = B.add({ x: cx, z: cz, w: bw, d: bd, floors: o.floors, style: o.style, tint: o.tint, cell: o.cell, gh: o.gh, fh: o.fh, gable: o.gable, roofTint: o.roof, storefront: o.shop });
           if (!o.shop) b.noSigns = true;
           mark(cx - bw / 2 - 0.1, cz - bd / 2 - 0.1, cx + bw / 2 + 0.1, cz + bd / 2 + 0.1);
+          // a house gets its front lawn, its driveway and a back yard (on streets that run on the grid)
+          if (o.home && (Math.abs(dx) < 0.05 || Math.abs(dz) < 0.05)) {
+            const ox = nx * s, oz = nz * s, back = 2.6, front = off - w / 2 - SW - (along ? bd : bw) / 2;
+            const yx0 = Math.min(cx - bw / 2, cx - bw / 2 + ox * back), yx1 = Math.max(cx + bw / 2, cx + bw / 2 + ox * back), yz0 = Math.min(cz - bd / 2, cz - bd / 2 + oz * back), yz1 = Math.max(cz + bd / 2, cz + bd / 2 + oz * back);
+            if (free(yx0 + ox * 0.6 + 0.1, yz0 + oz * 0.6 + 0.1, yx1 + ox * 0.6 - 0.1, yz1 + oz * 0.6 - 0.1)) g.rect(yx0 - 0.15, yz0 - 0.15, yx1 + 0.15, yz1 + 0.15, Math.random() < 0.7 ? '#6f8146' : '#8a8a5c');
+            const fx0 = Math.min(cx - bw / 2, cx - bw / 2 - ox * front), fx1 = Math.max(cx + bw / 2, cx + bw / 2 - ox * front), fz0 = Math.min(cz - bd / 2, cz - bd / 2 - oz * front), fz1 = Math.max(cz + bd / 2, cz + bd / 2 - oz * front);
+            g.rect(fx0, fz0, fx1, fz1, Math.random() < 0.75 ? '#788a4a' : '#9c9473');                                     // the front lawn (or gravel and succulents)
+            const dw = 0.9, lo = Math.random() < 0.5;                                                                   // the driveway down one side
+            if (along) { const x0 = lo ? cx - bw / 2 : cx + bw / 2 - dw; g.rect(x0, Math.min(cz, cz - oz * (bd / 2 + front)), x0 + dw, Math.max(cz, cz - oz * (bd / 2 + front)), '#b5ae9f'); }
+            else { const z0 = lo ? cz - bd / 2 : cz + bd / 2 - dw; g.rect(Math.min(cx, cx - ox * (bw / 2 + front)), z0, Math.max(cx, cx - ox * (bw / 2 + front)), z0 + dw, '#b5ae9f'); }
+          }
           if (o.tree && Math.random() < o.tree) { const tx = x + nx * s * (w / 2 + SW * 0.55), tz = z + nz * s * (w / 2 + SW * 0.55); city.addTree(tx, tz, rand(0.7, 1), Z === 'beachfront' || Z === 'village' || Math.random() < 0.3 ? 'palm' : 'round'); }
           t += o.w + o.gap;
         } else t += 1.2;
@@ -243,14 +378,14 @@ export function northcounty(B) {
   };
   for (const e of edges) lotsAlong(e.a.x, e.a.z, e.b.x, e.b.z, e.w, e.w >= 4.6);
   for (const p of lanes) for (let k = 0; k + 1 < p.p.length; k++) lotsAlong(p.p[k][0], p.p[k][1], p.p[k + 1][0], p.p[k + 1][1], p.w, p.w >= 4.6);
-  // the rest of the land near the streets: back houses, granny flats, the buildings behind the shops downtown
+  // the back lots in the dense places: granny flats in the Barrio, the buildings behind the shops downtown
   // (a street within ~9 units, so open ground, the lagoon banks and the hills stay open)
   for (let z = W.z0 + 4; z < W.z1 - 4; z += 3.9) for (let x = W.x0 + 4; x < W.x1 - 4; x += 3.9) {
     const xx = x + rand(-0.4, 0.4), zz = z + rand(-0.4, 0.4);
     if (!nearStreet(xx, zz)) continue;
     const Z = zoneAt(xx, zz); if (Z === 'harbor' && Math.random() < 0.6) continue;
     const busy = Z === 'village' || Z === 'otown';
-    if (!busy && Math.random() < 0.22) continue;                       // yards, empty lots
+    if (!busy && (Z !== 'barrio' || Math.random() < 0.45)) continue;   // only the village, downtown and the Barrio build out behind the street
     const o = lot(Z, busy), w = Math.min(o.w, 3.5), d = Math.min(o.d, 3.5), cx = xx, cz = zz;
     if (cx > eastEdge(cz) - 3 || !free(cx - w / 2 - 0.05, cz - d / 2 - 0.05, cx + w / 2 + 0.05, cz + d / 2 + 0.05)) continue;
     const bb = B.add({ x: cx, z: cz, w, d, floors: busy ? o.floors : Math.min(o.floors, 2), style: o.style, tint: o.tint, cell: o.cell, gh: o.gh, fh: o.fh, gable: o.gable, roofTint: o.roof, storefront: false });
@@ -268,11 +403,22 @@ export function northcounty(B) {
       bb.noSigns = Math.random() < 0.5; mark(x - w / 2 - 0.4, z - d / 2 - 0.4, x + w / 2 + 0.4, z + d / 2 + 0.4); n++;
       if (Math.random() < 0.4) city.crowds.push({ x: x + rand(-2, 2), z: z + d / 2 + 0.8, r: 0.5, n: Math.round(rand(2, 4)) });
     }
-    // the lots behind the marina
-    for (let z = H.z0 + 10; z < H.z1 - 10; z += 13) for (let x = H.x0 + 10; x < H.x1 - 10; x += 15) {
-      if (!isLand(x, z) || !free(x - 5.5, z - 4, x + 5.5, z + 4)) continue;
+    // the lots behind the marina (a few, by the water: the rest of the spit is the beach and the park)
+    let lots = 0;
+    for (let z = H.z0 + 10; z < H.z1 - 10 && lots < 8; z += 13) for (let x = H.x0 + 10; x < H.x1 - 10 && lots < 8; x += 15) {
+      const wet = landAt(x + 14, z) !== 2 || landAt(x - 14, z) !== 2 || landAt(x, z + 14) !== 2 || landAt(x, z - 14) !== 2;
+      if (!wet || !isLand(x, z) || !free(x - 5.5, z - 4, x + 5.5, z + 4)) continue;
+      lots++;
       const spots = city.paintParking(g, x - 5.5, z - 4, x + 5.5, z + 4); for (const sp of spots) if (Math.random() < 0.6) city.parked.push(sp); mark(x - 5.5, z - 4, x + 5.5, z + 4);
     }
+  }
+  // the open ground between: eucalyptus groves, the odd palm, scrub (no filler buildings)
+  for (let z = W.z0 + 4; z < W.z1 - 4; z += 5) for (let x = W.x0 + 4; x < W.x1 - 4; x += 5) {
+    const xx = x + rand(-2, 2), zz = z + rand(-2, 2);
+    if (xx > eastEdge(zz) - 4 || seaDist(xx, zz) < BEACH_W + 4 || !free(xx - 1, zz - 1, xx + 1, zz + 1)) continue;
+    const grove = Math.sin(xx * 0.05 + 1.3) * Math.cos(zz * 0.043) > 0.35;
+    if (Math.random() < (grove ? 0.55 : 0.08)) { city.addTree(xx, zz, rand(1, grove ? 1.6 : 1.2), !grove && Math.random() < 0.25 ? 'palm' : 'round'); mark(xx - 0.6, zz - 0.6, xx + 0.6, zz + 0.6); }
+    else if (Math.random() < 0.3) g.circle(xx, zz, rand(0.8, 2), pick(['rgba(92,108,62,.4)', 'rgba(70,88,52,.4)']));
   }
   // lamps along the bigger streets
   for (const e of edges) if (e.w >= 4.2) {
@@ -309,9 +455,27 @@ function lot(Z, major) {
   if (Z === 'harbor') return { w: rand(2.6, 3.6), d: rand(3, 4), gap: rand(0.6, 1.6), set: 0.8, floors: pick([1, 1, 2]), style: 'house', tint: CAPECOD(), cell: 1.7, gh: 1.1, fh: 0.95, gable: true, roof: SHINGLE(), tree: 0.2 };
   if (Z === 'beachfront') return { w: rand(3, 5.2), d: rand(3.6, 6), gap: rand(0.4, 1.1), set: 0.5, floors: pick([2, 2, 3, 3, 4]), style: 'stucco', tint: BEACHY(), cell: 1.6, gh: 1.3, fh: 0.95, shop: major && Math.random() < 0.4, tree: 0.5 };
   if (Z === 'barrio') return major ? { w: rand(3, 4.4), d: rand(4, 6), gap: rand(0.1, 0.6), set: 0.2, floors: pick([1, 1, 2]), style: pick(['stucco', 'flat', 'stucco']), tint: BARRIO(), cell: 1.6, gh: 1.3, fh: 0.95, shop: true, tree: 0.2 }
-    : { w: rand(2.2, 2.9), d: rand(2.6, 3.4), gap: rand(0.9, 1.8), set: 0.9, floors: 1, style: 'house', tint: BARRIO(), cell: 1.5, gh: 1.1, fh: 0.95, gable: Math.random() < 0.6, roof: Math.random() < 0.5 ? TILE() : SHINGLE(), tree: 0.35 };
+    : { w: rand(2.2, 2.9), d: rand(2.6, 3.4), gap: rand(0.9, 1.8), set: 0.9, floors: 1, style: 'house', tint: BARRIO(), cell: 1.5, gh: 1.1, fh: 0.95, gable: Math.random() < 0.6, roof: Math.random() < 0.5 ? TILE() : SHINGLE(), tree: 0.35, home: true };
   if (major) return { w: rand(3.6, 6), d: rand(4.5, 7), gap: rand(0.6, 2.5), set: rand(0.4, 2.2), floors: pick([1, 1, 2, 2, 3]), style: pick(['stucco', 'flat', 'concrete', 'stucco']), tint: STUCCO(), cell: 1.8, gh: 1.4, fh: 1, shop: true, tree: 0.4 };
-  return { w: rand(2.4, 3.2), d: rand(2.8, 3.6), gap: rand(0.8, 1.6), set: rand(0.8, 1.4), floors: Math.random() < 0.3 ? 2 : 1, style: 'house', tint: STUCCO(), cell: 1.6, gh: 1.1, fh: 0.95, gable: Math.random() < 0.7, roof: Math.random() < 0.55 ? TILE() : SHINGLE(), tree: 0.4 };
+  return home();
+}
+// the houses: a handful of the kinds that actually line Carlsbad's and Oceanside's streets, mixed house by house
+const HOMES = [
+  // the Spanish revival: white or cream stucco, a red tile roof
+  [3, () => ({ w: rand(2.6, 3.4), d: rand(3, 3.8), floors: 1, style: 'house', tint: hsl(rand(0.09, 0.12), rand(0.1, 0.3), rand(0.88, 0.95)), gable: Math.random() < 0.5, roof: TILE() })],
+  // the post-war ranch: long and low, pale paint, grey shingle
+  [3, () => ({ w: rand(3.6, 4.6), d: rand(2.6, 3.1), floors: 1, style: 'house', tint: hsl(pick([0.1, 0.12, 0.55, 0.3, 0.08]), rand(0.08, 0.25), rand(0.72, 0.86)), gable: true, roof: SHINGLE() })],
+  // the beach cottage: small, a coat of colour
+  [2, () => ({ w: rand(2.2, 2.8), d: rand(2.6, 3.2), floors: 1, style: 'house', tint: hsl(pick([0.5, 0.53, 0.56, 0.14, 0.04, 0.33, 0.6]), rand(0.15, 0.3), rand(0.74, 0.86)), gable: true, roof: Math.random() < 0.5 ? hsl(0, 0, rand(0.85, 0.95)) : SHINGLE() })],
+  // the new two-storey: white and grey boxes, flat roofs
+  [2, () => ({ w: rand(2.8, 3.6), d: rand(3.2, 4), floors: 2, style: 'flat', tint: hsl(pick([0.1, 0.58]), rand(0, 0.08), rand(0.7, 0.95)) })],
+  // the small apartment house: two storeys round a stair, stucco
+  [1, () => ({ w: rand(4.4, 5.6), d: rand(3.6, 4.6), floors: 2, style: 'stucco', tint: hsl(rand(0.07, 0.13), rand(0.12, 0.3), rand(0.78, 0.9)) })],
+];
+const HOME_W = HOMES.reduce((a, h) => a + h[0], 0);
+function home() {
+  let r = Math.random() * HOME_W; const h = HOMES.find((k) => (r -= k[0]) < 0) || HOMES[0];
+  return { gap: rand(1, 2.2), set: rand(1, 1.8), cell: 1.6, gh: 1.1, fh: 0.95, tree: 0.5, home: true, ...h[1]() };
 }
 
 // ---------- the landmarks' footprints and the ground under them (the structures: js/ncworld.js) ----------

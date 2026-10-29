@@ -12,6 +12,9 @@ export const NC = D;
 export const BOUNDS = D.bounds;
 // the playable land runs inland to Carlsbad High in Carlsbad, to just past I-5 in Oceanside
 export const eastEdge = (z) => (z > D.eastBreakZ ? D.xmaxCarlsbad : D.xmaxOceanside);
+// where the land starts rising into the hills: the east edge with its step at Buena Vista Lagoon eased into a curve
+// (it never cuts inside the playable land)
+export const hillEdge = (z) => { const t = Math.min(1, Math.max(0, (z - D.eastBreakZ + 90) / 90)), s = t * t * (3 - 2 * t); return D.xmaxOceanside + (D.xmaxCarlsbad - D.xmaxOceanside) * s; };
 
 export function inPoly(poly, x, z) {
   let inside = false;

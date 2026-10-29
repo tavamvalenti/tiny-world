@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>North County roads</title>
+<!-- dev view: every OSM street (faint red) under the streets the map keeps (dark), bridges in orange. Serve the repo root, open /tools/northcounty/roads.html -->
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
+<style>body { margin: 0; background: #ddd; } canvas { display: block; }</style>
+<canvas id="c"></canvas>
+<script type="module">
+import { NC, BOUNDS, isLand, eastEdge } from '../../js/ncgeo.js';
+import { ROADS } from '../../js/northcounty.js';
+const q = new URLSearchParams(location.search), z0 = +(q.get('z0') ?? BOUNDS.z0), z1 = +(q.get('z1') ?? BOUNDS.z1), K = +(q.get('k') ?? 1.2);
+const x0 = BOUNDS.x0, x1 = BOUNDS.x1, c = document.getElementById('c');
+c.width = (x1 - x0) * K; c.height = (z1 - z0) * K;
+const X = c.getContext('2d'), px = (x) => (x - x0) * K, pz = (z) => (z - z0) * K;
+const img = X.createImageData(c.width, c.height);
+for (let j = 0; j < c.height; j++) for (let i = 0; i < c.width; i++) { const x = x0 + i / K, z = z0 + j / K, l = isLand(x, z), o = (j * c.width + i) * 4; img.data.set(l ? (x > eastEdge(z) ? [200, 190, 160] : [235, 230, 215]) : [150, 190, 210], o); img.data[o + 3] = 255; }
+X.putImageData(img, 0, 0);
+const line = (pts, w, s) => { X.strokeStyle = s; X.lineWidth = w * K; X.lineCap = X.lineJoin = 'round'; X.beginPath(); pts.forEach(([a, b], i) => (i ? X.lineTo(px(a), pz(b)) : X.moveTo(px(a), pz(b)))); X.stroke(); };
+const geo = ([ax, i, j]) => (ax ? [[NC.xs[i], NC.zs[j]], [NC.xs[i + 1], NC.zs[j]]] : [[NC.xs[i], NC.zs[j]], [NC.xs[i], NC.zs[j + 1]]]);
+for (const e of NC.edges) line(geo(e), e[3], 'rgba(220,60,60,.35)');
+for (const p of NC.paint) line(p.p, p.w, 'rgba(220,60,60,.35)');
+for (const f of NC.freeway) line(f.p, f.w, 'rgba(90,90,160,.6)');
+for (const e of ROADS.edges) line(geo(e), e[3], e[3] >= 4.2 ? '#333' : '#777');
+for (const p of ROADS.paint) line(p.p, p.w, p.h === 'pedestrian' ? '#a96' : '#555');
+for (const b of ROADS.bridges) line(b.p, b.w + 1, '#e80');
+document.title = `kept ${ROADS.edges.length}/${NC.edges.length} grid, ${ROADS.paint.length}/${NC.paint.length} loose, ${ROADS.bridges.length} bridges`;
+</script>
