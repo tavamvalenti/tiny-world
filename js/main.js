@@ -701,6 +701,7 @@ initMenu();                                                    // the title scre
       box-shadow:0 40px 100px -30px rgba(0,0,0,.85),0 0 80px -20px rgba(140,180,255,.45),inset 0 1px 0 rgba(255,255,255,.3);animation:phIn .6s cubic-bezier(.2,1.25,.35,1);transform-origin:85% 15%}
     @keyframes phIn{from{opacity:0;transform:scale(.55) translateY(-30px)}to{opacity:1;transform:none}}
     #playersHall .ph-x{position:absolute;right:16px;top:16px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:18px;cursor:pointer;transition:background .15s,transform .15s}
+    #playersHall .ph-x{display:grid;place-items:center;padding:0;font-size:0} #playersHall .ph-x::before{content:'';width:13px;height:13px;background:#fff;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M5 5l14 14M19 5L5 19'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M5 5l14 14M19 5L5 19'/%3E%3C/svg%3E") center/contain no-repeat}
     #playersHall .ph-x:hover{background:rgba(255,255,255,.24);transform:rotate(90deg)}
     #playersHall .ph-stage{position:relative;width:220px;height:220px;margin:-6px auto 2px;animation:phRise .9s .1s cubic-bezier(.2,1.3,.35,1) both}
     #playersHall .ph-globe{position:absolute;inset:0;width:100%;height:100%}

@@ -52,34 +52,39 @@ export function openFriends(progress, prefill = '', dmWith = null) {
   const signed = progress.account && progress.account.signedIn;
   const row = (f, btns, sub = '') => `<div class="fr"><span class="av" style="${f.avatar ? `background-image:url('${esc(f.avatar)}')` : ''}">${f.avatar ? '' : '👤'}</span><span class="nm">${esc(f.name)}${sub}</span>${btns}</div>`;
   const tm = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // the card is built once per view; the 3-second poll only swaps the message list (no pop-in, focus and draft kept)
+  const card = (view, html) => { let iv = panel.querySelector('.iv'); if (!iv) { iv = document.createElement('div'); iv.className = 'iv'; panel.appendChild(iv); }
+    if (iv.dataset.v !== view) { iv.dataset.v = view; iv.innerHTML = html; return true; } return false; };
+  const dmList = () => dm.msgs.length ? dm.msgs.map((m) => `<div class="bub ${m.mine ? 'me' : ''}">${esc(m.body)}<i>${tm(m.at)}</i></div>`).join('') : '<div class="empty" style="margin:auto">Say hi to your friend. Only the two of you can see this.</div>';
   const renderDm = () => {
-    const l0 = panel.querySelector('.dml'), atEnd = !l0 || l0.scrollHeight - l0.scrollTop - l0.clientHeight < 40, draft = panel.querySelector('#dmIn') ? panel.querySelector('#dmIn').value : '';
-    panel.innerHTML = `<div class="iv"><button class="x">✕</button><div class="dmh"><button class="ghost" data-a="back">‹ Friends</button><span class="av" style="${dm.avatar ? `background-image:url('${esc(dm.avatar)}')` : ''}">${dm.avatar ? '' : '👤'}</span><b style="font:700 17px -apple-system,Inter,sans-serif">${esc(dm.name)}</b></div>
-      <div class="dml">${dm.msgs.length ? dm.msgs.map((m) => `<div class="bub ${m.mine ? 'me' : ''}">${esc(m.body)}<i>${tm(m.at)}</i></div>`).join('') : '<div class="empty" style="margin:auto">Say hi to your friend. Only the two of you can see this.</div>'}</div>
-      <form class="dmf"><input id="dmIn" maxlength="500" placeholder="Message ${esc(dm.name)}…" autocomplete="off"><button>Send</button></form><div class="msg bad">${esc(say)}</div></div>`;
-    const l = panel.querySelector('.dml'); if (atEnd) l.scrollTop = l.scrollHeight;
-    const inp = panel.querySelector('#dmIn'); inp.value = draft;
-    panel.querySelector('.dmf').onsubmit = async (e) => { e.preventDefault(); const t = inp.value.trim(); if (!t) return;
+    const fresh = card(`dm:${dm.name}`, `<button class="x">✕</button><div class="dmh"><button class="ghost" data-a="back">‹ Friends</button><span class="av" style="${dm.avatar ? `background-image:url('${esc(dm.avatar)}')` : ''}">${dm.avatar ? '' : '👤'}</span><b style="font:700 17px -apple-system,Inter,sans-serif">${esc(dm.name)}</b></div>
+      <div class="dml"></div><form class="dmf"><input id="dmIn" maxlength="500" placeholder="Message ${esc(dm.name)}…" autocomplete="off"><button>Send</button></form><div class="msg bad"></div>`);
+    const l = panel.querySelector('.dml'), atEnd = fresh || l.scrollHeight - l.scrollTop - l.clientHeight < 40, html = dmList();
+    if (l.dataset.n !== String(dm.msgs.length) || fresh) { l.dataset.n = dm.msgs.length; l.innerHTML = html; if (atEnd) l.scrollTop = l.scrollHeight; }
+    panel.querySelector('.msg').textContent = say;
+    if (!fresh) return;
+    const inp = panel.querySelector('#dmIn');
+    panel.querySelector('.dmf').onsubmit = async (e) => { e.preventDefault(); const t = inp.value.trim(); if (!t || inp.dataset.busy) return; inp.dataset.busy = 1;
       const r = await rpc(progress, 'dm_send', { p_name: dm.name, p_body: t }); say = r && r.ok ? '' : r && r.reason === 'slow down' ? 'Slow down a little.' : 'Could not send.';
-      if (r && r.ok) inp.value = ''; await loadDm(); setTimeout(() => { const i = panel.querySelector('#dmIn'); if (i) i.focus(); }, 0); };
+      if (r && r.ok) inp.value = ''; delete inp.dataset.busy; await loadDm(); inp.focus(); };
   };
   const loadDm = async () => { if (!dm) return; const r = await rpc(progress, 'dm_list', { p_name: dm.name, p_after: dm.last });
-    if (r && r.ok && r.msgs.length) { dm.msgs = dm.msgs.concat(r.msgs).slice(-200); dm.last = r.msgs[r.msgs.length - 1].id; }
-    if (dm) renderDm(); };
+    if (!dm) return; if (r && r.ok && r.msgs.length) { dm.msgs = dm.msgs.concat(r.msgs).slice(-200); dm.last = r.msgs[r.msgs.length - 1].id; }
+    renderDm(); };
   const render = () => {
     if (dm) { renderDm(); return; }
-    const inp = panel.querySelector('#frName'), keep = inp ? inp.value : prefill;
     const D = data || { friends: [], incoming: [], outgoing: [] };
-    panel.innerHTML = `<div class="iv"><button class="x">✕</button><h2>Friends</h2>
+    card('list', `<button class="x">✕</button><h2>Friends</h2>
       <p class="lede">Add players by their name, or tap a name in the World chat.</p>
       ${signed ? '' : '<p class="note" style="color:#ff9f0a">Create an account in Profile (it takes a second) to send and accept friend requests.</p>'}
-      <div class="add"><input id="frName" maxlength="24" placeholder="Player name" autocomplete="off" value="${esc(keep)}"><button data-a="add">Add friend</button></div>
-      <div class="msg ${bad ? 'bad' : ''}">${esc(say)}</div>
-      ${D.incoming.length ? `<h4>Friend requests (${D.incoming.length})</h4>${D.incoming.map((f) => row(f, `<button class="collect" data-a="yes" data-n="${esc(f.name)}">Accept</button><button class="ghost" data-a="no" data-n="${esc(f.name)}">Decline</button>`)).join('')}` : ''}
+      <div class="add"><input id="frName" maxlength="24" placeholder="Player name" autocomplete="off" value="${esc(prefill)}"><button data-a="add">Add friend</button></div>
+      <div class="msg"></div><div class="fl"></div>`);
+    const m = panel.querySelector('.msg'); m.textContent = say; m.classList.toggle('bad', bad);
+    const html = `${D.incoming.length ? `<h4>Friend requests (${D.incoming.length})</h4>${D.incoming.map((f) => row(f, `<button class="collect" data-a="yes" data-n="${esc(f.name)}">Accept</button><button class="ghost" data-a="no" data-n="${esc(f.name)}">Decline</button>`)).join('')}` : ''}
       <h4>Your friends (${D.friends.length})</h4>
       ${D.friends.length ? D.friends.map((f) => row(f, `<button data-a="dm" data-n="${esc(f.name)}">Message${f.unread ? `<span class="ub">${f.unread}</span>` : ''}</button><button class="ghost" data-a="rm" data-n="${esc(f.name)}" title="Remove friend">✕</button>`, f.online ? '<small class="on">● Online now</small>' : `<small>${ago(f.seen)}</small>`)).join('') : `<div class="empty">${data ? 'No friends yet. Add someone!' : signed ? 'Loading…' : 'Sign in to see your friends.'}</div>`}
-      ${D.outgoing.length ? `<h4>Sent requests</h4>${D.outgoing.map((f) => row(f, `<button class="ghost" data-a="no" data-n="${esc(f.name)}">Cancel</button>`, '<small>Waiting for them to accept</small>')).join('')}` : ''}
-    </div>`;
+      ${D.outgoing.length ? `<h4>Sent requests</h4>${D.outgoing.map((f) => row(f, `<button class="ghost" data-a="no" data-n="${esc(f.name)}">Cancel</button>`, '<small>Waiting for them to accept</small>')).join('')}` : ''}`;
+    const fl = panel.querySelector(".fl"); if (fl._h !== html) { fl._h = html; fl.innerHTML = html; }
   };
   const load = async () => { const r = await rpc(progress, 'friend_list', {}); if (r && r.ok) { data = r; friendsState.incoming = r.incoming.length; if (!dm) render(); } };
   panel.onclick = async (e) => {
@@ -93,8 +98,8 @@ export function openFriends(progress, prefill = '', dmWith = null) {
     say = r && r.ok ? (a === 'yes' ? `You and ${n} are now friends!` : a === 'rm' ? `${n} removed.` : 'Done.') : 'Could not do that right now.'; bad = !(r && r.ok);
     await load(); render();
   };
-  panel.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'frName') panel.querySelector('[data-a="add"]').click(); });
-  render(); panel.classList.add('open'); load().then(() => { if (dmWith) { const f = (data && data.friends || []).find((x) => x.name.toLowerCase() === dmWith.toLowerCase()); if (f) { dm = { name: f.name, avatar: f.avatar, msgs: [], last: 0 }; loadDm(); } } });
+  panel.onkeydown = (e) => { if (e.key === 'Enter' && e.target.id === 'frName') panel.querySelector('[data-a="add"]').click(); };
+  panel.innerHTML = ''; render(); panel.classList.add('open'); load().then(() => { if (dmWith) { const f = (data && data.friends || []).find((x) => x.name.toLowerCase() === dmWith.toLowerCase()); if (f) { dm = { name: f.name, avatar: f.avatar, msgs: [], last: 0 }; loadDm(); } } });
   clearInterval(timer); let tick = 0; timer = setInterval(() => { if (!panel.classList.contains('open')) return; tick++; if (dm) loadDm(); else if (tick % 4 === 0) load(); }, 3000);
 }
 
