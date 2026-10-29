@@ -13,6 +13,7 @@ import { City, Ground } from './city.js';
 import { hsl, partition } from './maps.js';
 import { NC, BOUNDS, PATCHES, SEA, WATERS, PLACES, PIER, isLand, landAt, seaDist, eastEdge, hillEdge, MASK, maskData, BEACH_W, inPoly } from './ncgeo.js';
 import { places } from './ncplaces.js';
+import { RAIL, railGround } from './ncrail.js';
 
 // ---------- the ground: several patches up the coast, drawn on as if they were one ----------
 export class Patches {
@@ -136,6 +137,8 @@ export const ROADS = (() => {
   const i5Dist = (x, z) => { let m = 1e9; const cx = Math.floor(x / 4), cz = Math.floor(z / 4); for (let a = cx - 2; a <= cx + 2; a++) for (let b = cz - 2; b <= cz + 2; b++) for (const p of IH.get(`${a},${b}`) || []) m = Math.min(m, Math.hypot(p[0] - x, p[1] - z)); return m; };
   // a street that runs along under the freeway (rather than crossing it) is in the way of its embankment
   const UNDER = 7.5, longUnder = (S) => { let run = 0; for (const s of S) { run = i5Dist(s[0], s[1]) < UNDER ? run + 1 : 0; if (run > 18) return true; } return false; };
+  // and one that runs along right beside the railway (crossing it is a level crossing)
+  const RAILSIDE = 4.6, alongRail = (S) => { let run = 0; for (const s of S) { run = RAIL.dist(s[0], s[1]) < RAILSIDE ? run + 1 : 0; if (run > 14) return true; } return false; };
   // the streets off the grid: the through streets, and the side streets in the core places; cut where they leave the land
   // (Coast Highway's bridge over Buena Vista Lagoon isn't in the extract: it joins Carlsbad Blvd to South Coast Highway)
   // the extract hands each street over in many short pieces: join each named street's pieces into whole lines first
@@ -163,6 +166,8 @@ export const ROADS = (() => {
     const ok = S.map(([x, z, land]) => !east(x, z) && (major || inCore(x, z, x < 40)) && (land || major));
     // and not where it runs along under I-5 (crossing under it is fine)
     for (let k = 0; k < S.length;) { if (i5Dist(S[k][0], S[k][1]) >= UNDER) { k++; continue; } let e = k; while (e < S.length && i5Dist(S[e][0], S[e][1]) < UNDER) e++; if (e - k > 18) for (let j = k; j < e; j++) ok[j] = false; k = e; }
+    // nor where it runs along right beside the tracks
+    for (let k = 0; k < S.length;) { if (RAIL.dist(S[k][0], S[k][1]) >= RAILSIDE) { k++; continue; } let e = k; while (e < S.length && RAIL.dist(S[e][0], S[e][1]) < RAILSIDE) e++; if (e - k > 14) for (let j = k; j < e; j++) ok[j] = false; k = e; }
     let cur = [];
     const force = KEEP_STREETS.some((K) => K.n === p.n && S.some(([x, z]) => x > K.x0 && x < K.x1 && z > K.z0 && z < K.z1));
     const flush = () => { if (cur.length > (major ? 1 : 16) || force && cur.length > 1) paint.push({ ...p, p: cur, force }); cur = []; };
@@ -193,7 +198,7 @@ export const ROADS = (() => {
     const P = geo(e), major = e[3] >= MAJOR_W, mx = (P[0][0] + P[1][0]) / 2, mz = (P[0][1] + P[1][1]) / 2;
     if (east(mx, mz)) return false;
     if (!major && !inCore(mx, mz)) return false;
-    if (longUnder(samples(P, 1))) return false;
+    if (longUnder(samples(P, 1)) || alongRail(samples(P, 1))) return false;
     return wetOK(P, major);
   });
   // where the coast is squeezed the side streets crowd together: of two side streets side by side closer than a
@@ -480,9 +485,12 @@ export function northcounty(B) {
   for (const f of grade) g.stroke(f.p, f.W, '#4d4e50');
   for (const f of grade) if (f.h === 'trunk') { g.stroke(f.p, 0.08, 'rgba(238,238,232,.7)', [1, 1.6]); for (const o of [-1, 1]) g.stroke(offset(f.p, o * (f.W / 2 - 0.25)), 0.08, 'rgba(238,238,232,.75)'); }
 
-  // ---------- the rail: the coast line (Coaster, Surfliner) and its sidings ----------
-  for (const r of D.rail) { g.stroke(r.p, r.s ? 1.5 : 2.2, '#7a7064'); markLine(r.p, r.s ? 1.4 : 2.4); }
-  for (const r of D.rail) { g.stroke(r.p, 1.1, 'rgba(70,52,40,.75)', [0.14, 0.3]); g.stroke(r.p, 0.72, '#c3c6ca'); g.stroke(r.p, 0.6, '#6e665c'); }
+  // ---------- the railway: the coast line's double track, the Sprinter's line, the stations (js/ncrail.js) ----------
+  railGround(ctx, [
+    ...D.edges.map(([ax, i, j, w]) => ({ p: ax ? [[XS[i], ZS[j]], [XS[i + 1], ZS[j]]] : [[XS[i], ZS[j]], [XS[i], ZS[j + 1]]], w: Math.max(3.6, Math.min(5, w)) })),
+    ...D.paint.filter((p) => p.h !== 'pedestrian').map((p) => ({ p: p.p, w: Math.min(p.w, 4.6) })),
+    ...D.freeway.filter((f) => f.h === 'trunk').map((f) => ({ p: f.p, w: 4.2 })),
+  ]);
 
   // ---------- streets ----------
   const SW = city.sw, conc = '#b9b3a6', asphalt = '#4a4b4d';
@@ -696,9 +704,6 @@ function landmarks(ctx) {
   plaza(cb + 3.4, -16.6, cb + 15.6, -3.4, '#a96f5a');          // its brick terrace and the corner plaza
   g.circle(cb + 4.4, -4.4, 1.3, '#4f9fb5'); g.circle(cb + 4.4, -4.4, 0.9, '#e7c45a');   // the tile medallion at the corner
   lot(cb + 4, -21, cb + 15.6, -17);
-  // Carlsbad Village station: platforms both sides of the tracks by Grand Ave, a lot beside it
-  const cs = P.carlsbadStation; N.cstation = { x: railX(cs.z), z: cs.z, len: 26 };
-  plaza(N.cstation.x - 4.2, cs.z - 14, N.cstation.x + 4.2, cs.z + 14, '#bdb6a6'); lot(N.cstation.x + 4.6, cs.z - 12, N.cstation.x + 14, cs.z + 4);
   // the Barrio's parks
   // (Pine Avenue Park itself, its gardens and fields, is js/ncplaces.js)
   park(P.holidayPark.x - 8, P.holidayPark.z - 7, P.holidayPark.x + 8, P.holidayPark.z + 7, 14);
@@ -708,11 +713,7 @@ function landmarks(ctx) {
   plaza(ch.x - 18, ch.z - 22, ch.x + 2, ch.z + 2, '#b3ab9a');
   g.rect(ch.x - 14, ch.z + 4, ch.x + 4, ch.z + 30, '#9a4a3a'); g.rect(ch.x - 12, ch.z + 6.5, ch.x + 2, ch.z + 27.5, '#4f8a3a'); mark(ch.x - 14, ch.z + 4, ch.x + 4, ch.z + 30);
   for (let z = ch.z + 9; z < ch.z + 26; z += 2.2) g.line(ch.x - 12, z, ch.x + 2, z, 0.06, 'rgba(255,255,255,.6)');
-  // downtown Oceanside: the Transit Center (Coaster, Sprinter, Amtrak, the buses), Civic Center, the cinema plaza
-  const tc = P.transit; N.transit = { x: railX(tc.z), z: tc.z, len: 30 };
-  plaza(N.transit.x - 4.5, tc.z - 16, N.transit.x + 4.5, tc.z + 16, '#bdb6a6');
-  plaza(N.transit.x + 5, tc.z - 12, N.transit.x + 19, tc.z + 6, '#8e8c86');           // the bus bays
-  for (let z = tc.z - 10; z < tc.z + 5; z += 3.4) g.rect(N.transit.x + 6, z, N.transit.x + 18, z + 0.12, 'rgba(240,240,235,.7)');
+  // downtown Oceanside: Civic Center, the cinema plaza (the Transit Center is js/ncrail.js)
   N.civic = { x: P.cityHallO.x, z: P.cityHallO.z };
   plaza(N.civic.x - 10, N.civic.z - 8, N.civic.x + 10, N.civic.z + 8, '#d6cfbf');
   g.circle(N.civic.x, N.civic.z + 3, 2, '#5a8fb0');
@@ -738,29 +739,17 @@ function landmarks(ctx) {
   // Civic Center: Irving Gill's white arcades round a courtyard
   N.civic.w = 16; N.civic.d = 6;
   N.civicB = B.add({ x: N.civic.x, z: N.civic.z - 4, w: 16, d: 6, floors: 2, style: 'stucco', tint: hsl(0.1, 0.1, 0.93), cell: 1.6, gh: 1.5, fh: 1.1 }); N.civicB.noSigns = true; N.civicB.landmark = true; N.civicB.name = 'Civic Center';
-  // the Transit Center's depot east of the platforms
-  N.depot = { x: N.transit.x + 9.5, z: tc.z + 11, w: 8, d: 7 };
-  N.depotB = B.add({ x: N.depot.x, z: N.depot.z, w: 8, d: 7, floors: 2, style: 'stucco', tint: hsl(0.1, 0.25, 0.86), cell: 1.6, gh: 1.6, fh: 1.1 }); N.depotB.noSigns = true;
-  mark(N.depot.x - 5, N.depot.z - 5, N.depot.x + 5, N.depot.z + 5);
   // Carlsbad High: two wings of classrooms and the gym
   N.chs = { x: ch.x - 8, z: ch.z - 12, d: 5 };
   N.chsB = B.add({ x: ch.x - 8, z: ch.z - 12, w: 18, d: 5, floors: 2, style: 'concrete', tint: hsl(0.1, 0.12, 0.82), cell: 1.8, gh: 1.5, fh: 1.1 }); N.chsB.noSigns = true; N.chsB.name = 'Carlsbad High';
   B.add({ x: ch.x - 14, z: ch.z - 3, w: 6, d: 9, floors: 2, style: 'concrete', tint: hsl(0.1, 0.12, 0.8), cell: 1.8, gh: 1.5, fh: 1.1 }).noSigns = true;
   B.add({ x: ch.x - 3, z: ch.z - 2, w: 8, d: 7, floors: 2, style: 'flat', tint: hsl(0.6, 0.12, 0.6), cell: 2, gh: 2.2, fh: 1.2 }).noSigns = true;
-  // Coast Highway station (South Oceanside): a platform by Oceanside Blvd
-  if (P.coastHwyStation) { N.coastHwy = { x: railX(P.coastHwyStation.z), z: P.coastHwyStation.z, len: 20 }; plaza(N.coastHwy.x - 4, N.coastHwy.z - 10, N.coastHwy.x + 4, N.coastHwy.z + 10, '#bdb6a6'); }
   // the coast's resorts and inns in Carlsbad, on the ocean side of Carlsbad Blvd
   for (const n of ['Carlsbad Inn Beach Resort', 'Tamarack Beach Resort', 'Ocean Palms Beach Resort', 'Beach Terrace Inn']) { const p = NC.poi.find((q) => q.n === n); if (p) (N.inns ||= []).push({ x: p.x, z: p.z, name: n }); }
   // the harbor: Harbor Village (the Cape Cod shops), docks and slips, the jetties
   N.docks = NC.piers.filter((p) => p.k === 'pier' && p.p.length >= 2 && p.n !== 'Oceanside Pier' && p.p[0][1] < -700);
   N.jetties = NC.piers.filter((p) => p.k === 'breakwater' || p.k === 'groyne');
   places(ctx);                                                // Pine Avenue Park, Hibiscus Circle, El Camino Grove (js/ncplaces.js)
-}
-// the main line's x where it crosses z (the rail runs up the coast)
-export function railX(z) {
-  let best = null, bd = 1e9;
-  for (const r of NC.rail) { if (r.s) continue; for (let k = 0; k + 1 < r.p.length; k++) { const [a, b] = r.p[k], [c, d] = r.p[k + 1]; if ((b - z) * (d - z) <= 0 && b !== d) { const x = a + (c - a) * (z - b) / (d - b); const dd = Math.abs(x - 30); if (dd < bd) { bd = dd; best = x; } } } }
-  return best ?? 30;
 }
 
 // the beach: umbrellas, towels, lifeguard towers, the Strand's palms, people on the sand

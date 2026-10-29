@@ -3,7 +3,7 @@
 //   land past the map's edge, Camp Pendleton's hills on the northern horizon, the towns inland
 //   Oceanside Pier: a long wooden pier on pilings, lamps, the building at the end; it breaks span by span
 //   the Carlsbad sign: the white truss arch over Carlsbad Blvd, lit at night; the blue Victorian behind it
-//   the stations (Carlsbad Village, the Oceanside Transit Center) and the Coastliner trains up and down the coast
+//   (the railway, its stations and trains are js/ncrail.js; I-5 is js/ncfreeway.js; three real places js/ncplaces.js)
 //   I-5's traffic, the harbor's docks, slips and boats, the jetties, the lifeguard towers
 //   the corner label: CARLSBAD, CA or OCEANSIDE, CA, whichever side of Buena Vista Lagoon you're over
 import * as THREE from 'three';
@@ -13,11 +13,12 @@ import { addRipples } from './water.js';
 import { solids } from './solids.js';
 import { tint, box, cyl, cone, canvasTex, cutoutOn, hipRoof } from './mapkit.js';
 import { NC, BOUNDS, MASK, maskData, PIER, isLand, SEA, hillEdge } from './ncgeo.js';
-import { railX, ZONES, ROADS } from './northcounty.js';
+import { ZONES, ROADS } from './northcounty.js';
 import { carGeos } from './agents.js';
 import { busGeos } from './harbor.js';
 import { Freeway } from './ncfreeway.js';
 import { Places } from './ncplaces.js';
+import { Rail } from './ncrail.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -138,7 +139,7 @@ export class NorthCounty {
     this.harbor(scene);
     this.bridges(scene);
     this.beachKit(scene);
-    this.trains(scene);
+    this.rail = new Rail(scene, this.N);                                // the Coaster, the Sprinter, their stations and crossings (js/ncrail.js)
     this.fw = new Freeway(scene); this.lit.push(...this.fw.lit);       // I-5, its ramps and its traffic (js/ncfreeway.js)
     this.places = new Places(scene, this.N);                            // Pine Avenue Park, Hibiscus Circle, El Camino Grove
     this.title = '';
@@ -315,31 +316,18 @@ export class NorthCounty {
   }
 
   // ---------- stations ----------
+  // the buses in the Transit Center's bays (the stations and the trains are js/ncrail.js)
   stations(scene) {
-    const P = [];
-    const station = (st, nameTxt, bg) => {
-      for (const s of [-1, 1]) {
-        const px = st.x + s * 2.6;
-        P.push(box(1.6, 0.3, st.len, px, 0.15, st.z, 0xbdb7ab), box(0.18, 0.012, st.len, st.x + s * 1.86, 0.31, st.z, 0xf2c21c));
-        P.push(box(1.4, 0.08, st.len * 0.55, px + s * 0.1, 1.85, st.z, 0x2f6a7a));
-        for (let k = -2; k <= 2; k++) P.push(box(0.08, 1.55, 0.08, px + s * 0.5, 1.07, st.z + k * st.len * 0.12, 0x2a2d31));
-      }
-      for (const s of [-1, 1]) plane(scene, label(nameTxt, bg, '#ffffff'), 2.6, 0.48, st.x + s * 3.5, 1.4, st.z + st.len * 0.3, s * Math.PI / 2);
-      (this.city.crowds ||= []); for (let k = 0; k < 4; k++) this.city.crowds.push({ x: st.x + pick([-2.6, 2.6]), z: st.z + rand(-st.len / 3, st.len / 3), r: 0.5, n: Math.round(rand(2, 5)), y: 0.3 });
-    };
-    if (this.N.cstation) station(this.N.cstation, 'CARLSBAD VILLAGE', '#20507a');
-    if (this.N.coastHwy) station(this.N.coastHwy, 'COAST HIGHWAY', '#20507a');
-    if (this.N.transit) {
-      station(this.N.transit, 'OCEANSIDE', '#20507a');
-      const T = this.N.transit;
-      // bus shelters and buses in the bays
-      for (let z = T.z - 9; z < T.z + 5; z += 3.4) P.push(box(1.6, 0.06, 0.9, T.x + 7.2, 1.25, z + 1.7, 0x2f6a7a), box(0.06, 1.2, 0.06, T.x + 6.6, 0.6, z + 1.7, 0x2a2d31));
+    const P = [], bays = this.N.busBays || [];
+    if (bays.length) {
+      // bus shelters along the bays
+      for (const b of bays) P.push(box(0.9, 0.06, 1.6, b.x - 5.6, 1.25, b.z, 0x2f6a7a), box(0.06, 1.2, 0.06, b.x - 5.2, 0.6, b.z - 0.6, 0x2a2d31));
       // the buses in the bays: white, the blue and green band, their name down the side (the city buses' shape, bigger)
       const bg = busGeos(), white = new THREE.MeshStandardMaterial({ color: 0xf2f3f0, roughness: 0.45, metalness: 0.2 }), glass = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.15, metalness: 0.6 });
       const band = new THREE.MeshStandardMaterial({ color: 0x1f6fa0, roughness: 0.5 }), green = new THREE.MeshStandardMaterial({ color: 0x5fb04a, roughness: 0.5 });
       const name = new THREE.MeshStandardMaterial({ map: label('COAST BREEZE', '#f2f3f0', '#1f5f8a', 512, 64, '800 40px Inter, Arial'), roughness: 0.5 });
       this.buses = [];
-      for (let k = 0; k < 4; k++) {
+      for (const bay of bays.slice(0, 4)) {
         const m = new THREE.Group();
         m.add(new THREE.Mesh(bg.body, white), new THREE.Mesh(bg.dark, glass));
         for (const s of [-1, 1]) {
@@ -348,10 +336,10 @@ export class NorthCounty {
           const t = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.16), name); t.position.set(s * 0.376, 0.44, -0.4); t.rotation.y = s * Math.PI / 2; m.add(t);
         }
         m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-        m.scale.setScalar(1.35); m.rotation.y = Math.PI / 2; m.position.set(T.x + 12, 0, T.z - 8 + k * 3.4); scene.add(m); this.buses.push({ m, alive: true });
+        m.scale.setScalar(1.35); m.rotation.y = Math.PI / 2; m.position.set(bay.x, 0, bay.z); scene.add(m); this.buses.push({ m, alive: true });
       }
     }
-    mergeTo(scene, P, vc({ roughness: 0.6 }));
+    if (P.length) mergeTo(scene, P, vc({ roughness: 0.6 }));
   }
 
   // ---------- the resorts by the pier, the cinema, Civic Center: their trim ----------
@@ -373,8 +361,6 @@ export class NorthCounty {
     }
     const C = this.N.civicB;
     if (C) plane(scene, label('CITY OF OCEANSIDE', '#f4efe4', '#3a5a3a', 512, 80, '700 40px Georgia, serif'), 3.6, 0.5, this.N.civic.x, 1.7, this.N.civic.z + this.N.civic.d / 2 + 0.07, 0);
-    const T = this.N.depotB;
-    if (T) plane(scene, label('OCEANSIDE TRANSIT CENTER', '#f4efe4', '#1f4f7a', 768, 80, '800 40px Inter, Arial'), 4.6, 0.48, this.N.depot.x - this.N.depot.w / 2 - 0.07, 1.8, this.N.depot.z, -Math.PI / 2);
     const H = this.N.chsB;
     if (H) plane(scene, label('CARLSBAD HIGH SCHOOL', '#1b2a52', '#f2c94c', 768, 80, '800 40px Inter, Arial'), 5, 0.5, this.N.chs.x, 1.8, this.N.chs.z + this.N.chs.d / 2 + 0.07, 0);
   }
@@ -435,53 +421,10 @@ export class NorthCounty {
     if (geos.length) mergeTo(scene, geos, vc());
   }
 
-  // ---------- the Coastliner (commuter trains up and down the coast) ----------
-  trains(scene) {
-    const lines = chains(NC.rail.filter((r) => !r.s).map((r) => r.p), 1.2);
-    if (!lines.length) return;
-    const T = track(lines[0]);
-    if (T.pts[0][1] > T.pts[T.pts.length - 1][1]) T.pts.reverse();
-    this.rail = track(T.pts);
-    const stopsAt = (z) => { let best = 0, bd = 1e9; for (let s = 0; s < this.rail.L; s += 0.5) { const p = this.rail.at(s), d = Math.abs(p.z - z); if (d < bd) { bd = d; best = s; } } return best; };
-    this.stops = [this.N.transit, this.N.cstation, this.N.coastHwy].filter(Boolean).map((st) => stopsAt(st.z));
-    const side = canvasTex(512, 128, (x, w, h) => {
-      x.fillStyle = '#f2f3f0'; x.fillRect(0, 0, w, h); x.fillStyle = '#1f4f8f'; x.fillRect(0, 84, w, 16); x.fillStyle = '#3aa58a'; x.fillRect(0, 100, w, 8);
-      x.fillStyle = '#1b2430'; for (let r = 0; r < 2; r++) for (let i = 0; i < 9; i++) x.fillRect(16 + i * 54, 14 + r * 34, 42, 22);
-      x.fillStyle = '#1f4f8f'; x.font = '800 18px Inter, Arial'; x.fillText('COASTLINER', 360, 122);
-    });
-    const body = new THREE.MeshStandardMaterial({ map: side, roughness: 0.45 }), roof = new THREE.MeshStandardMaterial({ color: 0xd9dcdf, roughness: 0.5 }), loco = new THREE.MeshStandardMaterial({ color: 0x1f4f8f, roughness: 0.4 });
-    const car = new THREE.BoxGeometry(0.95, 1.45, 4.4).translate(0, 0.85, 0), eng = new THREE.BoxGeometry(0.95, 1.35, 3.6).translate(0, 0.8, 0);
-    this.coaster = [];
-    for (const [dir, s] of [[1, this.rail.L * 0.25], [-1, this.rail.L * 0.75]]) {
-      const secs = [new THREE.Mesh(eng, [loco, loco, roof, roof, loco, loco])]; for (let k = 0; k < 3; k++) secs.push(new THREE.Mesh(car, [body, body, roof, roof, body, body]));
-      for (const m of secs) { m.castShadow = true; scene.add(m); }
-      this.coaster.push({ dir, s, v: 5, dwell: 0, last: -1, secs, alive: true, deadT: 0 });
-    }
-  }
-  updateTrains(dt) {
-    if (!this.rail) return;
-    const R = this.rail;
-    for (const t of this.coaster) {
-      if (!t.alive) { t.deadT -= dt; if (t.deadT > 0) continue; t.alive = true; t.s = t.dir > 0 ? 2 : R.L - 2; for (const m of t.secs) m.visible = true; }
-      let target = 7;
-      for (let k = 0; k < this.stops.length; k++) {
-        if (t.last === k) continue;
-        const ahead = (this.stops[k] - t.s) * t.dir;
-        if (ahead > -0.2 && ahead < 18) target = Math.min(target, Math.sqrt(Math.max(0, ahead) * 3));
-        if (ahead < 0.15 && ahead > -0.8 && t.dwell <= 0) { t.dwell = rand(7, 11); t.last = k; t.v = 0; }
-      }
-      if (t.dwell > 0) { t.dwell -= dt; target = 0; }
-      t.v += clamp(target - t.v, -4 * dt, 1.4 * dt);
-      t.s += t.dir * t.v * dt;
-      if (t.s > R.L - 1 || t.s < 1) { t.dir *= -1; t.last = -1; t.dwell = 4; t.s = clamp(t.s, 1, R.L - 1); }
-      t.secs.forEach((m, i) => { const p = R.at(t.s - t.dir * (i * 4.55 + 1.8)); const off = t.dir * 0.75; m.position.set(p.x + Math.cos(p.yaw) * off, 0, p.z - Math.sin(p.yaw) * off); m.rotation.y = p.yaw; });
-    }
-  }
-
   // ---------- each frame ----------
   update(dt) {
     this.water.timeU.value = G.time;
-    this.updateTrains(dt);
+    this.rail.update(dt);
     if (this.fw) this.fw.update(dt);
     this.places.update(dt);
     const n = G.night || 0;
@@ -508,7 +451,7 @@ export class NorthCounty {
       s.hp -= dmg; if (s.hp <= 0) { s.alive = false; s.vy = 0; s.ry = rand(-0.3, 0.3); G.fx.dust((s.x0 + s.x1) / 2, 1.4, s.z, 1); for (const so of solids) if (so.span === s) so.alive = false; G.progress && G.progress.event && G.progress.event('nc_pier'); }
     }
     const A = this.N.arch; if (A && this.archState.alive && Math.hypot(x - A.x, z - A.z) < reach + A.span / 2 && dmg > 100) this.breakArch();
-    for (const t of this.coaster || []) if (t.alive && t.secs.some((m) => Math.hypot(m.position.x - x, m.position.z - z) < reach + 1.5)) { t.alive = false; t.deadT = 40; for (const m of t.secs) { m.visible = false; } G.fx.explosion(t.secs[0].position.x, 1, t.secs[0].position.z, 1.4, null, 'bomb'); }
+    this.rail.onBlast(x, z, reach);
     if (this.fw) this.fw.onBlast(x, y, z, reach, dmg);
     this.places.onBlast(x, z, reach);
     for (const b of this.buses || []) if (b.alive && Math.hypot(b.m.position.x - x, b.m.position.z - z) < reach + 2) {
