@@ -239,7 +239,7 @@ export class Buildings {
   buildProps(scene) {
     const tops = [];
     for (const b of this.list) {
-      if (b.gable || b.style === 'house') continue;
+      if (b.gable || b.style === 'house' || b.bareRoof) continue;   // bareRoof: a modelled building that brings its own roof
       const p = b.style === 'flat' || b.style === 'garage' ? 0.04 : 0.14; // Chicago roofs stay mostly bare tar
       for (const c of b.cells) if (c.topExposed && c.f > 0 && Math.random() < p) tops.push(c);
     }

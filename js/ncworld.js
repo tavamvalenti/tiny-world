@@ -17,6 +17,7 @@ import { railX, ZONES, ROADS } from './northcounty.js';
 import { carGeos } from './agents.js';
 import { busGeos } from './harbor.js';
 import { Freeway } from './ncfreeway.js';
+import { Places } from './ncplaces.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -139,6 +140,7 @@ export class NorthCounty {
     this.beachKit(scene);
     this.trains(scene);
     this.fw = new Freeway(scene); this.lit.push(...this.fw.lit);       // I-5, its ramps and its traffic (js/ncfreeway.js)
+    this.places = new Places(scene, this.N);                            // Pine Avenue Park, Hibiscus Circle, El Camino Grove
     this.title = '';
   }
 
@@ -481,6 +483,7 @@ export class NorthCounty {
     this.water.timeU.value = G.time;
     this.updateTrains(dt);
     if (this.fw) this.fw.update(dt);
+    this.places.update(dt);
     const n = G.night || 0;
     for (const l of this.lit) l.mat.emissiveIntensity = n * l.k;
     if (this.flag) this.flag.rotation.y = Math.sin(G.time * 2.2) * 0.25;
@@ -507,6 +510,7 @@ export class NorthCounty {
     const A = this.N.arch; if (A && this.archState.alive && Math.hypot(x - A.x, z - A.z) < reach + A.span / 2 && dmg > 100) this.breakArch();
     for (const t of this.coaster || []) if (t.alive && t.secs.some((m) => Math.hypot(m.position.x - x, m.position.z - z) < reach + 1.5)) { t.alive = false; t.deadT = 40; for (const m of t.secs) { m.visible = false; } G.fx.explosion(t.secs[0].position.x, 1, t.secs[0].position.z, 1.4, null, 'bomb'); }
     if (this.fw) this.fw.onBlast(x, y, z, reach, dmg);
+    this.places.onBlast(x, z, reach);
     for (const b of this.buses || []) if (b.alive && Math.hypot(b.m.position.x - x, b.m.position.z - z) < reach + 2) {
       b.alive = false; b.m.scale.y *= 0.6; const burnt = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 }); b.m.traverse((o) => { if (o.isMesh) o.material = burnt; });
       G.fx.explosion(b.m.position.x, 0.6, b.m.position.z, 1, null, 'bomb');

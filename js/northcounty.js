@@ -12,6 +12,7 @@ import { G, rand, pick } from './core.js';
 import { City, Ground } from './city.js';
 import { hsl, partition } from './maps.js';
 import { NC, BOUNDS, PATCHES, SEA, WATERS, PLACES, PIER, isLand, landAt, seaDist, eastEdge, hillEdge, MASK, maskData, BEACH_W, inPoly } from './ncgeo.js';
+import { places } from './ncplaces.js';
 
 // ---------- the ground: several patches up the coast, drawn on as if they were one ----------
 export class Patches {
@@ -87,6 +88,13 @@ const CORES = [
   { x0: -45, x1: 165, z0: -520, z1: -282, grid: true },   // South Oceanside's grid, the beach to I-5 (its side streets off the grid stay out)
   { x0: -90, x1: 25, z0: -950, z1: -705 },         // the harbor
 ];
+// side streets the map keeps whatever the rules say, because a place on them is in the game (js/ncplaces.js)
+const KEEP_STREETS = [
+  { n: 'Anchor Way', x0: 40, x1: 112, z0: 185, z1: 200 },
+  { n: 'Chestnut Avenue', x0: 85, x1: 116, z0: 100, z1: 112 },   // past Pine Avenue Park, to the roundabout at Jefferson
+];
+// streets js/ncplaces.js draws itself, from their OSM centre lines, round the places on them
+const DRAWN_STREETS = ['Hibiscus Circle', 'Nautical Drive'];
 const inCore = (x, z, grid = true) => CORES.some((C) => (grid || !C.grid) && x > C.x0 && x < C.x1 && z > C.z0 && z < C.z1);
 const MAJOR_W = 4.2, MAJOR_H = ['primary', 'secondary', 'tertiary'];
 const HALF5 = 4.5;                                   // half of I-5's width (js/ncfreeway.js builds it)
@@ -149,15 +157,16 @@ export const ROADS = (() => {
     { h: 'secondary', w: 4.6, n: 'Harbor Drive', p: [[-17, -755], [-10, -766], [18, -766], [25, -780], [23, -800]] }];   // and Pacific St's bridge round the basin to Harbor Dr
   const paint = [];
   for (const p of src) {
-    if (p.p.length < 2) continue;
+    if (p.p.length < 2 || DRAWN_STREETS.includes(p.n)) continue;
     const major = MAJOR_H.includes(p.h);
     const S = samples(p.p, 1);
     const ok = S.map(([x, z, land]) => !east(x, z) && (major || inCore(x, z, x < 40)) && (land || major));
     // and not where it runs along under I-5 (crossing under it is fine)
     for (let k = 0; k < S.length;) { if (i5Dist(S[k][0], S[k][1]) >= UNDER) { k++; continue; } let e = k; while (e < S.length && i5Dist(S[e][0], S[e][1]) < UNDER) e++; if (e - k > 18) for (let j = k; j < e; j++) ok[j] = false; k = e; }
     let cur = [];
-    const flush = () => { if (cur.length > (major ? 1 : 16)) paint.push({ ...p, p: cur }); cur = []; };
-    S.forEach(([x, z], k) => { if (ok[k]) cur.push([+x.toFixed(2), +z.toFixed(2)]); else flush(); });
+    const force = KEEP_STREETS.some((K) => K.n === p.n && S.some(([x, z]) => x > K.x0 && x < K.x1 && z > K.z0 && z < K.z1));
+    const flush = () => { if (cur.length > (major ? 1 : 16) || force && cur.length > 1) paint.push({ ...p, p: cur, force }); cur = []; };
+    S.forEach(([x, z], k) => { if (ok[k] || force && !east(x, z)) cur.push([+x.toFixed(2), +z.toFixed(2)]); else flush(); });
     flush();
   }
   // close the little gaps in a through street (the extract breaks them where a bit ran on the grid or off the map)
@@ -228,7 +237,7 @@ export const ROADS = (() => {
     for (const e of edges) put(geo(e));
     const kept = [];
     for (const p of paint.filter((q) => q.h !== 'pedestrian').sort((a, b) => lineLen(b.p) - lineLen(a.p))) {
-      const S = samples(p.p, 1), nr = S.map(([x, z]) => near(x, z)), k0 = kept.length;
+      const S = samples(p.p, 1), nr = S.map(([x, z]) => (p.force ? false : near(x, z))), k0 = kept.length;
       let cur = [];
       const flush = () => { if (cur.length > 6) { const q = { ...p, p: cur }; kept.push(q); } cur = []; };
       for (let k = 0; k < S.length;) {
@@ -270,7 +279,7 @@ export const ROADS = (() => {
     for (let round = 0; round < 4; round++) {
       index();
       for (const [i, it] of items.entries()) {
-        if (it.dead || it.grid) continue;
+        if (it.dead || it.grid || it.paint.force) continue;
         const P = it.p, L = lineLen(P), major = MAJOR_H.includes(it.paint.h);
         const loose = [P[0], P[P.length - 1]].filter((q) => !atEdge(q) && !others(i, q[0], q[1], 2).size).length;
         if (major ? loose && L < 70 || loose === 2 && L < 90 : loose && L < 30 || loose === 2 && L < 80) it.dead = true;
@@ -286,7 +295,7 @@ export const ROADS = (() => {
       while (st.length) { const u = st.pop(); L += lineLen(items[u].p); for (const [x, z] of samples(items[u].p, 1)) for (const v of others(u, x, z)) if (comp[v] < 0) { comp[v] = id; st.push(v); } }
       len.push(L); id++;
     });
-    const keep = (i) => !items[i].dead && len[comp[i]] >= 250;
+    const keep = (i) => !items[i].dead && (len[comp[i]] >= 250 || items[i].paint && items[i].paint.force);
     edges = edges.filter((e, i) => keep(i));
     const live = new Set(items.filter((it, i) => it.paint && keep(i)).map((it) => it.paint));
     paint.splice(0, paint.length, ...paint.filter((p) => p.h === 'pedestrian' || live.has(p)));
@@ -691,7 +700,7 @@ function landmarks(ctx) {
   const cs = P.carlsbadStation; N.cstation = { x: railX(cs.z), z: cs.z, len: 26 };
   plaza(N.cstation.x - 4.2, cs.z - 14, N.cstation.x + 4.2, cs.z + 14, '#bdb6a6'); lot(N.cstation.x + 4.6, cs.z - 12, N.cstation.x + 14, cs.z + 4);
   // the Barrio's parks
-  park(P.pinePark.x - 9, P.pinePark.z - 8, P.pinePark.x + 9, P.pinePark.z + 8, 12);
+  // (Pine Avenue Park itself, its gardens and fields, is js/ncplaces.js)
   park(P.holidayPark.x - 8, P.holidayPark.z - 7, P.holidayPark.x + 8, P.holidayPark.z + 7, 14);
   park(P.magee.x - 5, P.magee.z - 5, P.magee.x + 5, P.magee.z + 5, 8);
   // Carlsbad High: classrooms round a quad, the football field and track behind
@@ -745,6 +754,7 @@ function landmarks(ctx) {
   // the harbor: Harbor Village (the Cape Cod shops), docks and slips, the jetties
   N.docks = NC.piers.filter((p) => p.k === 'pier' && p.p.length >= 2 && p.n !== 'Oceanside Pier' && p.p[0][1] < -700);
   N.jetties = NC.piers.filter((p) => p.k === 'breakwater' || p.k === 'groyne');
+  places(ctx);                                                // Pine Avenue Park, Hibiscus Circle, El Camino Grove (js/ncplaces.js)
 }
 // the main line's x where it crosses z (the rail runs up the coast)
 export function railX(z) {
