@@ -40,12 +40,31 @@ export class Ground {
     const g = x.createRadialGradient(X, Z, 0, X, Z, R);
     g.addColorStop(0, `rgba(12,10,8,${a})`); g.addColorStop(0.55, `rgba(20,16,12,${a * 0.6})`); g.addColorStop(1, 'rgba(20,16,12,0)');
     x.fillStyle = g; x.beginPath(); x.arc(X, Z, R, 0, 6.283); x.fill();
+    // remember the patch that changed (in canvas pixels), so only that much goes back to the GPU
+    const d = this.dirty, a0 = X - R - 2, b0 = Z - R - 2, a1 = X + R + 2, b1 = Z + R + 2;
+    this.dirty = d ? [Math.min(d[0], a0), Math.min(d[1], b0), Math.max(d[2], a1), Math.max(d[3], b1)] : [a0, b0, a1, b1];
     if (this.dirtyT < 0) this.dirtyT = 0.35;
   }
   update(dt) {
     if (this.dirtyT < 0) return;
     this.dirtyT -= dt;
-    if (this.dirtyT < 0) this.tex.needsUpdate = true;
+    if (this.dirtyT < 0) this.flush();
+  }
+  // Re-sending the whole 4096 canvas (and rebuilding its mipmaps on the CPU side) stalled the game for a quarter of a
+  // second after every explosion. Only the scorched patch is uploaded now, straight into the texture already on the GPU.
+  flush() {
+    const d = this.dirty; this.dirty = null;
+    const r = G.renderer, wt = r && r.properties.get(this.tex).__webglTexture;
+    const x0 = Math.max(0, Math.floor(d ? d[0] : 0)), y0 = Math.max(0, Math.floor(d ? d[1] : 0));
+    const w = Math.min(this.res, Math.ceil(d ? d[2] : 0)) - x0, h = Math.min(this.res, Math.ceil(d ? d[3] : 0)) - y0;
+    if (!wt || !d || w * h > this.res * this.res * 0.25) { this.tex.needsUpdate = true; return; }     // not on the GPU yet, or most of it changed
+    if (w <= 0 || h <= 0) return;
+    const gl = r.getContext(), img = this.x.getImageData(x0, y0, w, h);
+    r.state.bindTexture(gl.TEXTURE_2D, wt);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.tex.flipY); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, x0, this.tex.flipY ? this.res - y0 - h : y0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, img.data);
+    if (this.tex.generateMipmaps) gl.generateMipmap(gl.TEXTURE_2D);
   }
 }
 

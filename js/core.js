@@ -58,3 +58,17 @@ export function blast(x, y, z, radius, power, kind = 'explosion') {
   G.sdbay && G.sdbay.onBlast(x, y, z, radius, power, kind);
   G.boatsOnBlast && G.boatsOnBlast(x, y, z, radius, power, kind);     // any boat on any map (js/boats.js)
 }
+
+// Mark instance i of an instanced attribute (16 floats per matrix by default) for upload: only the changed stretch goes
+// to the GPU, not the whole buffer. Neighbouring instances merge into one range; a scattered frame collapses to one span.
+// Every writer of an attribute that uses this must use it too (a plain needsUpdate would only send the marked ranges).
+export function touchInstance(attr, i, size = 16) {
+  const R = attr.updateRanges, s = i * size, e = s + size, last = R[R.length - 1];
+  if (last && s >= last.start && s <= last.start + last.count) last.count = Math.max(last.count, e - last.start);
+  else if (last && e >= last.start && e <= last.start + last.count) { last.count += last.start - s; last.start = s; }
+  else if (R.length >= 24) {
+    let a = s, b = e; for (const r of R) { a = Math.min(a, r.start); b = Math.max(b, r.start + r.count); }
+    attr.clearUpdateRanges(); attr.addUpdateRange(a, b - a);
+  } else attr.addUpdateRange(s, size);
+  attr.needsUpdate = true;
+}

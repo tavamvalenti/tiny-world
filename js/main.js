@@ -92,7 +92,7 @@ G.input = input; G.cam = cam;
 // scene renders at a slightly lower resolution until it catches up (the tilt-shift hides it). The GPU's own timer
 // says how long each frame took it where the browser has one; elsewhere the frame time stands in for it, counted
 // only while the CPU side is clearly not the one holding things up.
-const dyn = { k: 1, gpu: 0, iv: 16.7, over: 0, under: 0, hold: 0 };
+const dyn = { k: 1, gpu: 0, iv: 16.7, over: 0, under: 0, hold: 0, judge: 0, before: 0, useless: 0 };
 const gl = renderer.getContext(), timerExt = gl.getExtension('EXT_disjoint_timer_query_webgl2');
 const gpuQ = [];                                  // queries in flight, oldest first
 let gpuCur = null;
@@ -118,9 +118,15 @@ function dynRes(ms, cpu) {
   dyn.iv += (ms - dyn.iv) * 0.1;
   const slow = dyn.timed ? dyn.gpu > 15 : dyn.iv > 19 && cpu < ms * 0.7;
   const fast = dyn.timed ? dyn.gpu < 9.5 : dyn.iv < 17.6;
-  dyn.over = slow ? dyn.over + ms : 0; dyn.under = fast ? dyn.under + ms : 0; dyn.hold = Math.max(0, dyn.hold - ms);
+  dyn.over = slow ? dyn.over + ms : 0; dyn.under = fast ? dyn.under + ms : 0; dyn.hold = Math.max(0, dyn.hold - ms); dyn.useless = Math.max(0, dyn.useless - ms);
+  // a step down that didn't make the frames any cheaper (the time isn't going on pixels) is taken back, and the
+  // resolution is left alone for a while
+  if (dyn.judge > 0 && (dyn.judge -= ms) <= 0) {
+    const was = dyn.timed ? dyn.gpu : dyn.iv;
+    if (was > dyn.before * 0.92) { dyn.k = Math.min(1, dyn.k + 0.1); dyn.useless = 60000; resize(); }
+  }
   const floor = Math.max(0.7, 0.75 / PR);                                     // never below 0.75 pixels per CSS pixel
-  if (dyn.over > 600 && dyn.k > floor) { dyn.k = Math.max(floor, dyn.k - 0.1); dyn.over = 0; dyn.hold = 4000; resize(); }
+  if (dyn.over > 600 && dyn.k > floor && dyn.judge <= 0 && dyn.useless <= 0) { dyn.before = dyn.timed ? dyn.gpu : dyn.iv; dyn.k = Math.max(floor, dyn.k - 0.1); dyn.over = 0; dyn.hold = 4000; dyn.judge = 1200; resize(); }
   else if (dyn.under > 2000 && dyn.hold <= 0 && dyn.k < 1) { dyn.k = Math.min(1, dyn.k + 0.05); dyn.under = 0; resize(); }
 }
 G.dyn = dyn;

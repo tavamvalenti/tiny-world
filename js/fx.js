@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { G, rand } from './core.js';
+import { G, rand, touchInstance } from './core.js';
 import { makeSoftSprite, makeSmokeSprite } from './textures.js';
 
 const PVS = `attribute float aSize; attribute vec4 aColor; varying vec4 vC; uniform float uScale;
@@ -144,7 +144,7 @@ class Debris {
     else this.active.add(it);
     this.write(it);
   }
-  write(it) { this._m.compose(it.p, it.q, it.s); this.mesh.setMatrixAt(it.i, this._m); this.mesh.instanceMatrix.needsUpdate = true; }
+  write(it) { this._m.compose(it.p, it.q, it.s); this.mesh.setMatrixAt(it.i, this._m); touchInstance(this.mesh.instanceMatrix, it.i); }
   wake(it, v) {
     if (!it) return;
     if (v) it.v.add(v); else it.v.set(rand(-0.5, 0.5), 0, rand(-0.5, 0.5));
