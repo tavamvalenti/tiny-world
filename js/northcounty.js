@@ -14,6 +14,9 @@ import { hsl, partition } from './maps.js';
 import { NC, BOUNDS, PATCHES, SEA, WATERS, PLACES, PIER, isLand, landAt, seaDist, eastEdge, hillEdge, MASK, maskData, BEACH_W, inPoly } from './ncgeo.js';
 import { places } from './ncplaces.js';
 import { RAIL, railGround } from './ncrail.js';
+import { house, lotDetails, shopWall, setI5, setHoliday } from './nchomes.js';
+import { heroSites } from './nclandmarks.js';
+import { seeded } from './core.js';
 
 // ---------- the ground: several patches up the coast, drawn on as if they were one ----------
 export class Patches {
@@ -37,6 +40,8 @@ export class Patches {
   }
   each(fn) { for (const p of this.list) { p.x.save(); fn(p.x, p); p.x.restore(); } }
   scorch(x, z, r, a) { for (const p of this.hit(x - r, z - r, x + r, z + r)) p.scorch(x, z, r, a); }
+  touch(x, z, r) { for (const p of this.hit(x - r, z - r, x + r, z + r)) p.touch(x, z, r); }
+  at(x, z) { return this.list.find((p) => x >= p.b.x0 && x <= p.b.x1 && z >= p.b.z0 && z <= p.b.z1) || this.cur(); }
   update(dt) { for (const p of this.list) p.update(dt); }
   // what's painted into "the" ground (blood, tyre marks): the patch under the view
   cur() { const c = G.cam; if (c) for (const p of this.list) if (c.x >= p.b.x0 && c.x <= p.b.x1 && c.z >= p.b.z0 && c.z <= p.b.z1) return p; return this.list[0]; }
@@ -47,9 +52,8 @@ export class Patches {
 function bbox(pts) { let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (const [a, b] of pts) { if (a < x0) x0 = a; if (a > x1) x1 = a; if (b < z0) z0 = b; if (b > z1) z1 = b; } return { x0, z0, x1, z1 }; }
 
 // ---------- palettes ----------
-const STUCCO = () => Math.random() < 0.5 ? hsl(rand(0.09, 0.13), rand(0.1, 0.3), rand(0.86, 0.94)) : hsl(pick([0.03, 0.08, 0.11, 0.14, 0.3, 0.5, 0.55, 0.58]), rand(0.2, 0.45), rand(0.7, 0.84));
-const BEACHY = () => Math.random() < 0.55 ? hsl(rand(0.1, 0.13), rand(0.05, 0.2), rand(0.9, 0.96)) : hsl(pick([0.5, 0.52, 0.55, 0.58, 0.12, 0.95, 0.33]), rand(0.25, 0.5), rand(0.72, 0.86));
-const BARRIO = () => Math.random() < 0.3 ? hsl(rand(0.08, 0.12), rand(0.08, 0.2), rand(0.7, 0.82)) : hsl(pick([0.0, 0.05, 0.1, 0.14, 0.33, 0.48, 0.58, 0.8, 0.95]), rand(0.3, 0.55), rand(0.58, 0.72));
+// shop fronts, beach blocks and the Barrio's corner stores: neutral stucco, the odd muted colour (js/nchomes.js has the houses')
+const STUCCO = shopWall, BEACHY = shopWall, BARRIO = shopWall;
 const CAPECOD = () => Math.random() < 0.4 ? hsl(0.12, 0.08, rand(0.88, 0.94)) : hsl(rand(0.54, 0.6), rand(0.08, 0.2), rand(0.72, 0.84));
 const TILE = () => hsl(rand(0.02, 0.05), rand(0.5, 0.65), rand(0.42, 0.52));
 const SHINGLE = () => hsl(rand(0.06, 0.6), rand(0.0, 0.1), rand(0.32, 0.5));
@@ -396,7 +400,13 @@ export function joinLines(lines, tol, either = false) {           // either: a p
 export function lineLen(p) { let L = 0; for (let k = 1; k < p.length; k++) L += Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]); return L; }
 
 // ================= THE MAP =================
+// the whole layout runs on seeded random numbers: the same streets, houses and colours on every load
 export function northcounty(B) {
+  const R0 = Math.random; Math.random = seeded(0x4e43);
+  try { return build(B); } finally { Math.random = R0; }
+}
+function build(B) {
+  setI5(ROADS.i5); setHoliday(PLACES.holidayPark);
   const D = { ...NC, edges: ROADS.edges, paint: ROADS.paint, freeway: ROADS.freeway }, XS = D.xs, ZS = D.zs;
   const EK = new Map();                                       // the grid's streets: "i,j,v|h" -> width
   for (const [ax, i, j, w] of D.edges) EK.set(`${i},${j},${ax ? 'h' : 'v'}`, w);
@@ -561,7 +571,7 @@ export function northcounty(B) {
       let t = 2.4;
       while (t < L - 2.4) {
         const x = ax + dx * t, z = az + dz * t, Z = zoneAt(x + nx * s * 5, z + nz * s * 5);
-        const o = lot(Z, major);
+        const o = lot(Z, major, x + nx * s * 5, z + nz * s * 5);
         const along = Math.abs(dx) > Math.abs(dz);                    // the street runs along x: the lot's width is along x
         const bw = along ? o.w : o.d, bd = along ? o.d : o.w;
         const off = w / 2 + SW + Math.max(0.3, o.set) + (along ? bd : bw) / 2;
@@ -569,21 +579,16 @@ export function northcounty(B) {
         if (cx > eastEdge(cz) - 3) { t += o.w + o.gap; continue; }
         if (!inCore(cx, cz) && Math.random() < 0.45) { t += o.w + o.gap * 2; continue; }   // past the core places the houses spread out (yards, lots, the odd gap)
         if (free(cx - bw / 2 - 0.05, cz - bd / 2 - 0.05, cx + bw / 2 + 0.05, cz + bd / 2 + 0.05)) {
-          const b = B.add({ x: cx, z: cz, w: bw, d: bd, floors: o.floors, style: o.style, tint: o.tint, cell: o.cell, gh: o.gh, fh: o.fh, gable: o.gable, roofTint: o.roof, storefront: o.shop });
+          const b = B.add({ x: cx, z: cz, w: bw, d: bd, floors: o.floors, style: o.style, tint: o.tint, cell: o.cell, gh: o.gh, fh: o.fh, gable: o.gable, roofTint: o.roof, roofKind: o.roofKind, roofMat: o.roofMat, pitch: o.pitch, storefront: o.shop, setbacks: o.setback ? [{ f: o.floors - 1, n: 1 }] : null });
           if (!o.shop) b.noSigns = true;
           mark(cx - bw / 2 - 0.1, cz - bd / 2 - 0.1, cx + bw / 2 + 0.1, cz + bd / 2 + 0.1);
-          // a house gets its front lawn, its driveway and a back yard (on streets that run on the grid)
+          // a house gets its yards, its driveway, its garage, a porch or a balcony, a wall or a fence (js/nchomes.js), on streets that run on the grid
           if (o.home && (Math.abs(dx) < 0.05 || Math.abs(dz) < 0.05)) {
-            const ox = nx * s, oz = nz * s, back = 2.6, front = off - w / 2 - SW - (along ? bd : bw) / 2;
-            const yx0 = Math.min(cx - bw / 2, cx - bw / 2 + ox * back), yx1 = Math.max(cx + bw / 2, cx + bw / 2 + ox * back), yz0 = Math.min(cz - bd / 2, cz - bd / 2 + oz * back), yz1 = Math.max(cz + bd / 2, cz + bd / 2 + oz * back);
-            if (free(yx0 + ox * 0.6 + 0.1, yz0 + oz * 0.6 + 0.1, yx1 + ox * 0.6 - 0.1, yz1 + oz * 0.6 - 0.1)) g.rect(yx0 - 0.15, yz0 - 0.15, yx1 + 0.15, yz1 + 0.15, Math.random() < 0.7 ? '#6f8146' : '#8a8a5c');
-            const fx0 = Math.min(cx - bw / 2, cx - bw / 2 - ox * front), fx1 = Math.max(cx + bw / 2, cx + bw / 2 - ox * front), fz0 = Math.min(cz - bd / 2, cz - bd / 2 - oz * front), fz1 = Math.max(cz + bd / 2, cz + bd / 2 - oz * front);
-            g.rect(fx0, fz0, fx1, fz1, Math.random() < 0.75 ? '#788a4a' : '#9c9473');                                     // the front lawn (or gravel and succulents)
-            const dw = 0.9, lo = Math.random() < 0.5;                                                                   // the driveway down one side
-            if (along) { const x0 = lo ? cx - bw / 2 : cx + bw / 2 - dw; g.rect(x0, Math.min(cz, cz - oz * (bd / 2 + front)), x0 + dw, Math.max(cz, cz - oz * (bd / 2 + front)), '#b5ae9f'); }
-            else { const z0 = lo ? cz - bd / 2 : cz + bd / 2 - dw; g.rect(Math.min(cx, cx - ox * (bw / 2 + front)), z0, Math.max(cx, cx - ox * (bw / 2 + front)), z0 + dw, '#b5ae9f'); }
+            const ox = nx * s, oz = nz * s, front = off - w / 2 - SW - (along ? bd : bw) / 2;
+            lotDetails({ city, g, B, free, mark }, b, o, { cx, cz, dx, dz, ox, oz, W: o.w, D: o.d, front });
+            if (o.garage) t += o.garage === 2 ? 2.4 : 1.8;
           }
-          if (o.tree && Math.random() < o.tree) { const tx = x + nx * s * (w / 2 + SW * 0.55), tz = z + nz * s * (w / 2 + SW * 0.55); city.addTree(tx, tz, rand(0.7, 1), Z === 'beachfront' || Z === 'village' || Math.random() < 0.3 ? 'palm' : 'round'); }
+          if (o.tree && Math.random() < o.tree) { const tx = x + nx * s * (w / 2 + SW * 0.55), tz = z + nz * s * (w / 2 + SW * 0.55); city.addTree(tx, tz, rand(0.7, 1), Z === 'beachfront' || Z === 'village' || Math.random() < (o.palm ?? 0.3) ? 'palm' : 'round'); }
           t += o.w + o.gap;
         } else t += 1.2;
       }
@@ -599,9 +604,9 @@ export function northcounty(B) {
     const Z = zoneAt(xx, zz); if (Z === 'harbor' && Math.random() < 0.6) continue;
     const busy = Z === 'village' || Z === 'otown';
     if (!busy && (Z !== 'barrio' || Math.random() < 0.45)) continue;   // only the village, downtown and the Barrio build out behind the street
-    const o = lot(Z, busy), w = Math.min(o.w, 3.5), d = Math.min(o.d, 3.5), cx = xx, cz = zz;
+    const o = lot(Z, busy, xx, zz), w = Math.min(o.w, 3.5), d = Math.min(o.d, 3.5), cx = xx, cz = zz;
     if (cx > eastEdge(cz) - 3 || !free(cx - w / 2 - 0.05, cz - d / 2 - 0.05, cx + w / 2 + 0.05, cz + d / 2 + 0.05)) continue;
-    const bb = B.add({ x: cx, z: cz, w, d, floors: busy ? o.floors : Math.min(o.floors, 2), style: o.style, tint: o.tint, cell: o.cell, gh: o.gh, fh: o.fh, gable: o.gable, roofTint: o.roof, storefront: false });
+    const bb = B.add({ x: cx, z: cz, w, d, floors: busy ? o.floors : Math.min(o.floors, 2), style: o.style, tint: o.tint, cell: o.cell, gh: o.gh, fh: o.fh, gable: o.gable, roofTint: o.roof, roofKind: o.roofKind, roofMat: o.roofMat, pitch: o.pitch, storefront: false });
     bb.noSigns = true; mark(cx - w / 2 - 0.1, cz - d / 2 - 0.1, cx + w / 2 + 0.1, cz + d / 2 + 0.1);
     if (!busy && Math.random() < 0.3) city.addTree(cx + rand(-2, 2), cz + d / 2 + 0.9, rand(0.8, 1.1), Math.random() < 0.35 ? 'palm' : 'round');
   }
@@ -662,41 +667,24 @@ function offset(pts, d) {
 }
 
 // what goes on a lot: by zone, and by the street (the bigger streets get shops)
-function lot(Z, major) {
+function lot(Z, major, x, z) {
   if (Z === 'village') return { w: rand(2.8, 4.4), d: rand(4.5, 6.5), gap: rand(0.05, 0.35), set: 0.1, floors: pick([1, 2, 2, 2, 3]), style: pick(['stucco', 'stucco', 'brick', 'stucco']), tint: STUCCO(), cell: 1.5, gh: 1.4, fh: 0.95, shop: true, tree: 0.35 };
   if (Z === 'otown') return { w: rand(3.2, 6), d: rand(5, 8), gap: rand(0.05, 0.4), set: 0.1, floors: pick([2, 2, 3, 3, 4, 5, 6]), style: pick(['stucco', 'concrete', 'stucco', 'office']), tint: STUCCO(), cell: 1.6, gh: 1.5, fh: 1, shop: true, tree: 0.4 };
   if (Z === 'harbor') return { w: rand(2.6, 3.6), d: rand(3, 4), gap: rand(0.6, 1.6), set: 0.8, floors: pick([1, 1, 2]), style: 'house', tint: CAPECOD(), cell: 1.7, gh: 1.1, fh: 0.95, gable: true, roof: SHINGLE(), tree: 0.2 };
+  if (Z === 'beachfront' && !major) return house(x, z);
   if (Z === 'beachfront') return { w: rand(3, 5.2), d: rand(3.6, 6), gap: rand(0.4, 1.1), set: 0.5, floors: pick([2, 2, 3, 3, 4]), style: 'stucco', tint: BEACHY(), cell: 1.6, gh: 1.3, fh: 0.95, shop: major && Math.random() < 0.4, tree: 0.5 };
   if (Z === 'barrio') return major ? { w: rand(3, 4.4), d: rand(4, 6), gap: rand(0.1, 0.6), set: 0.2, floors: pick([1, 1, 2]), style: pick(['stucco', 'flat', 'stucco']), tint: BARRIO(), cell: 1.6, gh: 1.3, fh: 0.95, shop: true, tree: 0.2 }
-    : { w: rand(2.2, 2.9), d: rand(2.6, 3.4), gap: rand(0.9, 1.8), set: 0.9, floors: 1, style: 'house', tint: BARRIO(), cell: 1.5, gh: 1.1, fh: 0.95, gable: Math.random() < 0.6, roof: Math.random() < 0.5 ? TILE() : SHINGLE(), tree: 0.35, home: true };
+    : house(x, z);
   if (major) return { w: rand(3.6, 6), d: rand(4.5, 7), gap: rand(0.6, 2.5), set: rand(0.4, 2.2), floors: pick([1, 1, 2, 2, 3]), style: pick(['stucco', 'flat', 'concrete', 'stucco']), tint: STUCCO(), cell: 1.8, gh: 1.4, fh: 1, shop: true, tree: 0.4 };
-  return home();
+  return house(x, z);
 }
-// the houses: a handful of the kinds that actually line Carlsbad's and Oceanside's streets, mixed house by house
-const HOMES = [
-  // the Spanish revival: white or cream stucco, a red tile roof
-  [3, () => ({ w: rand(2.6, 3.4), d: rand(3, 3.8), floors: 1, style: 'house', tint: hsl(rand(0.09, 0.12), rand(0.1, 0.3), rand(0.88, 0.95)), gable: Math.random() < 0.5, roof: TILE() })],
-  // the post-war ranch: long and low, pale paint, grey shingle
-  [3, () => ({ w: rand(3.6, 4.6), d: rand(2.6, 3.1), floors: 1, style: 'house', tint: hsl(pick([0.1, 0.12, 0.55, 0.3, 0.08]), rand(0.08, 0.25), rand(0.72, 0.86)), gable: true, roof: SHINGLE() })],
-  // the beach cottage: small, a coat of colour
-  [2, () => ({ w: rand(2.2, 2.8), d: rand(2.6, 3.2), floors: 1, style: 'house', tint: hsl(pick([0.5, 0.53, 0.56, 0.14, 0.04, 0.33, 0.6]), rand(0.15, 0.3), rand(0.74, 0.86)), gable: true, roof: Math.random() < 0.5 ? hsl(0, 0, rand(0.85, 0.95)) : SHINGLE() })],
-  // the new two-storey: white and grey boxes, flat roofs
-  [2, () => ({ w: rand(2.8, 3.6), d: rand(3.2, 4), floors: 2, style: 'flat', tint: hsl(pick([0.1, 0.58]), rand(0, 0.08), rand(0.7, 0.95)) })],
-  // the small apartment house: two storeys round a stair, stucco
-  [1, () => ({ w: rand(4.4, 5.6), d: rand(3.6, 4.6), floors: 2, style: 'stucco', tint: hsl(rand(0.07, 0.13), rand(0.12, 0.3), rand(0.78, 0.9)) })],
-];
-const HOME_W = HOMES.reduce((a, h) => a + h[0], 0);
-function home() {
-  let r = Math.random() * HOME_W; const h = HOMES.find((k) => (r -= k[0]) < 0) || HOMES[0];
-  return { gap: rand(1, 2.2), set: rand(1, 1.8), cell: 1.6, gh: 1.1, fh: 0.95, tree: 0.5, home: true, ...h[1]() };
-}
-
 // ---------- the landmarks' footprints and the ground under them (the structures: js/ncworld.js) ----------
 function landmarks(ctx) {
   const { city, g, B, mark } = ctx, P = PLACES, N = city.nc;
   const plaza = (x0, z0, x1, z1, c = '#c9c0ad') => { g.rect(x0, z0, x1, z1, c); g.grainRect(x0, z0, x1, z1, 0.2, 40); mark(x0, z0, x1, z1); };
   const lot = (x0, z0, x1, z1) => { const s = city.paintParking(g, x0, z0, x1, z1); for (const p of s) if (Math.random() < 0.7) city.parked.push(p); mark(x0, z0, x1, z1); };
-  const park = (x0, z0, x1, z1, trees = 10) => { city.paintGrass(g, x0, z0, x1, z1, '#6f8a46'); for (let k = 0; k < trees; k++) city.addTree(rand(x0 + 1, x1 - 1), rand(z0 + 1, z1 - 1), rand(1, 1.4), Math.random() < 0.3 ? 'palm' : 'round'); city.wanderZones.push({ x0: x0 + 0.5, x1: x1 - 0.5, z0: z0 + 0.5, z1: z1 - 0.5 }); mark(x0, z0, x1, z1); };
+  const park = (x0, z0, x1, z1, trees = 10) => { city.paintGrass(g, x0, z0, x1, z1, '#6f8a46'); for (let k = 0; k < trees; k++) { const tx = rand(x0 + 1, x1 - 1), tz = rand(z0 + 1, z1 - 1); if (ctx.free(tx - 0.5, tz - 0.5, tx + 0.5, tz + 0.5)) city.addTree(tx, tz, rand(1, 1.4), Math.random() < 0.3 ? 'palm' : 'round'); } city.wanderZones.push({ x0: x0 + 0.5, x1: x1 - 0.5, z0: z0 + 0.5, z1: z1 - 0.5 }); mark(x0, z0, x1, z1); };
+  heroSites(ctx);                                             // Carlsbad High, the Carlsbad Inn, the Academy, the museums... (js/nclandmarks.js)
   // the Carlsbad sign spans Carlsbad Blvd just north of Carlsbad Village Dr; the blue Victorian is on the north-east corner
   const cb = 2.91;                                            // Carlsbad Blvd's grid line through the village
   N.arch = { x: cb, z: -4.6, span: 9.4 };
@@ -708,11 +696,6 @@ function landmarks(ctx) {
   // (Pine Avenue Park itself, its gardens and fields, is js/ncplaces.js)
   park(P.holidayPark.x - 8, P.holidayPark.z - 7, P.holidayPark.x + 8, P.holidayPark.z + 7, 14);
   park(P.magee.x - 5, P.magee.z - 5, P.magee.x + 5, P.magee.z + 5, 8);
-  // Carlsbad High: classrooms round a quad, the football field and track behind
-  const ch = P.carlsbadHigh;
-  plaza(ch.x - 18, ch.z - 22, ch.x + 2, ch.z + 2, '#b3ab9a');
-  g.rect(ch.x - 14, ch.z + 4, ch.x + 4, ch.z + 30, '#9a4a3a'); g.rect(ch.x - 12, ch.z + 6.5, ch.x + 2, ch.z + 27.5, '#4f8a3a'); mark(ch.x - 14, ch.z + 4, ch.x + 4, ch.z + 30);
-  for (let z = ch.z + 9; z < ch.z + 26; z += 2.2) g.line(ch.x - 12, z, ch.x + 2, z, 0.06, 'rgba(255,255,255,.6)');
   // downtown Oceanside: Civic Center, the cinema plaza (the Transit Center is js/ncrail.js)
   N.civic = { x: P.cityHallO.x, z: P.cityHallO.z };
   plaza(N.civic.x - 10, N.civic.z - 8, N.civic.x + 10, N.civic.z + 8, '#d6cfbf');
@@ -739,11 +722,6 @@ function landmarks(ctx) {
   // Civic Center: Irving Gill's white arcades round a courtyard
   N.civic.w = 16; N.civic.d = 6;
   N.civicB = B.add({ x: N.civic.x, z: N.civic.z - 4, w: 16, d: 6, floors: 2, style: 'stucco', tint: hsl(0.1, 0.1, 0.93), cell: 1.6, gh: 1.5, fh: 1.1 }); N.civicB.noSigns = true; N.civicB.landmark = true; N.civicB.name = 'Civic Center';
-  // Carlsbad High: two wings of classrooms and the gym
-  N.chs = { x: ch.x - 8, z: ch.z - 12, d: 5 };
-  N.chsB = B.add({ x: ch.x - 8, z: ch.z - 12, w: 18, d: 5, floors: 2, style: 'concrete', tint: hsl(0.1, 0.12, 0.82), cell: 1.8, gh: 1.5, fh: 1.1 }); N.chsB.noSigns = true; N.chsB.name = 'Carlsbad High';
-  B.add({ x: ch.x - 14, z: ch.z - 3, w: 6, d: 9, floors: 2, style: 'concrete', tint: hsl(0.1, 0.12, 0.8), cell: 1.8, gh: 1.5, fh: 1.1 }).noSigns = true;
-  B.add({ x: ch.x - 3, z: ch.z - 2, w: 8, d: 7, floors: 2, style: 'flat', tint: hsl(0.6, 0.12, 0.6), cell: 2, gh: 2.2, fh: 1.2 }).noSigns = true;
   // the coast's resorts and inns in Carlsbad, on the ocean side of Carlsbad Blvd
   for (const n of ['Carlsbad Inn Beach Resort', 'Tamarack Beach Resort', 'Ocean Palms Beach Resort', 'Beach Terrace Inn']) { const p = NC.poi.find((q) => q.n === n); if (p) (N.inns ||= []).push({ x: p.x, z: p.z, name: n }); }
   // the harbor: Harbor Village (the Cape Cod shops), docks and slips, the jetties

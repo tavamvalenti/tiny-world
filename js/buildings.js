@@ -1,18 +1,19 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, rand, clamp, blast, touchInstance } from './core.js';
-import { makeShingles } from './textures.js';
+import { makeShingles, makeBarrelTile } from './textures.js';
 import { sfx } from './audio.js';
 
 // Buildings are grids of box "cells" (one bay wide, one floor tall). Every cell of a style lives in one
 // InstancedMesh; per-instance attributes drive a patched standard shader: which faces are exterior
 // (facade vs exposed interior slab), damage (broken glass, cracks), soot and heat glow.
 const HASH = 4;
-const HP = { cairo: 90, cairobrick: 80, islamic: 140, limestone: 220, nordic: 70, gothic: 150, brick: 100, office: 130, concrete: 150, stucco: 85, house: 60, flat: 90, boarded: 70, garage: 55, site: 80 };
+const HP = { cairo: 90, cairobrick: 80, islamic: 140, limestone: 220, nordic: 70, gothic: 150, brick: 100, office: 130, concrete: 150, stucco: 85, house: 60, flat: 90, boarded: 70, garage: 55, site: 80, coastal: 80, mission: 75 };
 const ROOF = {
   cairo: new THREE.Color(0.55, 0.5, 0.42), cairobrick: new THREE.Color(0.45, 0.42, 0.38), islamic: new THREE.Color(0.6, 0.54, 0.44), limestone: new THREE.Color(0.7, 0.6, 0.42), nordic: new THREE.Color(0.12, 0.12, 0.13), gothic: new THREE.Color(0.24, 0.26, 0.27), brick: new THREE.Color(0.16, 0.15, 0.14), office: new THREE.Color(0.22, 0.23, 0.24),
   concrete: new THREE.Color(0.2, 0.19, 0.18), stucco: new THREE.Color(0.5, 0.45, 0.38), house: new THREE.Color(0.15, 0.15, 0.15),
   flat: new THREE.Color(0.13, 0.12, 0.12), boarded: new THREE.Color(0.12, 0.11, 0.1), garage: new THREE.Color(0.2, 0.19, 0.18), site: new THREE.Color(0.42, 0.41, 0.39),
+  coastal: new THREE.Color(0.44, 0.44, 0.42), mission: new THREE.Color(0.55, 0.47, 0.4),
 };
 const GRAV = 14;
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
@@ -35,6 +36,22 @@ function gableGeometry() {
   tri(D, C, F); tri(D, F, E); // front slope
   tri(A, D, E); tri(B, F, C); // gables
   for (let i = 0; i < p.length; i += 3) uv.push(p[i] * 3, (p[i + 1] + Math.abs(p[i + 2])) * 3);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
+}
+
+// a hipped roof: base 1x1 at y=0, ridge along x at y=1, its ends sloping in (scaled to the building like the gable)
+function hipGeometry() {
+  const p = [], uv = [], r = 0.22;
+  const tri = (a, b, c) => { p.push(...a, ...b, ...c); };
+  const A = [-0.5, 0, -0.5], B = [0.5, 0, -0.5], C = [0.5, 0, 0.5], D = [-0.5, 0, 0.5], E = [-r, 1, 0], F = [r, 1, 0];
+  tri(A, E, F); tri(A, F, B); // back slope
+  tri(D, C, F); tri(D, F, E); // front slope
+  tri(A, D, E); tri(B, F, C); // hipped ends
+  for (let i = 0; i < p.length; i += 3) uv.push((p[i] + p[i + 2]) * 3, (p[i + 1] + Math.max(Math.abs(p[i + 2]), Math.abs(p[i]) - 0.28)) * 3);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
@@ -66,6 +83,7 @@ export class Buildings {
     const b = {
       style: o.style, tint: o.tint || new THREE.Color(1, 1, 1), floors: o.floors, gable: !!o.gable,
       roofTint: o.roofTint, x: o.x, z: o.z, w: o.w, d: o.d, grid: [], cells: [], falling: false,
+      roofKind: o.roofKind || 'gable', roofMat: o.roofMat || 'shingle', pitch: o.pitch || 0.42,   // hip / gable, shingle / tile, height per width
       crumble: !!o.crumble,                    // solid stone (pyramids): unsupported blocks crumble away one by one
     };
     const cell = o.cell || 1.6;
@@ -216,24 +234,34 @@ export class Buildings {
     return mat;
   }
 
+  // pitched roofs: one instanced mesh per shape (gable, hip) and material (shingle, barrel tile)
   buildRoofs(scene) {
     const gb = this.list.filter((b) => b.gable);
     if (!gb.length) return;
-    const mat = new THREE.MeshStandardMaterial({ map: makeShingles(), roughness: 0.9 });
-    const mesh = new THREE.InstancedMesh(gableGeometry(), mat, gb.length);
-    mesh.castShadow = mesh.receiveShadow = true;
-    gb.forEach((b, i) => {
-      const top = b.grid[b.floors - 1][0][0];
-      const along = b.w >= b.d;
-      const y = top.y + top.hy;
-      _q.setFromAxisAngle(_v.set(0, 1, 0), along ? 0 : Math.PI / 2);
-      _m.compose(_p.set(b.x, y, b.z), _q, _s.set((along ? b.w : b.d) + 0.5, Math.min(b.w, b.d) * 0.42, (along ? b.d : b.w) + 0.5));
-      mesh.setMatrixAt(i, _m);
-      mesh.setColorAt(i, b.roofTint || new THREE.Color(0.45, 0.42, 0.4));
-      b.roof = { idx: i, alive: true };
-    });
-    this.roofMesh = mesh;
-    scene.add(mesh);
+    const geos = { gable: gableGeometry(), hip: hipGeometry() };
+    const mats = { shingle: new THREE.MeshStandardMaterial({ map: makeShingles(), roughness: 0.9 }) };
+    const groups = new Map();
+    for (const b of gb) { const k = `${b.roofKind}|${b.roofMat}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(b); }
+    this.roofMeshes = [];
+    for (const [k, list] of groups) {
+      const [kind, matK] = k.split('|');
+      const mat = mats[matK] ||= new THREE.MeshStandardMaterial({ map: makeBarrelTile(), roughness: 0.85 });
+      const mesh = new THREE.InstancedMesh(geos[kind] || geos.gable, mat, list.length);
+      mesh.castShadow = mesh.receiveShadow = true;
+      list.forEach((b, i) => {
+        const top = b.grid[b.floors - 1][0][0];
+        const along = b.w >= b.d;
+        const y = top.y + top.hy;
+        _q.setFromAxisAngle(_v.set(0, 1, 0), along ? 0 : Math.PI / 2);
+        _m.compose(_p.set(b.x, y, b.z), _q, _s.set((along ? b.w : b.d) + 0.5, Math.min(b.w, b.d) * b.pitch, (along ? b.d : b.w) + 0.5));
+        mesh.setMatrixAt(i, _m);
+        mesh.setColorAt(i, b.roofTint || new THREE.Color(0.45, 0.42, 0.4));
+        b.roof = { mesh, idx: i, alive: true };
+      });
+      this.roofMeshes.push(mesh);
+      scene.add(mesh);
+    }
+    this.roofMesh = this.roofMeshes[0];
   }
 
   buildProps(scene) {
@@ -448,8 +476,9 @@ export class Buildings {
 
   dropRoof(b) {
     b.roof.alive = false;
-    this.roofMesh.setMatrixAt(b.roof.idx, ZERO);
-    this.roofMesh.instanceMatrix.needsUpdate = true;
+    const m = b.roof.mesh || this.roofMesh;
+    m.setMatrixAt(b.roof.idx, ZERO);
+    touchInstance(m.instanceMatrix, b.roof.idx);
     const top = b.grid[b.floors - 1][0][0];
     const y = top.y + top.hy + 0.4;
     for (let i = 0; i < 6; i++) {

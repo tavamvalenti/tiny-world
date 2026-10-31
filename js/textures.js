@@ -157,6 +157,31 @@ export function makeFacades() {
     win(158, S + 88, 68, 84, 20);
   });
 
+  // ---- North County homes ----
+  // modern coastal: smooth white render, wide dark-framed glass, a strip of wood siding, the front door to one side
+  F.coastal = mk((c, win) => {
+    c.fillStyle = '#efede8'; c.fillRect(0, 0, S, S * 2);
+    c.fillStyle = '#9b7a58'; c.fillRect(150, 0, 106, S);                         // wood-clad bay
+    c.fillStyle = 'rgba(0,0,0,.16)'; for (let y = 0; y < S; y += 9) c.fillRect(150, y, 106, 2);
+    c.fillStyle = '#2b2d2f'; c.fillRect(14, 54, 126, 150); win(20, 60, 114, 138, 10);  // the big upper window
+    c.fillStyle = '#2b2d2f'; c.fillRect(176, 70, 58, 116); win(181, 75, 48, 106, 10);
+    c.fillStyle = 'rgba(0,0,0,.2)'; c.fillRect(0, 238, S, 6);                     // the slab edge between floors
+    c.fillStyle = '#2b2d2f'; c.fillRect(24, S + 70, 150, 150); win(30, S + 76, 138, 138, 10);
+    c.fillStyle = '#5a4634'; c.fillRect(196, S + 66, 44, 190);                    // the door
+  });
+  // Spanish revival: smooth stucco, deep-set windows (an arch on the ground floor), a wooden door, a tile-capped sill
+  F.mission = mk((c, win) => {
+    c.fillStyle = '#f0ebe1'; c.fillRect(0, 0, S, S * 2);
+    for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},.05)`; c.fillRect(Math.random() * S, Math.random() * S * 2, 3, 2); }
+    c.fillStyle = 'rgba(70,55,40,.35)'; c.fillRect(70, 62, 116, 124);              // the recess round the upper window
+    win(78, 70, 100, 112, 20);
+    c.fillStyle = '#7a4a32'; c.fillRect(66, 186, 124, 8);                         // tile sill
+    c.fillStyle = 'rgba(70,55,40,.35)'; c.beginPath(); c.moveTo(22, S + 250); c.lineTo(22, S + 120); c.arc(80, S + 120, 58, Math.PI, 0); c.lineTo(138, S + 250); c.fill();
+    c.fillStyle = '#5c3b26'; c.beginPath(); c.moveTo(30, S + 256); c.lineTo(30, S + 124); c.arc(80, S + 124, 50, Math.PI, 0); c.lineTo(130, S + 256); c.fill();   // arched wooden door
+    c.fillStyle = 'rgba(70,55,40,.35)'; c.fillRect(160, S + 80, 80, 104); win(168, S + 88, 64, 88, 20);
+    c.fillStyle = '#2b2b2b'; for (let x = 172; x < 232; x += 12) c.fillRect(x, S + 88, 2, 88);   // iron grille
+  });
+
   // ---- Chicago: brick two/three-flats ----
   const commonBrick = (c) => {
     c.fillStyle = '#a89c90'; c.fillRect(0, 0, S, S * 2);
@@ -335,6 +360,24 @@ export function makeShingles() {
     }
   }
   grain(x, 0, 0, 256, 256, 0.2);
+  const t = tex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+// Barrel (mission) tile, grey so the instance colour tints it: rounded runs down the slope, a shadow line per course.
+export function makeBarrelTile() {
+  const c = canvas(256, 256), x = c.getContext('2d');
+  x.fillStyle = '#8a8a8a'; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 256; i += 16) {
+    const g = x.createLinearGradient(i, 0, i + 16, 0);
+    g.addColorStop(0, '#6e6e6e'); g.addColorStop(0.35, '#d2d2d2'); g.addColorStop(0.6, '#b4b4b4'); g.addColorStop(1, '#5c5c5c');
+    x.fillStyle = g; x.fillRect(i, 0, 16, 256);
+  }
+  for (let y = 0; y < 256; y += 21) {
+    x.fillStyle = 'rgba(30,30,30,.45)'; x.fillRect(0, y, 256, 2);
+    for (let i = 0; i < 256; i += 16) { const v = Math.random() * 40 - 20; x.fillStyle = v > 0 ? `rgba(255,255,255,${v / 200})` : `rgba(0,0,0,${-v / 160})`; x.fillRect(i, y + 2, 16, 19); }
+  }
+  grain(x, 0, 0, 256, 256, 0.18);
   const t = tex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }

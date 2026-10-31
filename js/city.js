@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { G, rand } from './core.js';
+import { G, rand, seeded } from './core.js';
 import { canvas, grain, noisePattern } from './textures.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler();
+const _v = new THREE.Vector3(), _c = new THREE.Color(), _pm = new THREE.Matrix4(), _fr = new THREE.Frustum(), _sph = new THREE.Sphere();
+const TREE_LOD = 55, TREE_MARGIN = 9, BURNT = new THREE.Color(0.08, 0.06, 0.04);
+const TL_COLORS = [new THREE.Color(0.2, 3, 1.1), new THREE.Color(3, 2, 0.1), new THREE.Color(3.2, 0.15, 0.1)];
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -40,7 +43,12 @@ export class Ground {
     const g = x.createRadialGradient(X, Z, 0, X, Z, R);
     g.addColorStop(0, `rgba(12,10,8,${a})`); g.addColorStop(0.55, `rgba(20,16,12,${a * 0.6})`); g.addColorStop(1, 'rgba(20,16,12,0)');
     x.fillStyle = g; x.beginPath(); x.arc(X, Z, R, 0, 6.283); x.fill();
-    // remember the patch that changed (in canvas pixels), so only that much goes back to the GPU
+    this.touch(cx, cz, r);
+  }
+  // remember the patch that changed (in canvas pixels), so only that much goes back to the GPU. Anything painted into
+  // the ground after the build calls this (setting dirtyT alone sends the whole texture again: ~100 ms at 3072)
+  touch(cx, cz, r) {
+    const X = this.px(cx), Z = this.pz(cz), R = r * this.k;
     const d = this.dirty, a0 = X - R - 2, b0 = Z - R - 2, a1 = X + R + 2, b1 = Z + R + 2;
     this.dirty = d ? [Math.min(d[0], a0), Math.min(d[1], b0), Math.max(d[2], a1), Math.max(d[3], b1)] : [a0, b0, a1, b1];
     if (this.dirtyT < 0) this.dirtyT = 0.35;
@@ -58,7 +66,7 @@ export class Ground {
     const x0 = Math.max(0, Math.floor(d ? d[0] : 0)), y0 = Math.max(0, Math.floor(d ? d[1] : 0));
     const w = Math.min(this.res, Math.ceil(d ? d[2] : 0)) - x0, h = Math.min(this.res, Math.ceil(d ? d[3] : 0)) - y0;
     if (!wt || !d || w * h > this.res * this.res * 0.25) { this.tex.needsUpdate = true; return; }     // not on the GPU yet, or most of it changed
-    if (w <= 0 || h <= 0) return;
+    if (w <= 0 || h <= 0) return;                                                                         // the marks fell outside this patch
     const gl = r.getContext(), img = this.x.getImageData(x0, y0, w, h);
     r.state.bindTexture(gl.TEXTURE_2D, wt);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.tex.flipY); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
@@ -75,21 +83,22 @@ function lampGeo() {
     new THREE.BoxGeometry(0.05, 0.05, 0.7).translate(0, 2.28, 0.33),
   ]);
 }
-function treeCanopy(seed) {
-  const parts = [];
+// detail 2 up close, 1 for the rest (the same blobs: the shape comes from the seed, not Math.random)
+function treeCanopy(seed, detail = 2) {
+  const parts = [], r = seeded(seed * 7919), rr = (a, b) => a + r() * (b - a);
   const n = 4 + (seed % 3);
   for (let i = 0; i < n; i++) {
-    const g = new THREE.IcosahedronGeometry(rand(0.45, 0.7), 2);
+    const g = new THREE.IcosahedronGeometry(rr(0.45, 0.7), detail);
     const p = g.attributes.position;
     for (let v = 0; v < p.count; v++) {
-      const s = 1 + (Math.sin(p.getX(v) * 9 + seed) * Math.cos(p.getZ(v) * 7 + i) * 0.12) + rand(-0.05, 0.05);
+      const s = 1 + (Math.sin(p.getX(v) * 9 + seed) * Math.cos(p.getZ(v) * 7 + i) * 0.12) + Math.sin(p.getX(v) * 31 + p.getY(v) * 17 + p.getZ(v) * 23 + i) * 0.05;
       p.setXYZ(v, p.getX(v) * s, p.getY(v) * s * 0.85, p.getZ(v) * s);
     }
     const a = (i / n) * 6.28;
-    g.translate(Math.cos(a) * 0.45, rand(-0.15, 0.3), Math.sin(a) * 0.45);
+    g.translate(Math.cos(a) * 0.45, rr(-0.15, 0.3), Math.sin(a) * 0.45);
     parts.push(g);
   }
-  parts.push(new THREE.IcosahedronGeometry(0.62, 2).translate(0, 0.45, 0));
+  parts.push(new THREE.IcosahedronGeometry(0.62, detail).translate(0, 0.45, 0));
   const g = mergeGeometries(parts);
   g.computeVertexNormals();
   return g;
@@ -301,31 +310,25 @@ export class City {
 
   build(scene) {
     this.scene = scene;
-    // trees
+    // trees. A map has a couple of thousand and a round one is ~1100 triangles, so they aren't all sent to the GPU:
+    // drawTrees() fills the meshes with only the trees in (or casting a shadow into) the view, and the ones further
+    // than TREE_LOD from the camera get the lighter canopy. It reruns when the camera moves or a tree changes.
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4636, roughness: 1 });
     const leafMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
     const palmMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide });
-    const round = this.trees.filter((t) => t.kind !== 'palm'), palms = this.trees.filter((t) => t.kind === 'palm');
-    const variants = [treeCanopy(1), treeCanopy(2), treeCanopy(3)];
-    this.treeMeshes = [];
+    const round = this.trees.filter((t) => t.kind !== 'palm'), palms = this.trees.filter((t) => t.kind === 'palm'), nR = Math.max(1, round.length), nP = Math.max(1, palms.length);
     const trunkGeo = new THREE.CylinderGeometry(0.07, 0.11, 1, 6).translate(0, 0.5, 0);
-    this.trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, Math.max(1, round.length));
-    this.canopies = variants.map((v) => new THREE.InstancedMesh(v, leafMat, Math.max(1, round.length)));
-    this.canopies.forEach((m) => (m.count = 0));
-    round.forEach((t, i) => {
-      t.trunk = i;
-      const m = this.canopies[i % 3]; t.canopyMesh = m; t.canopy = m.count++;
-      t.color = new THREE.Color().setHSL(rand(0.2, 0.3), rand(0.3, 0.5), rand(0.2, 0.3), THREE.SRGBColorSpace);
-      this.writeTree(t);
-    });
+    this.trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, nR);
+    this.canopies = [2, 1].map((det) => [1, 2, 3].map((v) => new THREE.InstancedMesh(treeCanopy(v, det), leafMat, nR)));   // [lod][variant]
+    round.forEach((t, i) => { t.variant = i % 3; t.color = new THREE.Color().setHSL(rand(0.2, 0.3), rand(0.3, 0.5), rand(0.2, 0.3), THREE.SRGBColorSpace); });
     const palmTrunk = new THREE.CylinderGeometry(0.06, 0.1, 1, 6, 4).translate(0, 0.5, 0);
     { const p = palmTrunk.attributes.position; for (let v = 0; v < p.count; v++) p.setX(v, p.getX(v) + Math.pow(p.getY(v), 2) * 0.35); }
-    this.palmTrunks = new THREE.InstancedMesh(palmTrunk, new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 1 }), Math.max(1, palms.length));
-    this.palmTops = new THREE.InstancedMesh(palmFronds(), palmMat, Math.max(1, palms.length));
-    palms.forEach((t, i) => { t.trunk = i; t.canopy = i; t.canopyMesh = this.palmTops; t.color = new THREE.Color().setHSL(rand(0.22, 0.3), 0.45, rand(0.24, 0.32), THREE.SRGBColorSpace); this.writeTree(t); });
-    // meshes are allocated with at least one slot; hide unused ones (an empty map would otherwise draw one at the origin)
-    this.trunks.count = round.length; this.palmTrunks.count = this.palmTops.count = palms.length;
-    for (const m of [this.trunks, ...this.canopies, this.palmTrunks, this.palmTops]) { m.castShadow = m.receiveShadow = true; scene.add(m); m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    this.palmTrunks = new THREE.InstancedMesh(palmTrunk, new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 1 }), nP);
+    this.palmTops = new THREE.InstancedMesh(palmFronds(), palmMat, nP);
+    palms.forEach((t) => { t.color = new THREE.Color().setHSL(rand(0.22, 0.3), 0.45, rand(0.24, 0.32), THREE.SRGBColorSpace); });
+    this.treeMeshes = [this.trunks, ...this.canopies.flat(), this.palmTrunks, this.palmTops];
+    for (const m of this.treeMeshes) { m.count = 0; m.frustumCulled = false; m.castShadow = m.receiveShadow = true; m.setColorAt(0, _c.setRGB(1, 1, 1)); scene.add(m); }
+    this.treesDirty = true; this.treeView = { p: new THREE.Vector3(1e9, 0, 0), q: new THREE.Quaternion(), fov: 0, aspect: 0 };
 
     // lamps
     this.lampMesh = new THREE.InstancedMesh(lampGeo(), new THREE.MeshStandardMaterial({ color: 0x2d3033, roughness: 0.5, metalness: 0.6 }), Math.max(1, this.lamps.length));
@@ -374,23 +377,35 @@ export class City {
     this.buildProps(scene);
   }
 
-  writeTree(t) {
-    const palm = t.kind === 'palm';
-    const trunk = palm ? this.palmTrunks : this.trunks;
-    const h = palm ? 3.2 * t.s : 1.0 * t.s;
-    _e.set(t.tilt * Math.cos(t.rot), t.rot, t.tilt * Math.sin(t.rot));
-    _q.setFromEuler(_e);
-    _m.compose(_p.set(t.x, 0, t.z), _q, _s.set(t.s, h, t.s)); trunk.setMatrixAt(t.trunk, _m);
-    if (t.alive) {
-      const top = new THREE.Vector3(palm ? 0.35 * t.s * t.s : 0, h, 0).applyQuaternion(_q);
+  writeTree() { this.treesDirty = true; }
+  // the trees the camera can see (a margin round the view for their shadows), each in its level of detail
+  drawTrees() {
+    const cam = G.camera, V = this.treeView;
+    if (!cam || !this.trunks) return;
+    const moved = V.p.distanceToSquared(cam.position) > 0.04 || Math.abs(V.q.dot(cam.quaternion)) < 0.999995 || V.fov !== cam.fov || V.aspect !== cam.aspect;
+    if (!moved && !this.treesDirty) return;
+    V.p.copy(cam.position); V.q.copy(cam.quaternion); V.fov = cam.fov; V.aspect = cam.aspect; this.treesDirty = false;
+    cam.updateMatrixWorld(); _pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
+    for (const m of this.treeMeshes) m.count = 0;
+    const cx = cam.position.x, cy = cam.position.y, cz = cam.position.z;
+    for (const t of this.trees) {
+      const palm = t.kind === 'palm', h = palm ? 3.2 * t.s : 1.0 * t.s;
+      _sph.center.set(t.x, h * 0.6, t.z); _sph.radius = (palm ? 2.2 : 1.6) * t.s + TREE_MARGIN;
+      if (!_fr.intersectsSphere(_sph)) continue;
+      const trunk = palm ? this.palmTrunks : this.trunks;
+      _e.set(t.tilt * Math.cos(t.rot), t.rot, t.tilt * Math.sin(t.rot));
+      _q.setFromEuler(_e);
+      _m.compose(_p.set(t.x, 0, t.z), _q, _s.set(t.s, h, t.s)); trunk.setMatrixAt(trunk.count++, _m);
+      if (!t.alive) continue;
+      const far = (t.x - cx) ** 2 + (h - cy) ** 2 + (t.z - cz) ** 2 > TREE_LOD * TREE_LOD;
+      const mesh = palm ? this.palmTops : this.canopies[far ? 1 : 0][t.variant];
+      _v.set(palm ? 0.35 * t.s * t.s : 0, h, 0).applyQuaternion(_q);
       const cs = palm ? t.s * 1.1 : t.s * (1 - t.burn * 0.35) * 1.15;
-      _m.compose(_p.set(t.x + top.x, top.y + (palm ? 0 : 0.35 * t.s), t.z + top.z), _q, _s.set(cs, cs, cs));
-      t.canopyMesh.setMatrixAt(t.canopy, _m);
-      const c = t.color.clone().lerp(new THREE.Color(0.08, 0.06, 0.04), t.burn);
-      t.canopyMesh.setColorAt(t.canopy, c);
-    } else t.canopyMesh.setMatrixAt(t.canopy, ZERO);
-    trunk.instanceMatrix.needsUpdate = true; t.canopyMesh.instanceMatrix.needsUpdate = true;
-    if (t.canopyMesh.instanceColor) t.canopyMesh.instanceColor.needsUpdate = true;
+      _m.compose(_p.set(t.x + _v.x, _v.y + (palm ? 0 : 0.35 * t.s), t.z + _v.z), _q, _s.set(cs, cs, cs));
+      mesh.setMatrixAt(mesh.count, _m);
+      mesh.setColorAt(mesh.count++, _c.copy(t.color).lerp(BURNT, t.burn));
+    }
+    for (const m of this.treeMeshes) if (m.count) { m.instanceMatrix.clearUpdateRanges(); m.instanceMatrix.addUpdateRange(0, m.count * 16); m.instanceMatrix.needsUpdate = true; if (m.instanceColor) { m.instanceColor.clearUpdateRanges(); m.instanceColor.addUpdateRange(0, m.count * 3); m.instanceColor.needsUpdate = true; } }
   }
 
   writePool(l) {
@@ -436,6 +451,11 @@ export class City {
       dumpster: [mergeGeometries([new THREE.BoxGeometry(0.95, 0.5, 0.6).translate(0, 0.27, 0), new THREE.BoxGeometry(1.0, 0.05, 0.66).rotateX(-0.12).translate(0, 0.56, 0.02)]), 0x2f5a3a],
       stoop: [mergeGeometries([0, 1, 2, 3].map((i) => new THREE.BoxGeometry(0.72, 0.62 - i * 0.15, 0.22).translate(0, (0.62 - i * 0.15) / 2, 0.11 + i * 0.22))), 0xb3aa98],
       junk: [new THREE.BoxGeometry(0.4, 0.14, 0.3).translate(0, 0.07, 0), 0x6b5e50],
+      // North County's houses: garage doors, porches, glass balconies, low stucco walls (scaled along x to fit)
+      gdoor: [new THREE.BoxGeometry(1, 0.7, 0.04).translate(0, 0.35, 0), 0xe9e6de],
+      porch: [mergeGeometries([new THREE.BoxGeometry(1, 0.06, 0.7).translate(0, 0.86, 0.35), new THREE.BoxGeometry(0.05, 0.84, 0.05).translate(-0.46, 0.42, 0.66), new THREE.BoxGeometry(0.05, 0.84, 0.05).translate(0.46, 0.42, 0.66), new THREE.BoxGeometry(1, 0.08, 0.7).translate(0, 0.04, 0.35)]), 0xf1eee6],
+      balcony: [mergeGeometries([new THREE.BoxGeometry(1, 0.06, 0.5).translate(0, 0.03, 0.25), new THREE.BoxGeometry(1, 0.32, 0.025).translate(0, 0.22, 0.49)]), 0xc7d3d8, { metalness: 0.3, roughness: 0.3 }],
+      wall: [new THREE.BoxGeometry(1, 0.34, 0.14).translate(0, 0.17, 0), 0xd8cdb8],
     };
     const byType = {};
     for (const p of this.props) (byType[p.type] ||= []).push(p);
@@ -449,6 +469,7 @@ export class City {
         _m.compose(_p.set(p.x, p.y || 0, p.z), _q, _s.set(p.sx || p.s, p.sy || p.s, p.sz || p.s));
         mesh.setMatrixAt(i, _m);
         mesh.setColorAt(i, p.color || new THREE.Color(col));
+        if (p.cell) (p.cell.props ||= []).push({ mesh, idx: i, x: p.x, y: p.y || 0, z: p.z });   // fixed to a building: goes when its cell does
       });
       mesh.castShadow = type !== 'towel'; mesh.receiveShadow = true;
       scene.add(mesh);
@@ -535,8 +556,9 @@ export class City {
   }
 
   update(dt) {
+    this.drawTrees();
     // traffic light colours
-    const C = [new THREE.Color(0.2, 3, 1.1), new THREE.Color(3, 2, 0.1), new THREE.Color(3.2, 0.15, 0.1)];
+    const C = TL_COLORS;
     for (const p of this.tlPoles) {
       const s = this.lightState(p.n, p.axis);
       _m.makeTranslation(p.base.x, 1.63 + (2 - s) * 0.12, p.base.z);
@@ -550,7 +572,7 @@ export class City {
     this.lampPools.material.color.setRGB(n * 0.34, n * 0.26, n * 0.15);
     // electrical flicker from the energy weapon
     let any = false;
-    const col = new THREE.Color();
+    const col = _c;
     for (const l of this.lamps) {
       if (l.flick <= 0) continue;
       l.flick -= dt; any = true;

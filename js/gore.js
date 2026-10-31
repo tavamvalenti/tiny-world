@@ -36,16 +36,19 @@ export class Gore {
   }
 
   // ---- ground decals, painted into the terrain texture ----
-  paint(fn) {
-    const g = G.ground; if (!g) return;
+  // (x, z, r): where it lands, so only that bit of the ground is sent to the GPU again (and, on a map with several
+  // ground patches, it's painted into the one it lands on)
+  paint(fn, x, z, r) {
+    const G0 = G.ground; if (!G0) return;
+    const g = G0.at ? G0.at(x, z) : G0;
     const X = g.x; X.save(); fn(X, g); X.restore();
-    if (g.dirtyT < 0) g.dirtyT = 0.3;
+    if (G0.touch) G0.touch(x, z, r); else if (g.dirtyT < 0) g.dirtyT = 0.3;
   }
   // spatter: a dense core, satellite drops and elongated streaks thrown along the blast/shot direction
   splat(x, z, size = 0.3, dx = 0, dz = 0) {
     if (!this.on) return;
     this.paint((X, g) => {
-      const k = g.k, cx = g.px(x), cz = g.px(z);
+      const k = g.k, cx = g.px(x), cz = g.pz(z);
       X.fillStyle = `rgba(74,4,4,${rand(0.55, 0.75)})`;
       for (let i = 0; i < 5; i++) { X.beginPath(); X.ellipse(cx + rand(-0.4, 0.4) * size * k, cz + rand(-0.4, 0.4) * size * k, rand(0.25, 0.55) * size * k, rand(0.2, 0.45) * size * k, rand(0, 3), 0, 6.283); X.fill(); }
       const ang = Math.atan2(dz, dx), dir = Math.hypot(dx, dz) > 0.1;
@@ -55,7 +58,7 @@ export class Gore {
         X.fillStyle = `rgba(${rand(60, 90) | 0},4,4,${rand(0.5, 0.85)})`;
         X.beginPath(); X.ellipse(px, pz, s * (dir ? 2.2 : 1), s, a, 0, 6.283); X.fill();
       }
-    });
+    }, x, z, size * 2.6 + 0.2);
   }
   // a pool that spreads under a body over several seconds and darkens as it goes
   pool(x, z, r = 0.32, dur = 7) {
@@ -120,12 +123,12 @@ export class Gore {
         p.drawn = e;
         this.paint((X, g) => {
           for (const [ox, oz, s, a] of p.lobes) {
-            const R = p.r * e * s * g.k, cx = g.px(p.x + ox * p.r * e), cz = g.px(p.z + oz * p.r * e);
+            const R = p.r * e * s * g.k, cx = g.px(p.x + ox * p.r * e), cz = g.pz(p.z + oz * p.r * e);
             const gr = X.createRadialGradient(cx, cz, 0, cx, cz, R);
             gr.addColorStop(0, 'rgba(52,2,2,0.5)'); gr.addColorStop(0.75, 'rgba(66,3,3,0.42)'); gr.addColorStop(1, 'rgba(66,3,3,0)');
             X.fillStyle = gr; X.beginPath(); X.ellipse(cx, cz, R, R * 0.8, a, 0, 6.283); X.fill();
           }
-        });
+        }, p.x, p.z, p.r * 1.6);
       }
       if (k >= 1) this.pools.splice(this.pools.indexOf(p), 1);
     }

@@ -47,7 +47,7 @@ export function setupChat(progress, { menu, below, busy = () => false }) {
   document.body.append(modal, mini, btn);
   const bub = document.createElement('div'); bub.id = 'menuChat'; bub.innerHTML = '<span style="font-size:20px">💬</span><div><b>WORLD CHAT</b><small>Talk to everyone playing</small></div>';
   menu.appendChild(bub);
-  const place = () => { const a = below(); if (a) bub.style.top = `${a.offsetTop + a.offsetHeight + 10}px`; };
+  const place = () => { if (menu.style.display === 'none') return; const a = below(); if (a) bub.style.top = `${a.offsetTop + a.offsetHeight + 10}px`; };   // (not while a map plays: it forces a layout)
   setInterval(place, 200); place();
 
   const render = () => {

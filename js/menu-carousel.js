@@ -52,6 +52,6 @@ export function setupMenuCarousel(progress, { menu, profile, players, invite, fr
   tr.addEventListener('scroll', () => { const i = Math.round(tr.scrollLeft / Math.max(1, tr.clientWidth)); if (i !== idx && Date.now() - touched < 1500) idx = i; dots.forEach((d, j) => d.classList.toggle('on', j === Math.round(tr.scrollLeft / Math.max(1, tr.clientWidth)))); }, { passive: true });
   tr.addEventListener('touchstart', () => { touched = Date.now(); }, { passive: true });
   dots[0].classList.add('on'); fill();
-  setInterval(fill, 1500);
+  setInterval(() => { if (menu.style.display !== 'none') fill(); }, 1500);
   setInterval(() => { if (Date.now() - touched > 8000 && car.offsetParent) show(idx + 1); }, 4000);
 }

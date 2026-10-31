@@ -18,6 +18,7 @@ import { carGeos } from './agents.js';
 import { busGeos } from './harbor.js';
 import { Freeway } from './ncfreeway.js';
 import { Places } from './ncplaces.js';
+import { Heroes } from './nclandmarks.js';
 import { Rail } from './ncrail.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
@@ -142,6 +143,7 @@ export class NorthCounty {
     this.rail = new Rail(scene, this.N);                                // the Coaster, the Sprinter, their stations and crossings (js/ncrail.js)
     this.fw = new Freeway(scene); this.lit.push(...this.fw.lit);       // I-5, its ramps and its traffic (js/ncfreeway.js)
     this.places = new Places(scene, this.N);                            // Pine Avenue Park, Hibiscus Circle, El Camino Grove
+    this.heroes = new Heroes(scene, this.N);                            // Carlsbad High, the Inn, the Academy, the museums (js/nclandmarks.js)
     this.title = '';
   }
 
@@ -362,7 +364,7 @@ export class NorthCounty {
     const C = this.N.civicB;
     if (C) plane(scene, label('CITY OF OCEANSIDE', '#f4efe4', '#3a5a3a', 512, 80, '700 40px Georgia, serif'), 3.6, 0.5, this.N.civic.x, 1.7, this.N.civic.z + this.N.civic.d / 2 + 0.07, 0);
     const H = this.N.chsB;
-    if (H) plane(scene, label('CARLSBAD HIGH SCHOOL', '#1b2a52', '#f2c94c', 768, 80, '800 40px Inter, Arial'), 5, 0.5, this.N.chs.x, 1.8, this.N.chs.z + this.N.chs.d / 2 + 0.07, 0);
+    if (H) plane(scene, label('CARLSBAD HIGH SCHOOL', '#4a2a8a', '#ffffff', 768, 80, '800 40px Inter, Arial'), 5, 0.5, this.N.chs.x, 1.8, this.N.chs.z + this.N.chs.d / 2 + 0.07, 0);
   }
 
   // ---------- the harbor: docks, slips and moored boats, the jetties ----------
@@ -426,7 +428,7 @@ export class NorthCounty {
     this.water.timeU.value = G.time;
     this.rail.update(dt);
     if (this.fw) this.fw.update(dt);
-    this.places.update(dt);
+    this.places.update(dt); this.heroes.update(dt);
     const n = G.night || 0;
     for (const l of this.lit) l.mat.emissiveIntensity = n * l.k;
     if (this.flag) this.flag.rotation.y = Math.sin(G.time * 2.2) * 0.25;
@@ -453,7 +455,7 @@ export class NorthCounty {
     const A = this.N.arch; if (A && this.archState.alive && Math.hypot(x - A.x, z - A.z) < reach + A.span / 2 && dmg > 100) this.breakArch();
     this.rail.onBlast(x, z, reach);
     if (this.fw) this.fw.onBlast(x, y, z, reach, dmg);
-    this.places.onBlast(x, z, reach);
+    this.places.onBlast(x, z, reach); this.heroes.onBlast(x, z, reach);
     for (const b of this.buses || []) if (b.alive && Math.hypot(b.m.position.x - x, b.m.position.z - z) < reach + 2) {
       b.alive = false; b.m.scale.y *= 0.6; const burnt = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 }); b.m.traverse((o) => { if (o.isMesh) o.material = burnt; });
       G.fx.explosion(b.m.position.x, 0.6, b.m.position.z, 1, null, 'bomb');

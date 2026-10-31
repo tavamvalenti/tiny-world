@@ -7,6 +7,8 @@
 // It has its own small renderer, which is stopped and disposed as soon as the game starts.
 import * as THREE from 'three';
 import { viewH } from './core.js';
+// a map is playing: startMap() hides the menu, and the way back to it is a page reload
+const inGame = () => { const m = document.getElementById('menu'); return !!m && m.style.display === 'none'; };
 
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -116,6 +118,7 @@ function miniEarth(host) {
   let last = performance.now();
   (function frame(t) {
     const dt = Math.min(0.05, (t - last) / 1000); last = t;
+    if (inGame()) return;                                          // a map is playing (back to the menu is a reload): stop for good
     requestAnimationFrame(frame);
     if (!host.isConnected || host.offsetParent === null) return;   // the menu is gone or hidden: nothing to draw
     size();
@@ -226,6 +229,7 @@ function starfield(menu, after) {
   };
   let last = 0;
   (function frame(t) {
+    if (inGame()) return;                                          // stop for good (no style recalcs during play)
     requestAnimationFrame(frame);
     if (t - last < (meteors.length ? 0 : 50) || !cv.isConnected || getComputedStyle(menu).display === 'none') return;
     const dt = Math.min(0.1, (t - last) / 1000);

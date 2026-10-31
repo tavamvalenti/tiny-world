@@ -111,7 +111,7 @@ export function setupFriendsBubble(progress, { menu, below }) {
   menu.appendChild(bub);
   bub.addEventListener('click', (e) => { e.stopPropagation(); openFriends(progress); });
   bub.addEventListener('pointerdown', (e) => e.stopPropagation());
-  const place = () => { const a = below(); if (a) bub.style.top = `${a.offsetTop + a.offsetHeight + 10}px`; };
+  const place = () => { if (menu.style.display === 'none') return; const a = below(); if (a) bub.style.top = `${a.offsetTop + a.offsetHeight + 10}px`; };   // (not while a map plays: it forces a layout)
   setInterval(place, 200); place();
   const poll = async () => {
     const r = await rpc(progress, 'friend_list', {}); if (!r || !r.ok) return;
